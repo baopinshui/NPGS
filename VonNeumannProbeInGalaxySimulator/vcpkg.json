@@ -1,0 +1,18 @@
+{
+  "name": "npgs",
+  "version": "1.0.0",
+  "description": "Von-Neumann Probe in Galaxy Simulator",
+  "dependencies": [
+    "assimp",
+    "boost-multiprecision",
+    "fast-cpp-csv-parser",
+    "freetype",
+    "magic-enum",
+    "glfw3",
+    "gli",
+    "glm",
+    "spdlog",
+    "stb"
+  ],
+  "builtin-baseline": "96dbba1e03d1ecc7c7096e97d5a09ff3c58e21df"
+}

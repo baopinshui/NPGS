@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{e762c31b-f438-43b2-ab99-ac3f0dacc2c3}</ProjectGuid>
+    <RootNamespace>VonNeumannProbeInGalaxySimulator</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(ProjectDir)Sources;$(IncludePath)</IncludePath>
+    <ExternalIncludePath>$(VULKAN_SDK)\Include;$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>$(VULKAN_SDK)\Lib;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(ProjectDir)Sources;$(IncludePath)</IncludePath>
+    <ExternalIncludePath>$(VULKAN_SDK)\Include;$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>$(VULKAN_SDK)\Lib;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Vcpkg">
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/FI "stdafx.h" /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/FI "stdafx.h" /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>true</Profile>
+      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\AssetManager.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\GetAssetFullPath.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Threads\ThreadPool.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\Generators\CivilizationGenerator.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\Generators\OrbitalGenerator.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\Generators\StellarGenerator.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\Spatial\Camera.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\CelestialObject.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\Planet.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\Star.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\StellarSystem.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Entries\NpgsObject.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Properties\Intelli\Artifact.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Properties\Intelli\Civilization.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Types\Properties\StellarClass.cpp" />
+    <ClCompile Include="Sources\Engine\Utils\Logger.cpp" />
+    <ClCompile Include="Sources\Engine\Utils\Utils.cpp" />
+    <ClCompile Include="Sources\Program\Application.cpp" />
+    <ClCompile Include="Sources\Program\main.cpp" />
+    <ClCompile Include="Sources\Program\Universe.cpp" />
+    <ClCompile Include="Sources\stdafx.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Sources\Engine\Core\Base\Assert.h" />
+    <ClInclude Include="Sources\Engine\Core\Base\Base.h" />
+    <ClInclude Include="Sources\Engine\Core\Math\NumericConstants.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\AssetManager.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\CommaSeparatedValues.hpp" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\GetAssetFullPath.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Threads\ThreadPool.h" />
+    <ClInclude Include="Sources\Engine\Core\System\Generators\CivilizationGenerator.h" />
+    <ClInclude Include="Sources\Engine\Core\System\Generators\OrbitalGenerator.h" />
+    <ClInclude Include="Sources\Engine\Core\System\Generators\StellarGenerator.h" />
+    <ClInclude Include="Sources\Engine\Core\System\Spatial\Camera.h" />
+    <ClInclude Include="Sources\Engine\Core\System\Spatial\Octree.hpp" />
+    <ClInclude Include="Sources\Engine\Core\Types\Entries\Astro\CelestialObject.h" />
+    <ClInclude Include="Sources\Engine\Core\Types\Entries\Astro\Planet.h" />
+    <ClInclude Include="Sources\Engine\Core\Types\Entries\Astro\Star.h" />
+    <ClInclude Include="Sources\Engine\Core\Types\Entries\Astro\StellarSystem.h" />
+    <ClInclude Include="Sources\Engine\Core\Types\Entries\NpgsObject.h" />
+    <ClInclude Include="Sources\Engine\Core\Types\Properties\Intelli\Artifact.h" />
+    <ClInclude Include="Sources\Engine\Core\Types\Properties\Intelli\Civilization.h" />
+    <ClInclude Include="Sources\Engine\Core\Types\Properties\StellarClass.h" />
+    <ClInclude Include="Sources\Engine\Utils\Logger.h" />
+    <ClInclude Include="Sources\Engine\Utils\Random.hpp" />
+    <ClInclude Include="Sources\Engine\Utils\Utils.h" />
+    <ClInclude Include="Sources\Program\Application.h" />
+    <ClInclude Include="Sources\Program\Npgs.h" />
+    <ClInclude Include="Sources\Program\Universe.h" />
+    <ClInclude Include="Sources\stdafx.h" />
+    <ClInclude Include="Sources\xstdafx.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Sources\Engine\Core\Runtime\AssetLoaders\AssetManager.inl" />
+    <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Threads\ThreadPool.inl" />
+    <None Include="Sources\Engine\Core\System\Generators\StellarGenerator.inl" />
+    <None Include="Sources\Engine\Core\System\Spatial\Camera.inl" />
+    <None Include="Sources\Engine\Core\Types\Entries\Astro\CelestialObject.inl" />
+    <None Include="Sources\Engine\Core\Types\Entries\Astro\Planet.inl" />
+    <None Include="Sources\Engine\Core\Types\Entries\Astro\Star.inl" />
+    <None Include="Sources\Engine\Core\Types\Entries\Astro\StellarSystem.inl" />
+    <None Include="Sources\Engine\Core\Types\Properties\Intelli\Civilization.inl" />
+    <None Include="Sources\Engine\Core\Types\Properties\StellarClass.inl" />
+    <None Include="Sources\Engine\Utils\Logger.inl" />
+    <None Include="Sources\Engine\Utils\Utils.inl" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
