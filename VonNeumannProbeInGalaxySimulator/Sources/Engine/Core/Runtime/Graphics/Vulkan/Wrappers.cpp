@@ -1299,6 +1299,36 @@ vk::Result FVulkanRenderPass::CreateRenderPass(const vk::RenderPassCreateInfo& C
     return vk::Result::eSuccess;
 }
 
+// Wrapper for vk::Sampler
+// -----------------------
+FVulkanSampler::FVulkanSampler(const vk::SamplerCreateInfo& CreateInfo)
+    : FVulkanSampler(FVulkanCore::GetClassInstance()->GetDevice(), CreateInfo)
+{
+}
+
+FVulkanSampler::FVulkanSampler(vk::Device Device, const vk::SamplerCreateInfo& CreateInfo)
+    : Base(Device)
+{
+    _ReleaseInfo = "Sampler destroyed successfully.";
+    _Status      = CreateSampler(CreateInfo);
+}
+
+vk::Result FVulkanSampler::CreateSampler(const vk::SamplerCreateInfo& CreateInfo)
+{
+    try
+    {
+        _Handle = _Device.createSampler(CreateInfo);
+    }
+    catch (const vk::SystemError& e)
+    {
+        NpgsCoreError("Failed to create sampler: {}", e.what());
+        return static_cast<vk::Result>(e.code().value());
+    }
+
+    NpgsCoreInfo("Sampler created successfully.");
+    return vk::Result::eSuccess;
+}
+
 // Wrapper for vk::Semaphore
 // -------------------------
 FVulkanSemaphore::FVulkanSemaphore(const vk::SemaphoreCreateInfo& CreateInfo)

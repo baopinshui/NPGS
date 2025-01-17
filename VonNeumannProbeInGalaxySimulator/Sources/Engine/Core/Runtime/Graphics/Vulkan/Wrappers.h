@@ -59,6 +59,25 @@ private:
     void UpdateAllInfoData();
 };
 
+struct FImageMemoryBarrierParameterPack
+{
+    const vk::PipelineStageFlags kPipelineStageFlags{ vk::PipelineStageFlagBits::eNone };
+    const vk::AccessFlags        kAccessFlags{ vk::AccessFlagBits::eNone };
+    const vk::ImageLayout        kImageLayout{ vk::ImageLayout::eUndefined };
+    const bool                   kbEnable{ false };
+
+    constexpr FImageMemoryBarrierParameterPack() noexcept = default;
+    constexpr FImageMemoryBarrierParameterPack(vk::PipelineStageFlags PipelineStageFlags, vk::AccessFlags AccessFlags, vk::ImageLayout ImageLayout) noexcept
+        : kPipelineStageFlags(PipelineStageFlags), kAccessFlags(AccessFlags), kImageLayout(ImageLayout), kbEnable(true)
+    {
+    }
+
+    constexpr FImageMemoryBarrierParameterPack(vk::PipelineStageFlagBits PipelineStageFlags, vk::AccessFlagBits AccessFlags, vk::ImageLayout ImageLayout) noexcept
+        : kPipelineStageFlags(PipelineStageFlags), kAccessFlags(AccessFlags), kImageLayout(ImageLayout), kbEnable(true)
+    {
+    }
+};
+
 struct FFormatInfo
 {
     enum class ERawDataType : std::uint8_t
@@ -309,12 +328,12 @@ class TVulkanHandleNoDestroy
 {
 public:
     TVulkanHandleNoDestroy() = default;
-    TVulkanHandleNoDestroy(HandleType Handle, vk::Result Status = vk::Result::eSuccess)
-        :
-        _Handle(Handle),
-        _Status(Status)
-    {
-    }
+    // TVulkanHandleNoDestroy(HandleType Handle, vk::Result Status = vk::Result::eSuccess)
+    //     :
+    //     _Handle(Handle),
+    //     _Status(Status)
+    // {
+    // }
 
     TVulkanHandleNoDestroy(const TVulkanHandleNoDestroy&) = default;
     TVulkanHandleNoDestroy(TVulkanHandleNoDestroy&& Other) noexcept
@@ -338,12 +357,12 @@ public:
         return *this;
     }
 
-    TVulkanHandleNoDestroy& operator=(HandleType Handle)
-    {
-        _Handle = Handle;
-        _Status = vk::Result::eSuccess;
-        return *this;
-    }
+    // TVulkanHandleNoDestroy& operator=(HandleType Handle)
+    // {
+    //     _Handle = Handle;
+    //     _Status = vk::Result::eSuccess;
+    //     return *this;
+    // }
 
     HandleType* operator->()
     {
@@ -394,12 +413,12 @@ public:
     using Base::Base;
 
     TVulkanHandle() = delete;
-    TVulkanHandle(HandleType Handle, const std::string& ReleaseInfo)
-        :
-        Base(Handle),
-        _Device(FVulkanCore::GetClassInstance()->GetDevice())
-    {
-    }
+    // TVulkanHandle(HandleType Handle, const std::string& ReleaseInfo)
+    //     :
+    //     Base(Handle),
+    //     _Device(FVulkanCore::GetClassInstance()->GetDevice())
+    // {
+    // }
 
     TVulkanHandle(vk::Device Device)
         : _Device(Device)
@@ -816,6 +835,21 @@ private:
     vk::Result CreateRenderPass(const vk::RenderPassCreateInfo& CreateInfo);
 };
 
+// Wrapper for vk::Sampler
+// -----------------------
+class FVulkanSampler : public TVulkanHandle<vk::Sampler>
+{
+public:
+    using Base = TVulkanHandle<vk::Sampler>;
+    using Base::Base;
+
+    FVulkanSampler(const vk::SamplerCreateInfo& CreateInfo);
+    FVulkanSampler(vk::Device Device, const vk::SamplerCreateInfo& CreateInfo);
+
+private:
+    vk::Result CreateSampler(const vk::SamplerCreateInfo& CreateInfo);
+};
+
 // Wrapper for vk::Semaphore
 // -------------------------
 class FVulkanSemaphore : public TVulkanHandle<vk::Semaphore>
@@ -876,7 +910,7 @@ public:
     {
     }
 
-    ~TVulkanResourceMemory() = default;
+    virtual ~TVulkanResourceMemory() = default;
 
     TVulkanResourceMemory& operator=(const TVulkanResourceMemory&) = default;
     TVulkanResourceMemory& operator=(TVulkanResourceMemory&& Other) noexcept

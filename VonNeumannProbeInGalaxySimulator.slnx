@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="VonNeumannProbeInGalaxySimulator/VonNeumannProbeInGalaxySimulator.vcxproj" />
+  <Project Path="VonNeumannProbeInGalaxySimulator/VonNeumannProbeInGalaxySimulator.vcxproj" Id="e762c31b-f438-43b2-ab99-ac3f0dacc2c3" />
 </Solution>

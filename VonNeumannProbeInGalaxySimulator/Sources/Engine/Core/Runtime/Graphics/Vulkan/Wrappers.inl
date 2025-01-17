@@ -1,6 +1,5 @@
 #include "Wrappers.h"
 
-#include <span>
 #include <type_traits>
 
 #include "Engine/Core/Base/Assert.h"
@@ -40,8 +39,7 @@ NPGS_INLINE vk::Result FVulkanDeviceMemory::FetchData(ContainerType& Data) const
 
     Data.reserve(_AllocationSize / sizeof(ValueType));
     Data.resize(_AllocationSize / sizeof(ValueType));
-    std::span<ValueType> DataSpan(Data.data(), Data.size());
-    return FetchData(0, _AllocationSize, static_cast<void*>(DataSpan.data()));
+    return FetchData(0, _AllocationSize, static_cast<void*>(Data.data()));
 }
 
 NPGS_INLINE const void* FVulkanDeviceMemory::GetMappedDataMemory() const

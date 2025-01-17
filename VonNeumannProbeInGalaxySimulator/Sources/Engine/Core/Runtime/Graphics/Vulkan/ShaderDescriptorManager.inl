@@ -1,5 +1,3 @@
-#pragma once
-
 #include "ShaderDescriptorManager.h"
 
 _NPGS_BEGIN

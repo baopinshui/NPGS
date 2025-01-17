@@ -48,7 +48,7 @@ NPGS_INLINE void FStagingBuffer::SubmitBufferData(vk::DeviceSize Size, const voi
     _BufferMemory->SubmitBufferData(0, Size, Data);
 }
 
-NPGS_INLINE void FStagingBuffer::FetchBufferData(vk::DeviceSize Size, void* Target)
+NPGS_INLINE void FStagingBuffer::FetchBufferData(vk::DeviceSize Size, void* Target) const
 {
     _BufferMemory->FetchBufferData(0, Size, Target);
 }

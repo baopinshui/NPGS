@@ -125,9 +125,9 @@ NPGS_INLINE vk::Result FVulkanContext::RecreateSwapchain()
 }
 
 NPGS_INLINE vk::Result
-FVulkanContext::ExecuteGraphicsCommand(const FVulkanCommandBuffer& CommandBuffer) const
+FVulkanContext::ExecuteGraphicsCommands(const FVulkanCommandBuffer& CommandBuffer) const
 {
-    return ExecuteGraphicsCommand(*CommandBuffer);
+    return ExecuteGraphicsCommands(*CommandBuffer);
 }
 
 NPGS_INLINE vk::Result
@@ -364,16 +364,16 @@ NPGS_INLINE const FVulkanCommandPool& FVulkanContext::GetComputeCommandPool() co
     return *_ComputeCommandPool;
 }
 
-NPGS_INLINE const vk::FormatProperties& FVulkanContext::GetFormatProperties(vk::Format Format) const
-{
-    auto Index = magic_enum::enum_index(Format);
-    if (!Index.has_value())
-    {
-        return _FormatProperties[0]; // vk::Format::eUndefined
-    }
-
-    return _FormatProperties[Index.value()];
-}
+// NPGS_INLINE const vk::FormatProperties& FVulkanContext::GetFormatProperties(vk::Format Format) const
+// {
+//     auto Index = magic_enum::enum_index(Format);
+//     if (!Index.has_value())
+//     {
+//         return _FormatProperties[0]; // vk::Format::eUndefined
+//     }
+// 
+//     return _FormatProperties[Index.value()];
+// }
 
 NPGS_INLINE std::uint32_t FVulkanContext::GetApiVersion() const
 {

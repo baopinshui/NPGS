@@ -58,8 +58,8 @@ public:
     vk::Result CreateSwapchain(vk::Extent2D Extent, bool bLimitFps = true, vk::SwapchainCreateFlagsKHR Flags = {});
     vk::Result RecreateSwapchain();
 
-    vk::Result ExecuteGraphicsCommand(vk::CommandBuffer CommandBuffer) const;
-    vk::Result ExecuteGraphicsCommand(const FVulkanCommandBuffer& CommandBuffer) const;
+    vk::Result ExecuteGraphicsCommands(vk::CommandBuffer CommandBuffer) const;
+    vk::Result ExecuteGraphicsCommands(const FVulkanCommandBuffer& CommandBuffer) const;
     vk::Result SubmitCommandBufferToGraphics(const vk::SubmitInfo& SubmitInfo,   vk::Fence Fence           = {}) const;
     vk::Result SubmitCommandBufferToGraphics(const vk::SubmitInfo& SubmitInfo,   const FVulkanFence* Fence = nullptr) const;
     vk::Result SubmitCommandBufferToGraphics(vk::CommandBuffer Buffer,           vk::Fence Fence           = {}) const;
@@ -149,7 +149,7 @@ public:
     const FVulkanCommandPool& GetPresentCommandPool() const;
     const FVulkanCommandPool& GetComputeCommandPool() const;
 
-    const vk::FormatProperties& GetFormatProperties(vk::Format Format) const;
+    // const vk::FormatProperties& GetFormatProperties(vk::Format Format) const;
 
     std::uint32_t GetApiVersion() const;
 

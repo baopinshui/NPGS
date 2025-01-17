@@ -33,8 +33,11 @@ FStagingBuffer::FStagingBuffer(vk::Device Device, const vk::PhysicalDeviceProper
     Expand(Size);
 }
 
-FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::FormatProperties FormatProperties, vk::Format Format, vk::Extent2D Extent)
+FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format Format, vk::Extent2D Extent)
 {
+    vk::PhysicalDevice   PhysicalDevice   = FVulkanCore::GetClassInstance()->GetPhysicalDevice();
+    vk::FormatProperties FormatProperties = PhysicalDevice.getFormatProperties(Format);
+
     if (!(FormatProperties.linearTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc))
     {
         return nullptr;
@@ -46,7 +49,6 @@ FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::FormatProperties FormatProp
         return nullptr;
     }
 
-    vk::PhysicalDevice PhysicalDevice = FVulkanCore::GetClassInstance()->GetPhysicalDevice();
     vk::ImageFormatProperties ImageFormatProperties =
         PhysicalDevice.getImageFormatProperties(Format, vk::ImageType::e2D, vk::ImageTiling::eLinear,
                                                 vk::ImageUsageFlagBits::eTransferSrc);
@@ -157,7 +159,7 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize Offset, vk::DeviceSize Size, co
     TransferCommandBuffer.End();
     _StagingBufferPool->ReleaseBuffer(StagingBuffer);
 
-    VulkanContext->ExecuteGraphicsCommand(TransferCommandBuffer);
+    VulkanContext->ExecuteGraphicsCommands(TransferCommandBuffer);
 }
 
 void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementCount, vk::DeviceSize ElementSize, vk::DeviceSize SrcStride,
@@ -204,7 +206,7 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementCount, vk::DeviceSize El
     TransferCommandBuffer.End();
     _StagingBufferPool->ReleaseBuffer(StagingBuffer);
 
-    VulkanContext->ExecuteGraphicsCommand(TransferCommandBuffer);
+    VulkanContext->ExecuteGraphicsCommands(TransferCommandBuffer);
 }
 
 vk::Result FDeviceLocalBuffer::CreateBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage)

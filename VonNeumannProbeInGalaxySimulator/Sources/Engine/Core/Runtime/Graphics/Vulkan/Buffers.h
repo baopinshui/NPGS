@@ -29,10 +29,10 @@ public:
     void* MapMemory(vk::DeviceSize Size);
     void UnmapMemory();
     void SubmitBufferData(vk::DeviceSize Size, const void* Data);
-    void FetchBufferData(vk::DeviceSize Size, void* Target);
+    void FetchBufferData(vk::DeviceSize Size, void* Target) const;
     void Release();
 
-    FVulkanImage* CreateAliasedImage(vk::FormatProperties FormatProperties, vk::Format Format, vk::Extent2D Extent);
+    FVulkanImage* CreateAliasedImage(vk::Format Format, vk::Extent2D Extent);
 
     FVulkanBuffer& GetBuffer();
     const FVulkanBuffer& GetBuffer() const;

@@ -171,13 +171,26 @@ void FApplication::ExecuteMainRender()
 
     // Create pipeline layout
     // ----------------------
+    Art::FTexture2D Texture("AwesomeFace.png", vk::Format::eR8G8B8A8Srgb, vk::Format::eR8G8B8A8Unorm, true);
+    vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateSamplerCreateInfo();
+    Grt::FVulkanSampler Sampler(SamplerCreateInfo);
+
     vk::DescriptorSetLayoutBinding DescriptorSetLayoutBinding = vk::DescriptorSetLayoutBinding()
         .setBinding(0)
         .setDescriptorType(vk::DescriptorType::eUniformBufferDynamic)
         .setDescriptorCount(1)
         .setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
-    vk::DescriptorSetLayoutCreateInfo DescriptorSetLayoutCreateInfo({}, DescriptorSetLayoutBinding);
+    vk::DescriptorSetLayoutBinding TextureDescriptorSetLayoutBinding = vk::DescriptorSetLayoutBinding()
+        .setBinding(1)
+        .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+        .setDescriptorCount(1)
+        .setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+    std::vector<vk::DescriptorSetLayoutBinding> Bindings{ DescriptorSetLayoutBinding, TextureDescriptorSetLayoutBinding };
+
+    vk::DescriptorSetLayoutCreateInfo DescriptorSetLayoutCreateInfo({}, Bindings);
+    //vk::DescriptorSetLayoutCreateInfo DescriptorSetLayoutCreateInfo({}, DescriptorSetLayoutBinding);
 
     std::vector<Grt::FVulkanDescriptorSetLayout> DescriptorSetLayouts;
     for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
@@ -194,7 +207,6 @@ void FApplication::ExecuteMainRender()
     // vk::PushConstantRange PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, 24);
 
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
-
     PipelineLayoutCreateInfo.setSetLayouts(Temp);
     // PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRange);
 
@@ -221,7 +233,12 @@ void FApplication::ExecuteMainRender()
 
     std::vector<Grt::FVulkanDescriptorSet> DescriptorSets(kFramesInFlightCount);
 
-    std::vector<vk::DescriptorPoolSize> Sizes{ { vk::DescriptorType::eUniformBufferDynamic, kFramesInFlightCount } };
+    std::vector<vk::DescriptorPoolSize> Sizes
+    {
+        { vk::DescriptorType::eUniformBufferDynamic, kFramesInFlightCount },
+        { vk::DescriptorType::eCombinedImageSampler, kFramesInFlightCount }
+    };
+
     Grt::FVulkanDescriptorPool DescriptorPool(kFramesInFlightCount, Sizes);
     DescriptorPool.AllocateSets(DescriptorSetLayouts, DescriptorSets);
 
@@ -229,14 +246,17 @@ void FApplication::ExecuteMainRender()
     {
         vk::DescriptorBufferInfo BufferInfo(*UniformBuffers[i].GetBuffer(), 0, sizeof(glm::vec2));
         DescriptorSets[i].Write({ BufferInfo }, vk::DescriptorType::eUniformBufferDynamic, 0);
+
+        vk::DescriptorImageInfo ImageInfo(*Sampler, *Texture.GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+        DescriptorSets[i].Write({ ImageInfo }, vk::DescriptorType::eCombinedImageSampler, 1);
     }
 
     std::vector<FVertex> Vertices
     {
-        { { -0.5f, -0.5f }, { 1.0f, 1.0f, 0.0f, 1.0f } },
-        { {  0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-        { { -0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-        { {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+        { { -0.5f, -0.5f }, { 1.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+        { {  0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+        { {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
     };
 
     std::vector<std::uint16_t> Indices
@@ -275,6 +295,7 @@ void FApplication::ExecuteMainRender()
         // CreateInfoPack.VertexInputBindings.emplace_back(1, static_cast<std::uint32_t>(sizeof(glm::vec2)), vk::VertexInputRate::eInstance);
         CreateInfoPack.VertexInputAttributes.emplace_back(0, 0, vk::Format::eR32G32Sfloat, 0);
         CreateInfoPack.VertexInputAttributes.emplace_back(1, 0, vk::Format::eR32G32B32A32Sfloat, static_cast<std::uint32_t>(offsetof(FVertex, Color)));
+        CreateInfoPack.VertexInputAttributes.emplace_back(2, 0, vk::Format::eR32G32Sfloat, static_cast<std::uint32_t>(offsetof(FVertex, TexCoord)));
         // CreateInfoPack.VertexInputAttributes.emplace_back(2, 1, vk::Format::eR32G32Sfloat, 0);
 
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
@@ -337,9 +358,6 @@ void FApplication::ExecuteMainRender()
     vk::ClearValue ColorValue({ 0.0f, 0.0f, 0.0f, 1.0f });
     vk::DeviceSize Offset       = 0;
     std::uint32_t  CurrentFrame = 0;
-
-    BootScreen("AwesomeFace.png", vk::Format::eR8G8B8A8Unorm);
-    //Sleep(100000);
 
     while (!glfwWindowShouldClose(_Window))
     {
@@ -469,111 +487,6 @@ bool FApplication::InitializeWindow()
     }
 
     return true;
-}
-
-void FApplication::BootScreen(const std::string& Filename, vk::Format ImageFormat)
-{
-    vk::Extent2D ImageExtent;
-    Art::FTextureBase Splash(Filename, Grt::GetFormatInfo(ImageFormat));
-
-    auto* StagingBufferPool = Grt::FStagingBufferPool::GetInstance();
-    auto* StagingBuffer = StagingBufferPool->AcquireBuffer(Splash.GetImageData().Data.size());
-
-    const std::byte* ImageData = Splash.GetImageData().Data.data();
-    ImageExtent = Splash.GetImageData().ImageExtent;
-    Grt::FVulkanFence Fence(_VulkanContext->GetDevice());
-    Grt::FVulkanSemaphore Semaphore(_VulkanContext->GetDevice());
-    Grt::FVulkanCommandBuffer CommandBuffer;
-
-    _VulkanContext->GetGraphicsCommandPool().AllocateBuffer(vk::CommandBufferLevel::ePrimary, CommandBuffer);
-    _VulkanContext->SwapImage(Semaphore);
-
-    vk::Extent2D SwapchainExtent = _VulkanContext->GetSwapchainCreateInfo().imageExtent;
-    bool bNeedBlit = ImageExtent != SwapchainExtent || ImageFormat != _VulkanContext->GetSwapchainCreateInfo().imageFormat;
-
-    CommandBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-    Grt::FVulkanImageMemory* ImageMemory = nullptr;
-
-    if (bNeedBlit)
-    {
-        vk::Image Image = **StagingBuffer->CreateAliasedImage(_VulkanContext->GetFormatProperties(ImageFormat), ImageFormat, ImageExtent);
-        if (Image)
-        {
-            vk::ImageMemoryBarrier ImageMemoryBarrier(
-                vk::AccessFlagBits::eNone, vk::AccessFlagBits::eTransferRead,
-                vk::ImageLayout::ePreinitialized, vk::ImageLayout::eTransferSrcOptimal,
-                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, Image,
-                { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }
-            );
-            CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-                                           {}, {}, {}, ImageMemoryBarrier);
-        }
-        else
-        {
-            vk::ImageCreateInfo ImageCreateInfo = vk::ImageCreateInfo()
-                .setFormat(ImageFormat)
-                .setExtent({ ImageExtent.width, ImageExtent.height, 1 })
-                .setMipLevels(1)
-                .setArrayLayers(1)
-                .setSamples(vk::SampleCountFlagBits::e1)
-                .setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst);
-            ImageMemory = new Grt::FVulkanImageMemory(ImageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
-            vk::BufferImageCopy Region(0, 0, 0, { vk::ImageAspectFlagBits::eColor, 0, 0, 1 }, { 0, 0, 0 }, { ImageExtent.width, ImageExtent.height, 1 });
-            ImageMemory->GetResource() = CopyBufferToImage(
-                CommandBuffer, StagingBuffer->GetBuffer(), Region,
-                { vk::PipelineStageFlagBits::eTopOfPipe, vk::AccessFlagBits::eNone, vk::ImageLayout::eUndefined, true },
-                { vk::PipelineStageFlagBits::eTransfer, vk::AccessFlagBits::eTransferRead, vk::ImageLayout::eTransferSrcOptimal, true }
-            );
-            Image = *ImageMemory->GetResource();
-        }
-
-        vk::ImageBlit RegionBlit = vk::ImageBlit()
-            .setSrcSubresource({ vk::ImageAspectFlagBits::eColor, 0, 0, 1 })
-            .setSrcOffsets({ vk::Offset3D(), vk::Offset3D(ImageExtent.width, ImageExtent.height, 1) })
-            .setDstSubresource({ vk::ImageAspectFlagBits::eColor, 0, 0, 1 })
-            .setDstOffsets({ vk::Offset3D(), vk::Offset3D(SwapchainExtent.width, SwapchainExtent.height, 1) });
-        vk::Image BlitResult = BlitImage(
-            CommandBuffer, Image, RegionBlit,
-            { vk::PipelineStageFlagBits::eTransfer, vk::AccessFlagBits::eNone, vk::ImageLayout::eUndefined, true },
-            { vk::PipelineStageFlagBits::eBottomOfPipe, vk::AccessFlagBits::eNone, vk::ImageLayout::ePresentSrcKHR, true },
-            vk::Filter::eLinear
-        );
-
-        _VulkanContext->GetSwapchainImage(_VulkanContext->GetCurrentImageIndex()) = BlitResult;
-    }
-    else
-    {
-        FImageMemoryBarrierPack SrcBarrier
-        {
-            .PipelineStageFlags = vk::PipelineStageFlagBits::eTopOfPipe,
-            .AccessFlags        = vk::AccessFlagBits::eNone,
-            .ImageLayout        = vk::ImageLayout::eUndefined,
-            .bEnable            = true
-        };
-
-        FImageMemoryBarrierPack DstBarrier
-        {
-            .PipelineStageFlags = vk::PipelineStageFlagBits::eBottomOfPipe,
-            .AccessFlags        = vk::AccessFlagBits::eNone,
-            .ImageLayout        = vk::ImageLayout::ePresentSrcKHR,
-            .bEnable            = true
-        };
-
-        vk::BufferImageCopy Region;
-        CopyBufferToImage(CommandBuffer, *StagingBuffer, Region, SrcBarrier, DstBarrier);
-    }
-
-    CommandBuffer.End();
-
-    _VulkanContext->SubmitCommandBufferToGraphics(CommandBuffer, &Semaphore, nullptr, &Fence, vk::PipelineStageFlagBits::eTransfer);
-
-    Fence.WaitAndReset();
-
-    _VulkanContext->PresentImage(vk::Semaphore{});
-    _VulkanContext->GetGraphicsCommandPool().FreeBuffer(CommandBuffer);
-    delete ImageMemory;
-    ImageMemory = nullptr;
 }
 
 void FApplication::ShowTitleFps()

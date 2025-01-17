@@ -115,7 +115,7 @@ void FVulkanContext::RemoveRegisteredCallbacks()
     }
 }
 
-vk::Result FVulkanContext::ExecuteGraphicsCommand(vk::CommandBuffer CommandBuffer) const
+vk::Result FVulkanContext::ExecuteGraphicsCommands(vk::CommandBuffer CommandBuffer) const
 {
     FVulkanFence Fence(_VulkanCore->GetDevice());
     vk::Result Result;

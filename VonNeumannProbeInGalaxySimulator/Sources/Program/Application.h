@@ -31,6 +31,7 @@ private:
     {
         glm::vec2 Position;
         glm::vec4 Color;
+        glm::vec2 TexCoord;
     };
 
 public:
@@ -42,7 +43,6 @@ public:
 
 private:
     bool InitializeWindow();
-    void BootScreen(const std::string& Filename, vk::Format ImageFormat);
     void ShowTitleFps();
     void ProcessInput();
 
