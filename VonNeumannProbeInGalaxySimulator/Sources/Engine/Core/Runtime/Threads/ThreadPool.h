@@ -31,7 +31,7 @@ public:
     static FThreadPool* GetInstance();
 
 private:
-    explicit FThreadPool();
+    FThreadPool();
     FThreadPool(const FThreadPool&) = delete;
     FThreadPool(FThreadPool&&)      = delete;
     ~FThreadPool();

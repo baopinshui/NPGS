@@ -171,8 +171,8 @@ void FApplication::ExecuteMainRender()
 
     // Create pipeline layout
     // ----------------------
-    Art::FTexture2D Texture("AwesomeFace.png", vk::Format::eR8G8B8A8Srgb, vk::Format::eR8G8B8A8Unorm, true);
-    vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateSamplerCreateInfo();
+    Art::FTexture2D Texture("AwesomeFace.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
+    vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
     Grt::FVulkanSampler Sampler(SamplerCreateInfo);
 
     vk::DescriptorSetLayoutBinding DescriptorSetLayoutBinding = vk::DescriptorSetLayoutBinding()
@@ -355,7 +355,7 @@ void FApplication::ExecuteMainRender()
 
     _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, CommandBuffers);
 
-    vk::ClearValue ColorValue({ 0.0f, 0.0f, 0.0f, 1.0f });
+    vk::ClearValue ColorValue({ 0.0f, 0.0f, 0.0f, 0.0f });
     vk::DeviceSize Offset       = 0;
     std::uint32_t  CurrentFrame = 0;
 

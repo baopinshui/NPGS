@@ -21,16 +21,23 @@ public:
     FStagingBuffer(vk::Device Device, const vk::PhysicalDeviceProperties& PhysicalDeviceProperties,
                    const vk::PhysicalDeviceMemoryProperties& PhysicalDeviceMemoryProperties, vk::DeviceSize Size);
 
+    FStagingBuffer(const FStagingBuffer&) = delete;
+    FStagingBuffer(FStagingBuffer&& Other) noexcept;
+    ~FStagingBuffer() = default;
+
+    FStagingBuffer& operator=(const FStagingBuffer&) = delete;
+    FStagingBuffer& operator=(FStagingBuffer&& Other) noexcept;
+
     operator FVulkanBuffer& ();
     operator const FVulkanBuffer& () const;
     operator FVulkanDeviceMemory& ();
     operator const FVulkanDeviceMemory& () const;
 
     void* MapMemory(vk::DeviceSize Size);
-    void UnmapMemory();
-    void SubmitBufferData(vk::DeviceSize Size, const void* Data);
-    void FetchBufferData(vk::DeviceSize Size, void* Target) const;
-    void Release();
+    void  UnmapMemory();
+    void  SubmitBufferData(vk::DeviceSize Size, const void* Data);
+    void  FetchBufferData(vk::DeviceSize Size, void* Target) const;
+    void  Release();
 
     FVulkanImage* CreateAliasedImage(vk::Format Format, vk::Extent2D Extent);
 
@@ -81,6 +88,12 @@ class FDeviceLocalBuffer
 public:
     FDeviceLocalBuffer() = delete;
     FDeviceLocalBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage);
+    FDeviceLocalBuffer(const FDeviceLocalBuffer&) = delete;
+    FDeviceLocalBuffer(FDeviceLocalBuffer&& Other) noexcept;
+    ~FDeviceLocalBuffer() = default;
+
+    FDeviceLocalBuffer& operator=(const FDeviceLocalBuffer&) = delete;
+    FDeviceLocalBuffer& operator=(FDeviceLocalBuffer&& Other) noexcept;
 
     operator FVulkanBuffer& ();
     operator const FVulkanBuffer& () const;

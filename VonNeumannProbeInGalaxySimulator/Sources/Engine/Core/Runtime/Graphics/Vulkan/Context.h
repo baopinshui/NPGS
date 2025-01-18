@@ -156,7 +156,7 @@ public:
     static FVulkanContext* GetClassInstance();
 
 private:
-    explicit FVulkanContext();
+    FVulkanContext();
     FVulkanContext(const FVulkanContext&) = delete;
     FVulkanContext(FVulkanContext&&)      = delete;
     ~FVulkanContext();

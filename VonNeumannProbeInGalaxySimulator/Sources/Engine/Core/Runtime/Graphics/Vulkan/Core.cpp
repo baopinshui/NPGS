@@ -362,8 +362,8 @@ vk::Result FVulkanCore::SetSurfaceFormat(const vk::SurfaceFormatKHR& SurfaceForm
         {
             if (AvailableSurfaceFormat.colorSpace == SurfaceFormat.colorSpace)
             {
-                _SwapchainCreateInfo.setImageFormat(AvailableSurfaceFormat.format);
-                _SwapchainCreateInfo.setImageColorSpace(AvailableSurfaceFormat.colorSpace);
+                _SwapchainCreateInfo.setImageFormat(AvailableSurfaceFormat.format)
+                                    .setImageColorSpace(AvailableSurfaceFormat.colorSpace);
                 bFormatAvailable = true;
                 break;
             }
@@ -376,8 +376,8 @@ vk::Result FVulkanCore::SetSurfaceFormat(const vk::SurfaceFormatKHR& SurfaceForm
             if (AvailableSurfaceFormat.format     == SurfaceFormat.format &&
                 AvailableSurfaceFormat.colorSpace == SurfaceFormat.colorSpace)
             {
-                _SwapchainCreateInfo.setImageFormat(AvailableSurfaceFormat.format);
-                _SwapchainCreateInfo.setImageColorSpace(AvailableSurfaceFormat.colorSpace);
+                _SwapchainCreateInfo.setImageFormat(AvailableSurfaceFormat.format)
+                                    .setImageColorSpace(AvailableSurfaceFormat.colorSpace);
                 bFormatAvailable = true;
                 break;
             }
@@ -428,15 +428,16 @@ vk::Result FVulkanCore::CreateSwapchain(vk::Extent2D Extent, bool bLimitFps, vk:
     }
     _SwapchainExtent = SwapchainExtent;
 
-    _SwapchainCreateInfo.setFlags(Flags);
-    _SwapchainCreateInfo.setSurface(_Surface);
-    _SwapchainCreateInfo.setMinImageCount(
-        SurfaceCapabilities.minImageCount + (SurfaceCapabilities.maxImageCount > SurfaceCapabilities.minImageCount));
-    _SwapchainCreateInfo.setImageExtent(SwapchainExtent);
-    _SwapchainCreateInfo.setImageArrayLayers(1);
-    _SwapchainCreateInfo.setImageSharingMode(vk::SharingMode::eExclusive);
-    _SwapchainCreateInfo.setPreTransform(SurfaceCapabilities.currentTransform);
-    _SwapchainCreateInfo.setClipped(vk::True);
+    std::uint32_t MinImageCount =
+        SurfaceCapabilities.minImageCount + (SurfaceCapabilities.maxImageCount > SurfaceCapabilities.minImageCount);
+    _SwapchainCreateInfo.setFlags(Flags)
+                        .setSurface(_Surface)
+                        .setMinImageCount(MinImageCount)
+                        .setImageExtent(SwapchainExtent)
+                        .setImageArrayLayers(1)
+                        .setImageSharingMode(vk::SharingMode::eExclusive)
+                        .setPreTransform(SurfaceCapabilities.currentTransform)
+                        .setClipped(vk::True);
 
     // 设置图像格式
     if (SurfaceCapabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::eInherit) // 优先使用继承模式
@@ -493,8 +494,8 @@ vk::Result FVulkanCore::CreateSwapchain(vk::Extent2D Extent, bool bLimitFps, vk:
         if (SetSurfaceFormat({ vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }) != vk::Result::eSuccess &&
             SetSurfaceFormat({ vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }) != vk::Result::eSuccess)
         {
-            _SwapchainCreateInfo.setImageFormat(_AvailableSurfaceFormats[0].format);
-            _SwapchainCreateInfo.setImageColorSpace(_AvailableSurfaceFormats[0].colorSpace);
+            _SwapchainCreateInfo.setImageFormat(_AvailableSurfaceFormats[0].format)
+                                .setImageColorSpace(_AvailableSurfaceFormats[0].colorSpace);
             NpgsCoreWarn("Failed to select a four-component unsigned normalized surface format.");
         }
     }

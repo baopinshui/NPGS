@@ -21,8 +21,6 @@ FCamera::FCamera(const glm::vec3& Position, const glm::vec3& WorldUp, float Sens
     UpdateVectors();
 }
 
-#pragma warning(push)
-#pragma warning(disable : 4715)
 const glm::vec3& FCamera::GetCameraVector(EVectorType Type) const
 {
     switch (Type)
@@ -37,9 +35,9 @@ const glm::vec3& FCamera::GetCameraVector(EVectorType Type) const
         return _Right;
     default:
         NpgsAssert(false, "Invalid vector type");
+        return _Position;
     }
 }
-#pragma warning(pop)
 
 void FCamera::ProcessKeyboard(EMovement Direction, double DeltaTime)
 {

@@ -405,7 +405,7 @@ protected:
 };
 
 template <typename HandleType, bool bEnableReleaseInfoOutput = true,
-          EVulkanHandleReleaseMethod ReleaseMethod = EVulkanHandleReleaseMethod::kDestroy>
+    EVulkanHandleReleaseMethod ReleaseMethod = EVulkanHandleReleaseMethod::kDestroy>
 class TVulkanHandle : public TVulkanHandleNoDestroy<HandleType>
 {
 public:

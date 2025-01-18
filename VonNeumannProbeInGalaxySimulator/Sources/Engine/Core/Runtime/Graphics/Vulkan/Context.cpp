@@ -244,15 +244,14 @@ FVulkanContext* FVulkanContext::GetClassInstance()
 
 void FVulkanContext::TransferImageOwnershipToPresentImpl(vk::CommandBuffer PresentCommandBuffer) const
 {
-    vk::ImageMemoryBarrier ImageMemoryBarrier = vk::ImageMemoryBarrier()
-        .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-        .setDstAccessMask(vk::AccessFlagBits::eNone)
-        .setOldLayout(vk::ImageLayout::ePresentSrcKHR)
-        .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
-        .setSrcQueueFamilyIndex(_VulkanCore->GetGraphicsQueueFamilyIndex())
-        .setDstQueueFamilyIndex(_VulkanCore->GetPresentQueueFamilyIndex())
-        .setImage(_VulkanCore->GetSwapchainImage(_VulkanCore->GetCurrentImageIndex()))
-        .setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1));
+    vk::ImageMemoryBarrier ImageMemoryBarrier(vk::AccessFlagBits::eColorAttachmentWrite,
+                                              vk::AccessFlagBits::eNone,
+                                              vk::ImageLayout::ePresentSrcKHR,
+                                              vk::ImageLayout::ePresentSrcKHR,
+                                              _VulkanCore->GetGraphicsQueueFamilyIndex(), 
+                                              _VulkanCore->GetPresentQueueFamilyIndex(), 
+                                              _VulkanCore->GetSwapchainImage(_VulkanCore->GetCurrentImageIndex()), 
+                                              vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1));
 
     PresentCommandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
                                          vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, ImageMemoryBarrier);

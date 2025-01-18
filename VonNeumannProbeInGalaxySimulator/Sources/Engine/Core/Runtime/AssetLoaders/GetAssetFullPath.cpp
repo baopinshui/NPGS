@@ -6,8 +6,6 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _ASSET_BEGIN
 
-#pragma warning(push)
-#pragma warning(disable : 4715)
 std::string GetAssetFullPath(EAssetType Type, const std::string& Filename)
 {
     std::string RootFolderName = Type == EAssetType::kBinaryShader ? "" : "Assets/";
@@ -33,12 +31,12 @@ std::string GetAssetFullPath(EAssetType Type, const std::string& Filename)
             return "Textures/";
         default:
             NpgsAssert(false, "Invalid asset type");
+            return "";
         }
     }();
 
     return RootFolderName + AssetFolderName + Filename;
 }
-#pragma warning(pop)
 
 _ASSET_END
 _RUNTIME_END

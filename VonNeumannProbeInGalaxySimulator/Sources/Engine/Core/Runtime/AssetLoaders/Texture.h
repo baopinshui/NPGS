@@ -20,7 +20,7 @@ protected:
     struct FImageData
     {
         std::vector<std::byte> Data;
-        vk::Extent3D ImageExtent{};
+        vk::Extent3D           Extent{};
     };
 
 public:
@@ -31,10 +31,10 @@ public:
     Graphics::FVulkanImageView& GetImageView();
     const Graphics::FVulkanImageView& GetImageView() const;
 
-    static vk::SamplerCreateInfo CreateSamplerCreateInfo();
+    static vk::SamplerCreateInfo CreateDefaultSamplerCreateInfo();
 
 protected:
-    FTextureBase() = default;
+    FTextureBase()          = default;
     virtual ~FTextureBase() = default;
 
     void CreateImageMemory(vk::ImageType ImageType, vk::Format Format, vk::Extent3D Extent, std::uint32_t MipLevels,
@@ -62,17 +62,25 @@ public:
     using Base = FTextureBase;
     using Base::Base;
 
-    FTexture2D(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat, bool bGenerateMipmaps = true);
-    FTexture2D(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat, vk::Format FinalFormat, bool bGenerateMipmaps = true);
+    FTexture2D(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
+               vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
 
-    std::uint32_t GetImageWidth() const;
+    FTexture2D(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat, vk::Format FinalFormat,
+               vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
+
+    std::uint32_t GetImageWidth()  const;
     std::uint32_t GetImageHeight() const;
     vk::Extent2D  GetImageExtent() const;
 
 private:
-    void CreateTexture(const std::string& Filename, vk::Format  InitialFormat, vk::Format FinalFormat, bool bGenreteMipmaps);
-    void CreateTexture(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat, vk::Format FinalFormat, bool bGenerateMipmaps);
-    void CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat, vk::Format FinalFormat, bool bGenerateMipmaps);
+    void CreateTexture(const std::string& Filename, vk::Format  InitialFormat, vk::Format FinalFormat,
+                       vk::ImageCreateFlags Flags, bool bGenreteMipmaps);
+
+    void CreateTexture(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat,
+                       vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
+
+    void CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat,
+                               vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
 
 private:
     Graphics::FStagingBufferPool* _StagingBufferPool;

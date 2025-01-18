@@ -26,10 +26,10 @@ public:
 
 public:
     FCivilizationGenerator() = delete;
-    explicit FCivilizationGenerator(const FCivilizationGenerationInfo& GenerationInfo);
+    FCivilizationGenerator(const FCivilizationGenerationInfo& GenerationInfo);
 
-    explicit FCivilizationGenerator(const std::seed_seq& SeedSequence, float LifeOccurrenceProbability,
-                                    bool bEnableAsiFilter = false, float DestroyedByDisasterProbability = 0.001f);
+    FCivilizationGenerator(const std::seed_seq& SeedSequence, float LifeOccurrenceProbability,
+                           bool bEnableAsiFilter = false, float DestroyedByDisasterProbability = 0.001f);
 
     FCivilizationGenerator(const FCivilizationGenerator&)     = default;
     FCivilizationGenerator(FCivilizationGenerator&&) noexcept = default;

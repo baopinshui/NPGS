@@ -33,7 +33,7 @@ public:
     static FUniformBufferManager* GetInstance();
 
 private:
-    explicit FUniformBufferManager()                    = default;
+    FUniformBufferManager()                             = default;
     FUniformBufferManager(const FUniformBufferManager&) = delete;
     FUniformBufferManager(FUniformBufferManager&&)      = delete;
     ~FUniformBufferManager();
@@ -55,7 +55,7 @@ public:
     static FStorageBufferManager* GetInstance();
 
 private:
-    explicit FStorageBufferManager()                    = default;
+    FStorageBufferManager()                             = default;
     FStorageBufferManager(const FStorageBufferManager&) = delete;
     FStorageBufferManager(FStorageBufferManager&&)      = delete;
     ~FStorageBufferManager();

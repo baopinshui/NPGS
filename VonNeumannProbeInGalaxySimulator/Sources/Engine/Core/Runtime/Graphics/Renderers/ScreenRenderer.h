@@ -35,8 +35,7 @@ public:
 private:
     FVulkanContext* _VulkanContext;
 
-    std::vector<FVulkanFramebuffer> _Framebuffers;
-
+    std::vector<FVulkanFramebuffer>        _Framebuffers;
     std::unique_ptr<FVulkanRenderPass>     _RenderPass;
     std::unique_ptr<FVulkanPipelineLayout> _PipelineLayout;
     std::unique_ptr<FVulkanPipeline>       _GraphicsPipeline;

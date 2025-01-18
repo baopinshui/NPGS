@@ -16,7 +16,10 @@ namespace
 // ThreadPool implementations
 // --------------------------
 FThreadPool::FThreadPool()
-    : _Terminate(false), _kMaxThreadCount(GetPhysicalCoreCount()), _kPhysicalCoreCount(GetPhysicalCoreCount())
+    :
+    _Terminate(false),
+    _kMaxThreadCount(GetPhysicalCoreCount()),
+    _kPhysicalCoreCount(GetPhysicalCoreCount())
 {
     for (std::size_t i = 0; i != _kPhysicalCoreCount; ++i)
     {

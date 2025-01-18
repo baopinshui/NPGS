@@ -33,6 +33,32 @@ FStagingBuffer::FStagingBuffer(vk::Device Device, const vk::PhysicalDeviceProper
     Expand(Size);
 }
 
+FStagingBuffer::FStagingBuffer(FStagingBuffer&& Other) noexcept
+    :
+    _Device(std::exchange(Other._Device, nullptr)),
+    _PhysicalDeviceProperties(std::exchange(Other._PhysicalDeviceProperties, nullptr)),
+    _PhysicalDeviceMemoryProperties(std::exchange(Other._PhysicalDeviceMemoryProperties, nullptr)),
+    _BufferMemory(std::move(Other._BufferMemory)),
+    _AliasedImage(std::move(Other._AliasedImage)),
+    _MemoryUsage(std::exchange(Other._MemoryUsage, 0))
+{
+}
+
+FStagingBuffer& FStagingBuffer::operator=(FStagingBuffer&& Other) noexcept
+{
+    if (this != &Other)
+    {
+        _Device                         = std::exchange(Other._Device, nullptr);
+        _PhysicalDeviceProperties       = std::exchange(Other._PhysicalDeviceProperties, nullptr);
+        _PhysicalDeviceMemoryProperties = std::exchange(Other._PhysicalDeviceMemoryProperties, nullptr);
+        _BufferMemory                   = std::move(Other._BufferMemory);
+        _AliasedImage                   = std::move(Other._AliasedImage);
+        _MemoryUsage                    = std::exchange(Other._MemoryUsage, 0);
+    }
+
+    return *this;
+}
+
 FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format Format, vk::Extent2D Extent)
 {
     vk::PhysicalDevice   PhysicalDevice   = FVulkanCore::GetClassInstance()->GetPhysicalDevice();
@@ -86,9 +112,10 @@ void FStagingBuffer::Expand(vk::DeviceSize Size)
     }
 
     Release();
+
     vk::BufferCreateInfo BufferCreateInfo({}, Size, vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst);
-    _BufferMemory = std::make_unique<FVulkanBufferMemory>(
-        _Device, *_PhysicalDeviceProperties, *_PhysicalDeviceMemoryProperties, BufferCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible);
+    _BufferMemory = std::make_unique<FVulkanBufferMemory>(_Device, *_PhysicalDeviceProperties, *_PhysicalDeviceMemoryProperties,
+                                                          BufferCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible);
 }
 
 FStagingBuffer* FStagingBufferPool::AcquireBuffer(vk::DeviceSize Size)
@@ -137,6 +164,24 @@ FDeviceLocalBuffer::FDeviceLocalBuffer(vk::DeviceSize Size, vk::BufferUsageFlags
     : _BufferMemory(nullptr), _StagingBufferPool(FStagingBufferPool::GetInstance())
 {
     CreateBuffer(Size, Usage);
+}
+
+FDeviceLocalBuffer::FDeviceLocalBuffer(FDeviceLocalBuffer&& Other) noexcept
+    :
+    _BufferMemory(std::move(Other._BufferMemory)),
+    _StagingBufferPool(std::exchange(Other._StagingBufferPool, nullptr))
+{
+}
+
+FDeviceLocalBuffer& FDeviceLocalBuffer::operator=(FDeviceLocalBuffer&& Other) noexcept
+{
+    if (this != &Other)
+    {
+        _BufferMemory      = std::move(Other._BufferMemory);
+        _StagingBufferPool = std::exchange(Other._StagingBufferPool, nullptr);
+    }
+
+    return *this;
 }
 
 void FDeviceLocalBuffer::CopyData(vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data) const
@@ -195,13 +240,13 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementCount, vk::DeviceSize El
 
     auto& TransferCommandBuffer = VulkanContext->GetTransferCommandBuffer();
     TransferCommandBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-    
+
     std::vector<vk::BufferCopy> Regions(ElementCount);
     for (std::size_t i = 0; i < ElementCount; ++i)
     {
         Regions[i] = vk::BufferCopy(SrcStride * i, DstStride * i + Offset, ElementSize);
     }
-    
+
     TransferCommandBuffer->copyBuffer(*StagingBuffer->GetBuffer(), *_BufferMemory->GetResource(), Regions);
     TransferCommandBuffer.End();
     _StagingBufferPool->ReleaseBuffer(StagingBuffer);

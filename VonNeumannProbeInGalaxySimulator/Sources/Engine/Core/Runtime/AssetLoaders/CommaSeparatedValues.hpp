@@ -39,31 +39,12 @@ public:
         ReadData(io::ignore_extra_column);
     }
 
-    TCommaSeparatedValues(const TCommaSeparatedValues&) = delete;
-    TCommaSeparatedValues(TCommaSeparatedValues&& Other) noexcept
-        :
-        _Filename(std::move(Other._Filename)),
-        _ColNames(std::move(Other._ColNames)),
-        _HeaderMap(std::move(Other._HeaderMap)),
-        _Data(std::move(Other._Data))
-    {
-    }
+    TCommaSeparatedValues(const TCommaSeparatedValues&)     = default;
+    TCommaSeparatedValues(TCommaSeparatedValues&&) noexcept = default;
+    ~TCommaSeparatedValues()                                = default;
 
-    ~TCommaSeparatedValues() = default;
-
-    TCommaSeparatedValues& operator=(const TCommaSeparatedValues&) = delete;
-    TCommaSeparatedValues& operator=(TCommaSeparatedValues&& Other) noexcept
-    {
-        if (this != &Other)
-        {
-            _Filename  = std::move(Other._Filename);
-            _ColNames  = std::move(Other._ColNames);
-            _HeaderMap = std::move(Other._HeaderMap);
-            _Data      = std::move(Other._Data);
-        }
-
-        return *this;
-    }
+    TCommaSeparatedValues& operator=(const TCommaSeparatedValues&)     = default;
+    TCommaSeparatedValues& operator=(TCommaSeparatedValues&&) noexcept = default;
 
     FRowArray FindFirstDataArray(const std::string& DataHeader, const BasicType& DataValue) const
     {
@@ -222,9 +203,9 @@ private:
     }
 
 private:
+    std::unordered_map<std::string, std::size_t> _HeaderMap;
     std::string                                  _Filename;
     std::vector<std::string>                     _ColNames;
-    std::unordered_map<std::string, std::size_t> _HeaderMap;
     std::vector<FRowArray>                       _Data;
 };
 

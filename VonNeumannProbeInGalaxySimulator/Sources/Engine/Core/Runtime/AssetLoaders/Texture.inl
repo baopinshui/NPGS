@@ -31,9 +31,9 @@ NPGS_INLINE const Graphics::FVulkanImageView& FTextureBase::GetImageView() const
     return *_ImageView;
 }
 
-NPGS_INLINE vk::SamplerCreateInfo FTextureBase::CreateSamplerCreateInfo()
+NPGS_INLINE vk::SamplerCreateInfo FTextureBase::CreateDefaultSamplerCreateInfo()
 {
-    vk::SamplerCreateInfo SamplerCreateInfo(
+    vk::SamplerCreateInfo DefaultSamplerCreateInfo(
         {},
         vk::Filter::eLinear,
         vk::Filter::eLinear,
@@ -52,7 +52,7 @@ NPGS_INLINE vk::SamplerCreateInfo FTextureBase::CreateSamplerCreateInfo()
         vk::False
     );
 
-    return SamplerCreateInfo;
+    return DefaultSamplerCreateInfo;
 }
 
 NPGS_INLINE std::uint32_t FTexture2D::GetImageWidth() const

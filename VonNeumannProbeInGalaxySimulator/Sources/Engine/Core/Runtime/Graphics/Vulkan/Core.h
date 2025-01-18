@@ -94,7 +94,7 @@ public:
     static FVulkanCore* GetClassInstance();
 
 private:
-    explicit FVulkanCore();
+    FVulkanCore();
     FVulkanCore(const FVulkanCore&) = delete;
     FVulkanCore(FVulkanCore&&)      = delete;
     ~FVulkanCore();
