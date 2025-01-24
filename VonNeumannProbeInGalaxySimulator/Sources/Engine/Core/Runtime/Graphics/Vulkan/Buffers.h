@@ -98,10 +98,10 @@ public:
     operator FVulkanBuffer& ();
     operator const FVulkanBuffer& () const;
 
-    void CopyData(vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data) const;
+    void CopyData(vk::DeviceSize MapOffset, vk::DeviceSize Size, const void* Data) const;
 
-    void CopyData(vk::DeviceSize ElementCount, vk::DeviceSize ElementSize, vk::DeviceSize SrcStride,
-                  vk::DeviceSize DstStride, vk::DeviceSize Offset, const void* Data) const;
+    void CopyData(vk::DeviceSize ElementIndex, vk::DeviceSize ElementCount, vk::DeviceSize ElementSize,
+                  vk::DeviceSize SrcStride, vk::DeviceSize DstStride, vk::DeviceSize MapOffset, const void* Data) const;
 
     template <typename ContainerType>
     void CopyData(const ContainerType& Data) const;

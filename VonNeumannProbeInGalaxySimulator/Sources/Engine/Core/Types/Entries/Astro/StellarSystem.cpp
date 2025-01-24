@@ -113,19 +113,19 @@ FStellarSystem::FStellarSystem(const FStellarSystem& Other)
 {
     for (const auto& Star : Other._Stars)
     {
-        _Stars.emplace_back(std::make_unique<AStar>(*Star));
+        _Stars.push_back(std::make_unique<AStar>(*Star));
     }
     for (const auto& Planet : Other._Planets)
     {
-        _Planets.emplace_back(std::make_unique<APlanet>(*Planet));
+        _Planets.push_back(std::make_unique<APlanet>(*Planet));
     }
     for (const auto& AsteroidCluster : Other._AsteroidClusters)
     {
-        _AsteroidClusters.emplace_back(std::make_unique<AAsteroidCluster>(*AsteroidCluster));
+        _AsteroidClusters.push_back(std::make_unique<AAsteroidCluster>(*AsteroidCluster));
     }
     for (const auto& Orbit : Other._Orbits)
     {
-        _Orbits.emplace_back(std::make_unique<FOrbit>(*Orbit));
+        _Orbits.push_back(std::make_unique<FOrbit>(*Orbit));
     }
 }
 
@@ -138,25 +138,25 @@ FStellarSystem& FStellarSystem::operator=(const FStellarSystem& Other)
         _Stars.clear();
         for (const auto& Star : Other._Stars)
         {
-            _Stars.emplace_back(std::make_unique<AStar>(*Star));
+            _Stars.push_back(std::make_unique<AStar>(*Star));
         }
 
         _Planets.clear();
         for (const auto& Planet : Other._Planets)
         {
-            _Planets.emplace_back(std::make_unique<APlanet>(*Planet));
+            _Planets.push_back(std::make_unique<APlanet>(*Planet));
         }
 
         _AsteroidClusters.clear();
         for (const auto& AsteroidCluster : Other._AsteroidClusters)
         {
-            _AsteroidClusters.emplace_back(std::make_unique<AAsteroidCluster>(*AsteroidCluster));
+            _AsteroidClusters.push_back(std::make_unique<AAsteroidCluster>(*AsteroidCluster));
         }
 
         _Orbits.clear();
         for (const auto& Orbit : Other._Orbits)
         {
-            _Orbits.emplace_back(std::make_unique<FOrbit>(*Orbit));
+            _Orbits.push_back(std::make_unique<FOrbit>(*Orbit));
         }
     }
 

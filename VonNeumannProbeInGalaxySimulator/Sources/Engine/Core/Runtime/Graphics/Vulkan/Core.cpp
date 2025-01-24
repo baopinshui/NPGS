@@ -721,7 +721,7 @@ void FVulkanCore::AddElementChecked(const char* Element, std::vector<const char*
 
     if (it == Vector.end())
     {
-        Vector.emplace_back(Element);
+        Vector.push_back(Element);
     }
 }
 
@@ -1030,7 +1030,7 @@ vk::Result FVulkanCore::CreateSwapchainInternal()
             return static_cast<vk::Result>(e.code().value());
         }
 
-        _SwapchainImageViews.emplace_back(ImageView);
+        _SwapchainImageViews.push_back(ImageView);
     }
 
     return vk::Result::eSuccess;

@@ -19,15 +19,17 @@ struct FGraphicsPipelineCreateInfoPack
 {
 public:
     vk::GraphicsPipelineCreateInfo                     GraphicsPipelineCreateInfo;
-    vk::PipelineDepthStencilStateCreateInfo            DepthStencilStateCreateInfo;
-    vk::PipelineRasterizationStateCreateInfo           RasterizationStateCreateInfo;
-    vk::PipelineColorBlendStateCreateInfo              ColorBlendStateCreateInfo;
+
     vk::PipelineVertexInputStateCreateInfo             VertexInputStateCreateInfo;
-    vk::PipelineViewportStateCreateInfo                ViewportStateCreateInfo;
-    vk::PipelineMultisampleStateCreateInfo             MultisampleStateCreateInfo;
     vk::PipelineInputAssemblyStateCreateInfo           InputAssemblyStateCreateInfo;
-    vk::PipelineDynamicStateCreateInfo                 DynamicStateCreateInfo;
     vk::PipelineTessellationStateCreateInfo            TessellationStateCreateInfo;
+    vk::PipelineViewportStateCreateInfo                ViewportStateCreateInfo;
+    vk::PipelineRasterizationStateCreateInfo           RasterizationStateCreateInfo;
+    vk::PipelineMultisampleStateCreateInfo             MultisampleStateCreateInfo;
+    vk::PipelineDepthStencilStateCreateInfo            DepthStencilStateCreateInfo;
+    vk::PipelineColorBlendStateCreateInfo              ColorBlendStateCreateInfo;
+    vk::PipelineDynamicStateCreateInfo                 DynamicStateCreateInfo;
+
 
     std::vector<vk::PipelineShaderStageCreateInfo>     ShaderStages;
     std::vector<vk::VertexInputBindingDescription>     VertexInputBindings;
@@ -337,9 +339,7 @@ public:
 
     TVulkanHandleNoDestroy(const TVulkanHandleNoDestroy&) = default;
     TVulkanHandleNoDestroy(TVulkanHandleNoDestroy&& Other) noexcept
-        :
-        _Handle(std::exchange(Other._Handle, {})),
-        _Status(std::exchange(Other._Status, {}))
+        : _Handle(std::exchange(Other._Handle, {}))
     {
     }
 
@@ -351,7 +351,6 @@ public:
         if (this != &Other)
         {
             _Handle = std::exchange(Other._Handle, {});
-            _Status = std::exchange(Other._Status, {});
         }
 
         return *this;
@@ -360,7 +359,6 @@ public:
     // TVulkanHandleNoDestroy& operator=(HandleType Handle)
     // {
     //     _Handle = Handle;
-    //     _Status = vk::Result::eSuccess;
     //     return *this;
     // }
 
@@ -391,17 +389,11 @@ public:
 
     bool IsValid() const
     {
-        return static_cast<bool>(_Handle) && _Status == vk::Result::eSuccess;
-    }
-
-    vk::Result GetStatus() const
-    {
-        return _Status;
+        return static_cast<bool>(_Handle);
     }
 
 protected:
     HandleType _Handle;
-    vk::Result _Status;
 };
 
 template <typename HandleType, bool bEnableReleaseInfoOutput = true,
@@ -430,7 +422,8 @@ public:
         :
         Base(std::move(Other)),
         _ReleaseInfo(std::move(Other._ReleaseInfo)),
-        _Device(std::exchange(Other._Device, nullptr))
+        _Device(std::exchange(Other._Device, nullptr)),
+        _Status(std::exchange(Other._Status, {}))
     {
     }
 
@@ -465,6 +458,12 @@ public:
         return *this;
     }
 
+
+    vk::Result GetStatus() const
+    {
+        return _Status;
+    }
+
 protected:
     void ReleaseHandle()
     {
@@ -484,6 +483,7 @@ protected:
 protected:
     std::string _ReleaseInfo;
     vk::Device  _Device;
+    vk::Result  _Status;
 };
 
 // Wrapper for vk::CommandBuffer
@@ -657,6 +657,8 @@ public:
 
     FVulkanDescriptorSetLayout(const vk::DescriptorSetLayoutCreateInfo& CreateInfo);
     FVulkanDescriptorSetLayout(vk::Device Device, const vk::DescriptorSetLayoutCreateInfo& CreateInfo);
+
+    static std::vector<vk::DescriptorSetLayout> GetNativeTypeArray(const std::vector<FVulkanDescriptorSetLayout>& Vector);
 
 private:
     vk::Result CreateDescriptorSetLayout(const vk::DescriptorSetLayoutCreateInfo& CreateInfo);

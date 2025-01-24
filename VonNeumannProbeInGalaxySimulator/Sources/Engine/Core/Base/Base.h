@@ -34,6 +34,8 @@
 #define _ASSET_END }
 #define _ASTRO_BEGIN namespace Astro {
 #define _ASTRO_END }
+#define _CONFIG_BEGIN namespace Config {
+#define _CONFIG_END }
 #define _GENERATOR_BEGIN namespace Generator {
 #define _GENERATOR_END }
 #define _GRAPHICS_BEGIN namespace Graphics {

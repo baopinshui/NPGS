@@ -102,6 +102,9 @@
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -212,6 +215,12 @@
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\Base\Config\EngineConfig.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Sources\Engine\Utils\Logger.inl">
@@ -269,6 +278,9 @@
       <Filter>头文件</Filter>
     </None>
     <None Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.inl">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.inl">
       <Filter>头文件</Filter>
     </None>
   </ItemGroup>

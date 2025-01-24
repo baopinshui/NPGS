@@ -97,9 +97,15 @@ NPGS_INLINE void FVulkanDescriptorSet::Write(const std::vector<FVulkanBufferView
     BufferViewHandles.reserve(BufferViews.size());
     for (const auto& BufferView : BufferViews)
     {
-        BufferViewHandles.emplace_back(*BufferView);
+        BufferViewHandles.push_back(*BufferView);
     }
     Write(BufferViewHandles, Type, BindingPoint, ArrayElement);
+}
+
+NPGS_INLINE void FVulkanDescriptorSet::Update(const std::vector<vk::WriteDescriptorSet>& Writes,
+                                              const std::vector<vk::CopyDescriptorSet>& Copies)
+{
+    FVulkanCore::GetClassInstance()->GetDevice().updateDescriptorSets(Writes, Copies);
 }
 
 // Wrapper for vk::RenderPass

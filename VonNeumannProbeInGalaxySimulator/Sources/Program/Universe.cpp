@@ -76,7 +76,7 @@ void FUniverse::ReplaceStar(std::size_t DistanceRank, const Astro::AStar& StarDa
             }
 
             Stars.clear();
-            Stars.emplace_back(std::make_unique<Astro::AStar>(StarData));
+            Stars.push_back(std::make_unique<Astro::AStar>(StarData));
         }
     }
 }
@@ -593,14 +593,14 @@ void FUniverse::MakeChunks(int MaxThread, std::vector<DataType>& Data, std::vect
     for (std::size_t i = 0; i != Data.size(); ++i)
     {
         std::size_t ThreadId = i % MaxThread;
-        DataLists[ThreadId].emplace_back(std::move(Data[i]));
+        DataLists[ThreadId].push_back(std::move(Data[i]));
     }
 
     Promises.resize(MaxThread);
 
     for (int i = 0; i != MaxThread; ++i)
     {
-        ChunkFutures.emplace_back(Promises[i].get_future());
+        ChunkFutures.push_back(Promises[i].get_future());
     }
 }
 
@@ -651,7 +651,7 @@ void FUniverse::GenerateStars(int MaxThread)
                 .FeHDistribution    = FeHDistribution
             };
 
-            Generators.emplace_back(GenerationInfo);
+            Generators.push_back(GenerationInfo);
         }
     };
 
@@ -661,7 +661,7 @@ void FUniverse::GenerateStars(int MaxThread)
         for (std::size_t i = 0; i != NumStars; ++i)
         {
             std::size_t ThreadId = i % Generators.size();
-            BasicProperties.emplace_back(Generators[ThreadId].GenerateBasicProperties());
+            BasicProperties.push_back(Generators[ThreadId].GenerateBasicProperties());
         }
     };
 
@@ -827,7 +827,7 @@ void FUniverse::FillStellarSystem(int MaxThread)
         std::shuffle(Seeds.begin(), Seeds.end(), _RandomEngine);
         std::seed_seq SeedSequence(Seeds.begin(), Seeds.end());
 
-        Generators.emplace_back(SeedSequence);
+        Generators.push_back(SeedSequence);
     }
 }
 
@@ -848,7 +848,7 @@ FUniverse::InterpolateStars(int MaxThread, std::vector<SysGen::FStellarGenerator
             std::vector<Astro::AStar> Stars;
             for (auto& Properties : PropertyLists[i])
             {
-                Stars.emplace_back(Generators[i].GenerateStar(Properties));
+                Stars.push_back(Generators[i].GenerateStar(Properties));
             }
             Promises[i].set_value(std::move(Stars));
         });
@@ -893,7 +893,7 @@ void FUniverse::GenerateSlots(float MinDistance, std::size_t SampleCount, float 
     {
         if (Node.IsLeafNode())
         {
-            LeafNodes.emplace_back(&Node);
+            LeafNodes.push_back(&Node);
         }
     };
 
@@ -977,14 +977,14 @@ void FUniverse::OctreeLinkToStellarSystems(std::vector<Astro::AStar>& Stars, std
             {
                 Astro::FBaryCenter NewBary(Point, glm::vec2(0.0f), 0, "");
                 Astro::FStellarSystem NewSystem(NewBary);
-                NewSystem.StarsData().emplace_back(std::make_unique<Astro::AStar>(Stars.back()));
+                NewSystem.StarsData().push_back(std::make_unique<Astro::AStar>(Stars.back()));
                 NewSystem.SetBaryNormal(NewSystem.StarsData().front()->GetNormal());
                 Stars.pop_back();
 
-                _StellarSystems.emplace_back(std::move(NewSystem));
+                _StellarSystems.push_back(std::move(NewSystem));
 
                 Node.AddLink(&_StellarSystems[Index]);
-                Slots.emplace_back(Point);
+                Slots.push_back(Point);
                 ++Index;
             }
         }
@@ -1012,7 +1012,7 @@ void FUniverse::GenerateBinaryStars(int MaxThread)
             .MultiplicityOption = SysGen::FStellarGenerator::EMultiplicityGenerationOption::kBinarySecondStar
         };
 
-        Generators.emplace_back(GenerationInfo);
+        Generators.push_back(GenerationInfo);
     }
 
     std::vector<Astro::FStellarSystem*> BinarySystems;
@@ -1021,7 +1021,7 @@ void FUniverse::GenerateBinaryStars(int MaxThread)
         const auto& Star = System.StarsData().front();
         if (!Star->GetIsSingleStar())
         {
-            BinarySystems.emplace_back(&System);
+            BinarySystems.push_back(&System);
         }
     }
 
@@ -1049,14 +1049,14 @@ void FUniverse::GenerateBinaryStars(int MaxThread)
             Age -= Star->GetLifetime();
         }
 
-        BasicProperties.emplace_back(SelectedGenerator.GenerateBasicProperties(static_cast<float>(Age), FeH));
+        BasicProperties.push_back(SelectedGenerator.GenerateBasicProperties(static_cast<float>(Age), FeH));
     }
 
     std::vector<Astro::AStar> Stars = InterpolateStars(MaxThread, Generators, BasicProperties);
 
     for (std::size_t i = 0; i != BinarySystems.size(); ++i)
     {
-        BinarySystems[i]->StarsData().emplace_back(std::make_unique<Astro::AStar>(Stars[i]));
+        BinarySystems[i]->StarsData().push_back(std::make_unique<Astro::AStar>(Stars[i]));
     }
 }
 

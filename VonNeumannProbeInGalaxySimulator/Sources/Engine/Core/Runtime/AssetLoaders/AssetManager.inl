@@ -36,7 +36,7 @@ inline std::vector<AssetType*> FAssetManager::GetAssets()
     {
         if (auto* AssetPtr = dynamic_cast<AssetType*>(Asset.get()))
         {
-            Result.emplace_back(AssetPtr);
+            Result.push_back(AssetPtr);
         }
     }
 

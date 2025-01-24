@@ -92,7 +92,7 @@ public:
 
     void AddPoint(const glm::vec3& Point)
     {
-        _Points.emplace_back(Point);
+        _Points.push_back(Point);
     }
 
     void DeletePoint(const glm::vec3& Point)
@@ -111,7 +111,7 @@ public:
 
     void AddLink(LinkTarget* Target)
     {
-        _DataLink.emplace_back(Target);
+        _DataLink.push_back(Target);
     }
 
     template <typename Func>
@@ -254,8 +254,7 @@ private:
             Node->GetNext(i) = std::make_unique<FNodeType>(Node->GetCenter() + Offset, NextRadius, Node);
             if (Depth == static_cast<int>(std::ceil(std::log2(_Root->GetRadius() / LeafRadius))))
             {
-                Futures.emplace_back(_ThreadPool->Submit(
-                    &TOctree::BuildEmptyTreeImpl, this, Node->GetNext(i).get(), LeafRadius, Depth - 1));
+                Futures.push_back(_ThreadPool->Submit(&TOctree::BuildEmptyTreeImpl, this, Node->GetNext(i).get(), LeafRadius, Depth - 1));
             }
             else
             {
@@ -346,7 +345,7 @@ private:
         {
             if (glm::distance(StoredPoint, Point) <= Radius && StoredPoint != Point)
             {
-                Results.emplace_back(StoredPoint);
+                Results.push_back(StoredPoint);
             }
         }
 

@@ -163,7 +163,7 @@ private:
         std::vector<BasicType> Row(_ColNames.size());
         while (ReadRow(Reader, Row))
         {
-            _Data.emplace_back(Row);
+            _Data.push_back(Row);
         }
     }
 

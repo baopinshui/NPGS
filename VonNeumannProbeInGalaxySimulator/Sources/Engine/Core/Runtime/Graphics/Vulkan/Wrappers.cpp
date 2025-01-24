@@ -29,15 +29,15 @@ FGraphicsPipelineCreateInfoPack::FGraphicsPipelineCreateInfoPack()
 FGraphicsPipelineCreateInfoPack::FGraphicsPipelineCreateInfoPack(FGraphicsPipelineCreateInfoPack&& Other) noexcept
     :
     GraphicsPipelineCreateInfo(std::exchange(Other.GraphicsPipelineCreateInfo, {})),
-    DepthStencilStateCreateInfo(std::exchange(Other.DepthStencilStateCreateInfo, {})),
-    RasterizationStateCreateInfo(std::exchange(Other.RasterizationStateCreateInfo, {})),
-    ColorBlendStateCreateInfo(std::exchange(Other.ColorBlendStateCreateInfo, {})),
     VertexInputStateCreateInfo(std::exchange(Other.VertexInputStateCreateInfo, {})),
-    ViewportStateCreateInfo(std::exchange(Other.ViewportStateCreateInfo, {})),
-    MultisampleStateCreateInfo(std::exchange(Other.MultisampleStateCreateInfo, {})),
     InputAssemblyStateCreateInfo(std::exchange(Other.InputAssemblyStateCreateInfo, {})),
-    DynamicStateCreateInfo(std::exchange(Other.DynamicStateCreateInfo, {})),
     TessellationStateCreateInfo(std::exchange(Other.TessellationStateCreateInfo, {})),
+    ViewportStateCreateInfo(std::exchange(Other.ViewportStateCreateInfo, {})),
+    RasterizationStateCreateInfo(std::exchange(Other.RasterizationStateCreateInfo, {})),
+    MultisampleStateCreateInfo(std::exchange(Other.MultisampleStateCreateInfo, {})),
+    DepthStencilStateCreateInfo(std::exchange(Other.DepthStencilStateCreateInfo, {})),
+    ColorBlendStateCreateInfo(std::exchange(Other.ColorBlendStateCreateInfo, {})),
+    DynamicStateCreateInfo(std::exchange(Other.DynamicStateCreateInfo, {})),
 
     ShaderStages(std::move(Other.ShaderStages)),
     VertexInputBindings(std::move(Other.VertexInputBindings)),
@@ -58,16 +58,17 @@ FGraphicsPipelineCreateInfoPack& FGraphicsPipelineCreateInfoPack::operator=(FGra
 {
     if (this != &Other)
     {
-        GraphicsPipelineCreateInfo   = std::exchange(Other.GraphicsPipelineCreateInfo, {});
-        DepthStencilStateCreateInfo  = std::exchange(Other.DepthStencilStateCreateInfo, {});
-        RasterizationStateCreateInfo = std::exchange(Other.RasterizationStateCreateInfo, {});
-        ColorBlendStateCreateInfo    = std::exchange(Other.ColorBlendStateCreateInfo, {});
-        VertexInputStateCreateInfo   = std::exchange(Other.VertexInputStateCreateInfo, {});
-        ViewportStateCreateInfo      = std::exchange(Other.ViewportStateCreateInfo, {});
-        MultisampleStateCreateInfo   = std::exchange(Other.MultisampleStateCreateInfo, {});
+        GraphicsPipelineCreateInfo   = std::exchange(Other.GraphicsPipelineCreateInfo,   {});
+
+        VertexInputStateCreateInfo   = std::exchange(Other.VertexInputStateCreateInfo,   {});
         InputAssemblyStateCreateInfo = std::exchange(Other.InputAssemblyStateCreateInfo, {});
-        DynamicStateCreateInfo       = std::exchange(Other.DynamicStateCreateInfo, {});
-        TessellationStateCreateInfo  = std::exchange(Other.TessellationStateCreateInfo, {});
+        TessellationStateCreateInfo  = std::exchange(Other.TessellationStateCreateInfo,  {});
+        ViewportStateCreateInfo      = std::exchange(Other.ViewportStateCreateInfo,      {});
+        RasterizationStateCreateInfo = std::exchange(Other.RasterizationStateCreateInfo, {});
+        MultisampleStateCreateInfo   = std::exchange(Other.MultisampleStateCreateInfo,   {});
+        DepthStencilStateCreateInfo  = std::exchange(Other.DepthStencilStateCreateInfo,  {});
+        ColorBlendStateCreateInfo    = std::exchange(Other.ColorBlendStateCreateInfo,    {});
+        DynamicStateCreateInfo       = std::exchange(Other.DynamicStateCreateInfo,       {});
 
         ShaderStages                 = std::move(Other.ShaderStages);
         VertexInputBindings          = std::move(Other.VertexInputBindings);
@@ -376,7 +377,7 @@ vk::Result FVulkanCommandPool::FreeBuffers(std::vector<FVulkanCommandBuffer>& Bu
 
     for (auto& Buffer : Buffers)
     {
-        CommandBuffers.emplace_back(*Buffer);
+        CommandBuffers.push_back(*Buffer);
     }
 
     return FreeBuffers(CommandBuffers);
@@ -756,13 +757,6 @@ vk::Result FVulkanBufferView::CreateBufferView(const FVulkanBuffer& Buffer, vk::
     return CreateBufferView(CreateInfo);
 }
 
-// Wrapper for vk::DescriptorSet
-// -----------------------------
-void FVulkanDescriptorSet::Update(const std::vector<vk::WriteDescriptorSet>& Writes, const std::vector<vk::CopyDescriptorSet>& Copies)
-{
-    FVulkanCore::GetClassInstance()->GetDevice().updateDescriptorSets(Writes, Copies);
-}
-
 // Wrapper for vk::DescriptorSetLayout
 // -----------------------------------
 FVulkanDescriptorSetLayout::FVulkanDescriptorSetLayout(const vk::DescriptorSetLayoutCreateInfo& CreateInfo)
@@ -775,6 +769,17 @@ FVulkanDescriptorSetLayout::FVulkanDescriptorSetLayout(vk::Device Device, const 
 {
     _ReleaseInfo = "Descriptor set layout destroyed successfully.";
     _Status      = CreateDescriptorSetLayout(CreateInfo);
+}
+
+std::vector<vk::DescriptorSetLayout>
+FVulkanDescriptorSetLayout::GetNativeTypeArray(const std::vector<FVulkanDescriptorSetLayout>& Vector)
+{
+    std::vector<vk::DescriptorSetLayout> NativeArray(Vector.size());
+    for (std::size_t i = 0; i != Vector.size(); ++i)
+    {
+        NativeArray[i] = *Vector[i];
+    }
+    return NativeArray;
 }
 
 vk::Result FVulkanDescriptorSetLayout::CreateDescriptorSetLayout(const vk::DescriptorSetLayoutCreateInfo& CreateInfo)
@@ -824,9 +829,9 @@ FVulkanDescriptorPool::FVulkanDescriptorPool(vk::Device Device, std::uint32_t Ma
 vk::Result FVulkanDescriptorPool::AllocateSets(const std::vector<vk::DescriptorSetLayout>& Layouts,
                                                std::vector<vk::DescriptorSet>& Sets) const
 {
-    if (Layouts.size() != Sets.size())
+    if (Layouts.size() > Sets.size())
     {
-        NpgsCoreError("Descriptor set layout count ({}) is mismarch with descriptor set count ({}).", Layouts.size(), Sets.size());
+        NpgsCoreError("Descriptor set layout count ({}) is larger than descriptor set count ({}).", Layouts.size(), Sets.size());
         return vk::Result::eErrorInitializationFailed;
     }
 
@@ -852,7 +857,7 @@ vk::Result FVulkanDescriptorPool::AllocateSets(const std::vector<FVulkanDescript
     DescriptorSetLayouts.reserve(Layouts.size());
     for (auto& Layout : Layouts)
     {
-        DescriptorSetLayouts.emplace_back(*Layout);
+        DescriptorSetLayouts.push_back(*Layout);
     }
 
     std::vector<vk::DescriptorSet> DescriptorSets(Layouts.size());
@@ -887,7 +892,7 @@ vk::Result FVulkanDescriptorPool::FreeSets(std::vector<FVulkanDescriptorSet>& Se
         DescriptorSets.reserve(Sets.size());
         for (auto& Set : Sets)
         {
-            DescriptorSets.emplace_back(*Set);
+            DescriptorSets.push_back(*Set);
         }
         Sets.clear();
         return FreeSets(DescriptorSets);
@@ -1434,9 +1439,7 @@ vk::Result FVulkanShaderModule::CreateShaderModule(const std::string& Filename)
     ShaderFile.read(reinterpret_cast<char*>(ShaderCode.data()), FileSize);
     ShaderFile.close();
 
-    vk::ShaderModuleCreateInfo ShaderModuleCreateInfo = vk::ShaderModuleCreateInfo()
-        .setCodeSize(FileSize)
-        .setPCode(ShaderCode.data());
+    vk::ShaderModuleCreateInfo ShaderModuleCreateInfo({}, ShaderCode);
     return CreateShaderModule(ShaderModuleCreateInfo);
 }
 // -------------------

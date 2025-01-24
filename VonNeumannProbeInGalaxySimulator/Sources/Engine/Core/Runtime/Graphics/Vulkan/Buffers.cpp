@@ -129,12 +129,12 @@ FStagingBuffer* FStagingBufferPool::AcquireBuffer(vk::DeviceSize Size)
 
     if (it != _FreeBuffers.end())
     {
-        _BusyBuffers.emplace_back(std::move(*it));
+        _BusyBuffers.push_back(std::move(*it));
         _FreeBuffers.erase(it);
         return _BusyBuffers.back().get();
     }
 
-    _BusyBuffers.emplace_back(std::move(std::make_unique<FStagingBuffer>(Size)));
+    _BusyBuffers.push_back(std::make_unique<FStagingBuffer>(Size));
     return _BusyBuffers.back().get();
 }
 
@@ -149,7 +149,7 @@ void FStagingBufferPool::ReleaseBuffer(FStagingBuffer* Buffer)
 
     if (it != _BusyBuffers.end())
     {
-        _FreeBuffers.emplace_back(std::move(*it));
+        _FreeBuffers.push_back(std::move(*it));
         _BusyBuffers.erase(it);
     }
 }
@@ -207,27 +207,27 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize Offset, vk::DeviceSize Size, co
     VulkanContext->ExecuteGraphicsCommands(TransferCommandBuffer);
 }
 
-void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementCount, vk::DeviceSize ElementSize, vk::DeviceSize SrcStride,
-                                  vk::DeviceSize DstStride, vk::DeviceSize Offset, const void* Data) const
+void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementIndex, vk::DeviceSize ElementCount, vk::DeviceSize ElementSize,
+                                  vk::DeviceSize SrcStride, vk::DeviceSize DstStride, vk::DeviceSize MapOffset, const void* Data) const
 {
     if (_BufferMemory->GetMemory().GetMemoryPropertyFlags() & vk::MemoryPropertyFlagBits::eHostVisible)
     {
         void* Target = _BufferMemory->GetMemory().GetMappedTargetMemory();
         if (Target == nullptr || !_BufferMemory->GetMemory().IsPereistentlyMapped())
         {
-            _BufferMemory->MapMemoryForSubmit(Offset, ElementCount * DstStride, Target);
+            _BufferMemory->MapMemoryForSubmit(MapOffset, ElementCount * DstStride, Target);
         }
 
         for (std::size_t i = 0; i != ElementCount; ++i)
         {
-            std::copy(static_cast<const std::byte*>(Data) + SrcStride * i,
-                      static_cast<const std::byte*>(Data) + SrcStride * i + ElementSize,
-                      static_cast<std::byte*>(Target)     + DstStride * i);
+            std::copy(static_cast<const std::byte*>(Data) + SrcStride * (i + ElementIndex),
+                      static_cast<const std::byte*>(Data) + SrcStride * (i + ElementIndex) + ElementSize,
+                      static_cast<std::byte*>(Target)     + DstStride * (i + ElementIndex));
         }
 
         if (!_BufferMemory->GetMemory().IsPereistentlyMapped())
         {
-            _BufferMemory->UnmapMemory(Offset, ElementCount * DstStride);
+            _BufferMemory->UnmapMemory(MapOffset, ElementCount * DstStride);
         }
 
         return;
@@ -244,7 +244,7 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementCount, vk::DeviceSize El
     std::vector<vk::BufferCopy> Regions(ElementCount);
     for (std::size_t i = 0; i < ElementCount; ++i)
     {
-        Regions[i] = vk::BufferCopy(SrcStride * i, DstStride * i + Offset, ElementSize);
+        Regions[i] = vk::BufferCopy(SrcStride * (i + ElementIndex), DstStride * (i + ElementIndex), ElementSize);
     }
 
     TransferCommandBuffer->copyBuffer(*StagingBuffer->GetBuffer(), *_BufferMemory->GetResource(), Regions);

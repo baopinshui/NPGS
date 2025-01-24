@@ -126,8 +126,14 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>vulkan-1.lib;spirv-cross-cored.lib;
+spirv-cross-cppd.lib;spirv-cross-glsld.lib;
+spirv-cross-reflectd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -150,10 +156,13 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
-      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>vulkan-1.lib;spirv-cross-core.lib;
+spirv-cross-cpp.lib
+;spirv-cross-glsl.lib;spirv-cross-reflect.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\AssetManager.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\GetAssetFullPath.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.cpp" />
@@ -188,6 +197,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Sources\Engine\Core\Base\Config\EngineConfig.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.h" />
     <ClInclude Include="Sources\Engine\Core\Base\Assert.h" />
     <ClInclude Include="Sources\Engine\Core\Base\Base.h" />
     <ClInclude Include="Sources\Engine\Core\Math\NumericConstants.h" />
@@ -227,6 +238,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\AssetManager.inl" />
+    <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.inl" />
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.inl" />

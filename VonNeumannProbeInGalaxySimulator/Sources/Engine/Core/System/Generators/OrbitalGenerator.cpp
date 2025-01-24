@@ -188,9 +188,9 @@ void FOrbitalGenerator::GenerateOrbitals(Astro::FStellarSystem& System)
 
         auto ZeroOrbit = std::make_unique<Astro::FOrbit>();
         Astro::FOrbit::FOrbitalDetails MainStar(Star, Astro::FOrbit::EObjectType::kStar, ZeroOrbit.get());
-        ZeroOrbit->ObjectsData().emplace_back(MainStar);
+        ZeroOrbit->ObjectsData().push_back(MainStar);
         ZeroOrbit->SetParent(System.GetBaryCenter(), Astro::FOrbit::EObjectType::kBaryCenter);
-        System.OrbitsData().emplace_back(std::move(ZeroOrbit));
+        System.OrbitsData().push_back(std::move(ZeroOrbit));
 
         float NearStarSemiMajorAxis = static_cast<float>(
             std::sqrt(Star->GetLuminosity() / (4 * Math::kPi * kStefanBoltzmann * std::pow(_CoilTemperatureLimit, 4))));
@@ -199,7 +199,7 @@ void FOrbitalGenerator::GenerateOrbitals(Astro::FStellarSystem& System)
         NearStarOrbit->SetParent(System.GetBaryCenter(), Astro::FOrbit::EObjectType::kBaryCenter);
         NearStarOrbit->SetNormal(System.GetBaryNormal());
         NearStarOrbit->SetSemiMajorAxis(NearStarSemiMajorAxis);
-        System.OrbitsData().emplace_back(std::move(NearStarOrbit));
+        System.OrbitsData().push_back(std::move(NearStarOrbit));
 
 #ifdef DEBUG_OUTPUT
         std::println("");
@@ -357,11 +357,11 @@ void FOrbitalGenerator::GenerateBinaryOrbit(Astro::FStellarSystem& System)
     Astro::FOrbit::FOrbitalDetails Star2(
         System.StarsData().back().get(),  Astro::FOrbit::EObjectType::kStar, Orbit2.get(), InitialTrueAnomaly2);
 
-    Orbit1->ObjectsData().emplace_back(Star1);
-    Orbit2->ObjectsData().emplace_back(Star2);
+    Orbit1->ObjectsData().push_back(Star1);
+    Orbit2->ObjectsData().push_back(Star2);
 
-    System.OrbitsData().emplace_back(std::move(Orbit1));
-    System.OrbitsData().emplace_back(std::move(Orbit2));
+    System.OrbitsData().push_back(std::move(Orbit1));
+    System.OrbitsData().push_back(std::move(Orbit2));
 
     std::array<Astro::FOrbit, 2> NearStarOrbits;
 
@@ -381,7 +381,7 @@ void FOrbitalGenerator::GenerateBinaryOrbit(Astro::FStellarSystem& System)
 
         NearStarOrbits[i] = *NearStarOrbit;
 
-        System.OrbitsData().emplace_back(std::move(NearStarOrbit));
+        System.OrbitsData().push_back(std::move(NearStarOrbit));
     }
 
 #ifdef DEBUG_OUTPUT
@@ -525,7 +525,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
     Planets.reserve(PlanetCount);
     for (std::size_t i = 0; i < PlanetCount; ++i)
     {
-        Planets.emplace_back(std::make_unique<Astro::APlanet>());
+        Planets.push_back(std::make_unique<Astro::APlanet>());
     }
 
     // 生成行星初始核心质量
@@ -570,7 +570,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
     std::vector<std::unique_ptr<Astro::FOrbit>> Orbits;
     for (std::size_t i = 0; i != PlanetCount; ++i)
     {
-        Orbits.emplace_back(std::make_unique<Astro::FOrbit>());
+        Orbits.push_back(std::make_unique<Astro::FOrbit>());
     }
 
     for (auto& Orbit : Orbits)
@@ -999,14 +999,14 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
                 GenerateCivilization(Star, PoyntingVector, HabitableZoneAu, Orbits[i].get(), Planets[i].get());
             }
 
-            Orbits[i]->ObjectsData().emplace_back(Planet);
+            Orbits[i]->ObjectsData().push_back(Planet);
 
             // 生成特洛伊带
             GenerateTrojan(Star, FrostLineAu, Orbits[i].get(), Planet, AsteroidClusters);
         }
 
         // 生成柯伊伯带
-        AsteroidClusters.emplace_back(std::make_unique<Astro::AAsteroidCluster>());
+        AsteroidClusters.push_back(std::make_unique<Astro::AAsteroidCluster>());
         float Exponent                       = 1.0f + _CommonGenerator(_RandomEngine);
         float KuiperBeltMass                 = PlanetaryDisk.DustMassSol * std::pow(10.0f, Exponent) * 1e-4f * kSolarMass;
         float KuiperBeltRadiusAu             = PlanetaryDisk.OuterRadiusAu * (1.0f + _CommonGenerator(_RandomEngine) * 0.5f);
@@ -1032,7 +1032,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
         Astro::FOrbit::FOrbitalDetails KuiperBelt(
             AsteroidClusters.back().get(), Astro::FOrbit::EObjectType::kAsteroidCluster, KuiperBeltOrbit.get());
 
-        KuiperBeltOrbit->ObjectsData().emplace_back(KuiperBelt);
+        KuiperBeltOrbit->ObjectsData().push_back(KuiperBelt);
         KuiperBeltOrbit->SetParent(Star, Astro::FOrbit::EObjectType::kStar);
         KuiperBeltOrbit->SetSemiMajorAxis(KuiperBeltRadiusAu * kAuToMeter);
 
@@ -1048,7 +1048,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
         std::println("");
 #endif // DEBUG_OUTPUT
 
-        Orbits.emplace_back(std::move(KuiperBeltOrbit));
+        Orbits.push_back(std::move(KuiperBeltOrbit));
     }
     else
     {
@@ -1103,7 +1103,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
                 GenerateRings(i, std::numeric_limits<float>::infinity(), Star, Planet, Orbits, AsteroidClusters);
             }
 
-            Orbits[i]->ObjectsData().emplace_back(Planet);
+            Orbits[i]->ObjectsData().push_back(Planet);
 
             // 生成特洛伊带
             GenerateTrojan(Star, std::numeric_limits<float>::infinity(), Orbits[i].get(), Planet, AsteroidClusters);
@@ -1124,7 +1124,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
             {
                 auto AsteroidCluster = PlanetToAsteroidCluster(PlanetPtr);
                 OrbitalDetail.SetOrbitalObject(AsteroidCluster.get(), Astro::FOrbit::EObjectType::kAsteroidCluster);
-                AsteroidClusters.emplace_back(std::move(AsteroidCluster));
+                AsteroidClusters.push_back(std::move(AsteroidCluster));
                 // 为了输出调试信息，删除将在输出后进行
                 // --PlanetCount;
                 // Planets.erase(std::find_if(Planets.begin(), Planets.end(), [&](const auto& Planet) -> bool
@@ -1208,7 +1208,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
     {
         if (Orbit->GetParent().GetObjectType() == Astro::FOrbit::EObjectType::kStar)
         {
-            ParentStar.DirectOrbitsData().emplace_back(Orbit.get());
+            ParentStar.DirectOrbitsData().push_back(Orbit.get());
         }
     }
 
@@ -1940,7 +1940,7 @@ void FOrbitalGenerator::GenerateMoons(std::size_t PlanetIndex, float FrostLineAu
 
         MoonOrbitData.SetNormal(MoonNormal);
 
-        MoonOrbits.emplace_back(std::make_unique<Astro::FOrbit>(MoonOrbitData));
+        MoonOrbits.push_back(std::make_unique<Astro::FOrbit>(MoonOrbitData));
     }
     else if (MoonCount == 2)
     {
@@ -1999,13 +1999,13 @@ void FOrbitalGenerator::GenerateMoons(std::size_t PlanetIndex, float FrostLineAu
         MoonOrbitData[0].SetNormal(MoonNormals[0]);
         MoonOrbitData[1].SetNormal(MoonNormals[1]);
 
-        MoonOrbits.emplace_back(std::make_unique<Astro::FOrbit>(MoonOrbitData[0]));
-        MoonOrbits.emplace_back(std::make_unique<Astro::FOrbit>(MoonOrbitData[1]));
+        MoonOrbits.push_back(std::make_unique<Astro::FOrbit>(MoonOrbitData[0]));
+        MoonOrbits.push_back(std::make_unique<Astro::FOrbit>(MoonOrbitData[1]));
     }
 
     for (std::size_t i = 0; i != MoonCount; ++i)
     {
-        ParentPlanet.DirectOrbitsData().emplace_back(MoonOrbits[i].get());
+        ParentPlanet.DirectOrbitsData().push_back(MoonOrbits[i].get());
     }
 
     float ParentCoreMass        = Planet->GetCoreMassZDigital<float>();
@@ -2017,7 +2017,7 @@ void FOrbitalGenerator::GenerateMoons(std::size_t PlanetIndex, float FrostLineAu
 
     for (std::size_t i = 0; i != MoonCount; ++i)
     {
-        Moons.emplace_back(std::make_unique<Astro::APlanet>());
+        Moons.push_back(std::make_unique<Astro::APlanet>());
 
         float Exponent = LogCoreMassLowerLimit + _CommonGenerator(_RandomEngine) * (LogCoreMassUpperLimit - LogCoreMassLowerLimit);
         boost::multiprecision::uint128_t InitialCoreMass(std::pow(10.0f, Exponent));
@@ -2119,7 +2119,7 @@ void FOrbitalGenerator::GenerateMoons(std::size_t PlanetIndex, float FrostLineAu
     {
         Astro::FOrbit::FOrbitalDetails Moon(Moons[i].get(), Astro::FOrbit::EObjectType::kPlanet,
                                             MoonOrbits[i].get(), _CommonGenerator(_RandomEngine) * 2 * Math::kPi);
-        MoonOrbits[i]->ObjectsData().emplace_back(Moon);
+        MoonOrbits[i]->ObjectsData().push_back(Moon);
     }
 
     Orbits.reserve(Orbits.size() + MoonOrbits.size());
@@ -2202,10 +2202,10 @@ void FOrbitalGenerator::GenerateRings(std::size_t PlanetIndex, float FrostLineAu
 
     RingsOrbit->SetParent(Planet, Astro::FOrbit::EObjectType::kPlanet);
     RingsOrbit->SetSemiMajorAxis(SemiMajorAxis);
-    RingsOrbit->ObjectsData().emplace_back(Rings);
+    RingsOrbit->ObjectsData().push_back(Rings);
 
-    ParentPlanet.DirectOrbitsData().emplace_back(RingsOrbit.get());
-    Orbits.emplace_back(std::move(RingsOrbit));
+    ParentPlanet.DirectOrbitsData().push_back(RingsOrbit.get());
+    Orbits.push_back(std::move(RingsOrbit));
 
 #ifdef DEBUG_OUTPUT
     std::println("");
@@ -2407,9 +2407,9 @@ void FOrbitalGenerator::GenerateTrojan(const Astro::AStar* Star, float FrostLine
 #endif // DEBUG_OUTPUT
 
     Astro::FOrbit::FOrbitalDetails MyBelt(TrojanBelt.get(), Astro::FOrbit::EObjectType::kAsteroidCluster, Orbit);
-    Orbit->ObjectsData().emplace_back(MyBelt);
+    Orbit->ObjectsData().push_back(MyBelt);
 
-    AsteroidClusters.emplace_back(std::move(TrojanBelt));
+    AsteroidClusters.push_back(std::move(TrojanBelt));
 }
 
 void FOrbitalGenerator::GenerateCivilization(const Astro::AStar* Star, float PoyntingVector,

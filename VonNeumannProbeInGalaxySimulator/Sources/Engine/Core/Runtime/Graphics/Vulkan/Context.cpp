@@ -88,7 +88,7 @@ void FVulkanContext::RegisterAutoRemovedCallbacks(ECallbackType Type, const std:
     }
 
     std::pair<ECallbackType, std::string> AutoRemovedCallback(Type, Name);
-    _AutoRemovedCallbacks.emplace_back(AutoRemovedCallback);
+    _AutoRemovedCallbacks.push_back(AutoRemovedCallback);
 }
 
 void FVulkanContext::RemoveRegisteredCallbacks()
