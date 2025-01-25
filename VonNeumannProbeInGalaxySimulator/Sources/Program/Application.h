@@ -15,6 +15,7 @@
 #include "Engine/Core/Runtime/Graphics/Renderers/ScreenRenderer.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Context.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
+#include "Engine/Core/System/Spatial/Camera.h"
 
 _NPGS_BEGIN
 
@@ -27,12 +28,6 @@ private:
         std::unique_ptr<Runtime::Graphics::FVulkanRenderPass> RenderPass;
     };
 
-    struct FVertex
-    {
-        glm::vec2 Position;
-        glm::vec2 TexCoord;
-    };
-
 public:
     FApplication(const vk::Extent2D& WindowSize, const std::string& WindowTitle, bool bEnableVSync, bool bEnableFullscreen);
     ~FApplication();
@@ -42,10 +37,13 @@ public:
 
 private:
     bool InitializeWindow();
+    void InitializeInputCallbacks();
     void ShowTitleFps();
     void ProcessInput();
 
     static void FramebufferSizeCallback(GLFWwindow* Window, int Width, int Height);
+    static void CursorPosCallback(GLFWwindow* Window, double PosX, double PosY);
+    static void ScrollCallback(GLFWwindow* Window, double OffsetX, double OffsetY);
 
 private:
     Runtime::Graphics::FVulkanContext*                        _VulkanContext;
@@ -53,11 +51,17 @@ private:
     std::unique_ptr<Runtime::Graphics::FVulkanPipeline>       _GraphicsPipeline;
     FRenderer                                                 _Renderer;
 
-    std::string  _WindowTitle;
-    vk::Extent2D _WindowSize;
-    GLFWwindow*  _Window;
-    bool         _bEnableVSync;
-    bool         _bEnableFullscreen;
+    std::string                                               _WindowTitle;
+    vk::Extent2D                                              _WindowSize;
+    GLFWwindow*                                               _Window = nullptr;
+    bool                                                      _bEnableVSync;
+    bool                                                      _bEnableFullscreen;
+
+    std::unique_ptr<System::Spatial::FCamera>                 _FreeCamera;
+    double                                                    _DeltaTime   = 0.0;
+    double                                                    _LastX       = 0.0;
+    double                                                    _LastY       = 0.0;
+    bool                                                      _bFirstMouse = true;
 };
 
 _NPGS_END

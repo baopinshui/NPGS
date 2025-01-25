@@ -82,8 +82,8 @@ void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
     _PrevOffsetX = SmoothedX;
     _PrevOffsetY = SmoothedY;
 
-    float HorizontalAngle = static_cast<float>(_Sensitivity *  SmoothedX);
-    float VerticalAngle   = static_cast<float>(_Sensitivity * -SmoothedY);
+    float HorizontalAngle = static_cast<float>(_Sensitivity * SmoothedX);
+    float VerticalAngle   = static_cast<float>(_Sensitivity * SmoothedY);
 
     ProcessRotation(HorizontalAngle, VerticalAngle, 0.0f);
 }
@@ -104,9 +104,9 @@ void FCamera::UpdateVectors()
     _Orientation = glm::normalize(_Orientation);
     glm::quat ConjugateOrient = glm::conjugate(_Orientation);
 
-    _Front = glm::normalize(ConjugateOrient * glm::vec3(0.0f, 0.0f, -1.0f));
-    _Right = glm::normalize(ConjugateOrient * glm::vec3(1.0f, 0.0f,  0.0f));
-    _Up    = glm::normalize(ConjugateOrient * glm::vec3(0.0f, 1.0f,  0.0f));
+    _Front = glm::normalize(ConjugateOrient * glm::vec3(0.0f,  0.0f, -1.0f));
+    _Right = glm::normalize(ConjugateOrient * glm::vec3(1.0f,  0.0f,  0.0f));
+    _Up    = glm::normalize(ConjugateOrient * glm::vec3(0.0f, -1.0f,  0.0f));
 }
 
 _SPATIAL_END

@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <utility>
 
+#include <glm/gtc/type_ptr.hpp>
+
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Buffers.h"
@@ -10,8 +12,9 @@
 
 _NPGS_BEGIN
 
-namespace Art = Runtime::Asset;
-namespace Grt = Runtime::Graphics;
+namespace Art    = Runtime::Asset;
+namespace Grt    = Runtime::Graphics;
+namespace SysSpa = System::Spatial;
 
 FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& WindowTitle,
                            bool bEnableVSync, bool bEnableFullscreen)
@@ -19,7 +22,6 @@ FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& Wi
     _VulkanContext(Grt::FVulkanContext::GetClassInstance()),
     _WindowTitle(WindowTitle),
     _WindowSize(WindowSize),
-    _Window(nullptr),
     _bEnableVSync(bEnableVSync),
     _bEnableFullscreen(bEnableFullscreen)
 {
@@ -95,6 +97,12 @@ void FApplication::ExecuteMainRender()
 
     // Create pipeline layout
     // ----------------------
+    struct FVertex
+    {
+        glm::vec3 Position;
+        glm::vec2 TexCoord;
+    };
+
     Art::FTexture2D Texture("AwesomeFace.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
     vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
     Grt::FVulkanSampler Sampler(SamplerCreateInfo);
@@ -110,37 +118,19 @@ void FApplication::ExecuteMainRender()
         },
         {
             { 0, 0, true }
-        }
+        },
+        //{
+        //    { vk::ShaderStageFlagBits::eVertex, { "iOffset" }}
+        //}
     };
 
     Art::FShader Shader({ "Triangle.vert.spv", "Triangle.frag.spv" }, ResInfo);
 
-    vk::DescriptorSetLayoutBinding UniformBufferBinding = vk::DescriptorSetLayoutBinding()
-        .setBinding(0)
-        .setDescriptorType(vk::DescriptorType::eUniformBufferDynamic)
-        .setDescriptorCount(1)
-        .setStageFlags(vk::ShaderStageFlagBits::eVertex);
-
-    vk::DescriptorSetLayoutBinding TextureBinding = vk::DescriptorSetLayoutBinding()
-        .setBinding(1)
-        .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-        .setDescriptorCount(1)
-        .setStageFlags(vk::ShaderStageFlagBits::eFragment);
-
-    std::vector<vk::DescriptorSetLayoutBinding> Bindings{ UniformBufferBinding, TextureBinding };
-
-    vk::DescriptorSetLayoutCreateInfo DescriptorSetLayoutCreateInfo({}, Bindings);
-
-    std::vector<Grt::FVulkanDescriptorSetLayout> DescriptorSetLayouts;
-    for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
-    {
-        DescriptorSetLayouts.emplace_back(DescriptorSetLayoutCreateInfo);
-    }
-
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
-    //auto NativeArray = Grt::FVulkanDescriptorSetLayout::GetNativeTypeArray(DescriptorSetLayouts);
     auto NativeArray = Shader.GetDescriptorSetLayouts();
     PipelineLayoutCreateInfo.setSetLayouts(NativeArray);
+    //auto PushConstantRanges = Shader.GetPushConstantRanges();
+    //PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
 
     _PipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
 
@@ -153,45 +143,32 @@ void FApplication::ExecuteMainRender()
         glm::vec2( 0.5f, 0.0f)
     };
 
+    std::vector<glm::mat4x4> Matrices(3, glm::mat4x4(1.0f));
+
     vk::DeviceSize MinUniformAlignment = _VulkanContext->GetPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment;
-    vk::DeviceSize UniformAlignment    = (sizeof(glm::vec2) + MinUniformAlignment - 1) & ~(MinUniformAlignment - 1);
+    vk::DeviceSize UniformAlignment    = (sizeof(glm::mat4x4) + MinUniformAlignment - 1) & ~(MinUniformAlignment - 1);
     std::vector<Grt::FDeviceLocalBuffer> UniformBuffers;
     for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
     {
-        UniformBuffers.emplace_back(Offsets.size() * UniformAlignment, vk::BufferUsageFlagBits::eUniformBuffer);
+        UniformBuffers.emplace_back(Matrices.size() * UniformAlignment, vk::BufferUsageFlagBits::eUniformBuffer);
         UniformBuffers[i].EnablePersistentMapping();
-        UniformBuffers[i].CopyData(0, 3, sizeof(glm::vec2), sizeof(glm::vec2), UniformAlignment, 0, Offsets.data());
     }
-
-    std::vector<Grt::FVulkanDescriptorSet> DescriptorSets(kFramesInFlightCount);
-
-    std::vector<vk::DescriptorPoolSize> Sizes
-    {
-        { vk::DescriptorType::eUniformBufferDynamic, kFramesInFlightCount },
-        { vk::DescriptorType::eCombinedImageSampler, kFramesInFlightCount },
-    };
-
-    Grt::FVulkanDescriptorPool DescriptorPool(kFramesInFlightCount, Sizes);
-    DescriptorPool.AllocateSets(DescriptorSetLayouts, DescriptorSets);
 
     for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
     {
-        vk::DescriptorBufferInfo BufferInfo(*UniformBuffers[i].GetBuffer(), 0, sizeof(glm::vec2));
-        DescriptorSets[i].Write({ BufferInfo }, vk::DescriptorType::eUniformBufferDynamic, 0);
-        Shader.WriteDynamicDescriptors(0, 0, i, vk::DescriptorType::eUniformBufferDynamic, { BufferInfo });
-        vk::DescriptorImageInfo ImageInfo(*Sampler, *Texture.GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-        DescriptorSets[i].Write({ ImageInfo }, vk::DescriptorType::eCombinedImageSampler, 1);
+        vk::DescriptorBufferInfo BufferInfo(*UniformBuffers[i].GetBuffer(), 0, Matrices.size() * UniformAlignment);
+        Shader.WriteDynamicDescriptors<vk::DescriptorBufferInfo>(0, 0, i, vk::DescriptorType::eUniformBufferDynamic, { BufferInfo });
     }
 
     vk::DescriptorImageInfo ImageInfo(*Sampler, *Texture.GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    Shader.WriteSharedDescriptors(0, 1, vk::DescriptorType::eCombinedImageSampler, { ImageInfo });
+    Shader.WriteSharedDescriptors<vk::DescriptorImageInfo>(0, 1, vk::DescriptorType::eCombinedImageSampler, { ImageInfo });
 
     std::vector<FVertex> Vertices
     {
-        { { -0.5f, -0.5f }, { 0.0f, 0.0f } },
-        { {  0.5f, -0.5f }, { 1.0f, 0.0f } },
-        { { -0.5f,  0.5f }, { 0.0f, 1.0f } },
-        { {  0.5f,  0.5f }, { 1.0f, 1.0f } }
+        { { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f } },
+        { {  0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f } },
+        { { -0.5f,  0.5f, 0.0f }, { 0.0f, 1.0f } },
+        { {  0.5f,  0.5f, 0.0f }, { 1.0f, 1.0f } }
     };
 
     std::vector<std::uint16_t> Indices
@@ -207,16 +184,15 @@ void FApplication::ExecuteMainRender()
 
     static auto ShaderStageCreateInfos = Shader.GetShaderStageCreateInfo();
 
-    auto CreateGraphicsPipeline = [this]() -> void
+    auto CreateGraphicsPipeline = [this, &Shader]() -> void
     {
         // 先创建新管线，再销毁旧管线
         Grt::FGraphicsPipelineCreateInfoPack CreateInfoPack;
         CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**_PipelineLayout);
         CreateInfoPack.GraphicsPipelineCreateInfo.setRenderPass(**_Renderer.RenderPass);
 
-        CreateInfoPack.VertexInputBindings.emplace_back(0, static_cast<std::uint32_t>(sizeof(FVertex)), vk::VertexInputRate::eVertex);
-        CreateInfoPack.VertexInputAttributes.emplace_back(0, 0, vk::Format::eR32G32Sfloat, 0);
-        CreateInfoPack.VertexInputAttributes.emplace_back(1, 0, vk::Format::eR32G32Sfloat, static_cast<std::uint32_t>(offsetof(FVertex, TexCoord)));
+        CreateInfoPack.VertexInputBindings.append_range(Shader.GetVertexInputBindings());
+        CreateInfoPack.VertexInputAttributes.append_range(Shader.GetVertexInputAttributes());
 
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
         CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1);
@@ -290,8 +266,11 @@ void FApplication::ExecuteMainRender()
         Offsets[2].x -= static_cast<float>(0.0001f * std::sin(glfwGetTime()));
         Offsets[2].y -= static_cast<float>(0.0001f * std::cos(glfwGetTime()));
 
-        UniformBuffers[CurrentFrame].CopyData(0, 3, sizeof(glm::vec2), sizeof(glm::vec2), UniformAlignment, 0, Offsets.data());
+        Matrices[0] = glm::rotate(Matrices[0], static_cast<float>(0.0001f * glfwGetTime()), glm::vec3(0.0f, 0.0f, 1.0f));
+        Matrices[1] = _FreeCamera->GetViewMatrix();
+        Matrices[2] = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f, 100.0f);
 
+        UniformBuffers[CurrentFrame].CopyData(0, 3, sizeof(glm::mat4x4), sizeof(glm::mat4x4), UniformAlignment, 0, Matrices.data());
         InFlightFences[CurrentFrame].WaitAndReset();
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
@@ -302,13 +281,9 @@ void FApplication::ExecuteMainRender()
         CommandBuffers[CurrentFrame]->bindPipeline(vk::PipelineBindPoint::eGraphics, **_GraphicsPipeline);
         CommandBuffers[CurrentFrame]->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
         CommandBuffers[CurrentFrame]->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
-        for (std::uint32_t i = 0; i != 3; ++i)
-        {
-            std::uint32_t DyanmicOffset = i * static_cast<std::uint32_t>(UniformAlignment);
-            //CommandBuffers[CurrentFrame]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, *DescriptorSets[CurrentFrame], { DyanmicOffset });
-            CommandBuffers[CurrentFrame]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], { DyanmicOffset });
-            CommandBuffers[CurrentFrame]->drawIndexed(6, 1, 0, 0, 0);
-        }
+        std::uint32_t DyanmicOffset = 0 * static_cast<std::uint32_t>(UniformAlignment);
+        CommandBuffers[CurrentFrame]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], { DyanmicOffset });
+        CommandBuffers[CurrentFrame]->drawIndexed(6, 1, 0, 0, 0);
         RenderPass->CommandEnd(CommandBuffers[CurrentFrame]);
         CommandBuffers[CurrentFrame].End();
 
@@ -355,8 +330,7 @@ bool FApplication::InitializeWindow()
         return false;
     }
 
-    glfwSetWindowUserPointer(_Window, this);
-    glfwSetFramebufferSizeCallback(_Window, &FApplication::FramebufferSizeCallback);
+    InitializeInputCallbacks();
 
     std::uint32_t ExtensionCount = 0;
     const char** Extensions = glfwGetRequiredInstanceExtensions(&ExtensionCount);
@@ -399,7 +373,17 @@ bool FApplication::InitializeWindow()
         return false;
     }
 
+    _FreeCamera = std::make_unique<SysSpa::FCamera>(glm::vec3(0.0f, 0.0f, 3.0f));
+
     return true;
+}
+
+void FApplication::InitializeInputCallbacks()
+{
+    glfwSetWindowUserPointer(_Window, this);
+    glfwSetFramebufferSizeCallback(_Window, &FApplication::FramebufferSizeCallback);
+    glfwSetScrollCallback(_Window, nullptr);
+    glfwSetScrollCallback(_Window, &FApplication::ScrollCallback);
 }
 
 void FApplication::ShowTitleFps()
@@ -407,17 +391,16 @@ void FApplication::ShowTitleFps()
     static double CurrentTime   = 0.0;
     static double PreviousTime  = glfwGetTime();
     static double LastFrameTime = 0.0;
-    static double DeltaTime     = 0.0;
     static int    FrameCount    = 0;
 
     CurrentTime   = glfwGetTime();
-    DeltaTime     = CurrentTime - LastFrameTime;
+    _DeltaTime    = CurrentTime - LastFrameTime;
     LastFrameTime = CurrentTime;
     ++FrameCount;
     if (CurrentTime - PreviousTime >= 1.0)
     {
         glfwSetWindowTitle(_Window, (std::string(_WindowTitle) + " " + std::to_string(FrameCount)).c_str());
-        FrameCount = 0;
+        FrameCount   = 0;
         PreviousTime = CurrentTime;
     }
 }
@@ -426,8 +409,38 @@ void FApplication::ProcessInput()
 {
     if (glfwGetKey(_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
-        glfwSetWindowShouldClose(_Window, GL_TRUE);
+        glfwSetWindowShouldClose(_Window, GLFW_TRUE);
     }
+
+    if (glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+    {
+        glfwSetCursorPosCallback(_Window, &FApplication::CursorPosCallback);
+        glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+
+    if (glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE)
+    {
+        glfwSetCursorPosCallback(_Window, nullptr);
+        glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        _bFirstMouse = true;
+    }
+
+    if (glfwGetKey(_Window, GLFW_KEY_W) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kForward, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kBack, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_A) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kLeft, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_D) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRight, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_R) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kUp, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_F) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kDown, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_Q) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollLeft, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_E) == GLFW_PRESS)
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollRight, _DeltaTime);
 }
 
 void FApplication::FramebufferSizeCallback(GLFWwindow* Window, int Width, int Height)
@@ -443,6 +456,31 @@ void FApplication::FramebufferSizeCallback(GLFWwindow* Window, int Width, int He
     App->_WindowSize.height = Height;
     App->_VulkanContext->WaitIdle();
     App->_VulkanContext->RecreateSwapchain();
+}
+
+void FApplication::CursorPosCallback(GLFWwindow* Window, double PosX, double PosY)
+{
+    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(Window));
+
+    if (App->_bFirstMouse)
+    {
+        App->_LastX       = PosX;
+        App->_LastY       = PosY;
+        App->_bFirstMouse = false;
+    }
+
+    double OffsetX = PosX - App->_LastX;
+    double OffsetY = App->_LastY - PosY;
+    App->_LastX = PosX;
+    App->_LastY = PosY;
+
+    App->_FreeCamera->ProcessMouseMovement(OffsetX, OffsetY);
+}
+
+void FApplication::ScrollCallback(GLFWwindow* Window, double OffsetX, double OffsetY)
+{
+    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(Window));
+    App->_FreeCamera->ProcessMouseScroll(OffsetY);
 }
 
 _NPGS_END

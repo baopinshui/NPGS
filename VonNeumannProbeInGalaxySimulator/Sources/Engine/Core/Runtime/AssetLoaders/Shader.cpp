@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
-#include <unordered_set>
+#include <set>
 #include <utility>
 
 #include <spirv_cross/spirv_reflect.hpp>
@@ -64,53 +64,6 @@ FShader& FShader::operator=(FShader&& Other) noexcept
     }
 
     return *this;
-}
-
-void FShader::WriteSharedDescriptors(std::uint32_t Set, std::uint32_t Binding, vk::DescriptorType Type,
-                                     const std::vector<vk::DescriptorBufferInfo>& BufferInfos)
-{
-    auto SetIt = _DescriptorSetsMap.find(Set);
-    if (SetIt == _DescriptorSetsMap.end())
-    {
-        return;
-    }
-
-    for (const auto& DescriptorSet : SetIt->second)
-    {
-        DescriptorSet.Write(BufferInfos, Type, Binding);
-    }
-}
-
-void FShader::WriteSharedDescriptors(std::uint32_t Set, std::uint32_t Binding, vk::DescriptorType Type,
-                                     const std::vector<vk::DescriptorImageInfo>& ImageInfos)
-{
-    auto SetIt = _DescriptorSetsMap.find(Set);
-    if (SetIt == _DescriptorSetsMap.end())
-    {
-        return;
-    }
-
-    for (const auto& DescriptorSet : SetIt->second)
-    {
-        DescriptorSet.Write(ImageInfos, Type, Binding);
-    }
-
-    _bDescriptorSetsNeedUpdate = true;
-}
-
-void FShader::WriteDynamicDescriptors(std::uint32_t Set, std::uint32_t Binding, std::uint32_t FrameIndex, vk::DescriptorType Type,
-                                      const std::vector<vk::DescriptorBufferInfo>& BufferInfos)
-{
-    auto SetIt = _DescriptorSetsMap.find(Set);
-    if (SetIt == _DescriptorSetsMap.end())
-    {
-        return;
-    }
-
-    const auto& DescriptorSet = SetIt->second[FrameIndex];
-    DescriptorSet.Write(BufferInfos, Type, Binding);
-
-    _bDescriptorSetsNeedUpdate = true;
 }
 
 std::vector<vk::PipelineShaderStageCreateInfo> FShader::GetShaderStageCreateInfo() const
@@ -215,12 +168,15 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
 
         vk::PushConstantRange PushConstantRange(ShaderInfo.Stage, Offset, static_cast<std::uint32_t>(BufferSize));
         NpgsCoreTrace("Push Constant \"{}\" size={} bytes, offset={}", PushConstant.name, BufferSize, Offset);
+
+        const auto& PushConstantNames = ResourceInfo.PushConstantInfos.at(ShaderInfo.Stage);
         for (std::uint32_t i = 0; i != Type.member_types.size(); ++i)
         {
-            const std::string& MemberName   = Reflection->get_member_name(Type.self, i);
+            const std::string& MemberName   = PushConstantNames[i];
             std::uint32_t      MemberOffset = Reflection->get_member_decoration(Type.self, i, spv::DecorationOffset);
             const auto&        MemberType   = Reflection->get_type(Type.member_types[i]);
 
+            _PushConstantOffsetsMap[MemberName] = MemberOffset;
             NpgsCoreTrace("  Member \"{}\" at offset={}", MemberName, MemberOffset);
         }
 
@@ -341,6 +297,9 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
 
         std::uint32_t CurrentBinding = 0;
         std::uint32_t CurrentOffset  = 0;
+
+        std::set<vk::VertexInputBindingDescription> UniqueBindings;
+
         for (const auto& Input : Resources->stage_inputs)
         {
             const auto&   Type     = Reflection->get_type(Input.type_id);
@@ -354,26 +313,20 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
             std::uint32_t Stride = BufferIt != BufferMap.end() ? BufferIt->second.Stride : GetTypeSize(Type.basetype) * Type.vecsize;
             bool bIsPerInstance  = BufferIt != BufferMap.end() ? BufferIt->second.bIsPerInstance : false;
 
+            UniqueBindings.emplace(Binding, Stride, bIsPerInstance ? vk::VertexInputRate::eInstance : vk::VertexInputRate::eVertex);
+
             bool bIsMatrix = Type.columns > 1;
             if (bIsMatrix)
             {
                 Stride = GetTypeSize(Type.basetype) * Type.columns * Type.vecsize;
                 for (std::uint32_t Column = 0; Column != Type.columns; ++Column)
                 {
-                    FVertexInputAttributeInfo AttributeInfo;
-                    AttributeInfo.Name = Input.name;
-                    AttributeInfo.Attribute
-                        .setLocation(Location + Column)
-                        .setBinding(Binding)
-                        .setFormat(GetVectorFormat(Type.basetype, Type.vecsize))
-                        .setOffset(Offset + GetTypeSize(Type.basetype) * Column* Type.vecsize);
-
-                    AttributeInfo.Binding
-                        .setBinding(Binding)
-                        .setStride(Stride)
-                        .setInputRate(bIsPerInstance ? vk::VertexInputRate::eInstance : vk::VertexInputRate::eVertex);
-
-                    _ReflectionInfo.VertexInputAttributes.push_back(AttributeInfo);
+                    _ReflectionInfo.VertexInputAttributes.emplace_back(
+                        Location + Column,
+                        Binding,
+                        GetVectorFormat(Type.basetype, Type.vecsize),
+                        Offset + GetTypeSize(Type.basetype) * Column * Type.vecsize
+                    );
                 }
 
                 NpgsCoreTrace("Vertex Attribute \"{}\" at location={}, binding={}, offset={}, stride={}, rate={} (matrix)",
@@ -381,25 +334,15 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
             }
             else
             {
-                FVertexInputAttributeInfo AttributeInfo;
-                AttributeInfo.Name = Input.name;
-                AttributeInfo.Attribute
-                    .setLocation(Location)
-                    .setBinding(Binding)
-                    .setFormat(GetVectorFormat(Type.basetype, Type.vecsize))
-                    .setOffset(Offset);
-
-                AttributeInfo.Binding
-                    .setBinding(Binding)
-                    .setStride(Stride)
-                    .setInputRate(bIsPerInstance ? vk::VertexInputRate::eInstance : vk::VertexInputRate::eVertex);
+                _ReflectionInfo.VertexInputAttributes.emplace_back(
+                    Location,
+                    Binding,
+                    GetVectorFormat(Type.basetype, Type.vecsize),
+                    Offset
+                );
 
                 NpgsCoreTrace("Vertex Attribute \"{}\" at location={}, binding={}, offset={}, stride={}, rate={}",
-                              AttributeInfo.Name, AttributeInfo.Attribute.location, AttributeInfo.Binding.binding,
-                              AttributeInfo.Attribute.offset, AttributeInfo.Binding.stride,
-                              AttributeInfo.Binding.inputRate == vk::VertexInputRate::eInstance ? "per instance" : "per vertex");
-
-                _ReflectionInfo.VertexInputAttributes.push_back(AttributeInfo);
+                              Input.name, Location, Binding, Offset, Stride, bIsPerInstance ? "per instance" : "per vertex");
             }
 
             if (LocationIt == LocationMap.end())
@@ -407,6 +350,9 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
                 ++CurrentBinding;
             }
         }
+
+        _ReflectionInfo.VertexInputBindings =
+            std::vector<vk::VertexInputBindingDescription>(UniqueBindings.begin(), UniqueBindings.end());
     }
 
     NpgsCoreInfo("Shader reflection completed.");

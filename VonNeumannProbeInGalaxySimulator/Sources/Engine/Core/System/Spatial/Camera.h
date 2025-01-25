@@ -1,5 +1,6 @@
 #pragma once
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -41,6 +42,7 @@ public:
     };
 
 public:
+    FCamera() = delete;
     FCamera(const glm::vec3& Position = kPosition, const glm::vec3& WorldUp = kWorldUp, float Sensitivity = kSensitivity,
             float Speed = kSpeed, float Zoom = kZoom);
 
@@ -52,6 +54,7 @@ public:
     void ProcessMouseScroll(double OffsetY);
     float GetCameraZoom() const;
     glm::mat4x4 GetViewMatrix() const;
+    glm::mat4x4 GetProjectionMatrix(float WindowAspect, float Near, float Far) const;
     void SetOrientation(const glm::quat& Orientation);
     const glm::quat& GetOrientation() const;
 

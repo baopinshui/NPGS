@@ -79,7 +79,7 @@ def compile_shader(source_file: Path, target_file: Path) -> bool:
     
     try:
         result = subprocess.run(
-            [GLSLC_PATH, '-O', str(source_file), '-o', str(target_file)],
+            [GLSLC_PATH, '--target-env=vulkan1.3', '-O', str(source_file), '-o', str(target_file)],
             capture_output=True,
             text=True
         )
