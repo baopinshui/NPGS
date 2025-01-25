@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <vulkan/vulkan_handles.hpp>
+
 #include "Engine/Core/Base/Base.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 
@@ -89,9 +91,8 @@ public:
     const std::vector<vk::DescriptorSet>& GetDescriptorSets();
 
 private:
-    FShaderInfo LoadShader(const std::string& Filename);
-
     void InitializeShaders(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo);
+    FShaderInfo LoadShader(const std::string& Filename);
     void ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& ResourceInfo);
     void CreateDescriptors();
     void UpdateDescriptorSets();

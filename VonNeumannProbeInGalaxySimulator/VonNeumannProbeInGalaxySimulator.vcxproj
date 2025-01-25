@@ -134,6 +134,10 @@ spirv-cross-reflectd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <Command>
       </Command>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -160,6 +164,14 @@ spirv-cross-reflectd.lib;%(AdditionalDependencies)</AdditionalDependencies>
 spirv-cross-cpp.lib
 ;spirv-cross-glsl.lib;spirv-cross-reflect.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.cpp" />
@@ -171,7 +183,6 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.cpp" />
-    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Threads\ThreadPool.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\Generators\CivilizationGenerator.cpp" />
@@ -211,7 +222,6 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.h" />
-    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Threads\ThreadPool.h" />
     <ClInclude Include="Sources\Engine\Core\System\Generators\CivilizationGenerator.h" />
@@ -244,7 +254,6 @@ spirv-cross-cpp.lib
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.inl" />
-    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.inl" />
     <None Include="Sources\Engine\Core\Runtime\Threads\ThreadPool.inl" />
     <None Include="Sources\Engine\Core\System\Generators\StellarGenerator.inl" />

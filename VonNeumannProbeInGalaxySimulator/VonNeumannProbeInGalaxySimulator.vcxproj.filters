@@ -87,9 +87,6 @@
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -197,9 +194,6 @@
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -271,9 +265,6 @@
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.inl">
       <Filter>头文件</Filter>
     </None>
-    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderDescriptorManager.inl">
-      <Filter>头文件</Filter>
-    </None>
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.inl">
       <Filter>头文件</Filter>
     </None>
@@ -283,5 +274,9 @@
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.inl">
       <Filter>头文件</Filter>
     </None>
+    <None Include="Sources\Engine\Shaders\Common\Random\Hash.glsl" />
+    <None Include="Sources\Engine\Shaders\Common\NumericConstants.glsl" />
+    <None Include="Sources\Engine\Shaders\Triangle.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\Triangle.vert.glsl" />
   </ItemGroup>
 </Project>

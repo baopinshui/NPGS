@@ -113,7 +113,7 @@ void FApplication::ExecuteMainRender()
         }
     };
 
-    Art::FShader Shader({ "Sources/Engine/Shaders/Triangle.vert.spv", "Sources/Engine/Shaders/Triangle.frag.spv" }, ResInfo);
+    Art::FShader Shader({ "Triangle.vert.spv", "Triangle.frag.spv" }, ResInfo);
 
     vk::DescriptorSetLayoutBinding UniformBufferBinding = vk::DescriptorSetLayoutBinding()
         .setBinding(0)
@@ -205,21 +205,7 @@ void FApplication::ExecuteMainRender()
     Grt::FDeviceLocalBuffer IndexBuffer(Indices.size() * sizeof(std::uint16_t), vk::BufferUsageFlagBits::eIndexBuffer);
     IndexBuffer.CopyData(Indices);
 
-    static Grt::FVulkanShaderModule VertShaderModule("Sources/Engine/Shaders/Triangle.vert.spv");
-    static Grt::FVulkanShaderModule FragShaderModule("Sources/Engine/Shaders/Triangle.frag.spv");
-
-    static vk::PipelineShaderStageCreateInfo VertShaderStage = vk::PipelineShaderStageCreateInfo()
-        .setStage(vk::ShaderStageFlagBits::eVertex)
-        .setModule(*VertShaderModule)
-        .setPName("main");
-    static vk::PipelineShaderStageCreateInfo FragShaderStage = vk::PipelineShaderStageCreateInfo()
-        .setStage(vk::ShaderStageFlagBits::eFragment)
-        .setModule(*FragShaderModule)
-        .setPName("main");
-
-    static std::vector<vk::PipelineShaderStageCreateInfo> ShaderStageCreateInfos{ VertShaderStage, FragShaderStage };
-
-    static auto TestInfo = Shader.GetShaderStageCreateInfo();
+    static auto ShaderStageCreateInfos = Shader.GetShaderStageCreateInfo();
 
     auto CreateGraphicsPipeline = [this]() -> void
     {
@@ -235,8 +221,7 @@ void FApplication::ExecuteMainRender()
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
         CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1);
 
-        //CreateInfoPack.ShaderStages = ShaderStageCreateInfos;
-        CreateInfoPack.ShaderStages = TestInfo;
+        CreateInfoPack.ShaderStages = ShaderStageCreateInfos;
 
         vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState = vk::PipelineColorBlendAttachmentState()
             .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |

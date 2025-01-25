@@ -880,12 +880,12 @@ public:
 
     FVulkanShaderModule(const vk::ShaderModuleCreateInfo& CreateInfo);
     FVulkanShaderModule(vk::Device Device, const vk::ShaderModuleCreateInfo& CreateInfo);
-    FVulkanShaderModule(const std::string& Filename);
-    FVulkanShaderModule(vk::Device Device, const std::string& Filename); // Temp
+    // FVulkanShaderModule(const std::string& Filename);
+    // FVulkanShaderModule(vk::Device Device, const std::string& Filename); // Temp
 
 private:
     vk::Result CreateShaderModule(const vk::ShaderModuleCreateInfo& CreateInfo);
-    vk::Result CreateShaderModule(const std::string& Filename); // Temp
+    // vk::Result CreateShaderModule(const std::string& Filename); // Temp
 };
 // -------------------
 // Native wrappers end

@@ -12,6 +12,7 @@
 #include <spirv_cross/spirv_reflect.hpp>
 
 #include "Engine/Core/Base/Config/EngineConfig.h"
+#include "Engine/Core/Runtime/AssetLoaders/GetAssetFullPath.h"
 #include "Engine/Utils/Logger.h"
 
 _NPGS_BEGIN
@@ -138,6 +139,24 @@ std::vector<vk::DescriptorSetLayout> FShader::GetDescriptorSetLayouts() const
     return NativeTypeLayouts;
 }
 
+void FShader::InitializeShaders(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo)
+{
+    for (const auto& Filename : ShaderFiles)
+    {
+        FShaderInfo ShaderInfo = LoadShader(GetAssetFullPath(EAssetType::kShader, Filename));
+        if (ShaderInfo.Code.empty())
+        {
+            return;
+        }
+
+        vk::ShaderModuleCreateInfo ShaderModuleCreateInfo({}, ShaderInfo.Code);
+        Graphics::FVulkanShaderModule ShaderModule(ShaderModuleCreateInfo);
+        _ShaderModules.emplace_back(ShaderInfo.Stage, std::move(ShaderModule));
+
+        ReflectShader(ShaderInfo, ResourceInfo);
+    }
+}
+
 FShader::FShaderInfo FShader::LoadShader(const std::string& Filename)
 {
     if (!std::filesystem::exists(Filename))
@@ -161,24 +180,6 @@ FShader::FShaderInfo FShader::LoadShader(const std::string& Filename)
 
     vk::ShaderStageFlagBits Stage = GetShaderStageFromFilename(Filename);
     return { ShaderCode, Stage };
-}
-
-void FShader::InitializeShaders(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo)
-{
-    for (const auto& Filename : ShaderFiles)
-    {
-        FShaderInfo ShaderInfo = LoadShader(Filename);
-        if (ShaderInfo.Code.empty())
-        {
-            return;
-        }
-
-        vk::ShaderModuleCreateInfo ShaderModuleCreateInfo({}, ShaderInfo.Code);
-        Graphics::FVulkanShaderModule ShaderModule(ShaderModuleCreateInfo);
-        _ShaderModules.emplace_back(ShaderInfo.Stage, std::move(ShaderModule));
-
-        ReflectShader(ShaderInfo, ResourceInfo);
-    }
 }
 
 void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& ResourceInfo)

@@ -1396,17 +1396,17 @@ FVulkanShaderModule::FVulkanShaderModule(vk::Device Device, const vk::ShaderModu
     _Status      = CreateShaderModule(CreateInfo);
 }
 
-FVulkanShaderModule::FVulkanShaderModule(const std::string& Filename)
-    : FVulkanShaderModule(FVulkanCore::GetClassInstance()->GetDevice(), Filename)
-{
-}
+// FVulkanShaderModule::FVulkanShaderModule(const std::string& Filename)
+//     : FVulkanShaderModule(FVulkanCore::GetClassInstance()->GetDevice(), Filename)
+// {
+// }
 
-FVulkanShaderModule::FVulkanShaderModule(vk::Device Device, const std::string& Filename)
-    : Base(Device)
-{
-    _ReleaseInfo = "Shader module destroyed successfully.";
-    _Status      = CreateShaderModule(Filename);
-}
+// FVulkanShaderModule::FVulkanShaderModule(vk::Device Device, const std::string& Filename)
+//     : Base(Device)
+// {
+//     _ReleaseInfo = "Shader module destroyed successfully.";
+//     _Status      = CreateShaderModule(Filename);
+// }
 
 vk::Result FVulkanShaderModule::CreateShaderModule(const vk::ShaderModuleCreateInfo& CreateInfo)
 {
@@ -1424,24 +1424,24 @@ vk::Result FVulkanShaderModule::CreateShaderModule(const vk::ShaderModuleCreateI
     return vk::Result::eSuccess;
 }
 
-vk::Result FVulkanShaderModule::CreateShaderModule(const std::string& Filename)
-{
-    std::ifstream ShaderFile(Filename, std::ios::ate | std::ios::binary);
-    if (!ShaderFile.is_open())
-    {
-        NpgsCoreError("Failed to open shader file: {}", Filename);
-        return vk::Result::eErrorInitializationFailed;
-    }
-
-    std::size_t FileSize = static_cast<std::size_t>(ShaderFile.tellg());
-    std::vector<std::uint32_t> ShaderCode(FileSize / sizeof(std::uint32_t));
-    ShaderFile.seekg(0);
-    ShaderFile.read(reinterpret_cast<char*>(ShaderCode.data()), FileSize);
-    ShaderFile.close();
-
-    vk::ShaderModuleCreateInfo ShaderModuleCreateInfo({}, ShaderCode);
-    return CreateShaderModule(ShaderModuleCreateInfo);
-}
+// vk::Result FVulkanShaderModule::CreateShaderModule(const std::string& Filename)
+// {
+//     std::ifstream ShaderFile(Filename, std::ios::ate | std::ios::binary);
+//     if (!ShaderFile.is_open())
+//     {
+//         NpgsCoreError("Failed to open shader file: {}", Filename);
+//         return vk::Result::eErrorInitializationFailed;
+//     }
+// 
+//     std::size_t FileSize = static_cast<std::size_t>(ShaderFile.tellg());
+//     std::vector<std::uint32_t> ShaderCode(FileSize / sizeof(std::uint32_t));
+//     ShaderFile.seekg(0);
+//     ShaderFile.read(reinterpret_cast<char*>(ShaderCode.data()), FileSize);
+//     ShaderFile.close();
+// 
+//     vk::ShaderModuleCreateInfo ShaderModuleCreateInfo({}, ShaderCode);
+//     return CreateShaderModule(ShaderModuleCreateInfo);
+// }
 // -------------------
 // Native wrappers end
 
