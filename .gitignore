@@ -365,7 +365,7 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Vcpkg 
-/VonNeumannProbeInGalaxySimulator/vcpkg_installed/
+/NPGS/vcpkg_installed/
 .vcpkg/
 
 # Vcpkg manifest mode

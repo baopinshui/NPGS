@@ -20,7 +20,7 @@ FVulkanCore::FVulkanCore()
     _PresentQueueFamilyIndex(vk::QueueFamilyIgnored),
     _ComputeQueueFamilyIndex(vk::QueueFamilyIgnored),
     _CurrentImageIndex(std::numeric_limits<std::uint32_t>::max()),
-    _ApiVersion(VK_API_VERSION_1_3)
+    _ApiVersion(VK_API_VERSION_1_4)
 {
     UseLatestApiVersion();
 }
@@ -768,17 +768,17 @@ vk::Result FVulkanCore::CreateDebugMessenger()
         return vk::Result::eErrorExtensionNotPresent;
     }
 
-    PFN_vkDebugUtilsMessengerCallbackEXT DebugCallback =
-    [](VkDebugUtilsMessageSeverityFlagBitsEXT      MessageSeverity,
-       VkDebugUtilsMessageTypeFlagsEXT             MessageType,
-       const VkDebugUtilsMessengerCallbackDataEXT* CallbackData,
-       void*                                       UserData) -> VkBool32
+    vk::PFN_DebugUtilsMessengerCallbackEXT DebugCallback =
+    [](vk::DebugUtilsMessageSeverityFlagBitsEXT      MessageSeverity,
+       vk::DebugUtilsMessageTypeFlagsEXT             MessageType,
+       const vk::DebugUtilsMessengerCallbackDataEXT* CallbackData,
+       void*                                         UserData) -> vk::Bool32
     {
         std::string Severity;
-        if (MessageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) Severity = "VERBOSE";
-        if (MessageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)    Severity = "INFO";
-        if (MessageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) Severity = "WARNING";
-        if (MessageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)   Severity = "ERROR";
+        if (MessageSeverity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose) Severity = "VERBOSE";
+        if (MessageSeverity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo)    Severity = "INFO";
+        if (MessageSeverity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning) Severity = "WARNING";
+        if (MessageSeverity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eError)   Severity = "ERROR";
 
         if (Severity == "VERBOSE")
             NpgsCoreTrace("Validation layer: {}", CallbackData->pMessage);
@@ -796,7 +796,7 @@ vk::Result FVulkanCore::CreateDebugMessenger()
         // if (CallbackData->objectCount > 0)
         // 	NpgsCoreTrace("Objects: {}", CallbackData->objectCount);
 
-        return VK_FALSE;
+        return vk::False;
     };
 
     auto MessageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |

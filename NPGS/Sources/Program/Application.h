@@ -1,14 +1,10 @@
 #pragma once
 
-#include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
-#include <utility>
 
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
 
 #include "Engine/Core/Base/Base.h"

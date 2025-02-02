@@ -5,6 +5,7 @@
   "dependencies": [
     "assimp",
     "boost-multiprecision",
+    "boost-pfr",
     "fast-cpp-csv-parser",
     "freetype",
     "magic-enum",
@@ -14,5 +15,5 @@
     "spdlog",
     "stb"
   ],
-  "builtin-baseline": "96dbba1e03d1ecc7c7096e97d5a09ff3c58e21df"
+  "builtin-baseline": "0ca64b4e1c70fa6d9f53b369b8f3f0843797c20c"
 }

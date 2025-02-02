@@ -1,9 +1,11 @@
 #include "Application.h"
 
+#include <cmath>
 #include <cstddef>
-#include <utility>
+#include <cstdint>
 
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"

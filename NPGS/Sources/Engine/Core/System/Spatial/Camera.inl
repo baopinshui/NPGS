@@ -1,5 +1,7 @@
 #include "Camera.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _SPATIAL_BEGIN
