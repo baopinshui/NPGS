@@ -52,6 +52,11 @@ private:
     int                               _kHyperThreadIndex;
 };
 
+template <typename DataType, typename ResultType>
+void MakeChunks(int MaxThread, std::vector<DataType>& Data, std::vector<std::vector<DataType>>& DataLists,
+                std::vector<std::promise<std::vector<ResultType>>>& Promises,
+                std::vector<std::future<std::vector<ResultType>>>& ChunkFutures);
+
 _THREAD_END
 _RUNTIME_END
 _NPGS_END

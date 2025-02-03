@@ -5,13 +5,12 @@
   "dependencies": [
     "assimp",
     "boost-multiprecision",
-    "boost-pfr",
     "fast-cpp-csv-parser",
     "freetype",
-    "magic-enum",
     "glfw3",
     "gli",
     "glm",
+    "magic-enum",
     "spdlog",
     "stb"
   ],

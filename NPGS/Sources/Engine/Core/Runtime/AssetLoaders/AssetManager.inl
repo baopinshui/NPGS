@@ -5,7 +5,7 @@ _RUNTIME_BEGIN
 _ASSET_BEGIN
 
 template <typename AssetType>
-requires CCopyableAndMoveable<AssetType>
+requires CAssetCompatible<AssetType>
 inline void FAssetManager::AddAsset(const std::string& Name, AssetType&& Asset)
 {
     _Assets.emplace(Name, FManagedAsset(
@@ -15,7 +15,7 @@ inline void FAssetManager::AddAsset(const std::string& Name, AssetType&& Asset)
 }
 
 template <typename AssetType>
-requires CCopyableAndMoveable<AssetType>
+requires CAssetCompatible<AssetType>
 inline AssetType* FAssetManager::GetAsset(const std::string& Name)
 {
     auto it = _Assets.find(Name);
@@ -28,7 +28,7 @@ inline AssetType* FAssetManager::GetAsset(const std::string& Name)
 }
 
 template <typename AssetType>
-requires CCopyableAndMoveable<AssetType>
+requires CAssetCompatible<AssetType>
 inline std::vector<AssetType*> FAssetManager::GetAssets()
 {
     std::vector<AssetType*> Result;

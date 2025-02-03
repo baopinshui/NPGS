@@ -18,6 +18,7 @@ class FTypeErasedDeleter
 {
 public:
     template <typename OriginalType>
+    requires std::is_class_v<OriginalType>
     FTypeErasedDeleter(OriginalType*)
         : _Deleter([](void* Ptr) -> void { delete static_cast<OriginalType*>(Ptr); })
     {
@@ -33,21 +34,21 @@ private:
 };
 
 template <typename AssetType>
-concept CCopyableAndMoveable = std::copyable<AssetType> && std::movable<AssetType>;
+concept CAssetCompatible = std::is_class_v<AssetType> && std::copyable<AssetType> && std::movable<AssetType>;
 
 class FAssetManager
 {
 public:
     template <typename AssetType>
-    requires CCopyableAndMoveable<AssetType>
+    requires CAssetCompatible<AssetType>
     void AddAsset(const std::string& Name, AssetType&& Asset);
 
     template <typename AssetType>
-    requires CCopyableAndMoveable<AssetType>
+    requires CAssetCompatible<AssetType>
     AssetType* GetAsset(const std::string& Name);
 
     template <typename AssetType>
-    requires CCopyableAndMoveable<AssetType>
+    requires CAssetCompatible<AssetType>
     std::vector<AssetType*> GetAssets();
 
     void RemoveAsset(const std::string& Name);

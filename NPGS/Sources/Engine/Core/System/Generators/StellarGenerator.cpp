@@ -588,6 +588,7 @@ Astro::AStar FStellarGenerator::GenerateStar(FBasicProperties& Properties)
 }
 
 template <typename CsvType>
+requires std::is_class_v<CsvType>
 CsvType* FStellarGenerator::LoadCsvAsset(const std::string& Filename, const std::vector<std::string>& Headers)
 {
     auto* AssetManager = Runtime::Asset::FAssetManager::GetInstance();

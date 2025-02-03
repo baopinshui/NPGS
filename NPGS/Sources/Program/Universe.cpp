@@ -8,6 +8,7 @@
 #include <iterator>
 #include <limits>
 #include <print>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -585,25 +586,6 @@ void FUniverse::CountStars()
     std::println("");
 }
 
-template <typename AstroType, typename DataType>
-void FUniverse::MakeChunks(int MaxThread, std::vector<DataType>& Data, std::vector<std::vector<DataType>>& DataLists,
-                           std::vector<std::promise<std::vector<AstroType>>>& Promises,
-                           std::vector<std::future<std::vector<AstroType>>>& ChunkFutures)
-{
-    for (std::size_t i = 0; i != Data.size(); ++i)
-    {
-        std::size_t ThreadId = i % MaxThread;
-        DataLists[ThreadId].push_back(std::move(Data[i]));
-    }
-
-    Promises.resize(MaxThread);
-
-    for (int i = 0; i != MaxThread; ++i)
-    {
-        ChunkFutures.push_back(Promises[i].get_future());
-    }
-}
-
 void FUniverse::GenerateStars(int MaxThread)
 {
     NpgsCoreInfo("Initializating and generating basic properties...");
@@ -839,7 +821,7 @@ FUniverse::InterpolateStars(int MaxThread, std::vector<SysGen::FStellarGenerator
     std::vector<std::promise<std::vector<Astro::AStar>>> Promises(MaxThread);
     std::vector<std::future<std::vector<Astro::AStar>>> ChunkFutures;
 
-    MakeChunks(MaxThread, BasicProperties, PropertyLists, Promises, ChunkFutures);
+    Runtime::Thread::MakeChunks(MaxThread, BasicProperties, PropertyLists, Promises, ChunkFutures);
 
     for (int i = 0; i != MaxThread; ++i)
     {
@@ -860,7 +842,7 @@ FUniverse::InterpolateStars(int MaxThread, std::vector<SysGen::FStellarGenerator
     for (auto& Future : ChunkFutures)
     {
         auto Chunk = Future.get();
-        Stars.insert(Stars.end(), std::make_move_iterator(Chunk.begin()), std::make_move_iterator(Chunk.end()));
+        Stars.append_range(Chunk | std::views::as_rvalue);
     }
 
     return Stars;

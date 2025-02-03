@@ -4,9 +4,10 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _ASSET_BEGIN
 
-template <typename DescriptorInfo>
+template <typename DescriptorInfoType>
+requires std::is_class_v<DescriptorInfoType>
 inline void FShader::WriteSharedDescriptors(std::uint32_t Set, std::uint32_t Binding, vk::DescriptorType Type,
-                                            const std::vector<DescriptorInfo>& DescriptorInfos)
+                                            const std::vector<DescriptorInfoType>& DescriptorInfos)
 {
     auto SetIt = _DescriptorSetsMap.find(Set);
     if (SetIt == _DescriptorSetsMap.end())
@@ -22,9 +23,10 @@ inline void FShader::WriteSharedDescriptors(std::uint32_t Set, std::uint32_t Bin
     _bDescriptorSetsNeedUpdate = true;
 }
 
-template <typename DescriptorInfo>
+template <typename DescriptorInfoType>
+requires std::is_class_v<DescriptorInfoType>
 inline void FShader::WriteDynamicDescriptors(std::uint32_t Set, std::uint32_t Binding, std::uint32_t FrameIndex,
-                                             vk::DescriptorType Type, const std::vector<DescriptorInfo>& DescriptorInfos)
+                                             vk::DescriptorType Type, const std::vector<DescriptorInfoType>& DescriptorInfos)
 {
     auto SetIt = _DescriptorSetsMap.find(Set);
     if (SetIt == _DescriptorSetsMap.end())

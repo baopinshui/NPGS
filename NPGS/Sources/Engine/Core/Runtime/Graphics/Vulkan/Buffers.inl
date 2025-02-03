@@ -1,6 +1,5 @@
 #include "Buffers.h"
 
-#include <type_traits>
 #include "Engine/Core/Base/Assert.h"
 
 _NPGS_BEGIN
@@ -104,7 +103,8 @@ NPGS_INLINE void FDeviceLocalBuffer::UpdateData(const FVulkanCommandBuffer& Comm
     CommandBuffer->updateBuffer(*_BufferMemory->GetResource(), Offset, Size, Data);
 }
 
-template<typename ContainerType>
+template <typename ContainerType>
+requires std::is_class_v<ContainerType>
 NPGS_INLINE void FDeviceLocalBuffer::CopyData(const ContainerType& Data) const
 {
     using ValueType = typename ContainerType::value_type;
@@ -114,7 +114,8 @@ NPGS_INLINE void FDeviceLocalBuffer::CopyData(const ContainerType& Data) const
     return CopyData(0, DataSize, static_cast<const void*>(Data.data()));
 }
 
-template<typename ContainerType>
+template <typename ContainerType>
+requires std::is_class_v<ContainerType>
 NPGS_INLINE void FDeviceLocalBuffer::UpdateData(const FVulkanCommandBuffer& CommandBuffer, const ContainerType& Data) const
 {
     using ValueType = typename ContainerType::value_type;

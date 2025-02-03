@@ -239,6 +239,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\Types\Properties\Intelli\Artifact.h" />
     <ClInclude Include="Sources\Engine\Core\Types\Properties\Intelli\Civilization.h" />
     <ClInclude Include="Sources\Engine\Core\Types\Properties\StellarClass.h" />
+    <ClInclude Include="Sources\Engine\Utils\FieldReflection.hpp" />
     <ClInclude Include="Sources\Engine\Utils\Logger.h" />
     <ClInclude Include="Sources\Engine\Utils\Random.hpp" />
     <ClInclude Include="Sources\Engine\Utils\Utils.h" />

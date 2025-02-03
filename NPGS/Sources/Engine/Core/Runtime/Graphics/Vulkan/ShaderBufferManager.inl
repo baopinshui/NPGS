@@ -1,8 +1,5 @@
 #include "ShaderBufferManager.h"
 
-#include <array>
-#include "Engine/Utils/Logger.h"
-
 _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN

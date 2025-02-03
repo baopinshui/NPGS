@@ -1,105 +1,112 @@
 #pragma once
 
 #include <random>
+#include <type_traits>
 #include "Engine/Core/Base/Base.h"
 
 _NPGS_BEGIN
 _UTIL_BEGIN
 
-template <typename Ty = float, typename RandomEngine = std::mt19937>
+template <typename BaseType = float, typename RandomEngine = std::mt19937>
+requires std::is_class_v<RandomEngine>
 class TDistribution
 {
 public:
-    virtual ~TDistribution()                    = default;
-    virtual Ty operator()(RandomEngine& Engine) = 0;
-    virtual Ty Generate(RandomEngine& Engine)   = 0;
+    virtual ~TDistribution()                          = default;
+    virtual BaseType operator()(RandomEngine& Engine) = 0;
+    virtual BaseType Generate(RandomEngine& Engine)   = 0;
 };
 
-template <typename Ty = int, typename RandomEngine = std::mt19937>
-class TUniformIntDistribution : public TDistribution<Ty>
+template <typename BaseType = int, typename RandomEngine = std::mt19937>
+requires std::is_class_v<RandomEngine>
+class TUniformIntDistribution : public TDistribution<BaseType>
 {
 public:
     TUniformIntDistribution() = default;
-    TUniformIntDistribution(Ty Min, Ty Max) : _Distribution(Min, Max) {}
+    TUniformIntDistribution(BaseType Min, BaseType Max) : _Distribution(Min, Max) {}
 
-    Ty operator()(RandomEngine& Engine) override
+    BaseType operator()(RandomEngine& Engine) override
     {
         return _Distribution(Engine);
     }
 
-    Ty Generate(RandomEngine& Engine) override
+    BaseType Generate(RandomEngine& Engine) override
     {
         return operator()(Engine);
     }
 
 private:
-    std::uniform_int_distribution<Ty> _Distribution;
+    std::uniform_int_distribution<BaseType> _Distribution;
 };
 
-template <typename Ty = float, typename RandomEngine = std::mt19937>
-class TUniformRealDistribution : public TDistribution<Ty, RandomEngine>
+template <typename BaseType = float, typename RandomEngine = std::mt19937>
+requires std::is_class_v<RandomEngine>
+class TUniformRealDistribution : public TDistribution<BaseType, RandomEngine>
 {
 public:
     TUniformRealDistribution() = default;
-    TUniformRealDistribution(Ty Min, Ty Max) : _Distribution(Min, Max) {}
+    TUniformRealDistribution(BaseType Min, BaseType Max) : _Distribution(Min, Max) {}
 
-    Ty operator()(RandomEngine& Engine) override
+    BaseType operator()(RandomEngine& Engine) override
     {
         return _Distribution(Engine);
     }
 
-    Ty Generate(RandomEngine& Engine) override
+    BaseType Generate(RandomEngine& Engine) override
     {
         return operator()(Engine);
     }
 
 private:
-    std::uniform_real_distribution<Ty> _Distribution;
+    std::uniform_real_distribution<BaseType> _Distribution;
 };
 
-template <typename Ty = float, typename RandomEngine = std::mt19937>
-class TNormalDistribution : public TDistribution<Ty, RandomEngine>
+template <typename BaseType = float, typename RandomEngine = std::mt19937>
+requires std::is_class_v<RandomEngine>
+class TNormalDistribution : public TDistribution<BaseType, RandomEngine>
 {
 public:
     TNormalDistribution() = default;
-    TNormalDistribution(Ty Mean, Ty Sigma) : _Distribution(Mean, Sigma) {}
+    TNormalDistribution(BaseType Mean, BaseType Sigma) : _Distribution(Mean, Sigma) {}
 
-    Ty operator()(RandomEngine& Engine) override
+    BaseType operator()(RandomEngine& Engine) override
     {
         return _Distribution(Engine);
     }
 
-    Ty Generate(RandomEngine& Engine) override
+    BaseType Generate(RandomEngine& Engine) override
     {
         return operator()(Engine);
     }
 
 private:
-    std::normal_distribution<Ty> _Distribution;
+    std::normal_distribution<BaseType> _Distribution;
 };
 
-template <typename Ty = float, typename RandomEngine = std::mt19937>
-class TLogNormalDistribution : public TDistribution<Ty, RandomEngine>
+template <typename BaseType = float, typename RandomEngine = std::mt19937>
+requires std::is_class_v<RandomEngine>
+class TLogNormalDistribution : public TDistribution<BaseType, RandomEngine>
 {
 public:
     TLogNormalDistribution() = default;
-    TLogNormalDistribution(Ty Mean, Ty Sigma) : _Distribution(Mean, Sigma) {}
+    TLogNormalDistribution(BaseType Mean, BaseType Sigma) : _Distribution(Mean, Sigma) {}
 
-    Ty operator()(RandomEngine& Engine) override
+    BaseType operator()(RandomEngine& Engine) override
     {
         return _Distribution(Engine);
     }
 
-    Ty Generate(RandomEngine& Engine) override
+    BaseType Generate(RandomEngine& Engine) override
     {
         return operator()(Engine);
     }
 
 private:
-    std::lognormal_distribution<Ty> _Distribution;
+    std::lognormal_distribution<BaseType> _Distribution;
 };
 
 template <typename RandomEngine = std::mt19937>
+requires std::is_class_v<RandomEngine>
 class TBernoulliDistribution : public TDistribution<double, RandomEngine>
 {
 public:

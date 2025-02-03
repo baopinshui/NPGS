@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -77,6 +78,7 @@ public:
         EObjectType GetObjectType() const;
 
         template <typename ObjectType>
+        requires std::is_class_v<ObjectType>
         ObjectType* GetObject() const;
 
     private:

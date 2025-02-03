@@ -10,7 +10,6 @@
 #include <vulkan/vulkan_handles.hpp>
 
 #include "Engine/Core/Base/Base.h"
-#include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Buffers.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 
@@ -45,16 +44,34 @@ public:
         vk::DeviceSize               _Offset;
     };
 
-    struct TUniformBufferInfo
+    struct FUniformBufferCreateInfo
     {
-        std::string                 Name;
-        std::vector<Asset::FShader> Shaders;
-        std::uint32_t               Set{};
-        std::uint32_t               Binding{};
-        vk::DescriptorType          Usage{};
+        std::string                                         Name;
+        std::vector<std::pair<std::string, vk::DeviceSize>> Fields;
+        std::vector<std::string>                            ShaderAssetNames;
+        std::uint32_t                                       Set{};
+        std::uint32_t                                       Binding{};
+        vk::DescriptorType                                  Usage{};
+    };
+
+private:
+    struct FBufferFieldInfo
+    {
+        std::string    Name;
+        vk::DeviceSize Offset{};
+        vk::DeviceSize Size{};
+        vk::DeviceSize Alignment{};
+    };
+
+    struct FUniformBufferInfo
+    {
+        std::vector<FBufferFieldInfo> Fields;
+        FUniformBufferCreateInfo      CreateInfo;
     };
 
 public:
+    void CreateBuffer(const FUniformBufferCreateInfo& BufferCreateInfo);
+
     static FShaderBufferManager* GetInstance();
 
 private:
@@ -67,7 +84,7 @@ private:
     FShaderBufferManager& operator=(FShaderBufferManager&&)      = delete;
 
 private:
-    std::unordered_map<std::string, TUniformBufferInfo> _UniformBuffers;
+    std::unordered_map<std::string, FUniformBufferInfo> _UniformBuffers;
 };
 
 //class FBlockManagerBase

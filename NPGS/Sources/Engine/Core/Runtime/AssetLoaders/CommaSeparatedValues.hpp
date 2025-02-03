@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <algorithm>
 #include <charconv>
-#include <concepts>
 #include <functional>
 #include <stdexcept>
 #include <string>
@@ -24,12 +23,12 @@ _ASSET_BEGIN
 template <std::size_t ColSize>
 concept CValidFormat = ColSize > 1;
 
-template <typename BasicType, std::size_t ColSize>
+template <typename BaseType, std::size_t ColSize>
 requires CValidFormat<ColSize>
 class TCommaSeparatedValues
 {
 public:
-    using FRowArray = std::vector<BasicType>;
+    using FRowArray = std::vector<BaseType>;
 
 public:
     TCommaSeparatedValues(const std::string& Filename, const std::vector<std::string>& ColNames)
@@ -46,7 +45,7 @@ public:
     TCommaSeparatedValues& operator=(const TCommaSeparatedValues&)     = default;
     TCommaSeparatedValues& operator=(TCommaSeparatedValues&&) noexcept = default;
 
-    FRowArray FindFirstDataArray(const std::string& DataHeader, const BasicType& DataValue) const
+    FRowArray FindFirstDataArray(const std::string& DataHeader, const BaseType& DataValue) const
     {
         std::size_t DataIndex = GetHeaderIndex(DataHeader);
         for (const auto& Row : _Data)
@@ -60,7 +59,7 @@ public:
         throw std::out_of_range("Data not found.");
     }
 
-    BasicType FindMatchingValue(const std::string& DataHeader, const BasicType& DataValue, const std::string& TargetHeader) const
+    BaseType FindMatchingValue(const std::string& DataHeader, const BaseType& DataValue, const std::string& TargetHeader) const
     {
         std::size_t DataIndex   = GetHeaderIndex(DataHeader);
         std::size_t TargetIndex = GetHeaderIndex(TargetHeader);
@@ -76,13 +75,13 @@ public:
     }
 
     template <typename Func = std::less<>>
-    std::pair<FRowArray, FRowArray> FindSurroundingValues(const std::string& DataHeader, const BasicType& TargetValue,
+    std::pair<FRowArray, FRowArray> FindSurroundingValues(const std::string& DataHeader, const BaseType& TargetValue,
                                                           bool bSorted = true, Func&& Pred = Func())
     {
         std::size_t DataIndex = GetHeaderIndex(DataHeader);
 
-        std::function<bool(const BasicType&, const BasicType&)> Comparator = Pred;
-        if constexpr (std::is_same_v<Func, std::less<>> && std::is_same_v<BasicType, std::string>)
+        std::function<bool(const BaseType&, const BaseType&)> Comparator = Pred;
+        if constexpr (std::is_same_v<Func, std::less<>> && std::is_same_v<BaseType, std::string>)
         {
             Comparator = &TCommaSeparatedValues::StrLessThan;
         }
@@ -96,7 +95,7 @@ public:
         }
 
         auto it = std::lower_bound(_Data.begin(), _Data.end(), TargetValue,
-        [&](const FRowArray& Row, const BasicType& Value) -> bool
+        [&](const FRowArray& Row, const BaseType& Value) -> bool
         {
             return Comparator(Row[DataIndex], Value);
         });
@@ -148,6 +147,7 @@ private:
     }
 
     template <typename ReaderType>
+    requires std::is_class_v<ReaderType>
     void ReadHeader(ReaderType& Reader, io::ignore_column IgnoreColumn)
     {
         std::apply([&](auto&&... Args) -> void
@@ -160,7 +160,7 @@ private:
     {
         io::CSVReader<ColSize> Reader(_Filename);
         ReadHeader(Reader, IgnoreColumn);
-        std::vector<BasicType> Row(_ColNames.size());
+        std::vector<BaseType> Row(_ColNames.size());
         while (ReadRow(Reader, Row))
         {
             _Data.push_back(Row);
@@ -168,13 +168,15 @@ private:
     }
 
     template <typename ReaderType>
-    bool ReadRow(ReaderType& Reader, std::vector<BasicType>& Row)
+    requires std::is_class_v<ReaderType>
+    bool ReadRow(ReaderType& Reader, std::vector<BaseType>& Row)
     {
         return ReadRowImpl(Reader, Row, std::make_index_sequence<ColSize>{});
     }
 
     template <typename ReaderType, std::size_t... Indices>
-    bool ReadRowImpl(ReaderType& Reader, std::vector<BasicType>& Row, std::index_sequence<Indices...>)
+    requires std::is_class_v<ReaderType>
+    bool ReadRowImpl(ReaderType& Reader, std::vector<BaseType>& Row, std::index_sequence<Indices...>)
     {
         return Reader.read_row(Row[Indices]...);
     }

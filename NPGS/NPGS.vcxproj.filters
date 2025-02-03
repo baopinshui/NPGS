@@ -221,6 +221,9 @@
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderBufferManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Sources\Engine\Utils\FieldReflection.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Sources\Engine\Utils\Logger.inl">

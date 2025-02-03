@@ -1,7 +1,5 @@
 #include "StellarSystem.h"
 
-#include <type_traits>
-
 _NPGS_BEGIN
 _ASTRO_BEGIN
 
@@ -46,6 +44,7 @@ NPGS_INLINE FOrbit::EObjectType FOrbit::FOrbitalObject::GetObjectType() const
 }
 
 template <typename ObjectType>
+requires std::is_class_v<ObjectType>
 NPGS_INLINE ObjectType* FOrbit::FOrbitalObject::GetObject() const
 {
     if constexpr (std::is_same_v<ObjectType, FBaryCenter>)

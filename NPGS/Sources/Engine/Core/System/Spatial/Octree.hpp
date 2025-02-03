@@ -17,7 +17,7 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _SPATIAL_BEGIN
 
-template <typename LinkTarget>
+template <typename LinkTargetType>
 class TOctreeNode
 {
 public:
@@ -109,15 +109,15 @@ public:
         _Points.clear();
     }
 
-    void AddLink(LinkTarget* Target)
+    void AddLink(LinkTargetType* Target)
     {
         _DataLink.push_back(Target);
     }
 
     template <typename Func>
-    LinkTarget* GetLink(Func&& Pred) const
+    LinkTargetType* GetLink(Func&& Pred) const
     {
-        for (LinkTarget* Target : _DataLink)
+        for (LinkTargetType* Target : _DataLink)
         {
             if (Pred(Target))
             {
@@ -168,15 +168,15 @@ private:
     bool         _bIsValid;
 
     std::array<std::unique_ptr<TOctreeNode>, 8> _Next;
-    std::vector<glm::vec3>   _Points;
-    std::vector<LinkTarget*> _DataLink;
+    std::vector<glm::vec3>                      _Points;
+    std::vector<LinkTargetType*>                _DataLink;
 };
 
-template <typename LinkTarget>
+template <typename LinkTargetType>
 class TOctree
 {
 public:
-    using FNodeType = TOctreeNode<LinkTarget>;
+    using FNodeType = TOctreeNode<LinkTargetType>;
 
 public:
     TOctree(const glm::vec3& Center, float Radius, int MaxDepth = 8)

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <vulkan/vulkan_handles.hpp>
@@ -326,6 +327,7 @@ enum class EVulkanHandleReleaseMethod
 };
 
 template <typename HandleType>
+requires std::is_class_v<HandleType>
 class TVulkanHandleNoDestroy
 {
 public:
@@ -397,7 +399,8 @@ protected:
 };
 
 template <typename HandleType, bool bEnableReleaseInfoOutput = true,
-    EVulkanHandleReleaseMethod ReleaseMethod = EVulkanHandleReleaseMethod::kDestroy>
+          EVulkanHandleReleaseMethod ReleaseMethod = EVulkanHandleReleaseMethod::kDestroy>
+requires std::is_class_v<HandleType>
 class TVulkanHandle : public TVulkanHandleNoDestroy<HandleType>
 {
 public:
@@ -553,9 +556,11 @@ public:
     vk::Result FetchData(vk::DeviceSize Offset, vk::DeviceSize Size, void* Target);
 
     template <typename ContainerType>
+    requires std::is_class_v<ContainerType>
     vk::Result SubmitData(const ContainerType& Data) const;
 
     template <typename ContainerType>
+    requires std::is_class_v<ContainerType>
     vk::Result FetchData(ContainerType& Data) const;
 
     const void* GetMappedDataMemory() const;
@@ -891,6 +896,7 @@ private:
 // Native wrappers end
 
 template <typename ResourceType, typename MemoryType = FVulkanDeviceMemory>
+requires std::is_class_v<ResourceType> && std::is_class_v<MemoryType>
 class TVulkanResourceMemory
 {
 public:
@@ -1001,9 +1007,11 @@ public:
     vk::Result FetchBufferData(vk::DeviceSize Offset, vk::DeviceSize Size, void* Target) const;
 
     template <typename ContainerType>
+    requires std::is_class_v<ContainerType>
     vk::Result SubmitBufferData(const ContainerType& Data) const;
 
     template <typename ContainerType>
+    requires std::is_class_v<ContainerType>
     vk::Result FetchBufferData(ContainerType& Data) const;
 };
 

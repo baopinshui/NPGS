@@ -7,6 +7,7 @@
 #include <memory>
 #include <random>
 #include <shared_mutex>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -152,6 +153,7 @@ public:
 
 private:
     template <typename CsvType>
+    requires std::is_class_v<CsvType>
     CsvType* LoadCsvAsset(const std::string& Filename, const std::vector<std::string>& Headers);
 
     void InitializeMistData();

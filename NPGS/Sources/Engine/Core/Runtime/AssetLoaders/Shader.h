@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -72,13 +73,15 @@ public:
     FShader& operator=(const FShader&) = default;
     FShader& operator=(FShader&& Other) noexcept;
 
-    template <typename DescriptorInfo>
+    template <typename DescriptorInfoType>
+    requires std::is_class_v<DescriptorInfoType>
     void WriteSharedDescriptors(std::uint32_t Set, std::uint32_t Binding, vk::DescriptorType Type,
-                                const std::vector<DescriptorInfo>& DescriptorInfos);
+                                const std::vector<DescriptorInfoType>& DescriptorInfos);
 
-    template <typename DescriptorInfo>
+    template <typename DescriptorInfoType>
+    requires std::is_class_v<DescriptorInfoType>
     void WriteDynamicDescriptors(std::uint32_t Set, std::uint32_t Binding, std::uint32_t FrameIndex,
-                                 vk::DescriptorType Type, const std::vector<DescriptorInfo>& DescriptorInfos);
+                                 vk::DescriptorType Type, const std::vector<DescriptorInfoType>& DescriptorInfos);
 
     std::vector<vk::PipelineShaderStageCreateInfo> GetShaderStageCreateInfo() const;
     std::vector<vk::DescriptorSetLayout> GetDescriptorSetLayouts() const;

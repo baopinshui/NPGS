@@ -7,7 +7,7 @@
 _NPGS_BEGIN
 
 #ifdef NPGS_ENABLE_ENUM_BIT_OPERATOR
-template<typename EnumType>
+template <typename EnumType>
 inline constexpr EnumType operator&(EnumType Lhs, EnumType Rhs)
 {
     return static_cast<EnumType>(static_cast<std::underlying_type_t<EnumType>>(Lhs) &

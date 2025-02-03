@@ -1,7 +1,5 @@
 #include "Wrappers.h"
 
-#include <type_traits>
-
 #include "Engine/Core/Base/Assert.h"
 #include "Engine/Utils/Utils.h"
 
@@ -22,6 +20,7 @@ NPGS_INLINE FGraphicsPipelineCreateInfoPack::operator const vk::GraphicsPipeline
 // Wrapper for vk::DeviceMemory
 // ----------------------------
 template <typename ContainerType>
+requires std::is_class_v<ContainerType>
 NPGS_INLINE vk::Result FVulkanDeviceMemory::SubmitData(const ContainerType& Data) const
 {
     using ValueType = typename ContainerType::value_type;
@@ -31,7 +30,8 @@ NPGS_INLINE vk::Result FVulkanDeviceMemory::SubmitData(const ContainerType& Data
     return SubmitData(0, DataSize, static_cast<const void*>(Data.data()));
 }
 
-template<typename ContainerType>
+template <typename ContainerType>
+requires std::is_class_v<ContainerType>
 NPGS_INLINE vk::Result FVulkanDeviceMemory::FetchData(ContainerType& Data) const
 {
     using ValueType = typename ContainerType::value_type;
@@ -166,12 +166,14 @@ NPGS_INLINE vk::Result FVulkanBufferMemory::FetchBufferData(vk::DeviceSize Offse
 }
 
 template <typename ContainerType>
+requires std::is_class_v<ContainerType>
 NPGS_INLINE vk::Result FVulkanBufferMemory::SubmitBufferData(const ContainerType& Data) const
 {
     return _Memory->SubmitData(Data);
 }
 
 template <typename ContainerType>
+requires std::is_class_v<ContainerType>
 NPGS_INLINE vk::Result FVulkanBufferMemory::FetchBufferData(ContainerType& Data) const
 {
     return _Memory->FetchData(Data);

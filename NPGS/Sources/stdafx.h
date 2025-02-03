@@ -12,7 +12,6 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <GLFW/glfw3.h>
 
-#include <magic_enum/magic_enum_all.hpp>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <spirv_cross/spirv_reflect.hpp>

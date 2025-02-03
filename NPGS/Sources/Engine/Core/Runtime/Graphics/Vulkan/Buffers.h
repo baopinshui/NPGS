@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <type_traits>
 #include <vector>
 
 #include <vulkan/vulkan_handles.hpp>
@@ -104,11 +105,13 @@ public:
                   vk::DeviceSize SrcStride, vk::DeviceSize DstStride, vk::DeviceSize MapOffset, const void* Data) const;
 
     template <typename ContainerType>
+    requires std::is_class_v<ContainerType>
     void CopyData(const ContainerType& Data) const;
 
     void UpdateData(const FVulkanCommandBuffer& CommandBuffer, vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data) const;
 
     template <typename ContainerType>
+    requires std::is_class_v<ContainerType>
     void UpdateData(const FVulkanCommandBuffer& CommandBuffer, const ContainerType& Data) const;
 
     void EnablePersistentMapping() const;

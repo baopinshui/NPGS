@@ -4,6 +4,7 @@
 #include <array>
 #include <utility>
 
+#include "Engine/Core/Runtime/Graphics/Vulkan/Context.h"
 #include "Engine/Utils/Logger.h"
 
 _NPGS_BEGIN
@@ -15,6 +16,25 @@ _GRAPHICS_BEGIN
 //    std::string GetTypeName(GLenum Type);
 //}
 //
+
+void FShaderBufferManager::CreateBuffer(const FUniformBufferCreateInfo& BufferCreateInfo)
+{
+    //const auto* VulkanContext = FVulkanContext::GetClassInstance();
+    //vk::DeviceSize MinUniformAlignment = VulkanContext->GetPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment;
+    //std::size_t FieldIndex = 0;
+    //FUniformBufferInfo BufferInfo;
+    //BufferInfo.CreateInfo = BufferCreateInfo;
+    //for (const auto& Field : BufferCreateInfo.Fields)
+    //{
+    //    FBufferFieldInfo FieldInfo;
+    //    FieldInfo.Name      = BufferCreateInfo.Fields[FieldIndex++].first;
+    //    FieldInfo.Offset    = reinterpret_cast<const std::byte*>(&Field) - reinterpret_cast<const std::byte*>(&Buffer);
+    //    FieldInfo.Size      = sizeof(decltype(Field));
+    //    FieldInfo.Alignment = (FieldInfo.Size + MinUniformAlignment - 1) & ~(MinUniformAlignment - 1);
+
+    //    _UniformBuffers[BufferCreateInfo.Name].Fields.push_back(FieldInfo);
+    //}
+}
 
 FShaderBufferManager* FShaderBufferManager::GetInstance()
 {

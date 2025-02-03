@@ -29,6 +29,25 @@ NPGS_INLINE int FThreadPool::GetMaxThreadCount() const
     return _kMaxThreadCount;
 }
 
+template <typename DataType, typename ResultType>
+inline void MakeChunks(int MaxThread, std::vector<DataType>& Data, std::vector<std::vector<DataType>>& DataLists,
+                       std::vector<std::promise<std::vector<ResultType>>>& Promises,
+                       std::vector<std::future<std::vector<ResultType>>>& ChunkFutures)
+{
+    for (std::size_t i = 0; i != Data.size(); ++i)
+    {
+        std::size_t ThreadId = i % MaxThread;
+        DataLists[ThreadId].push_back(std::move(Data[i]));
+    }
+
+    Promises.resize(MaxThread);
+
+    for (int i = 0; i != MaxThread; ++i)
+    {
+        ChunkFutures.push_back(Promises[i].get_future());
+    }
+}
+
 _THREAD_END
 _RUNTIME_END
 _NPGS_END

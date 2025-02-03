@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <limits>
 #include <print>
+#include <ranges>
 #include <utility>
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -1213,19 +1214,13 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
     }
 
     System.PlanetsData().reserve(System.PlanetsData().size() + Planets.size());
-    System.PlanetsData().insert(System.PlanetsData().end(),
-                                std::make_move_iterator(Planets.begin()),
-                                std::make_move_iterator(Planets.end()));
+    System.PlanetsData().append_range(Planets | std::views::as_rvalue);
 
     System.OrbitsData().reserve(System.OrbitsData().size() + Orbits.size());
-    System.OrbitsData().insert(System.OrbitsData().end(),
-                               std::make_move_iterator(Orbits.begin()),
-                               std::make_move_iterator(Orbits.end()));
+    System.OrbitsData().append_range(Orbits | std::views::as_rvalue);
 
     System.AsteroidClustersData().reserve(System.AsteroidClustersData().size() + AsteroidClusters.size());
-    System.AsteroidClustersData().insert(System.AsteroidClustersData().end(),
-                                         std::make_move_iterator(AsteroidClusters.begin()),
-                                         std::make_move_iterator(AsteroidClusters.end()));
+    System.AsteroidClustersData().append_range(AsteroidClusters | std::views::as_rvalue);
 }
 
 void FOrbitalGenerator::GenerateOrbitElements(Astro::FOrbit& Orbit)
@@ -2123,14 +2118,10 @@ void FOrbitalGenerator::GenerateMoons(std::size_t PlanetIndex, float FrostLineAu
     }
 
     Orbits.reserve(Orbits.size() + MoonOrbits.size());
-    Orbits.insert(Orbits.end(),
-                  std::make_move_iterator(MoonOrbits.begin()),
-                  std::make_move_iterator(MoonOrbits.end()));
+    Orbits.append_range(MoonOrbits | std::views::as_rvalue);
 
     Planets.reserve(Planets.size() + Moons.size());
-    Planets.insert(Planets.end(),
-                   std::make_move_iterator(Moons.begin()),
-                   std::make_move_iterator(Moons.end()));
+    Planets.append_range(Moons | std::views::as_rvalue);
 }
 
 void FOrbitalGenerator::GenerateRings(std::size_t PlanetIndex, float FrostLineAu, const Astro::AStar* Star,
