@@ -34,7 +34,7 @@ private:
 };
 
 template <typename AssetType>
-concept CAssetCompatible = std::is_class_v<AssetType> && std::copyable<AssetType> && std::movable<AssetType>;
+concept CAssetCompatible = std::is_class_v<AssetType> && std::movable<AssetType>;
 
 class FAssetManager
 {
@@ -42,6 +42,10 @@ public:
     template <typename AssetType>
     requires CAssetCompatible<AssetType>
     void AddAsset(const std::string& Name, AssetType&& Asset);
+
+    template <typename AssetType, typename... Args>
+    requires CAssetCompatible<AssetType>
+    void AddAsset(const std::string& Name, Args&&... ConstructArgs);
 
     template <typename AssetType>
     requires CAssetCompatible<AssetType>

@@ -445,7 +445,7 @@ FVulkanDeviceMemory::FVulkanDeviceMemory(FVulkanDeviceMemory&& Other) noexcept
 
 FVulkanDeviceMemory::~FVulkanDeviceMemory()
 {
-    if (_bPersistentlyMapped)
+    if (_bPersistentlyMapped && (_MappedDataMemory != nullptr || _MappedTargetMemory != nullptr))
     {
         UnmapMemory(0, _AllocationSize);
         _MappedDataMemory    = nullptr;
@@ -541,12 +541,13 @@ vk::Result FVulkanDeviceMemory::UnmapMemory(vk::DeviceSize Offset, vk::DeviceSiz
     return vk::Result::eSuccess;
 }
 
-vk::Result FVulkanDeviceMemory::SubmitData(vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data)
+vk::Result FVulkanDeviceMemory::SubmitData(vk::DeviceSize MapOffset, vk::DeviceSize SubmitOffset, vk::DeviceSize Size, const void* Data)
 {
     void* Target = nullptr;
     if (!_bPersistentlyMapped || _MappedTargetMemory == nullptr)
     {
-        if (vk::Result Result = MapMemoryForSubmit(Offset, Size, Target); Result != vk::Result::eSuccess)
+        vk::DeviceSize MappedBase = _bPersistentlyMapped ? 0 : MapOffset;
+        if (vk::Result Result = MapMemoryForSubmit(MappedBase, Size, Target); Result != vk::Result::eSuccess)
         {
             return Result;
         }
@@ -556,22 +557,23 @@ vk::Result FVulkanDeviceMemory::SubmitData(vk::DeviceSize Offset, vk::DeviceSize
         Target = _MappedTargetMemory;
     }
 
-    std::copy(static_cast<const std::byte*>(Data), static_cast<const std::byte*>(Data) + Size, static_cast<std::byte*>(Target));
+    std::copy(static_cast<const std::byte*>(Data), static_cast<const std::byte*>(Data) + Size, static_cast<std::byte*>(Target) + SubmitOffset);
 
     if (!_bPersistentlyMapped)
     {
-        return UnmapMemory(Offset, Size);
+        return UnmapMemory(MapOffset, Size);
     }
 
     return vk::Result::eSuccess;
 }
 
-vk::Result FVulkanDeviceMemory::FetchData(vk::DeviceSize Offset, vk::DeviceSize Size, void* Target)
+vk::Result FVulkanDeviceMemory::FetchData(vk::DeviceSize MapOffset, vk::DeviceSize FetchOffset, vk::DeviceSize Size, void* Target)
 {
     void* Data = nullptr;
     if (!_bPersistentlyMapped || _MappedTargetMemory == nullptr)
     {
-        if (vk::Result Result = MapMemoryForFetch(Offset, Size, Data); Result != vk::Result::eSuccess)
+        vk::DeviceSize MappedBase = _bPersistentlyMapped ? 0 : MapOffset;
+        if (vk::Result Result = MapMemoryForFetch(MappedBase, Size, Data); Result != vk::Result::eSuccess)
         {
             return Result;
         }
@@ -581,11 +583,11 @@ vk::Result FVulkanDeviceMemory::FetchData(vk::DeviceSize Offset, vk::DeviceSize 
         Data = _MappedDataMemory;
     }
 
-    std::copy(static_cast<const std::byte*>(Data), static_cast<const std::byte*>(Data) + Size, static_cast<std::byte*>(Target));
+    std::copy(static_cast<const std::byte*>(Data) + FetchOffset, static_cast<const std::byte*>(Data) + FetchOffset + Size, static_cast<std::byte*>(Target));
 
     if (!_bPersistentlyMapped)
     {
-        return UnmapMemory(Offset, Size);
+        return UnmapMemory(MapOffset, Size);
     }
 
     return vk::Result::eSuccess;

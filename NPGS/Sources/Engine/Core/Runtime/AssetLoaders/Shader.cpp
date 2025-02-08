@@ -44,13 +44,6 @@ FShader::FShader(FShader&& Other) noexcept
 {
 }
 
-FShader::~FShader()
-{
-    _ShaderModules.clear();
-    _DescriptorSetLayoutsMap.clear();
-    _DescriptorSetsMap.clear();
-}
-
 FShader& FShader::operator=(FShader&& Other) noexcept
 {
     if (this != &Other)

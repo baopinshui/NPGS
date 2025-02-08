@@ -50,10 +50,6 @@ FUniverse::FUniverse(std::uint32_t Seed, std::size_t StarCount, std::size_t Extr
     _RandomEngine.seed(SeedSequence);
 }
 
-FUniverse::~FUniverse()
-{
-}
-
 void FUniverse::FillUniverse()
 {
     int MaxThread = _ThreadPool->GetMaxThreadCount();

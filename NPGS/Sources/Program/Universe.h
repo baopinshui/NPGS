@@ -25,7 +25,7 @@ public:
               std::size_t ExtraNeutronStarCount = 0, std::size_t ExtraBlackHoleCount = 0, std::size_t ExtraMergeStarCount   = 0,
               float UniverseAge = 1.38e10f);
 
-    ~FUniverse();
+    ~FUniverse() = default;
 
     void FillUniverse();
     void ReplaceStar(std::size_t DistanceRank, const Astro::AStar& StarData);

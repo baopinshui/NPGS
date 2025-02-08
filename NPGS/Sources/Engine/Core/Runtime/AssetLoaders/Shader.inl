@@ -45,9 +45,9 @@ NPGS_INLINE std::vector<vk::PushConstantRange> FShader::GetPushConstantRanges() 
     return _ReflectionInfo.PushConstants;
 }
 
-NPGS_INLINE std::uint32_t FShader::GetPushConstantOffset(std::string_view Name) const
+NPGS_INLINE std::uint32_t FShader::GetPushConstantOffset(const std::string& Name) const
 {
-    return _PushConstantOffsetsMap.at(Name.data());
+    return _PushConstantOffsetsMap.at(Name);
 }
 
 NPGS_INLINE const std::vector<vk::VertexInputBindingDescription>& FShader::GetVertexInputBindings() const

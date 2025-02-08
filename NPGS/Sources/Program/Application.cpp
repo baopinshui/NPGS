@@ -7,9 +7,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "Engine/Core/Runtime/AssetLoaders/AssetManager.h"
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Buffers.h"
+#include "Engine/Core/Runtime/Graphics/Vulkan/ShaderBufferManager.h"
 #include "Engine/Utils/Logger.h"
 
 _NPGS_BEGIN
@@ -105,7 +107,10 @@ void FApplication::ExecuteMainRender()
         glm::vec2 TexCoord;
     };
 
-    Art::FTexture2D Texture("AwesomeFace.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
+    auto* AssetManager = Art::FAssetManager::GetInstance();
+
+    AssetManager->AddAsset<Art::FTexture2D>("AwesomeFace", Art::FTexture2D("AwesomeFace.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true));
+    
     vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
     Grt::FVulkanSampler Sampler(SamplerCreateInfo);
 
@@ -126,7 +131,11 @@ void FApplication::ExecuteMainRender()
         //}
     };
 
-    Art::FShader Shader({ "Triangle.vert.spv", "Triangle.frag.spv" }, ResInfo);
+    std::vector<std::string> TriangleShaders({ "Triangle.vert.spv", "Triangle.frag.spv" });
+    AssetManager->AddAsset<Art::FShader>("Shader", TriangleShaders, ResInfo);
+
+    auto& Shader  = *AssetManager->GetAsset<Art::FShader>("Shader");
+    auto& Texture = *AssetManager->GetAsset<Art::FTexture2D>("AwesomeFace");
 
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
     auto NativeArray = Shader.GetDescriptorSetLayouts();
@@ -135,6 +144,30 @@ void FApplication::ExecuteMainRender()
     //PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
 
     _PipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
+
+    // Test
+    struct FMvpMatrices
+    {
+        glm::mat4x4 Model{ glm::mat4x4(1.0f) };
+        glm::mat4x4 View{ glm::mat4x4(1.0f) };
+        glm::mat4x4 Projection{ glm::mat4x4(1.0f) };
+    } MvpMatrices;
+
+    Grt::FShaderBufferManager::FUniformBufferCreateInfo MvpMatricesCreateInfo
+    {
+        .Name    = "MvpMatrices",
+        .Fields  = { "Model", "View", "Projection" },
+        .Set     = 0,
+        .Binding = 0,
+        .Usage   = vk::DescriptorType::eUniformBufferDynamic
+    };
+
+    auto ShaderBufferManager = Grt::FShaderBufferManager::GetInstance();
+    ShaderBufferManager->CreateBuffer<FMvpMatrices>(MvpMatricesCreateInfo);
+
+    const auto ModelUpdaters      = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("MvpMatrices", "Model");
+    const auto ViewUpdaters       = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("MvpMatrices", "View");
+    const auto ProjectionUpdaters = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("MvpMatrices", "Projection");
 
     // Create graphics pipeline
     // ------------------------
@@ -145,25 +178,28 @@ void FApplication::ExecuteMainRender()
         glm::vec2( 0.5f, 0.0f)
     };
 
-    std::vector<glm::mat4x4> Matrices(3, glm::mat4x4(1.0f));
+    //std::vector<glm::mat4x4> Matrices(3, glm::mat4x4(1.0f));
 
-    vk::DeviceSize MinUniformAlignment = _VulkanContext->GetPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment;
-    vk::DeviceSize UniformAlignment    = (sizeof(glm::mat4x4) + MinUniformAlignment - 1) & ~(MinUniformAlignment - 1);
-    std::vector<Grt::FDeviceLocalBuffer> UniformBuffers;
-    for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
-    {
-        UniformBuffers.emplace_back(Matrices.size() * UniformAlignment, vk::BufferUsageFlagBits::eUniformBuffer);
-        UniformBuffers[i].EnablePersistentMapping();
-    }
+    //vk::DeviceSize MinUniformAlignment = _VulkanContext->GetPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment;
+    //vk::DeviceSize UniformAlignment    = (sizeof(glm::mat4x4) + MinUniformAlignment - 1) & ~(MinUniformAlignment - 1);
+    //std::vector<Grt::FDeviceLocalBuffer> UniformBuffers;
+    //for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
+    //{
+    //    UniformBuffers.emplace_back(Matrices.size() * UniformAlignment, vk::BufferUsageFlagBits::eUniformBuffer);
+    //    UniformBuffers[i].CopyData(0, 3 * sizeof(glm::mat4), Matrices.data());
+    //    UniformBuffers[i].EnablePersistentMapping();
+    //}
 
-    for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
-    {
-        vk::DescriptorBufferInfo BufferInfo(*UniformBuffers[i].GetBuffer(), 0, Matrices.size() * UniformAlignment);
-        Shader.WriteDynamicDescriptors<vk::DescriptorBufferInfo>(0, 0, i, vk::DescriptorType::eUniformBufferDynamic, { BufferInfo });
-    }
+    //for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
+    //{
+    //    vk::DescriptorBufferInfo BufferInfo(*UniformBuffers[i].GetBuffer(), 0, Matrices.size() * UniformAlignment);
+    //    Shader.WriteDynamicDescriptors<vk::DescriptorBufferInfo>(0, 0, i, vk::DescriptorType::eUniformBufferDynamic, { BufferInfo });
+    //}
 
     vk::DescriptorImageInfo ImageInfo(*Sampler, *Texture.GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
     Shader.WriteSharedDescriptors<vk::DescriptorImageInfo>(0, 1, vk::DescriptorType::eCombinedImageSampler, { ImageInfo });
+
+    ShaderBufferManager->BindShaderToBuffers("MvpMatrices", "Shader");
 
     std::vector<FVertex> Vertices
     {
@@ -178,6 +214,28 @@ void FApplication::ExecuteMainRender()
         0, 1, 2,
         1, 2, 3
     };
+
+    //std::vector<FVertex> Vertices
+    //{
+    //    // X轴 - 红色
+    //    { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+    //    { { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
+
+    //    // Y轴 - 绿色
+    //    { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+    //    { { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+
+    //    // Z轴 - 蓝色
+    //    { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+    //    { { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } }
+    //};
+
+    //std::vector<std::uint16_t> Indices
+    //{
+    //    0, 1,  // X轴
+    //    2, 3,  // Y轴
+    //    4, 5   // Z轴
+    //};
 
     Grt::FDeviceLocalBuffer VertexBuffer(Vertices.size() * sizeof(FVertex), vk::BufferUsageFlagBits::eVertexBuffer);
     VertexBuffer.CopyData(Vertices);
@@ -205,8 +263,9 @@ void FApplication::ExecuteMainRender()
             .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
                                vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
 
-        CreateInfoPack.Viewports.emplace_back(0.0f, 0.0f, static_cast<float>(_WindowSize.width),
-                                              static_cast<float>(_WindowSize.height), 0.0f, 1.0f);
+        CreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height),
+                                              static_cast<float>(_WindowSize.width), -static_cast<float>(_WindowSize.height),
+                                              0.0f, 1.0f);
         CreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
         CreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
 
@@ -268,11 +327,13 @@ void FApplication::ExecuteMainRender()
         Offsets[2].x -= static_cast<float>(0.0001f * std::sin(glfwGetTime()));
         Offsets[2].y -= static_cast<float>(0.0001f * std::cos(glfwGetTime()));
 
-        Matrices[0] = glm::rotate(Matrices[0], static_cast<float>(0.0001f * glfwGetTime()), glm::vec3(0.0f, 0.0f, 1.0f));
-        Matrices[1] = _FreeCamera->GetViewMatrix();
-        Matrices[2] = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f, 100.0f);
+        MvpMatrices.Model      = glm::rotate(MvpMatrices.Model, static_cast<float>(0.0001f * glfwGetTime()), glm::vec3(0.0f, 0.0f, 1.0f));
+        MvpMatrices.View       = _FreeCamera->GetViewMatrix();
+        MvpMatrices.Projection = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f, 100.0f);
 
-        UniformBuffers[CurrentFrame].CopyData(0, 3, sizeof(glm::mat4x4), sizeof(glm::mat4x4), UniformAlignment, 0, Matrices.data());
+        ViewUpdaters[CurrentFrame] << MvpMatrices.View;
+        ProjectionUpdaters[CurrentFrame] << MvpMatrices.Projection;
+
         InFlightFences[CurrentFrame].WaitAndReset();
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
@@ -283,8 +344,8 @@ void FApplication::ExecuteMainRender()
         CommandBuffers[CurrentFrame]->bindPipeline(vk::PipelineBindPoint::eGraphics, **_GraphicsPipeline);
         CommandBuffers[CurrentFrame]->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
         CommandBuffers[CurrentFrame]->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
-        std::uint32_t DyanmicOffset = 0 * static_cast<std::uint32_t>(UniformAlignment);
-        CommandBuffers[CurrentFrame]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], { DyanmicOffset });
+        std::uint32_t DynamicOffset = 0;// 0 * static_cast<std::uint32_t>(UniformAlignment);
+        CommandBuffers[CurrentFrame]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], DynamicOffset);
         CommandBuffers[CurrentFrame]->drawIndexed(6, 1, 0, 0, 0);
         RenderPass->CommandEnd(CommandBuffers[CurrentFrame]);
         CommandBuffers[CurrentFrame].End();
@@ -322,7 +383,6 @@ bool FApplication::InitializeWindow()
     };
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true);
 
     _Window = glfwCreateWindow(_WindowSize.width, _WindowSize.height, _WindowTitle.c_str(), nullptr, nullptr);
     if (_Window == nullptr)

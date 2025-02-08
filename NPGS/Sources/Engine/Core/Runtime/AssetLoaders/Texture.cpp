@@ -3,10 +3,14 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
+#include <exception>
 #include <filesystem>
 #include <format>
+#include <string_view>
 #include <type_traits>
 #include <utility>
+
+#include <gli/gli.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -39,7 +43,7 @@ namespace
                          const Graphics::FImageMemoryBarrierParameterPack& FinalBarrier);
 }
 
-FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat)
+FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat, bool bFlipVertically)
 {
     int   ImageWidth    = 0;
     int   ImageHeight   = 0;
@@ -49,12 +53,50 @@ FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t
 
     Graphics::FFormatInfo FormatInfo = Graphics::GetFormatInfo(ImageFormat);
 
+    stbi_set_flip_vertically_on_load(bFlipVertically);
+
     if constexpr (std::is_same_v<decltype(Source), const char*>)
     {
         if (!std::filesystem::exists(Source))
         {
             NpgsCoreError("Failed to load image: \"{}\": No such file or directory.", Source);
             return {};
+        }
+
+        std::string_view Filename(Source);
+        bool bIsKtx = Filename.ends_with(".ktx") || Filename.ends_with(".KTX");
+        bool bIsDds = Filename.ends_with(".dds") || Filename.ends_with(".DDS");
+
+        if (bIsKtx || bIsDds)
+        {
+            try
+            {
+                gli::texture Texture = gli::load(Source);
+                if (!Texture.empty())
+                {
+                    gli::extent3d Extent = Texture.extent();
+                    std::size_t   Size   = Texture.size(0);
+
+                    FImageData Data;
+                    Data.Extent.width  = static_cast<uint32_t>(Extent.x);
+                    Data.Extent.height = static_cast<uint32_t>(Extent.y);
+
+                    Data.Data.resize(Size);
+                    std::copy(static_cast<const std::byte*>(Texture.data()), static_cast<const std::byte*>(Texture.data()) + Size, Data.Data.begin());
+
+                    return Data;
+                }
+                else
+                {
+                    NpgsCoreError("Failed to load compressed texture: \"{}\".", Source);
+                    return {};
+                }
+            }
+            catch (const std::exception& e)
+            {
+                NpgsCoreError("Failed to load image: \"{}\": {}", Source, e.what());
+                return {};
+            }
         }
 
         ErrorMessage = std::format("Failed to load image: \"{}\".", Source);
@@ -258,10 +300,10 @@ void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, 
 }
 
 FTexture2D::FTexture2D(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
-                       vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
+                       vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
     : _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
 {
-    CreateTexture(GetAssetFullPath(EAssetType::kTexture, Filename), InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
+    CreateTexture(GetAssetFullPath(EAssetType::kTexture, Filename), InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
 }
 
 FTexture2D::FTexture2D(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat,
@@ -271,10 +313,30 @@ FTexture2D::FTexture2D(const std::byte* Source, vk::Extent2D Extent, vk::Format 
     CreateTexture(Source, Extent, InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
 }
 
-void FTexture2D::CreateTexture(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
-                               vk::ImageCreateFlags Flags, bool bGenreteMipmaps)
+FTexture2D::FTexture2D(FTexture2D&& Other) noexcept
+    :
+    Base(std::move(Other)),
+    _StagingBufferPool(std::exchange(Other._StagingBufferPool, nullptr)),
+    _ImageExtent(std::exchange(Other._ImageExtent, {}))
 {
-    FImageData ImageData = LoadImage(Filename.c_str(), 0, InitialFormat);
+}
+
+FTexture2D& FTexture2D::operator=(FTexture2D&& Other) noexcept
+{
+    if (this != &Other)
+    {
+        Base::operator=(std::move(Other));
+        _StagingBufferPool = std::exchange(Other._StagingBufferPool, nullptr);
+        _ImageExtent       = std::exchange(Other._ImageExtent, {});
+    }
+
+    return *this;
+}
+
+void FTexture2D::CreateTexture(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
+                               vk::ImageCreateFlags Flags, bool bGenreteMipmaps, bool bFlipVertically)
+{
+    FImageData ImageData = LoadImage(Filename.c_str(), 0, InitialFormat, bFlipVertically);
     vk::Extent2D Extent  = { ImageData.Extent.width, ImageData.Extent.height };
     CreateTexture(ImageData.Data.data(), Extent, InitialFormat, FinalFormat, Flags, bGenreteMipmaps);
 }

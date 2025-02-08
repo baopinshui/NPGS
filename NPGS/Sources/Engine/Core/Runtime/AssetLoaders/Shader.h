@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -66,11 +65,11 @@ private:
 
 public:
     FShader(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo);
-    FShader(const FShader&) = default;
+    FShader(const FShader&) = delete;
     FShader(FShader&& Other) noexcept;
-    ~FShader();
+    ~FShader() = default;
 
-    FShader& operator=(const FShader&) = default;
+    FShader& operator=(const FShader&) = delete;
     FShader& operator=(FShader&& Other) noexcept;
 
     template <typename DescriptorInfoType>
@@ -86,7 +85,7 @@ public:
     std::vector<vk::PipelineShaderStageCreateInfo> GetShaderStageCreateInfo() const;
     std::vector<vk::DescriptorSetLayout> GetDescriptorSetLayouts() const;
     std::vector<vk::PushConstantRange> GetPushConstantRanges() const;
-    std::uint32_t GetPushConstantOffset(std::string_view Name) const;
+    std::uint32_t GetPushConstantOffset(const std::string& Name) const;
 
     const std::vector<vk::VertexInputBindingDescription>& GetVertexInputBindings() const;
     const std::vector<vk::VertexInputAttributeDescription>& GetVertexInputAttributes() const;

@@ -552,8 +552,8 @@ public:
     vk::Result MapMemoryForSubmit(vk::DeviceSize Offset, vk::DeviceSize Size, void*& Target);
     vk::Result MapMemoryForFetch(vk::DeviceSize Offset, vk::DeviceSize Size, void*& Data);
     vk::Result UnmapMemory(vk::DeviceSize Offset, vk::DeviceSize Size);
-    vk::Result SubmitData(vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data);
-    vk::Result FetchData(vk::DeviceSize Offset, vk::DeviceSize Size, void* Target);
+    vk::Result SubmitData(vk::DeviceSize MapOffset, vk::DeviceSize SubmitOffset, vk::DeviceSize Size, const void* Data);
+    vk::Result FetchData(vk::DeviceSize MapOffset, vk::DeviceSize FetchOffset, vk::DeviceSize Size, void* Target);
 
     template <typename ContainerType>
     requires std::is_class_v<ContainerType>
@@ -1003,8 +1003,8 @@ public:
     vk::Result MapMemoryForSubmit(vk::DeviceSize Offset, vk::DeviceSize Size, void*& Target) const;
     vk::Result MapMemoryForFetch(vk::DeviceSize Offset, vk::DeviceSize Size, void*& Data) const;
     vk::Result UnmapMemory(vk::DeviceSize Offset, vk::DeviceSize Size) const;
-    vk::Result SubmitBufferData(vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data) const;
-    vk::Result FetchBufferData(vk::DeviceSize Offset, vk::DeviceSize Size, void* Target) const;
+    vk::Result SubmitBufferData(vk::DeviceSize MapOffset, vk::DeviceSize SubmitOffset, vk::DeviceSize Size, const void* Data) const;
+    vk::Result FetchBufferData(vk::DeviceSize MapOffset, vk::DeviceSize FetchOffset, vk::DeviceSize Size, void* Target) const;
 
     template <typename ContainerType>
     requires std::is_class_v<ContainerType>

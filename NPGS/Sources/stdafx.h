@@ -23,5 +23,7 @@
 
 #ifndef _RELEASE
 #define NPGS_ENABLE_CONSOLE_LOGGER
+#else
+#define GLM_FORCE_INLINE
 #endif // _RELEASE
 #include "Engine/Utils/Logger.h"

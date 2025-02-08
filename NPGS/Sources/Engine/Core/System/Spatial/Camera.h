@@ -11,8 +11,6 @@ _SYSTEM_BEGIN
 _SPATIAL_BEGIN
 
 constexpr glm::vec3 kPosition    = glm::vec3(0.0f);
-constexpr glm::vec3 kFront       = glm::vec3(0.0f, 0.0f, -1.0f);
-constexpr glm::vec3 kWorldUp     = glm::vec3(0.0f, 1.0f, 0.0f);
 constexpr float     kSensitivity = 0.05f;
 constexpr float     kSpeed       = 2.5f;
 constexpr float     kZoom        = 45.0f;
@@ -42,20 +40,19 @@ public:
 
 public:
     FCamera() = delete;
-    FCamera(const glm::vec3& Position = kPosition, const glm::vec3& WorldUp = kWorldUp, float Sensitivity = kSensitivity,
-            float Speed = kSpeed, float Zoom = kZoom);
+    FCamera(const glm::vec3& Position = kPosition, float Sensitivity = kSensitivity, float Speed = kSpeed, float Zoom = kZoom);
 
     ~FCamera() = default;
 
-    const glm::vec3& GetCameraVector(EVectorType Type) const;
     void ProcessKeyboard(EMovement Direction, double DeltaTime);
     void ProcessMouseMovement(double OffsetX, double OffsetY);
     void ProcessMouseScroll(double OffsetY);
-    float GetCameraZoom() const;
-    glm::mat4x4 GetViewMatrix() const;
-    glm::mat4x4 GetProjectionMatrix(float WindowAspect, float Near, float Far) const;
     void SetOrientation(const glm::quat& Orientation);
     const glm::quat& GetOrientation() const;
+    const glm::vec3& GetCameraVector(EVectorType Type) const;
+    glm::mat4x4 GetViewMatrix() const;
+    glm::mat4x4 GetProjectionMatrix(float WindowAspect, float Near, float Far) const;
+    float GetCameraZoom() const;
 
 private:
     void ProcessRotation(float Yaw, float Pitch, float Roll);

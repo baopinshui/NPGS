@@ -184,11 +184,11 @@ FDeviceLocalBuffer& FDeviceLocalBuffer::operator=(FDeviceLocalBuffer&& Other) no
     return *this;
 }
 
-void FDeviceLocalBuffer::CopyData(vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data) const
+void FDeviceLocalBuffer::CopyData(vk::DeviceSize MapOffset, vk::DeviceSize TargetOffset, vk::DeviceSize Size, const void* Data) const
 {
     if (_BufferMemory->GetMemory().GetMemoryPropertyFlags() & vk::MemoryPropertyFlagBits::eHostVisible)
     {
-        _BufferMemory->SubmitBufferData(Offset, Size, Data);
+        _BufferMemory->SubmitBufferData(MapOffset, TargetOffset, Size, Data);
         return;
     }
 
@@ -199,7 +199,7 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize Offset, vk::DeviceSize Size, co
 
     auto& TransferCommandBuffer = VulkanContext->GetTransferCommandBuffer();
     TransferCommandBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-    vk::BufferCopy Region(0, Offset, Size);
+    vk::BufferCopy Region(0, TargetOffset, Size);
     TransferCommandBuffer->copyBuffer(*StagingBuffer->GetBuffer(), *_BufferMemory->GetResource(), Region);
     TransferCommandBuffer.End();
     _StagingBufferPool->ReleaseBuffer(StagingBuffer);

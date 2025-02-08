@@ -44,12 +44,12 @@ NPGS_INLINE void FStagingBuffer::UnmapMemory()
 NPGS_INLINE void FStagingBuffer::SubmitBufferData(vk::DeviceSize Size, const void* Data)
 {
     Expand(Size);
-    _BufferMemory->SubmitBufferData(0, Size, Data);
+    _BufferMemory->SubmitBufferData(0, 0, Size, Data);
 }
 
 NPGS_INLINE void FStagingBuffer::FetchBufferData(vk::DeviceSize Size, void* Target) const
 {
-    _BufferMemory->FetchBufferData(0, Size, Target);
+    _BufferMemory->FetchBufferData(0, 0, Size, Target);
 }
 
 NPGS_INLINE void FStagingBuffer::Release()
@@ -111,7 +111,7 @@ NPGS_INLINE void FDeviceLocalBuffer::CopyData(const ContainerType& Data) const
     NpgsStaticAssert(std::is_standard_layout_v<ValueType>, "Container value_type must be standard layout type");
 
     vk::DeviceSize DataSize = Data.size() * sizeof(ValueType);
-    return CopyData(0, DataSize, static_cast<const void*>(Data.data()));
+    return CopyData(0, 0, DataSize, static_cast<const void*>(Data.data()));
 }
 
 template <typename ContainerType>

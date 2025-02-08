@@ -14,6 +14,16 @@ inline void FAssetManager::AddAsset(const std::string& Name, AssetType&& Asset)
     ));
 }
 
+template<typename AssetType, typename... Args>
+requires CAssetCompatible<AssetType>
+inline void FAssetManager::AddAsset(const std::string& Name, Args&&... ConstructArgs)
+{
+    _Assets.emplace(Name, FManagedAsset(
+        static_cast<void*>(new AssetType(std::forward<Args>(ConstructArgs)...)),
+        FTypeErasedDeleter(static_cast<AssetType*>(nullptr))
+    ));
+}
+
 template <typename AssetType>
 requires CAssetCompatible<AssetType>
 inline AssetType* FAssetManager::GetAsset(const std::string& Name)

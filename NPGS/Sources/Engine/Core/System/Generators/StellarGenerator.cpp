@@ -469,7 +469,7 @@ Astro::AStar FStellarGenerator::GenerateStar(FBasicProperties& Properties)
             ProcessDeathStar(EStellarTypeGenerationOption::kRandom, DeathStar);
             if (DeathStar.GetEvolutionPhase() == Astro::AStar::EEvolutionPhase::kNull)
             {
-                // 削一半质量，就不信还能炸没了
+                // 如果爆了，削一半质量
                 Properties.InitialMassSol /= 2;
                 DeathStar = GenerateStar(Properties);
             }
@@ -494,7 +494,7 @@ Astro::AStar FStellarGenerator::GenerateStar(FBasicProperties& Properties)
 
         if (Star.GetEvolutionPhase() == Astro::AStar::EEvolutionPhase::kNull)
         {
-            // 又炸没了，梅开二度
+            // 如果爆了，削一半质量
             Properties.InitialMassSol /= 2;
             Star = GenerateStar(Properties);
         }

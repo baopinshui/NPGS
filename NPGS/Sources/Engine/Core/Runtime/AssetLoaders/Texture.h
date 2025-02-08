@@ -34,8 +34,13 @@ public:
     static vk::SamplerCreateInfo CreateDefaultSamplerCreateInfo();
 
 protected:
-    FTextureBase()          = default;
-    virtual ~FTextureBase() = default;
+    FTextureBase()                        = default;
+    FTextureBase(const FTextureBase&)     = delete;
+    FTextureBase(FTextureBase&&) noexcept = default;
+    virtual ~FTextureBase()               = default;
+
+    FTextureBase& operator=(const FTextureBase&)     = delete;
+    FTextureBase& operator=(FTextureBase&&) noexcept = default;
 
     void CreateImageMemory(vk::ImageType ImageType, vk::Format Format, vk::Extent3D Extent, std::uint32_t MipLevels,
                            std::uint32_t ArrayLayers, vk::ImageCreateFlags Flags = {});
@@ -49,7 +54,7 @@ protected:
     void BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, std::uint32_t MipLevels,
                              std::uint32_t ArrayLayers, vk::Filter Filter, vk::Image DstImage);
 
-    FImageData LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat);
+    FImageData LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat, bool bFlipVertically);
 
 protected:
     std::unique_ptr<Graphics::FVulkanImageView>   _ImageView;
@@ -63,10 +68,16 @@ public:
     using Base::Base;
 
     FTexture2D(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
-               vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
+               vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
 
     FTexture2D(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat, vk::Format FinalFormat,
                vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
+
+    FTexture2D(const FTexture2D&) = delete;
+    FTexture2D(FTexture2D&& Other) noexcept;
+
+    FTexture2D& operator=(const FTexture2D&) = delete;
+    FTexture2D& operator=(FTexture2D&& Other) noexcept;
 
     std::uint32_t GetImageWidth()  const;
     std::uint32_t GetImageHeight() const;
@@ -74,7 +85,7 @@ public:
 
 private:
     void CreateTexture(const std::string& Filename, vk::Format  InitialFormat, vk::Format FinalFormat,
-                       vk::ImageCreateFlags Flags, bool bGenreteMipmaps);
+                       vk::ImageCreateFlags Flags, bool bGenreteMipmaps, bool bFlipVertically);
 
     void CreateTexture(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat,
                        vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);

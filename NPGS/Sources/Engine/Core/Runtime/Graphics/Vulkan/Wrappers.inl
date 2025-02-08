@@ -155,14 +155,16 @@ NPGS_INLINE vk::Result FVulkanBufferMemory::UnmapMemory(vk::DeviceSize Offset, v
     return _Memory->UnmapMemory(Offset, Size);
 }
 
-NPGS_INLINE vk::Result FVulkanBufferMemory::SubmitBufferData(vk::DeviceSize Offset, vk::DeviceSize Size, const void* Data) const
+NPGS_INLINE vk::Result FVulkanBufferMemory::SubmitBufferData(vk::DeviceSize MapOffset, vk::DeviceSize SubmitOffset,
+                                                             vk::DeviceSize Size, const void* Data) const
 {
-    return _Memory->SubmitData(Offset, Size, Data);
+    return _Memory->SubmitData(MapOffset, SubmitOffset, Size, Data);
 }
 
-NPGS_INLINE vk::Result FVulkanBufferMemory::FetchBufferData(vk::DeviceSize Offset, vk::DeviceSize Size, void* Target) const
+NPGS_INLINE vk::Result FVulkanBufferMemory::FetchBufferData(vk::DeviceSize MapOffset, vk::DeviceSize FetchOffset,
+                                                            vk::DeviceSize Size, void* Target) const
 {
-    return _Memory->FetchData(Offset, Size, Target);
+    return _Memory->FetchData(MapOffset, FetchOffset, Size, Target);
 }
 
 template <typename ContainerType>
