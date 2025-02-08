@@ -10,9 +10,9 @@
 #include "Engine/Core/Runtime/AssetLoaders/GetAssetFullPath.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"
 
-#include "Engine/Core/Runtime/Graphics/Vulkan/Buffers.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Context.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Core.h"
+#include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 
 #include "Engine/Core/Runtime/Threads/ThreadPool.h"

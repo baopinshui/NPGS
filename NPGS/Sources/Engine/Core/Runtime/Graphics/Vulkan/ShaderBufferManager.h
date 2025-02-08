@@ -11,7 +11,7 @@
 #include <vulkan/vulkan_handles.hpp>
 
 #include "Engine/Core/Base/Base.h"
-#include "Engine/Core/Runtime/Graphics/Vulkan/Buffers.h"
+#include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 
 _NPGS_BEGIN

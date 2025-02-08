@@ -179,7 +179,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\GetAssetFullPath.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.cpp" />
-    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.cpp" />
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Resources.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.cpp" />
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.cpp" />
@@ -219,7 +219,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\GetAssetFullPath.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.h" />
-    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.h" />
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Resources.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.h" />
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ExtFunctionsImpl.h" />
@@ -254,7 +254,7 @@ spirv-cross-cpp.lib
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.inl" />
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.inl" />
-    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.inl" />
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Resources.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Core.inl" />
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderBufferManager.inl" />

@@ -10,7 +10,7 @@
 #include "Engine/Core/Runtime/AssetLoaders/AssetManager.h"
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"
-#include "Engine/Core/Runtime/Graphics/Vulkan/Buffers.h"
+#include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/ShaderBufferManager.h"
 #include "Engine/Utils/Logger.h"
 
@@ -178,24 +178,6 @@ void FApplication::ExecuteMainRender()
         glm::vec2( 0.5f, 0.0f)
     };
 
-    //std::vector<glm::mat4x4> Matrices(3, glm::mat4x4(1.0f));
-
-    //vk::DeviceSize MinUniformAlignment = _VulkanContext->GetPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment;
-    //vk::DeviceSize UniformAlignment    = (sizeof(glm::mat4x4) + MinUniformAlignment - 1) & ~(MinUniformAlignment - 1);
-    //std::vector<Grt::FDeviceLocalBuffer> UniformBuffers;
-    //for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
-    //{
-    //    UniformBuffers.emplace_back(Matrices.size() * UniformAlignment, vk::BufferUsageFlagBits::eUniformBuffer);
-    //    UniformBuffers[i].CopyData(0, 3 * sizeof(glm::mat4), Matrices.data());
-    //    UniformBuffers[i].EnablePersistentMapping();
-    //}
-
-    //for (std::uint32_t i = 0; i != kFramesInFlightCount; ++i)
-    //{
-    //    vk::DescriptorBufferInfo BufferInfo(*UniformBuffers[i].GetBuffer(), 0, Matrices.size() * UniformAlignment);
-    //    Shader.WriteDynamicDescriptors<vk::DescriptorBufferInfo>(0, 0, i, vk::DescriptorType::eUniformBufferDynamic, { BufferInfo });
-    //}
-
     vk::DescriptorImageInfo ImageInfo(*Sampler, *Texture.GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
     Shader.WriteSharedDescriptors<vk::DescriptorImageInfo>(0, 1, vk::DescriptorType::eCombinedImageSampler, { ImageInfo });
 
@@ -214,28 +196,6 @@ void FApplication::ExecuteMainRender()
         0, 1, 2,
         1, 2, 3
     };
-
-    //std::vector<FVertex> Vertices
-    //{
-    //    // X轴 - 红色
-    //    { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-    //    { { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
-
-    //    // Y轴 - 绿色
-    //    { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-    //    { { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-
-    //    // Z轴 - 蓝色
-    //    { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-    //    { { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } }
-    //};
-
-    //std::vector<std::uint16_t> Indices
-    //{
-    //    0, 1,  // X轴
-    //    2, 3,  // Y轴
-    //    4, 5   // Z轴
-    //};
 
     Grt::FDeviceLocalBuffer VertexBuffer(Vertices.size() * sizeof(FVertex), vk::BufferUsageFlagBits::eVertexBuffer);
     VertexBuffer.CopyData(Vertices);
@@ -329,10 +289,13 @@ void FApplication::ExecuteMainRender()
 
         MvpMatrices.Model      = glm::rotate(MvpMatrices.Model, static_cast<float>(0.0001f * glfwGetTime()), glm::vec3(0.0f, 0.0f, 1.0f));
         MvpMatrices.View       = _FreeCamera->GetViewMatrix();
-        MvpMatrices.Projection = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f, 100.0f);
+        MvpMatrices.Projection = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f);
 
-        ViewUpdaters[CurrentFrame] << MvpMatrices.View;
-        ProjectionUpdaters[CurrentFrame] << MvpMatrices.Projection;
+        ShaderBufferManager->UpdateEntrieBuffer(CurrentFrame, "MvpMatrices", MvpMatrices);
+
+        //ModelUpdaters[CurrentFrame] << MvpMatrices.Model;
+        //ViewUpdaters[CurrentFrame] << MvpMatrices.View;
+        //ProjectionUpdaters[CurrentFrame] << MvpMatrices.Projection;
 
         InFlightFences[CurrentFrame].WaitAndReset();
 
@@ -344,7 +307,7 @@ void FApplication::ExecuteMainRender()
         CommandBuffers[CurrentFrame]->bindPipeline(vk::PipelineBindPoint::eGraphics, **_GraphicsPipeline);
         CommandBuffers[CurrentFrame]->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
         CommandBuffers[CurrentFrame]->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
-        std::uint32_t DynamicOffset = 0;// 0 * static_cast<std::uint32_t>(UniformAlignment);
+        std::uint32_t DynamicOffset = 0;
         CommandBuffers[CurrentFrame]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], DynamicOffset);
         CommandBuffers[CurrentFrame]->drawIndexed(6, 1, 0, 0, 0);
         RenderPass->CommandEnd(CommandBuffers[CurrentFrame]);

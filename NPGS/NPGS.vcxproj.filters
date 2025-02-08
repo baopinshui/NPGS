@@ -75,7 +75,7 @@
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.cpp">
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Resources.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.cpp">
@@ -185,7 +185,7 @@
     <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.h">
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Resources.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.h">
@@ -265,7 +265,7 @@
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Texture.inl">
       <Filter>头文件</Filter>
     </None>
-    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Buffers.inl">
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Resources.inl">
       <Filter>头文件</Filter>
     </None>
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Context.inl">

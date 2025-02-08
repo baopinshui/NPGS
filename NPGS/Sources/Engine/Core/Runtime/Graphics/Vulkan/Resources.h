@@ -133,4 +133,4 @@ _GRAPHICS_END
 _RUNTIME_END
 _NPGS_END
 
-#include "Buffers.inl"
+#include "Resources.inl"

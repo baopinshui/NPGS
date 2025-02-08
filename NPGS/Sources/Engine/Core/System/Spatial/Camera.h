@@ -51,7 +51,7 @@ public:
     const glm::quat& GetOrientation() const;
     const glm::vec3& GetCameraVector(EVectorType Type) const;
     glm::mat4x4 GetViewMatrix() const;
-    glm::mat4x4 GetProjectionMatrix(float WindowAspect, float Near, float Far) const;
+    glm::mat4x4 GetProjectionMatrix(float WindowAspect, float Near) const;
     float GetCameraZoom() const;
 
 private:
