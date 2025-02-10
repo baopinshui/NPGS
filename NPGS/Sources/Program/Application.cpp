@@ -6,6 +6,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "Engine/Core/Runtime/AssetLoaders/AssetManager.h"
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
@@ -45,7 +46,7 @@ void FApplication::ExecuteMainRender()
 
     // Create screen renderer
     // ----------------------
-    vk::AttachmentDescription AttachmentDescription = vk::AttachmentDescription()
+    vk::AttachmentDescription ColorAttachmentDescription = vk::AttachmentDescription()
         .setFormat(_VulkanContext->GetSwapchainCreateInfo().imageFormat)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
@@ -53,13 +54,38 @@ void FApplication::ExecuteMainRender()
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
 
-    vk::AttachmentReference AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
+    vk::AttachmentDescription DepthAttachmentDescription = vk::AttachmentDescription()
+        .setFormat(vk::Format::eD32Sfloat)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eDontCare)
+        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
+        .setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
+    std::array<vk::AttachmentDescription, 2> AttachmentDescriptions;
+    AttachmentDescriptions[0] = ColorAttachmentDescription;
+    AttachmentDescriptions[1] = DepthAttachmentDescription;
+
+    vk::AttachmentReference ColorAttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
+    vk::AttachmentReference DepthAttachmentReference(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
     vk::SubpassDescription SubpassDescription = vk::SubpassDescription()
         .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
-        .setColorAttachments(AttachmentReference);
+        .setColorAttachments(ColorAttachmentReference)
+        .setPDepthStencilAttachment(&DepthAttachmentReference);
 
-    vk::RenderPassCreateInfo RenderPassCreateInfo({}, AttachmentDescription, SubpassDescription, {});
+    vk::SubpassDependency SubpassDependency = vk::SubpassDependency()
+        .setSrcSubpass(0)
+        .setDstSubpass(0)
+        .setSrcStageMask(vk::PipelineStageFlagBits::eVertexShader)
+        .setDstStageMask(vk::PipelineStageFlagBits::eVertexShader)
+        .setSrcAccessMask(vk::AccessFlagBits::eShaderWrite)
+        .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+        .setDependencyFlags(vk::DependencyFlagBits::eByRegion);
+
+    vk::RenderPassCreateInfo RenderPassCreateInfo({}, AttachmentDescriptions, SubpassDescription, SubpassDependency);
     _Renderer.RenderPass = std::make_unique<Grt::FVulkanRenderPass>(RenderPassCreateInfo);
 
     auto CreateFramebuffers = [this]() -> void
@@ -68,17 +94,27 @@ void FApplication::ExecuteMainRender()
         _Renderer.Framebuffers.clear();
         _Renderer.Framebuffers.reserve(_VulkanContext->GetSwapchainImageCount());
 
+        _DepthAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
+            vk::Format::eD32Sfloat,     // 深度格式
+            _WindowSize,                // 图像大小
+            1,                          // 层数
+            vk::SampleCountFlagBits::e1 // 采样数
+        );
+
         vk::FramebufferCreateInfo FramebufferCreateInfo = vk::FramebufferCreateInfo()
             .setRenderPass(**_Renderer.RenderPass)
-            .setAttachmentCount(1)
+            .setAttachmentCount(2)
             .setWidth(_WindowSize.width)
             .setHeight(_WindowSize.height)
             .setLayers(1);
 
         for (std::uint32_t i = 0; i != _VulkanContext->GetSwapchainImageCount(); ++i)
         {
-            vk::ImageView Attachment = _VulkanContext->GetSwapchainImageView(i);
-            FramebufferCreateInfo.setAttachments(Attachment);
+            std::array<vk::ImageView, 2> Attachments = {
+                _VulkanContext->GetSwapchainImageView(i),
+                *_DepthAttachment->GetImageView()  // 使用深度附件的ImageView
+            };
+            FramebufferCreateInfo.setAttachments(Attachments);
             _Renderer.Framebuffers.push_back(FramebufferCreateInfo);
         }
     };
@@ -126,9 +162,9 @@ void FApplication::ExecuteMainRender()
         {
             { 0, 0, true }
         },
-        //{
-        //    { vk::ShaderStageFlagBits::eVertex, { "iOffset" }}
-        //}
+        {
+            { vk::ShaderStageFlagBits::eVertex, { "iModel" }}
+        }
     };
 
     std::vector<std::string> TriangleShaders({ "Triangle.vert.spv", "Triangle.frag.spv" });
@@ -140,48 +176,39 @@ void FApplication::ExecuteMainRender()
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
     auto NativeArray = Shader.GetDescriptorSetLayouts();
     PipelineLayoutCreateInfo.setSetLayouts(NativeArray);
-    //auto PushConstantRanges = Shader.GetPushConstantRanges();
-    //PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
+    auto PushConstantRanges = Shader.GetPushConstantRanges();
+    PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
 
     _PipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
 
     // Test
-    struct FMvpMatrices
+    struct FVpMatrices
     {
-        glm::mat4x4 Model{ glm::mat4x4(1.0f) };
         glm::mat4x4 View{ glm::mat4x4(1.0f) };
         glm::mat4x4 Projection{ glm::mat4x4(1.0f) };
-    } MvpMatrices;
+    } VpMatrices;
 
-    Grt::FShaderBufferManager::FUniformBufferCreateInfo MvpMatricesCreateInfo
+    Grt::FShaderBufferManager::FUniformBufferCreateInfo VpMatricesCreateInfo
     {
-        .Name    = "MvpMatrices",
-        .Fields  = { "Model", "View", "Projection" },
+        .Name    = "VpMatrices",
+        .Fields  = { "View", "Projection" },
         .Set     = 0,
         .Binding = 0,
         .Usage   = vk::DescriptorType::eUniformBufferDynamic
     };
 
     auto ShaderBufferManager = Grt::FShaderBufferManager::GetInstance();
-    ShaderBufferManager->CreateBuffer<FMvpMatrices>(MvpMatricesCreateInfo);
+    ShaderBufferManager->CreateBuffer<FVpMatrices>(VpMatricesCreateInfo);
 
-    const auto ModelUpdaters      = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("MvpMatrices", "Model");
-    const auto ViewUpdaters       = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("MvpMatrices", "View");
-    const auto ProjectionUpdaters = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("MvpMatrices", "Projection");
+    const auto ViewUpdaters       = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "View");
+    const auto ProjectionUpdaters = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "Projection");
 
     // Create graphics pipeline
     // ------------------------
-    std::vector<glm::vec2> Offsets
-    {
-        glm::vec2( 0.0f, 0.5f),
-        glm::vec2(-0.5f, 0.0f),
-        glm::vec2( 0.5f, 0.0f)
-    };
-
-    vk::DescriptorImageInfo ImageInfo(*Sampler, *Texture.GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    vk::DescriptorImageInfo ImageInfo = Texture.CreateDescriptorImageInfo(Sampler);
     Shader.WriteSharedDescriptors<vk::DescriptorImageInfo>(0, 1, vk::DescriptorType::eCombinedImageSampler, { ImageInfo });
 
-    ShaderBufferManager->BindShaderToBuffers("MvpMatrices", "Shader");
+    ShaderBufferManager->BindShaderToBuffers("VpMatrices", "Shader");
 
     std::vector<FVertex> Vertices
     {
@@ -216,6 +243,11 @@ void FApplication::ExecuteMainRender()
 
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
         CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1);
+        CreateInfoPack.DepthStencilStateCreateInfo.setDepthTestEnable(vk::True)
+                                                  .setDepthWriteEnable(vk::True)
+                                                  .setDepthCompareOp(vk::CompareOp::eLess)
+                                                  .setDepthBoundsTestEnable(vk::False)
+                                                  .setStencilTestEnable(vk::False);
 
         CreateInfoPack.ShaderStages = ShaderStageCreateInfos;
 
@@ -269,9 +301,19 @@ void FApplication::ExecuteMainRender()
 
     _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, CommandBuffers);
 
-    vk::ClearValue ColorValue({ 0.0f, 0.0f, 0.0f, 0.0f });
+    std::vector<vk::ClearValue> ClearValues;
+    for (std::size_t i = 0; i != 2; ++i)
+    {
+        vk::ClearValue ClearValue;
+        ClearValue.setColor({ 0.0f, 0.0f, 0.0f, 1.0f });
+        ClearValue.setDepthStencil({ 1.0f, 0 });
+        ClearValues.push_back(ClearValue);
+    }
+
     vk::DeviceSize Offset       = 0;
     std::uint32_t  CurrentFrame = 0;
+
+    vk::MemoryBarrier MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead);
 
     while (!glfwWindowShouldClose(_Window))
     {
@@ -280,40 +322,48 @@ void FApplication::ExecuteMainRender()
             glfwWaitEvents();
         }
 
-        Offsets[0].x += static_cast<float>(0.0001f * std::sin(glfwGetTime()));
-        Offsets[0].y += static_cast<float>(0.0001f * std::cos(glfwGetTime()));
-        Offsets[1].x += static_cast<float>(0.0001f * std::cos(glfwGetTime()));
-        Offsets[1].y += static_cast<float>(0.0001f * std::sin(glfwGetTime()));
-        Offsets[2].x -= static_cast<float>(0.0001f * std::sin(glfwGetTime()));
-        Offsets[2].y -= static_cast<float>(0.0001f * std::cos(glfwGetTime()));
-
-        MvpMatrices.Model      = glm::rotate(MvpMatrices.Model, static_cast<float>(0.0001f * glfwGetTime()), glm::vec3(0.0f, 0.0f, 1.0f));
-        MvpMatrices.View       = _FreeCamera->GetViewMatrix();
-        MvpMatrices.Projection = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f);
-
-        ShaderBufferManager->UpdateEntrieBuffer(CurrentFrame, "MvpMatrices", MvpMatrices);
-
-        //ModelUpdaters[CurrentFrame] << MvpMatrices.Model;
-        //ViewUpdaters[CurrentFrame] << MvpMatrices.View;
-        //ProjectionUpdaters[CurrentFrame] << MvpMatrices.Projection;
-
         InFlightFences[CurrentFrame].WaitAndReset();
+
+        glm::mat4x4 Model(1.0f);
+        VpMatrices.View       = _FreeCamera->GetViewMatrix();
+        VpMatrices.Projection = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f);
+
+        ShaderBufferManager->UpdateEntrieBuffer(CurrentFrame, "VpMatrices", VpMatrices);
+
+        //ViewUpdaters[CurrentFrame] << VpMatrices.View;
+        //ProjectionUpdaters[CurrentFrame] << VpMatrices.Projection;
+
+        auto& CurrentBuffer = CommandBuffers[CurrentFrame];
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
         std::uint32_t ImageIndex = _VulkanContext->GetCurrentImageIndex();
 
-        CommandBuffers[CurrentFrame].Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-        RenderPass->CommandBegin(CommandBuffers[CurrentFrame], Framebuffers[ImageIndex], { {}, _WindowSize }, { ColorValue });
-        CommandBuffers[CurrentFrame]->bindPipeline(vk::PipelineBindPoint::eGraphics, **_GraphicsPipeline);
-        CommandBuffers[CurrentFrame]->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
-        CommandBuffers[CurrentFrame]->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
+        CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+        RenderPass->CommandBegin(CurrentBuffer, Framebuffers[ImageIndex], { {}, _WindowSize }, ClearValues);
+        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **_GraphicsPipeline);
+        CurrentBuffer->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
+        CurrentBuffer->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
+        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
         std::uint32_t DynamicOffset = 0;
-        CommandBuffers[CurrentFrame]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], DynamicOffset);
-        CommandBuffers[CurrentFrame]->drawIndexed(6, 1, 0, 0, 0);
-        RenderPass->CommandEnd(CommandBuffers[CurrentFrame]);
-        CommandBuffers[CurrentFrame].End();
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets(), DynamicOffset);
+        CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
 
-        _VulkanContext->SubmitCommandBufferToGraphics(*CommandBuffers[CurrentFrame], *Semaphores_ImageAvailable[CurrentFrame],
+        //CurrentBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eVertexShader,
+        //                                              vk::PipelineStageFlagBits::eVertexShader,
+        //                                              vk::DependencyFlagBits::eByRegion,
+        //                                              MemoryBarrier, nullptr, nullptr);
+
+        //VpMatrices.Model = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.5f, 0.0f, 0.5f));
+        //ShaderBufferManager->UpdateEntrieBuffer(CurrentFrame, "VpMatrices", VpMatrices);
+
+        Model = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.5f, 0.0f, 0.5f));
+        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
+        CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
+
+        RenderPass->CommandEnd(CurrentBuffer);
+        CurrentBuffer.End();
+
+        _VulkanContext->SubmitCommandBufferToGraphics(*CurrentBuffer, *Semaphores_ImageAvailable[CurrentFrame],
                                                       *Semaphores_RenderFinished[CurrentFrame], *InFlightFences[CurrentFrame]);
         _VulkanContext->PresentImage(*Semaphores_RenderFinished[CurrentFrame]);
 

@@ -24,7 +24,8 @@ protected:
     };
 
 public:
-    vk::DescriptorImageInfo CreateDescriptorImageInfo(const Graphics::FVulkanSampler& Sampler);
+    vk::DescriptorImageInfo CreateDescriptorImageInfo(const Graphics::FVulkanSampler& Sampler) const;
+    vk::DescriptorImageInfo CreateDescriptorImageInfo(const vk::Sampler& Sampler) const;
 
     Graphics::FVulkanImage& GetImage();
     const Graphics::FVulkanImage& GetImage() const;
@@ -57,8 +58,8 @@ protected:
     FImageData LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat, bool bFlipVertically);
 
 protected:
-    std::unique_ptr<Graphics::FVulkanImageView>   _ImageView;
     std::unique_ptr<Graphics::FVulkanImageMemory> _ImageMemory;
+    std::unique_ptr<Graphics::FVulkanImageView>   _ImageView;
 };
 
 class FTexture2D : public FTextureBase

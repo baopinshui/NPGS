@@ -6,9 +6,14 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _ASSET_BEGIN
 
-NPGS_INLINE vk::DescriptorImageInfo FTextureBase::CreateDescriptorImageInfo(const Graphics::FVulkanSampler& Sampler)
+NPGS_INLINE vk::DescriptorImageInfo FTextureBase::CreateDescriptorImageInfo(const Graphics::FVulkanSampler& Sampler) const
 {
     return { *Sampler, **_ImageView, vk::ImageLayout::eShaderReadOnlyOptimal };
+}
+
+NPGS_INLINE vk::DescriptorImageInfo FTextureBase::CreateDescriptorImageInfo(const vk::Sampler& Sampler) const
+{
+    return { Sampler, **_ImageView, vk::ImageLayout::eShaderReadOnlyOptimal };
 }
 
 NPGS_INLINE Graphics::FVulkanImage& FTextureBase::GetImage()

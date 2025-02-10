@@ -10,6 +10,7 @@
 #include "Engine/Core/Base/Base.h"
 #include "Engine/Core/Runtime/Graphics/Renderers/ScreenRenderer.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Context.h"
+#include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 #include "Engine/Core/System/Spatial/Camera.h"
 
@@ -45,6 +46,7 @@ private:
     Runtime::Graphics::FVulkanContext*                        _VulkanContext;
     std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout> _PipelineLayout;
     std::unique_ptr<Runtime::Graphics::FVulkanPipeline>       _GraphicsPipeline;
+    std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> _DepthAttachment;
     FRenderer                                                 _Renderer;
 
     std::string                                               _WindowTitle;

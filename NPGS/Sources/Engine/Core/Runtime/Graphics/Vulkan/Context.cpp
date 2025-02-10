@@ -48,17 +48,17 @@ FVulkanContext::FVulkanContext()
         }
     };
 
-    auto InitializeFormatProperties = [this]() -> void
-    {
-        std::size_t Index = 0;
-        for (vk::Format Format : magic_enum::enum_values<vk::Format>())
-        {
-            _FormatProperties[Index++] = _VulkanCore->GetPhysicalDevice().getFormatProperties(Format);
-        }
-    };
+    // auto InitializeFormatProperties = [this]() -> void
+    // {
+    //     std::size_t Index = 0;
+    //     for (vk::Format Format : magic_enum::enum_values<vk::Format>())
+    //     {
+    //         _FormatProperties[Index++] = _VulkanCore->GetPhysicalDevice().getFormatProperties(Format);
+    //     }
+    // };
 
     _VulkanCore->AddCreateDeviceCallback("InitializeCommandPool", InitializeCommandPool);
-    _VulkanCore->AddCreateDeviceCallback("InitializeFormatProperties", InitializeFormatProperties);
+    // _VulkanCore->AddCreateDeviceCallback("InitializeFormatProperties", InitializeFormatProperties);
 }
 
 FVulkanContext::~FVulkanContext()

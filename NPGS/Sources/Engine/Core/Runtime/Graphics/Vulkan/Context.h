@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+// #include <array>
 #include <functional>
 #include <memory>
 #include <string>
@@ -53,7 +53,7 @@ public:
     vk::Result CreateInstance(vk::InstanceCreateFlags Flags = {});
     vk::Result CreateDevice(std::uint32_t PhysicalDeviceIndex = 0, vk::DeviceCreateFlags Flags = {});
     vk::Result RecreateDevice(std::uint32_t PhysicalDeviceIndex = 0, vk::DeviceCreateFlags Flags = {});
-    void SetSurface(vk::SurfaceKHR Surface);
+    void       SetSurface(vk::SurfaceKHR Surface);
     vk::Result SetSurfaceFormat(const vk::SurfaceFormatKHR& SurfaceFormat);
     vk::Result CreateSwapchain(vk::Extent2D Extent, bool bLimitFps = true, vk::SwapchainCreateFlagsKHR Flags = {});
     vk::Result RecreateSwapchain();
@@ -170,7 +170,7 @@ private:
     FVulkanCore* _VulkanCore;
 
     std::vector<std::pair<ECallbackType, std::string>>                     _AutoRemovedCallbacks;
-    std::array<vk::FormatProperties, magic_enum::enum_count<vk::Format>()> _FormatProperties;
+    // std::array<vk::FormatProperties, magic_enum::enum_count<vk::Format>()> _FormatProperties;
 
     std::unique_ptr<FVulkanCommandPool>    _GraphicsCommandPool;
     std::unique_ptr<FVulkanCommandPool>    _PresentCommandPool;
