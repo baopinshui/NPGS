@@ -5,7 +5,7 @@ layout(location = 0) in  vec3 Position;
 layout(location = 1) in  vec2 TexCoord;
 layout(location = 0) out vec2 TexCoordFromVert;
 
-layout(push_constant) uniform ModelBuffer
+layout(push_constant) uniform PushConstants
 {
 	mat4x4 iModel;
 };

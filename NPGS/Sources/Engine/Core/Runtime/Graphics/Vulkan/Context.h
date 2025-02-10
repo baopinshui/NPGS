@@ -131,6 +131,7 @@ public:
     std::uint32_t GetAvailableSurfaceFormatCount() const;
     std::uint32_t GetSwapchainImageCount() const;
     std::uint32_t GetSwapchainImageViewCount() const;
+    vk::SampleCountFlagBits GetMaxUsableSampleCount() const;
 
     vk::PhysicalDevice GetAvailablePhysicalDevice(std::uint32_t Index) const;
     vk::Format GetAvailableSurfaceFormat(std::uint32_t Index) const;

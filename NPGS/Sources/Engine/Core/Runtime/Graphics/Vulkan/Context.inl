@@ -294,6 +294,21 @@ NPGS_INLINE std::uint32_t FVulkanContext::GetSwapchainImageViewCount() const
     return _VulkanCore->GetSwapchainImageViewCount();
 }
 
+NPGS_INLINE vk::SampleCountFlagBits FVulkanContext::GetMaxUsableSampleCount() const
+{
+    vk::SampleCountFlags Counts = _VulkanCore->GetPhysicalDeviceProperties().limits.framebufferColorSampleCounts &
+                                  _VulkanCore->GetPhysicalDeviceProperties().limits.framebufferDepthSampleCounts;
+
+    if (Counts & vk::SampleCountFlagBits::e64) return vk::SampleCountFlagBits::e64;
+    if (Counts & vk::SampleCountFlagBits::e32) return vk::SampleCountFlagBits::e32;
+    if (Counts & vk::SampleCountFlagBits::e16) return vk::SampleCountFlagBits::e16;
+    if (Counts & vk::SampleCountFlagBits::e8)  return vk::SampleCountFlagBits::e8;
+    if (Counts & vk::SampleCountFlagBits::e4)  return vk::SampleCountFlagBits::e4;
+    if (Counts & vk::SampleCountFlagBits::e2)  return vk::SampleCountFlagBits::e2;
+
+    return vk::SampleCountFlagBits::e1;
+}
+
 NPGS_INLINE vk::PhysicalDevice FVulkanContext::GetAvailablePhysicalDevice(std::uint32_t Index) const
 {
     return _VulkanCore->GetAvailablePhysicalDevice(Index);

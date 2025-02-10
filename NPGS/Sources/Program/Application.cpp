@@ -11,7 +11,6 @@
 #include "Engine/Core/Runtime/AssetLoaders/AssetManager.h"
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"
-#include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/ShaderBufferManager.h"
 #include "Engine/Utils/Logger.h"
 
@@ -46,17 +45,21 @@ void FApplication::ExecuteMainRender()
 
     // Create screen renderer
     // ----------------------
+    auto MaxUsableSampleCount = _VulkanContext->GetMaxUsableSampleCount();
+
     vk::AttachmentDescription ColorAttachmentDescription = vk::AttachmentDescription()
         .setFormat(_VulkanContext->GetSwapchainCreateInfo().imageFormat)
-        .setSamples(vk::SampleCountFlagBits::e1)
+        .setSamples(vk::SampleCountFlagBits::e8)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         .setInitialLayout(vk::ImageLayout::eUndefined)
-        .setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
+        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal);
 
-    vk::AttachmentDescription DepthAttachmentDescription = vk::AttachmentDescription()
-        .setFormat(vk::Format::eD32Sfloat)
-        .setSamples(vk::SampleCountFlagBits::e1)
+    vk::AttachmentDescription DepthStencilAttachmentDescription = vk::AttachmentDescription()
+        .setFormat(vk::Format::eD32SfloatS8Uint)
+        .setSamples(vk::SampleCountFlagBits::e8)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eDontCare)
         .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
@@ -64,25 +67,38 @@ void FApplication::ExecuteMainRender()
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
-    std::array<vk::AttachmentDescription, 2> AttachmentDescriptions;
+    vk::AttachmentDescription ColorResolveAttachmentDescription = vk::AttachmentDescription()
+        .setFormat(_VulkanContext->GetSwapchainCreateInfo().imageFormat)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
+        .setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
+
+    std::array<vk::AttachmentDescription, 3> AttachmentDescriptions;
     AttachmentDescriptions[0] = ColorAttachmentDescription;
-    AttachmentDescriptions[1] = DepthAttachmentDescription;
+    AttachmentDescriptions[1] = DepthStencilAttachmentDescription;
+    AttachmentDescriptions[2] = ColorResolveAttachmentDescription;
 
     vk::AttachmentReference ColorAttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
-    vk::AttachmentReference DepthAttachmentReference(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    vk::AttachmentReference DepthStencilAttachmentReference(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    vk::AttachmentReference ColorResolveAttachmentReference(2, vk::ImageLayout::eColorAttachmentOptimal);
 
     vk::SubpassDescription SubpassDescription = vk::SubpassDescription()
         .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
         .setColorAttachments(ColorAttachmentReference)
-        .setPDepthStencilAttachment(&DepthAttachmentReference);
+        .setPDepthStencilAttachment(&DepthStencilAttachmentReference)
+        .setResolveAttachments(ColorResolveAttachmentReference);
 
     vk::SubpassDependency SubpassDependency = vk::SubpassDependency()
-        .setSrcSubpass(0)
+        .setSrcSubpass(vk::SubpassExternal)
         .setDstSubpass(0)
-        .setSrcStageMask(vk::PipelineStageFlagBits::eVertexShader)
-        .setDstStageMask(vk::PipelineStageFlagBits::eVertexShader)
-        .setSrcAccessMask(vk::AccessFlagBits::eShaderWrite)
-        .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+        .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+        .setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+        .setSrcAccessMask(vk::AccessFlagBits::eNone)
+        .setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
         .setDependencyFlags(vk::DependencyFlagBits::eByRegion);
 
     vk::RenderPassCreateInfo RenderPassCreateInfo({}, AttachmentDescriptions, SubpassDescription, SubpassDependency);
@@ -94,28 +110,29 @@ void FApplication::ExecuteMainRender()
         _Renderer.Framebuffers.clear();
         _Renderer.Framebuffers.reserve(_VulkanContext->GetSwapchainImageCount());
 
-        _DepthAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
-            vk::Format::eD32Sfloat,     // 深度格式
-            _WindowSize,                // 图像大小
-            1,                          // 层数
-            vk::SampleCountFlagBits::e1 // 采样数
-        );
+        _ColorAttachment = std::make_unique<Grt::FColorAttachment>(
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e8);
+
+        _DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
+            vk::Format::eD32SfloatS8Uint, _WindowSize, 1, vk::SampleCountFlagBits::e8);
 
         vk::FramebufferCreateInfo FramebufferCreateInfo = vk::FramebufferCreateInfo()
             .setRenderPass(**_Renderer.RenderPass)
-            .setAttachmentCount(2)
+            .setAttachmentCount(3)
             .setWidth(_WindowSize.width)
             .setHeight(_WindowSize.height)
             .setLayers(1);
 
         for (std::uint32_t i = 0; i != _VulkanContext->GetSwapchainImageCount(); ++i)
         {
-            std::array<vk::ImageView, 2> Attachments = {
-                _VulkanContext->GetSwapchainImageView(i),
-                *_DepthAttachment->GetImageView()  // 使用深度附件的ImageView
+            std::array Attachments =
+            {
+                *_ColorAttachment->GetImageView(),
+                *_DepthStencilAttachment->GetImageView(),
+                _VulkanContext->GetSwapchainImageView(i)
             };
             FramebufferCreateInfo.setAttachments(Attachments);
-            _Renderer.Framebuffers.push_back(FramebufferCreateInfo);
+            _Renderer.Framebuffers.emplace_back(FramebufferCreateInfo);
         }
     };
 
@@ -242,7 +259,9 @@ void FApplication::ExecuteMainRender()
         CreateInfoPack.VertexInputAttributes.append_range(Shader.GetVertexInputAttributes());
 
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
-        CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1);
+        CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e8)
+                                                 .setSampleShadingEnable(vk::True)
+                                                 .setMinSampleShading(1.0f);
         CreateInfoPack.DepthStencilStateCreateInfo.setDepthTestEnable(vk::True)
                                                   .setDepthWriteEnable(vk::True)
                                                   .setDepthCompareOp(vk::CompareOp::eLess)
@@ -301,19 +320,12 @@ void FApplication::ExecuteMainRender()
 
     _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, CommandBuffers);
 
-    std::vector<vk::ClearValue> ClearValues;
-    for (std::size_t i = 0; i != 2; ++i)
-    {
-        vk::ClearValue ClearValue;
-        ClearValue.setColor({ 0.0f, 0.0f, 0.0f, 1.0f });
-        ClearValue.setDepthStencil({ 1.0f, 0 });
-        ClearValues.push_back(ClearValue);
-    }
+    std::vector<vk::ClearValue> ClearValues(2);
+    ClearValues[0].setColor(vk::ClearColorValue({ 0.0f, 0.0f, 0.0f, 1.0f }));
+    ClearValues[1].setDepthStencil(vk::ClearDepthStencilValue(1.0f, 0));
 
     vk::DeviceSize Offset       = 0;
     std::uint32_t  CurrentFrame = 0;
-
-    vk::MemoryBarrier MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead);
 
     while (!glfwWindowShouldClose(_Window))
     {
@@ -345,16 +357,8 @@ void FApplication::ExecuteMainRender()
         CurrentBuffer->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
         CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
         std::uint32_t DynamicOffset = 0;
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets(), DynamicOffset);
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], DynamicOffset);
         CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
-
-        //CurrentBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eVertexShader,
-        //                                              vk::PipelineStageFlagBits::eVertexShader,
-        //                                              vk::DependencyFlagBits::eByRegion,
-        //                                              MemoryBarrier, nullptr, nullptr);
-
-        //VpMatrices.Model = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.5f, 0.0f, 0.5f));
-        //ShaderBufferManager->UpdateEntrieBuffer(CurrentFrame, "VpMatrices", VpMatrices);
 
         Model = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.5f, 0.0f, 0.5f));
         CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));

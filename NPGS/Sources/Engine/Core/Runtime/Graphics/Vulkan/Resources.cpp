@@ -110,12 +110,12 @@ vk::Result FDepthStencilAttachment::CreateAttachment(vk::Format Format, vk::Exte
 {
     vk::ImageCreateInfo ImageCreateInfo;
     ImageCreateInfo.setImageType(vk::ImageType::e2D)
-        .setFormat(Format)
-        .setExtent({ Extent.width, Extent.height, 1 })
-        .setMipLevels(1)
-        .setArrayLayers(LayerCount)
-        .setSamples(SampleCount)
-        .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment | ExtraUsage);
+                   .setFormat(Format)
+                   .setExtent({ Extent.width, Extent.height, 1 })
+                   .setMipLevels(1)
+                   .setArrayLayers(LayerCount)
+                   .setSamples(SampleCount)
+                   .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment | ExtraUsage);
 
     vk::MemoryPropertyFlags MemoryPropertyFlags = vk::MemoryPropertyFlagBits::eDeviceLocal;
     if (ExtraUsage & vk::ImageUsageFlagBits::eTransientAttachment)

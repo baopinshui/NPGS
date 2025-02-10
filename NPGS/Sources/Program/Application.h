@@ -43,23 +43,24 @@ private:
     static void ScrollCallback(GLFWwindow* Window, double OffsetX, double OffsetY);
 
 private:
-    Runtime::Graphics::FVulkanContext*                        _VulkanContext;
-    std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout> _PipelineLayout;
-    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>       _GraphicsPipeline;
-    std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> _DepthAttachment;
-    FRenderer                                                 _Renderer;
+    Runtime::Graphics::FVulkanContext*                          _VulkanContext;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   _PipelineLayout;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         _GraphicsPipeline;
+    std::unique_ptr<Runtime::Graphics::FColorAttachment>        _ColorAttachment;
+    std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> _DepthStencilAttachment;
+    FRenderer                                                   _Renderer;
 
-    std::string                                               _WindowTitle;
-    vk::Extent2D                                              _WindowSize;
-    GLFWwindow*                                               _Window = nullptr;
-    bool                                                      _bEnableVSync;
-    bool                                                      _bEnableFullscreen;
+    std::string                                                 _WindowTitle;
+    vk::Extent2D                                                _WindowSize;
+    GLFWwindow*                                                 _Window = nullptr;
+    bool                                                        _bEnableVSync;
+    bool                                                        _bEnableFullscreen;
 
-    std::unique_ptr<System::Spatial::FCamera>                 _FreeCamera;
-    double                                                    _DeltaTime   = 0.0;
-    double                                                    _LastX       = 0.0;
-    double                                                    _LastY       = 0.0;
-    bool                                                      _bFirstMouse = true;
+    std::unique_ptr<System::Spatial::FCamera>                   _FreeCamera;
+    double                                                      _DeltaTime   = 0.0;
+    double                                                      _LastX       = 0.0;
+    double                                                      _LastY       = 0.0;
+    bool                                                        _bFirstMouse = true;
 };
 
 _NPGS_END
