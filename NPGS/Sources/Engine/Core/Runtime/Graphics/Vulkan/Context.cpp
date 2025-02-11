@@ -13,7 +13,24 @@ _GRAPHICS_BEGIN
 namespace
 {
     vk::SubmitInfo CreateSubmitInfo(const vk::CommandBuffer& CommandBuffer, const vk::Semaphore& WaitSemaphore,
-                                    const vk::Semaphore& SignalSemaphore, vk::PipelineStageFlags Flags = {});
+                                    const vk::Semaphore& SignalSemaphore, vk::PipelineStageFlags Flags)
+    {
+        vk::SubmitInfo SubmitInfo;
+        SubmitInfo.setCommandBuffers(CommandBuffer);
+
+        if (WaitSemaphore)
+        {
+            SubmitInfo.setWaitSemaphores(WaitSemaphore);
+            SubmitInfo.setWaitDstStageMask(Flags);
+        }
+
+        if (SignalSemaphore)
+        {
+            SubmitInfo.setSignalSemaphores(SignalSemaphore);
+        }
+
+        return SubmitInfo;
+    }
 }
 
 FVulkanContext::FVulkanContext()
@@ -255,29 +272,6 @@ void FVulkanContext::TransferImageOwnershipToPresentImpl(vk::CommandBuffer Prese
 
     PresentCommandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
                                          vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, ImageMemoryBarrier);
-}
-
-namespace
-{
-    vk::SubmitInfo CreateSubmitInfo(const vk::CommandBuffer& CommandBuffer, const vk::Semaphore& WaitSemaphore,
-                                    const vk::Semaphore& SignalSemaphore, vk::PipelineStageFlags Flags)
-    {
-        vk::SubmitInfo SubmitInfo;
-        SubmitInfo.setCommandBuffers(CommandBuffer);
-
-        if (WaitSemaphore)
-        {
-            SubmitInfo.setWaitSemaphores(WaitSemaphore);
-            SubmitInfo.setWaitDstStageMask(Flags);
-        }
-
-        if (SignalSemaphore)
-        {
-            SubmitInfo.setSignalSemaphores(SignalSemaphore);
-        }
-
-        return SubmitInfo;
-    }
 }
 
 _GRAPHICS_END

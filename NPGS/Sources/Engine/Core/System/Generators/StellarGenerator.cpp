@@ -52,9 +52,52 @@ _GENERATOR_BEGIN
 // --------------
 namespace
 {
-    float DefaultAgePdf(const glm::vec3&, float Age, float UniverseAge);
-    float DefaultLogMassPdfSingleStar(float LogMassSol);
-    float DefaultLogMassPdfBinaryStar(float LogMassSol);
+    float DefaultAgePdf(const glm::vec3&, float Age, float UniverseAge)
+    {
+        float Probability = 0.0f;
+        if (Age - (UniverseAge - 13.8f) < 8.0f)
+        {
+            Probability = std::exp((Age - (UniverseAge - 13.8f) / 8.4f));
+        }
+        else
+        {
+            Probability = 2.6f * std::exp((-0.5f * std::pow((Age - (UniverseAge - 13.8f)) - 8.0f, 2.0f)) / (std::pow(1.5f, 2.0f)));
+        }
+
+        return static_cast<float>(Probability);
+    }
+
+    float DefaultLogMassPdfSingleStar(float LogMassSol)
+    {
+        float Probability = 0.0f;
+
+        if (std::pow(10.0f, LogMassSol) <= 1.0f)
+        {
+            Probability = 0.158f * std::exp(-1.0f * std::pow(LogMassSol + 1.0f, 2.0f) / 1.101128f);
+        }
+        else
+        {
+            Probability = 0.06371598f * std::pow(std::pow(10.0f, LogMassSol), -0.8f);
+        }
+
+        return Probability;
+    }
+
+    float DefaultLogMassPdfBinaryStar(float LogMassSol)
+    {
+        float Probability = 0.0f;
+
+        if (std::pow(10.0, LogMassSol) <= 1.0f)
+        {
+            Probability = 0.086f * std::exp(-1.0f * std::pow(LogMassSol + 0.65757734f, 2.0f) / 1.101128f);
+        }
+        else
+        {
+            Probability = 0.058070157f * std::pow(std::pow(10.0f, LogMassSol), -0.65f);
+        }
+
+        return Probability;
+    }
 }
 
 // FStellarGenerator implementations
@@ -2338,58 +2381,6 @@ std::unordered_map<std::string, std::vector<float>> FStellarGenerator::_kMassFil
 std::unordered_map<const FStellarGenerator::FMistData*, std::vector<std::vector<double>>> FStellarGenerator::_kPhaseChangesCache;
 std::shared_mutex FStellarGenerator::_kCacheMutex;
 bool FStellarGenerator::_kbMistDataInitiated = false;
-
-// Tool functions implementations
-// ------------------------------
-namespace
-{
-    float DefaultAgePdf(const glm::vec3&, float Age, float UniverseAge)
-    {
-        float Probability = 0.0f;
-        if (Age - (UniverseAge - 13.8f) < 8.0f)
-        {
-            Probability = std::exp((Age - (UniverseAge - 13.8f) / 8.4f));
-        }
-        else
-        {
-            Probability = 2.6f * std::exp((-0.5f * std::pow((Age - (UniverseAge - 13.8f)) - 8.0f, 2.0f)) / (std::pow(1.5f, 2.0f)));
-        }
-
-        return static_cast<float>(Probability);
-    }
-
-    float DefaultLogMassPdfSingleStar(float LogMassSol)
-    {
-        float Probability = 0.0f;
-
-        if (std::pow(10.0f, LogMassSol) <= 1.0f)
-        {
-            Probability = 0.158f * std::exp(-1.0f * std::pow(LogMassSol + 1.0f, 2.0f) / 1.101128f);
-        }
-        else
-        {
-            Probability = 0.06371598f * std::pow(std::pow(10.0f, LogMassSol), -0.8f);
-        }
-
-        return Probability;
-    }
-
-    float DefaultLogMassPdfBinaryStar(float LogMassSol)
-    {
-        float Probability = 0.0f;
-
-        if (std::pow(10.0, LogMassSol) <= 1.0f)
-        {
-            Probability = 0.086f * std::exp(-1.0f * std::pow(LogMassSol + 0.65757734f, 2.0f) / 1.101128f);
-        }
-        else
-        {
-            Probability = 0.058070157f * std::pow(std::pow(10.0f, LogMassSol), -0.65f);
-        }
-
-        return Probability;
-    }
-}
 
 _GENERATOR_END
 _SYSTEM_END

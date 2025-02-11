@@ -162,8 +162,9 @@ void FApplication::ExecuteMainRender()
 
     auto* AssetManager = Art::FAssetManager::GetInstance();
 
-    AssetManager->AddAsset<Art::FTexture2D>("AwesomeFace", Art::FTexture2D("AwesomeFace.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true));
-    
+    AssetManager->AddAsset<Art::FTexture2D>("AwesomeFace", "AwesomeFace.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
+    AssetManager->AddAsset<Art::FTexture2D>("Npgs", "NPGS.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
+
     vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
     Grt::FVulkanSampler Sampler(SamplerCreateInfo);
 
@@ -180,15 +181,17 @@ void FApplication::ExecuteMainRender()
             { 0, 0, true }
         },
         {
-            { vk::ShaderStageFlagBits::eVertex, { "iModel" }}
+            { vk::ShaderStageFlagBits::eVertex, { "iModel" } },
+            { vk::ShaderStageFlagBits::eFragment, { "iTime" } }
         }
     };
 
     std::vector<std::string> TriangleShaders({ "Triangle.vert.spv", "Triangle.frag.spv" });
     AssetManager->AddAsset<Art::FShader>("Shader", TriangleShaders, ResInfo);
 
-    auto& Shader  = *AssetManager->GetAsset<Art::FShader>("Shader");
-    auto& Texture = *AssetManager->GetAsset<Art::FTexture2D>("AwesomeFace");
+    auto& Shader      = *AssetManager->GetAsset<Art::FShader>("Shader");
+    auto& AwesomeFace = *AssetManager->GetAsset<Art::FTexture2D>("AwesomeFace");
+    auto& Npgs        = *AssetManager->GetAsset<Art::FTexture2D>("Npgs");
 
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
     auto NativeArray = Shader.GetDescriptorSetLayouts();
@@ -222,10 +225,14 @@ void FApplication::ExecuteMainRender()
 
     // Create graphics pipeline
     // ------------------------
-    vk::DescriptorImageInfo ImageInfo = Texture.CreateDescriptorImageInfo(Sampler);
-    Shader.WriteSharedDescriptors<vk::DescriptorImageInfo>(0, 1, vk::DescriptorType::eCombinedImageSampler, { ImageInfo });
+    std::vector<vk::DescriptorImageInfo> ImageInfos;
+    ImageInfos.push_back(AwesomeFace.CreateDescriptorImageInfo(Sampler));
+    ImageInfos.push_back(Npgs.CreateDescriptorImageInfo(Sampler));
+    Shader.WriteSharedDescriptors<vk::DescriptorImageInfo>(0, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
     ShaderBufferManager->BindShaderToBuffers("VpMatrices", "Shader");
+
+#include "Vertices.inc"
 
     std::vector<FVertex> Vertices
     {
@@ -241,8 +248,8 @@ void FApplication::ExecuteMainRender()
         1, 2, 3
     };
 
-    Grt::FDeviceLocalBuffer VertexBuffer(Vertices.size() * sizeof(FVertex), vk::BufferUsageFlagBits::eVertexBuffer);
-    VertexBuffer.CopyData(Vertices);
+    Grt::FDeviceLocalBuffer VertexBuffer(CubeVertices.size() * sizeof(FVertex), vk::BufferUsageFlagBits::eVertexBuffer);
+    VertexBuffer.CopyData(CubeVertices);
     Grt::FDeviceLocalBuffer IndexBuffer(Indices.size() * sizeof(std::uint16_t), vk::BufferUsageFlagBits::eIndexBuffer);
     IndexBuffer.CopyData(Indices);
 
@@ -259,6 +266,10 @@ void FApplication::ExecuteMainRender()
         CreateInfoPack.VertexInputAttributes.append_range(Shader.GetVertexInputAttributes());
 
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
+        CreateInfoPack.RasterizationStateCreateInfo.setCullMode(vk::CullModeFlagBits::eBack)
+                                                   .setFrontFace(vk::FrontFace::eCounterClockwise)
+                                                   .setPolygonMode(vk::PolygonMode::eFill)
+                                                   .setLineWidth(1.0f);
         CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e8)
                                                  .setSampleShadingEnable(vk::True)
                                                  .setMinSampleShading(1.0f);
@@ -354,15 +365,28 @@ void FApplication::ExecuteMainRender()
         RenderPass->CommandBegin(CurrentBuffer, Framebuffers[ImageIndex], { {}, _WindowSize }, ClearValues);
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **_GraphicsPipeline);
         CurrentBuffer->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
-        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
+        //CurrentBuffer->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
+        float Time = glfwGetTime();
+        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, Shader.GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
+        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eFragment, Shader.GetPushConstantOffset("iTime"), sizeof(float), &Time);
         std::uint32_t DynamicOffset = 0;
         CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], DynamicOffset);
-        CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
+        ////CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
+        //CurrentBuffer->draw(36, 1, 0, 0);
 
-        Model = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.5f, 0.0f, 0.5f));
-        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
+        //Model = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.5f, 0.0f, 0.5f));
+        //CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
+        ////CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
+        //CurrentBuffer->draw(36, 1, 0, 0);
+
+        for (int i = 0; i != 10; ++i)
+        {
+            Model = glm::translate(glm::mat4x4(1.0f), CubePositions[i]);
+            float Angle = 20.0f;
+            Model = glm::rotate(Model, glm::radians(Angle * i), glm::vec3(1.0f, 0.3f, 0.5f));
+            CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
+            CurrentBuffer->draw(36, 1, 0, 0);
+        }
 
         RenderPass->CommandEnd(CurrentBuffer);
         CurrentBuffer.End();

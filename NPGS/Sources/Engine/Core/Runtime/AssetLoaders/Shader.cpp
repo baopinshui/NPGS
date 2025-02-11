@@ -21,9 +21,119 @@ _ASSET_BEGIN
 
 namespace
 {
-    vk::ShaderStageFlagBits GetShaderStageFromFilename(const std::string& Filename);
-    vk::Format GetVectorFormat(spirv_cross::SPIRType::BaseType BaseType, std::uint32_t Components);
-    std::uint32_t GetTypeSize(spirv_cross::SPIRType::BaseType BaseType);
+    vk::ShaderStageFlagBits GetShaderStageFromFilename(const std::string& Filename)
+    {
+        if (Filename.find("vert") != std::string::npos)
+        {
+            return vk::ShaderStageFlagBits::eVertex;
+        }
+        else if (Filename.find("frag") != std::string::npos)
+        {
+            return vk::ShaderStageFlagBits::eFragment;
+        }
+        else if (Filename.find("comp") != std::string::npos)
+        {
+            return vk::ShaderStageFlagBits::eCompute;
+        }
+        else if (Filename.find("geom") != std::string::npos)
+        {
+            return vk::ShaderStageFlagBits::eGeometry;
+        }
+        else if (Filename.find("tesc") != std::string::npos)
+        {
+            return vk::ShaderStageFlagBits::eTessellationControl;
+        }
+        else if (Filename.find("tese") != std::string::npos)
+        {
+            return vk::ShaderStageFlagBits::eTessellationEvaluation;
+        }
+        else
+        {
+            return vk::ShaderStageFlagBits::eAll;
+        }
+    }
+
+    vk::Format GetVectorFormat(spirv_cross::SPIRType::BaseType BaseType, std::uint32_t Components)
+    {
+        switch (BaseType)
+        {
+        case spirv_cross::SPIRType::BaseType::Int:
+            switch (Components)
+            {
+            case 1:
+                return vk::Format::eR32Sint;
+            case 2:
+                return vk::Format::eR32G32Sint;
+            case 3:
+                return vk::Format::eR32G32B32Sint;
+            case 4:
+                return vk::Format::eR32G32B32A32Sint;
+            default:
+                return vk::Format::eUndefined;
+            }
+        case spirv_cross::SPIRType::BaseType::UInt:
+            switch (Components)
+            {
+            case 1:
+                return vk::Format::eR32Uint;
+            case 2:
+                return vk::Format::eR32G32Uint;
+            case 3:
+                return vk::Format::eR32G32B32Uint;
+            case 4:
+                return vk::Format::eR32G32B32A32Uint;
+            default:
+                return vk::Format::eUndefined;
+            }
+        case spirv_cross::SPIRType::BaseType::Float:
+            switch (Components)
+            {
+            case 1:
+                return vk::Format::eR32Sfloat;
+            case 2:
+                return vk::Format::eR32G32Sfloat;
+            case 3:
+                return vk::Format::eR32G32B32Sfloat;
+            case 4:
+                return vk::Format::eR32G32B32A32Sfloat;
+            default:
+                return vk::Format::eUndefined;
+            }
+        case spirv_cross::SPIRType::BaseType::Double:
+            switch (Components)
+            {
+            case 1:
+                return vk::Format::eR64Sfloat;
+            case 2:
+                return vk::Format::eR64G64Sfloat;
+            case 3:
+                return vk::Format::eR64G64B64Sfloat;
+            case 4:
+                return vk::Format::eR64G64B64A64Sfloat;
+            default:
+                return vk::Format::eUndefined;
+            }
+        default:
+            return vk::Format::eUndefined;
+        }
+    }
+
+    std::uint32_t GetTypeSize(spirv_cross::SPIRType::BaseType BaseType)
+    {
+        switch (BaseType)
+        {
+        case spirv_cross::SPIRType::BaseType::Int:
+            return sizeof(int);
+        case spirv_cross::SPIRType::BaseType::UInt:
+            return sizeof(unsigned int);
+        case spirv_cross::SPIRType::BaseType::Float:
+            return sizeof(float);
+        case spirv_cross::SPIRType::BaseType::Double:
+            return sizeof(double);
+        default:
+            return 0;
+        }
+    }
 }
 
 FShader::FShader(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo)
@@ -150,17 +260,14 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
 
     for (const auto& PushConstant : Resources->push_constant_buffers)
     {
-        const auto& Type       = Reflection->get_type(PushConstant.type_id);
-        std::size_t BufferSize = Reflection->get_declared_struct_size(Type);
+        const auto&   Type        = Reflection->get_type(PushConstant.type_id);
+        std::size_t   BufferSize  = Reflection->get_declared_struct_size(Type);
+        std::uint32_t TotalOffset = 0;
 
-        std::uint32_t Offset = 0;
-        if (Type.member_types.size() > 0)
+        if (_ReflectionInfo.PushConstants.size() > 0)
         {
-            Offset = Reflection->get_member_decoration(Type.self, 0, spv::DecorationOffset);
+            TotalOffset = _ReflectionInfo.PushConstants.back().offset + _ReflectionInfo.PushConstants.back().size;
         }
-
-        vk::PushConstantRange PushConstantRange(ShaderInfo.Stage, Offset, static_cast<std::uint32_t>(BufferSize));
-        NpgsCoreTrace("Push Constant \"{}\" size={} bytes, offset={}", PushConstant.name, BufferSize, Offset);
 
         const auto& PushConstantNames = ResourceInfo.PushConstantInfos.at(ShaderInfo.Stage);
         for (std::uint32_t i = 0; i != Type.member_types.size(); ++i)
@@ -173,6 +280,8 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
             NpgsCoreTrace("  Member \"{}\" at offset={}", MemberName, MemberOffset);
         }
 
+        NpgsCoreTrace("Push Constant \"{}\" size={} bytes, offset={}", PushConstant.name, BufferSize - TotalOffset, TotalOffset);
+        vk::PushConstantRange PushConstantRange(ShaderInfo.Stage, TotalOffset, static_cast<std::uint32_t>(BufferSize - TotalOffset));
         _ReflectionInfo.PushConstants.push_back(PushConstantRange);
     }
 
@@ -195,14 +304,17 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
         std::uint32_t Set     = Reflection->get_decoration(UniformBuffer.id, spv::DecorationDescriptorSet);
         std::uint32_t Binding = Reflection->get_decoration(UniformBuffer.id, spv::DecorationBinding);
 
-        bool bIsDynamic = CheckDynamic(Set, Binding);
+        const auto&   Type       = Reflection->get_type(UniformBuffer.type_id);
+        std::uint32_t ArraySize  = Type.array.empty() ? 1 : Type.array[0];
+        bool          bIsDynamic = CheckDynamic(Set, Binding);
 
-        NpgsCoreTrace("UBO \"{}\" at set={}, binding={} is {}", UniformBuffer.name, Set, Binding, bIsDynamic ? "dynamic" : "static");
+        NpgsCoreTrace("UBO \"{}\" at set={}, binding={} is {}, array_size={}",
+                      UniformBuffer.name, Set, Binding, bIsDynamic ? "dynamic" : "static", ArraySize);
 
         vk::DescriptorSetLayoutBinding LayoutBinding = vk::DescriptorSetLayoutBinding()
             .setBinding(Binding)
             .setDescriptorType(bIsDynamic ? vk::DescriptorType::eUniformBufferDynamic : vk::DescriptorType::eUniformBuffer)
-            .setDescriptorCount(1)
+            .setDescriptorCount(ArraySize)
             .setStageFlags(ShaderInfo.Stage);
 
         _ReflectionInfo.DescriptorSetBindings[Set].push_back(LayoutBinding);
@@ -215,14 +327,17 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
         std::uint32_t Set     = Reflection->get_decoration(StorageBuffer.id, spv::DecorationDescriptorSet);
         std::uint32_t Binding = Reflection->get_decoration(StorageBuffer.id, spv::DecorationBinding);
 
-        bool bIsDynamic = CheckDynamic(Set, Binding);
+        const auto&   Type       = Reflection->get_type(StorageBuffer.type_id);
+        std::uint32_t ArraySize  = Type.array.empty() ? 1 : Type.array[0];
+        bool          bIsDynamic = CheckDynamic(Set, Binding);
 
-        NpgsCoreTrace("SSBO \"{}\" at set={}, binding={} is {}", StorageBuffer.name, Set, Binding, bIsDynamic ? "dynamic" : "static");
+        NpgsCoreTrace("SSBO \"{}\" at set={}, binding={} is {}, array_size={}",
+                      StorageBuffer.name, Set, Binding, bIsDynamic ? "dynamic" : "static", ArraySize);
 
         vk::DescriptorSetLayoutBinding LayoutBinding = vk::DescriptorSetLayoutBinding()
             .setBinding(Binding)
             .setDescriptorType(bIsDynamic ? vk::DescriptorType::eStorageBufferDynamic : vk::DescriptorType::eStorageBuffer)
-            .setDescriptorCount(1)
+            .setDescriptorCount(ArraySize)
             .setStageFlags(ShaderInfo.Stage);
     }
 
@@ -231,12 +346,16 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
         std::uint32_t Set     = Reflection->get_decoration(CombinedSampler.id, spv::DecorationDescriptorSet);
         std::uint32_t Binding = Reflection->get_decoration(CombinedSampler.id, spv::DecorationBinding);
 
-        NpgsCoreTrace("Combined Sampler \"{}\" at set={}, binding={}", CombinedSampler.name, Set, Binding);
+        const auto&   Type      = Reflection->get_type(CombinedSampler.type_id);
+        std::uint32_t ArraySize = Type.array.empty() ? 1 : Type.array[0];
+
+        NpgsCoreTrace("Combined Sampler \"{}\" at set={}, binding={}, array_size={}",
+                      CombinedSampler.name, Set, Binding, ArraySize);
 
         vk::DescriptorSetLayoutBinding LayoutBinding = vk::DescriptorSetLayoutBinding()
             .setBinding(Binding)
             .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-            .setDescriptorCount(1)
+            .setDescriptorCount(ArraySize)
             .setStageFlags(ShaderInfo.Stage);
 
         _ReflectionInfo.DescriptorSetBindings[Set].push_back(LayoutBinding);
@@ -247,12 +366,15 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
         std::uint32_t Set     = Reflection->get_decoration(Sampler.id, spv::DecorationDescriptorSet);
         std::uint32_t Binding = Reflection->get_decoration(Sampler.id, spv::DecorationBinding);
 
-        NpgsCoreTrace("Separate Sampler \"{}\" at set={}, binding={}", Sampler.name, Set, Binding);
+        const auto&   Type      = Reflection->get_type(Sampler.type_id);
+        std::uint32_t ArraySize = Type.array.empty() ? 1 : Type.array[0];
+
+        NpgsCoreTrace("Separate Sampler \"{}\" at set={}, binding={}, array_size={}", Sampler.name, Set, Binding, ArraySize);
 
         vk::DescriptorSetLayoutBinding LayoutBinding = vk::DescriptorSetLayoutBinding()
             .setBinding(Binding)
             .setDescriptorType(vk::DescriptorType::eSampler)
-            .setDescriptorCount(1)
+            .setDescriptorCount(ArraySize)
             .setStageFlags(ShaderInfo.Stage);
 
         _ReflectionInfo.DescriptorSetBindings[Set].push_back(LayoutBinding);
@@ -263,12 +385,15 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
         std::uint32_t Set     = Reflection->get_decoration(Image.id, spv::DecorationDescriptorSet);
         std::uint32_t Binding = Reflection->get_decoration(Image.id, spv::DecorationBinding);
 
-        NpgsCoreTrace("Separate Image \"{}\" at set={}, binding={}", Image.name, Set, Binding);
+        const auto&   Type      = Reflection->get_type(Image.type_id);
+        std::uint32_t ArraySize = Type.array.empty() ? 1 : Type.array[0];
+
+        NpgsCoreTrace("Separate Image \"{}\" at set={}, binding={}, array_size={}", Image.name, Set, Binding, ArraySize);
 
         vk::DescriptorSetLayoutBinding LayoutBinding = vk::DescriptorSetLayoutBinding()
             .setBinding(Binding)
             .setDescriptorType(vk::DescriptorType::eSampledImage)
-            .setDescriptorCount(1)
+            .setDescriptorCount(ArraySize)
             .setStageFlags(ShaderInfo.Stage);
 
         _ReflectionInfo.DescriptorSetBindings[Set].push_back(LayoutBinding);
@@ -418,123 +543,6 @@ void FShader::UpdateDescriptorSets()
     }
 
     _bDescriptorSetsNeedUpdate = false;
-}
-
-namespace
-{
-    vk::ShaderStageFlagBits GetShaderStageFromFilename(const std::string& Filename)
-    {
-        if (Filename.find("vert") != std::string::npos)
-        {
-            return vk::ShaderStageFlagBits::eVertex;
-        }
-        else if (Filename.find("frag") != std::string::npos)
-        {
-            return vk::ShaderStageFlagBits::eFragment;
-        }
-        else if (Filename.find("comp") != std::string::npos)
-        {
-            return vk::ShaderStageFlagBits::eCompute;
-        }
-        else if (Filename.find("geom") != std::string::npos)
-        {
-            return vk::ShaderStageFlagBits::eGeometry;
-        }
-        else if (Filename.find("tesc") != std::string::npos)
-        {
-            return vk::ShaderStageFlagBits::eTessellationControl;
-        }
-        else if (Filename.find("tese") != std::string::npos)
-        {
-            return vk::ShaderStageFlagBits::eTessellationEvaluation;
-        }
-        else
-        {
-            return vk::ShaderStageFlagBits::eAll;
-        }
-    }
-
-    vk::Format GetVectorFormat(spirv_cross::SPIRType::BaseType BaseType, std::uint32_t Components)
-    {
-        switch (BaseType)
-        {
-        case spirv_cross::SPIRType::BaseType::Int:
-            switch (Components)
-            {
-            case 1:
-                return vk::Format::eR32Sint;
-            case 2:
-                return vk::Format::eR32G32Sint;
-            case 3:
-                return vk::Format::eR32G32B32Sint;
-            case 4:
-                return vk::Format::eR32G32B32A32Sint;
-            default:
-                return vk::Format::eUndefined;
-            }
-        case spirv_cross::SPIRType::BaseType::UInt:
-            switch (Components)
-            {
-            case 1:
-                return vk::Format::eR32Uint;
-            case 2:
-                return vk::Format::eR32G32Uint;
-            case 3:
-                return vk::Format::eR32G32B32Uint;
-            case 4:
-                return vk::Format::eR32G32B32A32Uint;
-            default:
-                return vk::Format::eUndefined;
-            }
-        case spirv_cross::SPIRType::BaseType::Float:
-            switch (Components)
-            {
-            case 1:
-                return vk::Format::eR32Sfloat;
-            case 2:
-                return vk::Format::eR32G32Sfloat;
-            case 3:
-                return vk::Format::eR32G32B32Sfloat;
-            case 4:
-                return vk::Format::eR32G32B32A32Sfloat;
-            default:
-                return vk::Format::eUndefined;
-            }
-        case spirv_cross::SPIRType::BaseType::Double:
-            switch (Components)
-            {
-            case 1:
-                return vk::Format::eR64Sfloat;
-            case 2:
-                return vk::Format::eR64G64Sfloat;
-            case 3:
-                return vk::Format::eR64G64B64Sfloat;
-            case 4:
-                return vk::Format::eR64G64B64A64Sfloat;
-            default:
-                return vk::Format::eUndefined;
-            }
-        default:
-            return vk::Format::eUndefined;
-        }
-    }
-
-    std::uint32_t GetTypeSize(spirv_cross::SPIRType::BaseType BaseType)
-    {
-        switch (BaseType)
-        {
-        case spirv_cross::SPIRType::BaseType::Int:
-            return sizeof(int);
-        case spirv_cross::SPIRType::BaseType::UInt:
-            return sizeof(unsigned int);
-        case spirv_cross::SPIRType::BaseType::Float:
-            return sizeof(float);
-        case spirv_cross::SPIRType::BaseType::Double:
-            return sizeof(double);
-        default:
-            return 0;
-        }
-    }
 }
 
 _ASSET_END

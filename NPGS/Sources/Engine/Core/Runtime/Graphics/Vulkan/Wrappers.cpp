@@ -16,8 +16,20 @@ _GRAPHICS_BEGIN
 
 namespace
 {
-std::uint32_t GetMemoryTypeIndex(const vk::PhysicalDeviceMemoryProperties& PhysicalDeviceMemoryProperties,
-                                 const vk::MemoryRequirements& MemoryRequirements, vk::MemoryPropertyFlags MemoryPropertyFlags);
+    std::uint32_t GetMemoryTypeIndex(const vk::PhysicalDeviceMemoryProperties& PhysicalDeviceMemoryProperties,
+                                     const vk::MemoryRequirements& MemoryRequirements, vk::MemoryPropertyFlags MemoryPropertyFlags)
+    {
+        for (std::size_t i = 0; i != PhysicalDeviceMemoryProperties.memoryTypeCount; ++i)
+        {
+            if (MemoryRequirements.memoryTypeBits & static_cast<std::uint32_t>(Bit(i)) &&
+                (PhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & MemoryPropertyFlags) == MemoryPropertyFlags)
+            {
+                return static_cast<std::uint32_t>(i);
+            }
+        }
+
+        return std::numeric_limits<std::uint32_t>::max();
+    }
 }
 
 FGraphicsPipelineCreateInfoPack::FGraphicsPipelineCreateInfoPack()
@@ -1179,37 +1191,110 @@ vk::Result FVulkanImageView::CreateImageView(const FVulkanImage& Image, vk::Imag
     return CreateImageView(CreateInfo);
 }
 
-// Wrapper for vk::Pipeline
-// ------------------------
-FVulkanPipeline::FVulkanPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo)
-    : FVulkanPipeline(FVulkanCore::GetClassInstance()->GetDevice(), CreateInfo)
+// Wrapper for vk::PipelineCache
+// -----------------------------
+FVulkanPipelineCache::FVulkanPipelineCache(vk::PipelineCacheCreateFlags Flags)
+    : FVulkanPipelineCache(FVulkanCore::GetClassInstance()->GetDevice(), Flags)
 {
 }
 
-FVulkanPipeline::FVulkanPipeline(vk::Device Device, const vk::GraphicsPipelineCreateInfo& CreateInfo)
+FVulkanPipelineCache::FVulkanPipelineCache(vk::Device Device, vk::PipelineCacheCreateFlags Flags)
     : Base(Device)
 {
-    _ReleaseInfo = "Graphics pipeline destroyed successfully.";
-    _Status      = CreateGraphicsPipeline(CreateInfo);
+    _ReleaseInfo = "Pipeline cache destroyed successfully.";
+    _Status      = CreatePipelineCache(Flags);
 }
 
-FVulkanPipeline::FVulkanPipeline(const vk::ComputePipelineCreateInfo& CreateInfo)
-    : FVulkanPipeline(FVulkanCore::GetClassInstance()->GetDevice(), CreateInfo)
+FVulkanPipelineCache::FVulkanPipelineCache(vk::PipelineCacheCreateFlags Flags, const std::vector<std::byte>& InitialData)
+    : FVulkanPipelineCache(FVulkanCore::GetClassInstance()->GetDevice(), Flags, InitialData)
 {
 }
 
-FVulkanPipeline::FVulkanPipeline(vk::Device Device, const vk::ComputePipelineCreateInfo& CreateInfo)
+FVulkanPipelineCache::FVulkanPipelineCache(vk::Device Device, vk::PipelineCacheCreateFlags Flags, const std::vector<std::byte>& InitialData)
     : Base(Device)
 {
-    _ReleaseInfo = "Compute pipeline destroyed successfully.";
-    _Status      = CreateComputePipeline(CreateInfo);
+    _ReleaseInfo = "Pipeline cache destroyed successfully.";
+    _Status      = CreatePipelineCache(Flags, InitialData);
 }
 
-vk::Result FVulkanPipeline::CreateGraphicsPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo)
+FVulkanPipelineCache::FVulkanPipelineCache(const vk::PipelineCacheCreateInfo& CreateInfo)
+    : FVulkanPipelineCache(FVulkanCore::GetClassInstance()->GetDevice(), CreateInfo)
+{
+}
+
+FVulkanPipelineCache::FVulkanPipelineCache(vk::Device Device, const vk::PipelineCacheCreateInfo& CreateInfo)
+    : Base(Device)
+{
+    _ReleaseInfo = "Pipeline cache destroyed successfully.";
+    _Status      = CreatePipelineCache(CreateInfo);
+}
+
+vk::Result FVulkanPipelineCache::CreatePipelineCache(vk::PipelineCacheCreateFlags Flags)
+{
+    vk::PipelineCacheCreateInfo CreateInfo(Flags);
+    return CreatePipelineCache(CreateInfo);
+}
+
+vk::Result FVulkanPipelineCache::CreatePipelineCache(vk::PipelineCacheCreateFlags Flags, const std::vector<std::byte>& InitialData)
+{
+    vk::PipelineCacheCreateInfo CreateInfo = vk::PipelineCacheCreateInfo()
+        .setFlags(Flags)
+        .setInitialData<std::byte>(InitialData);
+
+    return CreatePipelineCache(CreateInfo);
+}
+
+vk::Result FVulkanPipelineCache::CreatePipelineCache(const vk::PipelineCacheCreateInfo& CreateInfo)
 {
     try
     {
-        _Handle = _Device.createGraphicsPipeline(vk::PipelineCache(), CreateInfo).value;
+        _Handle = _Device.createPipelineCache(CreateInfo);
+    }
+    catch (const vk::SystemError& e)
+    {
+        NpgsCoreError("Failed to create pipeline cache: {}", e.what());
+        return static_cast<vk::Result>(e.code().value());
+    }
+
+    NpgsCoreInfo("Pipeline cache created successfully.");
+    return vk::Result::eSuccess;
+}
+
+// Wrapper for vk::Pipeline
+// ------------------------
+FVulkanPipeline::FVulkanPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache)
+    : FVulkanPipeline(FVulkanCore::GetClassInstance()->GetDevice(), CreateInfo, Cache)
+{
+}
+
+FVulkanPipeline::FVulkanPipeline(vk::Device Device, const vk::GraphicsPipelineCreateInfo& CreateInfo,
+                                 const FVulkanPipelineCache* Cache)
+    : Base(Device)
+{
+    _ReleaseInfo = "Graphics pipeline destroyed successfully.";
+    _Status      = CreateGraphicsPipeline(CreateInfo, Cache);
+}
+
+FVulkanPipeline::FVulkanPipeline(const vk::ComputePipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache)
+    : FVulkanPipeline(FVulkanCore::GetClassInstance()->GetDevice(), CreateInfo, Cache)
+{
+}
+
+FVulkanPipeline::FVulkanPipeline(vk::Device Device, const vk::ComputePipelineCreateInfo& CreateInfo,
+                                 const FVulkanPipelineCache* Cache)
+    : Base(Device)
+{
+    _ReleaseInfo = "Compute pipeline destroyed successfully.";
+    _Status      = CreateComputePipeline(CreateInfo, Cache);
+}
+
+vk::Result FVulkanPipeline::CreateGraphicsPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo,
+                                                   const FVulkanPipelineCache* Cache)
+{
+    try
+    {
+        vk::PipelineCache PipelineCache = Cache ? **Cache : vk::PipelineCache();
+        _Handle = _Device.createGraphicsPipeline(PipelineCache, CreateInfo).value;
     }
     catch (const vk::SystemError& e)
     {
@@ -1221,11 +1306,13 @@ vk::Result FVulkanPipeline::CreateGraphicsPipeline(const vk::GraphicsPipelineCre
     return vk::Result::eSuccess;
 }
 
-vk::Result FVulkanPipeline::CreateComputePipeline(const vk::ComputePipelineCreateInfo& CreateInfo)
+vk::Result FVulkanPipeline::CreateComputePipeline(const vk::ComputePipelineCreateInfo& CreateInfo,
+                                                  const FVulkanPipelineCache* Cache)
 {
     try
     {
-        _Handle = _Device.createComputePipeline(vk::PipelineCache(), CreateInfo).value;
+        vk::PipelineCache PipelineCache = Cache ? **Cache : vk::PipelineCache();
+        _Handle = _Device.createComputePipeline(PipelineCache, CreateInfo).value;
     }
     catch (const vk::SystemError& e)
     {
@@ -1484,24 +1571,6 @@ FVulkanImageMemory::FVulkanImageMemory(vk::Device Device, const vk::PhysicalDevi
     _Memory = std::make_unique<FVulkanDeviceMemory>(
         Device, PhysicalDeviceProperties, PhysicalDeviceMemoryProperties, MemoryAllocateInfo);
     _bMemoryBound = _Memory->IsValid() && (_Resource->BindMemory(*_Memory) == vk::Result::eSuccess);
-}
-
-namespace
-{
-    std::uint32_t GetMemoryTypeIndex(const vk::PhysicalDeviceMemoryProperties& PhysicalDeviceMemoryProperties,
-                                     const vk::MemoryRequirements& MemoryRequirements, vk::MemoryPropertyFlags MemoryPropertyFlags)
-    {
-        for (std::size_t i = 0; i != PhysicalDeviceMemoryProperties.memoryTypeCount; ++i)
-        {
-            if (MemoryRequirements.memoryTypeBits & static_cast<std::uint32_t>(Bit(i)) &&
-                (PhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & MemoryPropertyFlags) == MemoryPropertyFlags)
-            {
-                return static_cast<std::uint32_t>(i);
-            }
-        }
-
-        return std::numeric_limits<std::uint32_t>::max();
-    }
 }
 
 _GRAPHICS_END

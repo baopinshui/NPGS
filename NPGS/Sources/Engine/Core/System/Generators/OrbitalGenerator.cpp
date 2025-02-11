@@ -36,8 +36,47 @@ CalculatePlanetMass(kSolarMass * CoreMassesSol[Index],                \
 // --------------
 namespace
 {
-    float CalculatePrevMainSequenceLuminosity(float StarInitialMassSol);
-    std::unique_ptr<Astro::AAsteroidCluster> PlanetToAsteroidCluster(const Astro::APlanet* Planet);
+    float CalculatePrevMainSequenceLuminosity(float StarInitialMassSol)
+    {
+        float CommonCoefficient = (std::pow(10.0f, 2.0f - StarInitialMassSol) + 1.0f) * static_cast<float>(kSolarLuminosity);
+        float Luminosity = 0.0f;
+
+        if (StarInitialMassSol >= 0.075f && StarInitialMassSol < 0.43f)
+        {
+            Luminosity = CommonCoefficient * (0.23f * std::pow(StarInitialMassSol, 2.3f));
+        }
+        else if (StarInitialMassSol >= 0.43f && StarInitialMassSol < 2.0f)
+        {
+            Luminosity = CommonCoefficient * std::pow(StarInitialMassSol, 4.0f);
+        }
+        else if (StarInitialMassSol >= 2.0f && StarInitialMassSol <= 12.0f)
+        {
+            Luminosity = CommonCoefficient * (1.5f * std::pow(StarInitialMassSol, 3.5f));
+        }
+
+        return Luminosity;
+    }
+
+    std::unique_ptr<Astro::AAsteroidCluster> PlanetToAsteroidCluster(const Astro::APlanet* Planet)
+    {
+        Astro::AAsteroidCluster AsteroidCluster;
+
+        if (Planet->GetPlanetType() == Astro::APlanet::EPlanetType::kRockyAsteroidCluster)
+        {
+            AsteroidCluster.SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRocky);
+        }
+        else
+        {
+            AsteroidCluster.SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRockyIce);
+        }
+
+        AsteroidCluster.SetMass(Planet->GetCoreMassStruct());
+        AsteroidCluster.SetMassZ(Planet->GetCoreMassZ());
+        AsteroidCluster.SetMassVolatiles(Planet->GetCoreMassVolatiles());
+        AsteroidCluster.SetMassEnergeticNuclide(Planet->GetCoreMassEnergeticNuclide());
+
+        return std::make_unique<Astro::AAsteroidCluster>(AsteroidCluster);
+    }
 }
 
 // OrbitalGenerator implementations
@@ -2466,53 +2505,6 @@ void FOrbitalGenerator::CalculateOrbitalPeriods(std::vector<std::unique_ptr<Astr
                 }
             }
         }
-    }
-}
-
-// Tool function implementations
-// -----------------------------
-namespace
-{
-    float CalculatePrevMainSequenceLuminosity(float StarInitialMassSol)
-    {
-        float CommonCoefficient = (std::pow(10.0f, 2.0f - StarInitialMassSol) + 1.0f) * static_cast<float>(kSolarLuminosity);
-        float Luminosity        = 0.0f;
-
-        if (StarInitialMassSol >= 0.075f && StarInitialMassSol < 0.43f)
-        {
-            Luminosity = CommonCoefficient * (0.23f * std::pow(StarInitialMassSol, 2.3f));
-        }
-        else if (StarInitialMassSol >= 0.43f && StarInitialMassSol < 2.0f)
-        {
-            Luminosity = CommonCoefficient * std::pow(StarInitialMassSol, 4.0f);
-        }
-        else if (StarInitialMassSol >= 2.0f && StarInitialMassSol <= 12.0f)
-        {
-            Luminosity = CommonCoefficient * (1.5f * std::pow(StarInitialMassSol, 3.5f));
-        }
-
-        return Luminosity;
-    }
-
-    std::unique_ptr<Astro::AAsteroidCluster> PlanetToAsteroidCluster(const Astro::APlanet* Planet)
-    {
-        Astro::AAsteroidCluster AsteroidCluster;
-
-        if (Planet->GetPlanetType() == Astro::APlanet::EPlanetType::kRockyAsteroidCluster)
-        {
-            AsteroidCluster.SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRocky);
-        }
-        else
-        {
-            AsteroidCluster.SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRockyIce);
-        }
-
-        AsteroidCluster.SetMass(Planet->GetCoreMassStruct());
-        AsteroidCluster.SetMassZ(Planet->GetCoreMassZ());
-        AsteroidCluster.SetMassVolatiles(Planet->GetCoreMassVolatiles());
-        AsteroidCluster.SetMassEnergeticNuclide(Planet->GetCoreMassEnergeticNuclide());
-
-        return std::make_unique<Astro::AAsteroidCluster>(AsteroidCluster);
     }
 }
 

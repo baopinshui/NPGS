@@ -10,7 +10,29 @@ _THREAD_BEGIN
 
 namespace
 {
-    int GetPhysicalCoreCount();
+    int GetPhysicalCoreCount()
+    {
+        DWORD Length = 0;
+        GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &Length);
+        std::vector<std::uint8_t> Buffer(Length);
+        auto* BufferPtr = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(Buffer.data());
+        GetLogicalProcessorInformationEx(RelationProcessorCore, BufferPtr, &Length);
+
+        int CoreCount = 0;
+        while (Length > 0)
+        {
+            if (BufferPtr->Relationship == RelationProcessorCore)
+            {
+                ++CoreCount;
+            }
+
+            Length -= BufferPtr->Size;
+            BufferPtr = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(
+                reinterpret_cast<std::uint8_t*>(BufferPtr) + BufferPtr->Size);
+        }
+
+        return CoreCount;
+    }
 }
 
 // ThreadPool implementations
@@ -81,33 +103,6 @@ void FThreadPool::SetThreadAffinity(std::thread& Thread, std::size_t CoreId) con
     DWORD_PTR Mask = 0;
     Mask = static_cast<DWORD_PTR>(Bit(CoreId * 2) + _kHyperThreadIndex);
     SetThreadAffinityMask(Handle, Mask);
-}
-
-namespace
-{
-    int GetPhysicalCoreCount()
-    {
-        DWORD Length = 0;
-        GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &Length);
-        std::vector<std::uint8_t> Buffer(Length);
-        auto* BufferPtr = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(Buffer.data());
-        GetLogicalProcessorInformationEx(RelationProcessorCore, BufferPtr, &Length);
-
-        int CoreCount = 0;
-        while (Length > 0)
-        {
-            if (BufferPtr->Relationship == RelationProcessorCore)
-            {
-                ++CoreCount;
-            }
-
-            Length -= BufferPtr->Size;
-            BufferPtr = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(
-                reinterpret_cast<std::uint8_t*>(BufferPtr) + BufferPtr->Size);
-        }
-
-        return CoreCount;
-    }
 }
 
 _THREAD_END

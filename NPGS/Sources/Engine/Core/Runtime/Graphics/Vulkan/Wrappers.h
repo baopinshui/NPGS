@@ -782,6 +782,27 @@ private:
                                vk::ImageViewCreateFlags Flags);
 };
 
+// Wrapper for vk::PipelineCache
+// -----------------------------
+class FVulkanPipelineCache : public TVulkanHandle<vk::PipelineCache>
+{
+public:
+    using Base = TVulkanHandle<vk::PipelineCache>;
+    using Base::Base;
+
+    FVulkanPipelineCache(vk::PipelineCacheCreateFlags Flags);
+    FVulkanPipelineCache(vk::Device Device, vk::PipelineCacheCreateFlags Flags);
+    FVulkanPipelineCache(vk::PipelineCacheCreateFlags Flags, const std::vector<std::byte>& InitialData);
+    FVulkanPipelineCache(vk::Device Device, vk::PipelineCacheCreateFlags Flags, const std::vector<std::byte>& InitialData);
+    FVulkanPipelineCache(const vk::PipelineCacheCreateInfo& CreateInfo);
+    FVulkanPipelineCache(vk::Device Device, const vk::PipelineCacheCreateInfo& CreateInfo);
+
+private:
+    vk::Result CreatePipelineCache(vk::PipelineCacheCreateFlags Flags);
+    vk::Result CreatePipelineCache(vk::PipelineCacheCreateFlags Flags, const std::vector<std::byte>& InitialData);
+    vk::Result CreatePipelineCache(const vk::PipelineCacheCreateInfo& CreateInfo);
+};
+
 // Wrapper for vk::Pipeline
 // ------------------------
 class FVulkanPipeline : public TVulkanHandle<vk::Pipeline>
@@ -790,14 +811,14 @@ public:
     using Base = TVulkanHandle<vk::Pipeline>;
     using Base::Base;
 
-    FVulkanPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo);
-    FVulkanPipeline(vk::Device Device, const vk::GraphicsPipelineCreateInfo& CreateInfo);
-    FVulkanPipeline(const vk::ComputePipelineCreateInfo& CreateInfo);
-    FVulkanPipeline(vk::Device Device, const vk::ComputePipelineCreateInfo& CreateInfo);
+    FVulkanPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache = nullptr);
+    FVulkanPipeline(vk::Device Device, const vk::GraphicsPipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache = nullptr);
+    FVulkanPipeline(const vk::ComputePipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache = nullptr);
+    FVulkanPipeline(vk::Device Device, const vk::ComputePipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache = nullptr);
 
 private:
-    vk::Result CreateGraphicsPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo);
-    vk::Result CreateComputePipeline(const vk::ComputePipelineCreateInfo& CreateInfo);
+    vk::Result CreateGraphicsPipeline(const vk::GraphicsPipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache = nullptr);
+    vk::Result CreateComputePipeline(const vk::ComputePipelineCreateInfo& CreateInfo, const FVulkanPipelineCache* Cache = nullptr);
 };
 
 // Wrapper for vk::PipelineLayout
@@ -886,11 +907,11 @@ public:
     FVulkanShaderModule(const vk::ShaderModuleCreateInfo& CreateInfo);
     FVulkanShaderModule(vk::Device Device, const vk::ShaderModuleCreateInfo& CreateInfo);
     // FVulkanShaderModule(const std::string& Filename);
-    // FVulkanShaderModule(vk::Device Device, const std::string& Filename); // Temp
+    // FVulkanShaderModule(vk::Device Device, const std::string& Filename);
 
 private:
     vk::Result CreateShaderModule(const vk::ShaderModuleCreateInfo& CreateInfo);
-    // vk::Result CreateShaderModule(const std::string& Filename); // Temp
+    // vk::Result CreateShaderModule(const std::string& Filename);
 };
 // -------------------
 // Native wrappers end
