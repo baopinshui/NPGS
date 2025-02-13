@@ -89,7 +89,7 @@ public:
 
     const std::vector<vk::VertexInputBindingDescription>& GetVertexInputBindings() const;
     const std::vector<vk::VertexInputAttributeDescription>& GetVertexInputAttributes() const;
-    const std::vector<vk::DescriptorSet>& GetDescriptorSets();
+    const std::vector<vk::DescriptorSet>& GetDescriptorSets(std::uint32_t FrameIndex);
 
 private:
     void InitializeShaders(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo);
@@ -104,7 +104,7 @@ private:
     std::unordered_map<std::string, std::uint32_t>                                       _PushConstantOffsetsMap;
     std::unordered_map<std::uint32_t, std::vector<Graphics::FVulkanDescriptorSetLayout>> _DescriptorSetLayoutsMap;
     std::unordered_map<std::uint32_t, std::vector<Graphics::FVulkanDescriptorSet>>       _DescriptorSetsMap;
-    std::vector<vk::DescriptorSet>                                                       _DescriptorSets;
+    std::unordered_map<std::uint32_t, std::vector<vk::DescriptorSet>>                    _DescriptorSets;
     std::unique_ptr<Graphics::FVulkanDescriptorPool>                                     _DescriptorPool;
     bool                                                                                 _bDescriptorSetsNeedUpdate;
 };

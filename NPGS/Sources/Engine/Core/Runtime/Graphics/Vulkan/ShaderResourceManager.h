@@ -18,7 +18,7 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
-class FShaderBufferManager
+class FShaderResourceManager
 {
 public:
     template <typename DataType>
@@ -98,16 +98,16 @@ public:
 
     const Graphics::FDeviceLocalBuffer& GetBuffer(std::uint32_t FrameIndex, const std::string& BufferName);
 
-    static FShaderBufferManager* GetInstance();
+    static FShaderResourceManager* GetInstance();
 
 private:
-    explicit FShaderBufferManager()                   = default;
-    FShaderBufferManager(const FShaderBufferManager&) = delete;
-    FShaderBufferManager(FShaderBufferManager&&)      = delete;
-    ~FShaderBufferManager()                           = default;
+    FShaderResourceManager()                              = default;
+    FShaderResourceManager(const FShaderResourceManager&) = delete;
+    FShaderResourceManager(FShaderResourceManager&&)      = delete;
+    ~FShaderResourceManager()                             = default;
 
-    FShaderBufferManager& operator=(const FShaderBufferManager&) = delete;
-    FShaderBufferManager& operator=(FShaderBufferManager&&)      = delete;
+    FShaderResourceManager& operator=(const FShaderResourceManager&) = delete;
+    FShaderResourceManager& operator=(FShaderResourceManager&&)      = delete;
 
 private:
     std::unordered_map<std::string, FUniformBufferInfo> _UniformBuffers;
@@ -117,4 +117,4 @@ _GRAPHICS_END
 _RUNTIME_END
 _NPGS_END
 
-#include "ShaderBufferManager.inl"
+#include "ShaderResourceManager.inl"

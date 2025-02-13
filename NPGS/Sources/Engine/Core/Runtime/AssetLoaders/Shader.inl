@@ -60,10 +60,10 @@ NPGS_INLINE const std::vector<vk::VertexInputAttributeDescription>& FShader::Get
     return _ReflectionInfo.VertexInputAttributes;
 }
 
-NPGS_INLINE const std::vector<vk::DescriptorSet>& FShader::GetDescriptorSets()
+NPGS_INLINE const std::vector<vk::DescriptorSet>& FShader::GetDescriptorSets(std::uint32_t FrameIndex)
 {
     UpdateDescriptorSets();
-    return _DescriptorSets;
+    return _DescriptorSets[FrameIndex];
 }
 
 _ASSET_END

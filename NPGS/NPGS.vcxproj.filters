@@ -105,6 +105,9 @@
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderBufferManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\PipelineLayoutManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -222,6 +225,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Utils\FieldReflection.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\PipelineLayoutManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

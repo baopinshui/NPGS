@@ -8,10 +8,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "Engine/Core/Base/Config/EngineConfig.h"
 #include "Engine/Core/Runtime/AssetLoaders/AssetManager.h"
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"
-#include "Engine/Core/Runtime/Graphics/Vulkan/ShaderBufferManager.h"
+#include "Engine/Core/Runtime/Graphics/Vulkan/ShaderResourceManager.h"
 #include "Engine/Utils/Logger.h"
 
 _NPGS_BEGIN
@@ -41,7 +42,11 @@ FApplication::~FApplication()
 
 void FApplication::ExecuteMainRender()
 {
-    const std::uint32_t kFramesInFlightCount = 2;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   PipelineLayout;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         GraphicsPipeline;
+    std::unique_ptr<Runtime::Graphics::FColorAttachment>        ColorAttachment;
+    std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> DepthStencilAttachment;
+    FRenderer                                                   Renderer;
 
     // Create screen renderer
     // ----------------------
@@ -102,22 +107,22 @@ void FApplication::ExecuteMainRender()
         .setDependencyFlags(vk::DependencyFlagBits::eByRegion);
 
     vk::RenderPassCreateInfo RenderPassCreateInfo({}, AttachmentDescriptions, SubpassDescription, SubpassDependency);
-    _Renderer.RenderPass = std::make_unique<Grt::FVulkanRenderPass>(RenderPassCreateInfo);
+    Renderer.RenderPass = std::make_unique<Grt::FVulkanRenderPass>(RenderPassCreateInfo);
 
-    auto CreateFramebuffers = [this]() -> void
+    auto CreateFramebuffers = [&]() -> void
     {
         _VulkanContext->WaitIdle();
-        _Renderer.Framebuffers.clear();
-        _Renderer.Framebuffers.reserve(_VulkanContext->GetSwapchainImageCount());
+        Renderer.Framebuffers.clear();
+        Renderer.Framebuffers.reserve(_VulkanContext->GetSwapchainImageCount());
 
-        _ColorAttachment = std::make_unique<Grt::FColorAttachment>(
+        ColorAttachment = std::make_unique<Grt::FColorAttachment>(
             _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e8);
 
-        _DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
+        DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
             vk::Format::eD32SfloatS8Uint, _WindowSize, 1, vk::SampleCountFlagBits::e8);
 
         vk::FramebufferCreateInfo FramebufferCreateInfo = vk::FramebufferCreateInfo()
-            .setRenderPass(**_Renderer.RenderPass)
+            .setRenderPass(**Renderer.RenderPass)
             .setAttachmentCount(3)
             .setWidth(_WindowSize.width)
             .setHeight(_WindowSize.height)
@@ -127,19 +132,19 @@ void FApplication::ExecuteMainRender()
         {
             std::array Attachments =
             {
-                *_ColorAttachment->GetImageView(),
-                *_DepthStencilAttachment->GetImageView(),
+                *ColorAttachment->GetImageView(),
+                *DepthStencilAttachment->GetImageView(),
                 _VulkanContext->GetSwapchainImageView(i)
             };
             FramebufferCreateInfo.setAttachments(Attachments);
-            _Renderer.Framebuffers.emplace_back(FramebufferCreateInfo);
+            Renderer.Framebuffers.emplace_back(FramebufferCreateInfo);
         }
     };
 
-    auto DestroyFramebuffers = [this]() -> void
+    auto DestroyFramebuffers = [&]() -> void
     {
         _VulkanContext->WaitIdle();
-        _Renderer.Framebuffers.clear();
+        Renderer.Framebuffers.clear();
     };
 
     CreateFramebuffers();
@@ -162,12 +167,6 @@ void FApplication::ExecuteMainRender()
 
     auto* AssetManager = Art::FAssetManager::GetInstance();
 
-    AssetManager->AddAsset<Art::FTexture2D>("AwesomeFace", "AwesomeFace.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
-    AssetManager->AddAsset<Art::FTexture2D>("Npgs", "NPGS.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
-
-    vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
-    Grt::FVulkanSampler Sampler(SamplerCreateInfo);
-
     Art::FShader::FResourceInfo ResInfo
     {
         {
@@ -181,25 +180,57 @@ void FApplication::ExecuteMainRender()
             { 0, 0, true }
         },
         {
-            { vk::ShaderStageFlagBits::eVertex, { "iModel" } },
-            { vk::ShaderStageFlagBits::eFragment, { "iTime" } }
+            { vk::ShaderStageFlagBits::eVertex, { "iModel" } }
         }
     };
 
-    std::vector<std::string> TriangleShaders({ "Triangle.vert.spv", "Triangle.frag.spv" });
-    AssetManager->AddAsset<Art::FShader>("Shader", TriangleShaders, ResInfo);
+    std::vector<std::string> BasicLightingShaderFiles({ "BasicLighting.vert.spv", "BasicLighting.frag.spv" });
+    AssetManager->AddAsset<Art::FShader>("BasicLighting", BasicLightingShaderFiles, ResInfo);
+    AssetManager->AddAsset<Art::FTexture2D>("ContainerDiffuse", "ContainerDiffuse.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
 
-    auto& Shader      = *AssetManager->GetAsset<Art::FShader>("Shader");
-    auto& AwesomeFace = *AssetManager->GetAsset<Art::FTexture2D>("AwesomeFace");
-    auto& Npgs        = *AssetManager->GetAsset<Art::FTexture2D>("Npgs");
+    auto& BasicLightingShader = *AssetManager->GetAsset<Art::FShader>("BasicLighting");
+    auto& ContainerDiffuse    = *AssetManager->GetAsset<Art::FTexture2D>("ContainerDiffuse");
+
+    ////-----------------------
+    //vk::DescriptorSetLayoutBinding b1;
+    //b1.setBinding(0).setDescriptorCount(1).setDescriptorType(vk::DescriptorType::eUniformBufferDynamic).setStageFlags(vk::ShaderStageFlagBits::eVertex);
+    //vk::DescriptorSetLayoutBinding b2;
+    //b2.setBinding(0).setDescriptorCount(1).setDescriptorType(vk::DescriptorType::eCombinedImageSampler).setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+    //std::vector<vk::DescriptorPoolSize> ps{ { vk::DescriptorType::eUniformBufferDynamic, 2 }, { vk::DescriptorType::eCombinedImageSampler, 2 } };
+    //vk::DescriptorPoolCreateInfo pci({}, 4, ps);
+
+    //std::vector<Grt::FVulkanDescriptorSet> ss;
+
+    //Grt::FVulkanDescriptorPool p(pci);
+    //
+    //vk::DescriptorSetLayoutCreateInfo ci1({}, b1);
+    //vk::DescriptorSetLayoutCreateInfo ci2({}, b2);
+    //std::vector<Grt::FVulkanDescriptorSetLayout> sl1;
+    //std::vector<Grt::FVulkanDescriptorSetLayout> sl2;
+    //sl1.emplace_back(ci1);
+    //sl1.emplace_back(ci1);
+    //sl2.emplace_back(ci2);
+    //sl2.emplace_back(ci2);
+    //
+    //p.AllocateSets(sl1, ss);
+    //p.AllocateSets(sl2, ss);
+
+    //std::vector<vk::DescriptorSetLayout> nsl;
+    //for (size_t i = 0; i != sl1.size(); ++i)
+    //{
+    //    nsl.push_back(*sl1[i]);
+    //    nsl.push_back(*sl2[i]);
+    //}
+    ////-----------------------
 
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
-    auto NativeArray = Shader.GetDescriptorSetLayouts();
+    auto NativeArray = BasicLightingShader.GetDescriptorSetLayouts();
     PipelineLayoutCreateInfo.setSetLayouts(NativeArray);
-    auto PushConstantRanges = Shader.GetPushConstantRanges();
+    auto PushConstantRanges = BasicLightingShader.GetPushConstantRanges();
     PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
 
-    _PipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
+    PipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
 
     // Test
     struct FVpMatrices
@@ -208,7 +239,7 @@ void FApplication::ExecuteMainRender()
         glm::mat4x4 Projection{ glm::mat4x4(1.0f) };
     } VpMatrices;
 
-    Grt::FShaderBufferManager::FUniformBufferCreateInfo VpMatricesCreateInfo
+    Grt::FShaderResourceManager::FUniformBufferCreateInfo VpMatricesCreateInfo
     {
         .Name    = "VpMatrices",
         .Fields  = { "View", "Projection" },
@@ -217,20 +248,22 @@ void FApplication::ExecuteMainRender()
         .Usage   = vk::DescriptorType::eUniformBufferDynamic
     };
 
-    auto ShaderBufferManager = Grt::FShaderBufferManager::GetInstance();
-    ShaderBufferManager->CreateBuffer<FVpMatrices>(VpMatricesCreateInfo);
+    auto ShaderResourceManager = Grt::FShaderResourceManager::GetInstance();
+    ShaderResourceManager->CreateBuffer<FVpMatrices>(VpMatricesCreateInfo);
 
-    const auto ViewUpdaters       = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "View");
-    const auto ProjectionUpdaters = ShaderBufferManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "Projection");
+    const auto ViewUpdaters       = ShaderResourceManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "View");
+    const auto ProjectionUpdaters = ShaderResourceManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "Projection");
 
     // Create graphics pipeline
     // ------------------------
-    std::vector<vk::DescriptorImageInfo> ImageInfos;
-    ImageInfos.push_back(AwesomeFace.CreateDescriptorImageInfo(Sampler));
-    ImageInfos.push_back(Npgs.CreateDescriptorImageInfo(Sampler));
-    Shader.WriteSharedDescriptors<vk::DescriptorImageInfo>(0, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+    vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
+    Grt::FVulkanSampler Sampler(SamplerCreateInfo);
 
-    ShaderBufferManager->BindShaderToBuffers("VpMatrices", "Shader");
+    std::vector<vk::DescriptorImageInfo> ImageInfos;
+    ImageInfos.push_back(ContainerDiffuse.CreateDescriptorImageInfo(Sampler));
+    BasicLightingShader.WriteSharedDescriptors<vk::DescriptorImageInfo>(1, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+    ShaderResourceManager->BindShaderToBuffers("VpMatrices", "BasicLighting");
 
 #include "Vertices.inc"
 
@@ -253,23 +286,19 @@ void FApplication::ExecuteMainRender()
     Grt::FDeviceLocalBuffer IndexBuffer(Indices.size() * sizeof(std::uint16_t), vk::BufferUsageFlagBits::eIndexBuffer);
     IndexBuffer.CopyData(Indices);
 
-    static auto ShaderStageCreateInfos = Shader.GetShaderStageCreateInfo();
+    static auto ShaderStageCreateInfos = BasicLightingShader.GetShaderStageCreateInfo();
 
-    auto CreateGraphicsPipeline = [this, &Shader]() -> void
+    auto CreateGraphicsPipeline = [&]() -> void
     {
         // 先创建新管线，再销毁旧管线
         Grt::FGraphicsPipelineCreateInfoPack CreateInfoPack;
-        CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**_PipelineLayout);
-        CreateInfoPack.GraphicsPipelineCreateInfo.setRenderPass(**_Renderer.RenderPass);
+        CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**PipelineLayout);
+        CreateInfoPack.GraphicsPipelineCreateInfo.setRenderPass(**Renderer.RenderPass);
 
-        CreateInfoPack.VertexInputBindings.append_range(Shader.GetVertexInputBindings());
-        CreateInfoPack.VertexInputAttributes.append_range(Shader.GetVertexInputAttributes());
+        CreateInfoPack.VertexInputBindings.append_range(BasicLightingShader.GetVertexInputBindings());
+        CreateInfoPack.VertexInputAttributes.append_range(BasicLightingShader.GetVertexInputAttributes());
 
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
-        CreateInfoPack.RasterizationStateCreateInfo.setCullMode(vk::CullModeFlagBits::eBack)
-                                                   .setFrontFace(vk::FrontFace::eCounterClockwise)
-                                                   .setPolygonMode(vk::PolygonMode::eFill)
-                                                   .setLineWidth(1.0f);
         CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e8)
                                                  .setSampleShadingEnable(vk::True)
                                                  .setMinSampleShading(1.0f);
@@ -294,15 +323,15 @@ void FApplication::ExecuteMainRender()
         CreateInfoPack.Update();
 
         _VulkanContext->WaitIdle();
-        _GraphicsPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
+        GraphicsPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
     };
 
-    auto DestroyGraphicsPipeline = [this]() -> void
+    auto DestroyGraphicsPipeline = [&]() -> void
     {
-        if (_GraphicsPipeline->IsValid())
+        if (GraphicsPipeline->IsValid())
         {
             _VulkanContext->WaitIdle();
-            _GraphicsPipeline.reset();
+            GraphicsPipeline.reset();
         }
     };
 
@@ -316,13 +345,13 @@ void FApplication::ExecuteMainRender()
         bPipelineCallbackAdded = true;
     }
 
-    const auto& [Framebuffers, RenderPass] = _Renderer;
+    const auto& [Framebuffers, RenderPass] = Renderer;
 
     std::vector<Grt::FVulkanFence> InFlightFences;
     std::vector<Grt::FVulkanSemaphore> Semaphores_ImageAvailable;
     std::vector<Grt::FVulkanSemaphore> Semaphores_RenderFinished;
-    std::vector<Grt::FVulkanCommandBuffer> CommandBuffers(kFramesInFlightCount);
-    for (std::size_t i = 0; i != kFramesInFlightCount; ++i)
+    std::vector<Grt::FVulkanCommandBuffer> CommandBuffers(Config::Graphics::kMaxFrameInFlight);
+    for (std::size_t i = 0; i != Config::Graphics::kMaxFrameInFlight; ++i)
     {
         InFlightFences.emplace_back(vk::FenceCreateFlagBits::eSignaled);
         Semaphores_ImageAvailable.emplace_back(vk::SemaphoreCreateFlags());
@@ -351,10 +380,7 @@ void FApplication::ExecuteMainRender()
         VpMatrices.View       = _FreeCamera->GetViewMatrix();
         VpMatrices.Projection = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f);
 
-        ShaderBufferManager->UpdateEntrieBuffer(CurrentFrame, "VpMatrices", VpMatrices);
-
-        //ViewUpdaters[CurrentFrame] << VpMatrices.View;
-        //ProjectionUpdaters[CurrentFrame] << VpMatrices.Projection;
+        ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "VpMatrices", VpMatrices);
 
         auto& CurrentBuffer = CommandBuffers[CurrentFrame];
 
@@ -363,30 +389,15 @@ void FApplication::ExecuteMainRender()
 
         CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
         RenderPass->CommandBegin(CurrentBuffer, Framebuffers[ImageIndex], { {}, _WindowSize }, ClearValues);
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **_GraphicsPipeline);
+
+        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **GraphicsPipeline);
         CurrentBuffer->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
-        //CurrentBuffer->bindIndexBuffer(*IndexBuffer.GetBuffer(), Offset, vk::IndexType::eUint16);
-        float Time = glfwGetTime();
-        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, Shader.GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eFragment, Shader.GetPushConstantOffset("iTime"), sizeof(float), &Time);
+        CurrentBuffer->pushConstants(**PipelineLayout, vk::ShaderStageFlagBits::eVertex, BasicLightingShader.GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
+        
         std::uint32_t DynamicOffset = 0;
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **_PipelineLayout, 0, Shader.GetDescriptorSets()[CurrentFrame], DynamicOffset);
-        ////CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
-        //CurrentBuffer->draw(36, 1, 0, 0);
-
-        //Model = glm::translate(glm::mat4x4(1.0f), glm::vec3(0.5f, 0.0f, 0.5f));
-        //CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
-        ////CurrentBuffer->drawIndexed(6, 1, 0, 0, 0);
-        //CurrentBuffer->draw(36, 1, 0, 0);
-
-        for (int i = 0; i != 10; ++i)
-        {
-            Model = glm::translate(glm::mat4x4(1.0f), CubePositions[i]);
-            float Angle = 20.0f;
-            Model = glm::rotate(Model, glm::radians(Angle * i), glm::vec3(1.0f, 0.3f, 0.5f));
-            CurrentBuffer->pushConstants(**_PipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), glm::value_ptr(Model));
-            CurrentBuffer->draw(36, 1, 0, 0);
-        }
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **PipelineLayout, 0, BasicLightingShader.GetDescriptorSets(CurrentFrame), DynamicOffset);
+        
+        CurrentBuffer->draw(36, 1, 0, 0);
 
         RenderPass->CommandEnd(CurrentBuffer);
         CurrentBuffer.End();
@@ -395,7 +406,7 @@ void FApplication::ExecuteMainRender()
                                                       *Semaphores_RenderFinished[CurrentFrame], *InFlightFences[CurrentFrame]);
         _VulkanContext->PresentImage(*Semaphores_RenderFinished[CurrentFrame]);
 
-        CurrentFrame = (CurrentFrame + 1) % kFramesInFlightCount;
+        CurrentFrame = (CurrentFrame + 1) % Config::Graphics::kMaxFrameInFlight;
 
         ProcessInput();
         glfwPollEvents();

@@ -13,7 +13,7 @@
 #include "Engine/Core/Runtime/Graphics/Vulkan/Context.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Core.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
-#include "Engine/Core/Runtime/Graphics/Vulkan/ShaderBufferManager.h"
+#include "Engine/Core/Runtime/Graphics/Vulkan/ShaderResourceManager.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 
 #include "Engine/Core/Runtime/Threads/ThreadPool.h"

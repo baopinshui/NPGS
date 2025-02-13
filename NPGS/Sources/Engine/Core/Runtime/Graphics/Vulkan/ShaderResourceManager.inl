@@ -1,4 +1,4 @@
-#include "ShaderBufferManager.h"
+#include "ShaderResourceManager.h"
 
 #include <utility>
 
@@ -13,7 +13,7 @@ _GRAPHICS_BEGIN
 
 template <typename StructType>
 requires std::is_class_v<StructType>
-inline void FShaderBufferManager::CreateBuffer(const FUniformBufferCreateInfo& BufferCreateInfo)
+inline void FShaderResourceManager::CreateBuffer(const FUniformBufferCreateInfo& BufferCreateInfo)
 {
     const auto* VulkanContext = FVulkanContext::GetClassInstance();
     FUniformBufferInfo BufferInfo;
@@ -49,7 +49,7 @@ inline void FShaderBufferManager::CreateBuffer(const FUniformBufferCreateInfo& B
 
 template <typename StructType>
 requires std::is_class_v<StructType>
-inline void FShaderBufferManager::UpdateEntrieBuffers(const std::string& Name, const StructType& Data)
+inline void FShaderResourceManager::UpdateEntrieBuffers(const std::string& Name, const StructType& Data)
 {
     auto it = _UniformBuffers.find(Name);
     if (it == _UniformBuffers.end())
@@ -66,7 +66,7 @@ inline void FShaderBufferManager::UpdateEntrieBuffers(const std::string& Name, c
 
 template <typename StructType>
 requires std::is_class_v<StructType>
-inline void FShaderBufferManager::UpdateEntrieBuffer(std::uint32_t FrameIndex, const std::string& Name, const StructType& Data)
+inline void FShaderResourceManager::UpdateEntrieBuffer(std::uint32_t FrameIndex, const std::string& Name, const StructType& Data)
 {
     auto it = _UniformBuffers.find(Name);
     if (it == _UniformBuffers.end())
@@ -79,8 +79,8 @@ inline void FShaderBufferManager::UpdateEntrieBuffer(std::uint32_t FrameIndex, c
 }
 
 template<typename FieldType>
-NPGS_INLINE std::vector<FShaderBufferManager::TUpdater<FieldType>>
-FShaderBufferManager::GetFieldUpdaters(const std::string& BufferName, const std::string& FieldName) const
+NPGS_INLINE std::vector<FShaderResourceManager::TUpdater<FieldType>>
+FShaderResourceManager::GetFieldUpdaters(const std::string& BufferName, const std::string& FieldName) const
 {
     auto& BufferInfo = _UniformBuffers.at(BufferName);
     std::vector<TUpdater<FieldType>> Updaters;
@@ -93,14 +93,14 @@ FShaderBufferManager::GetFieldUpdaters(const std::string& BufferName, const std:
 }
 
 template<typename FieldType>
-NPGS_INLINE FShaderBufferManager::TUpdater<FieldType>
-FShaderBufferManager::GetFieldUpdater(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& FieldName) const
+NPGS_INLINE FShaderResourceManager::TUpdater<FieldType>
+FShaderResourceManager::GetFieldUpdater(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& FieldName) const
 {
     auto& BufferInfo = _UniformBuffers.at(BufferName);
     return TUpdater<FieldType>(BufferInfo.Buffers[FrameIndex], BufferInfo.Fields.at(FieldName).Offset, BufferInfo.Fields.at(FieldName).Size);
 }
 
-NPGS_INLINE const Graphics::FDeviceLocalBuffer& FShaderBufferManager::GetBuffer(std::uint32_t FrameIndex, const std::string& BufferName)
+NPGS_INLINE const Graphics::FDeviceLocalBuffer& FShaderResourceManager::GetBuffer(std::uint32_t FrameIndex, const std::string& BufferName)
 {
     auto& BufferInfo = _UniformBuffers.at(BufferName);
     return BufferInfo.Buffers[FrameIndex];

@@ -1,4 +1,4 @@
-#include "ShaderBufferManager.h"
+#include "ShaderResourceManager.h"
 
 #include <algorithm>
 #include <array>
@@ -13,7 +13,7 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
-void FShaderBufferManager::BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName)
+void FShaderResourceManager::BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -42,7 +42,7 @@ void FShaderBufferManager::BindShaderToBuffers(const std::string& BufferName, co
     }
 }
 
-void FShaderBufferManager::BindShaderToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& ShaderName)
+void FShaderResourceManager::BindShaderToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& ShaderName)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -68,7 +68,7 @@ void FShaderBufferManager::BindShaderToBuffer(std::uint32_t FrameIndex, const st
     Shader->WriteDynamicDescriptors<vk::DescriptorBufferInfo>(Set, Binding, FrameIndex, Usage, { WriteBufferInfo });
 }
 
-void FShaderBufferManager::BindShadersToBuffers(const std::string& BufferName, const std::vector<std::string>& ShaderNames)
+void FShaderResourceManager::BindShadersToBuffers(const std::string& BufferName, const std::vector<std::string>& ShaderNames)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -100,7 +100,7 @@ void FShaderBufferManager::BindShadersToBuffers(const std::string& BufferName, c
     }
 }
 
-void FShaderBufferManager::BindShadersToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::vector<std::string>& ShaderNames)
+void FShaderResourceManager::BindShadersToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::vector<std::string>& ShaderNames)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -129,9 +129,9 @@ void FShaderBufferManager::BindShadersToBuffer(std::uint32_t FrameIndex, const s
     }
 }
 
-FShaderBufferManager* FShaderBufferManager::GetInstance()
+FShaderResourceManager* FShaderResourceManager::GetInstance()
 {
-    static FShaderBufferManager Instance;
+    static FShaderResourceManager Instance;
     return &Instance;
 }
 
