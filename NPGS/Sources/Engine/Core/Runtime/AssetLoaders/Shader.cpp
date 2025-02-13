@@ -185,7 +185,7 @@ std::vector<vk::DescriptorSetLayout> FShader::GetDescriptorSetLayouts() const
 {
     std::vector<vk::DescriptorSetLayout> NativeTypeLayouts;
 
-    for (std::uint32_t FrameIndex = 0; FrameIndex < Config::Graphics::kMaxFrameInFlight; ++FrameIndex)
+    for (std::uint32_t FrameIndex = 0; FrameIndex != Config::Graphics::kMaxFrameInFlight; ++FrameIndex)
     {
         for (const auto& [Set, Layouts] : _DescriptorSetLayoutsMap)
         {
@@ -539,7 +539,7 @@ void FShader::UpdateDescriptorSets()
 
     _DescriptorSets.clear();
 
-    for (std::uint32_t FrameIndex = 0; FrameIndex < Config::Graphics::kMaxFrameInFlight; ++FrameIndex)
+    for (std::uint32_t FrameIndex = 0; FrameIndex != Config::Graphics::kMaxFrameInFlight; ++FrameIndex)
     {
         for (const auto& [Set, DescriptorSets] : _DescriptorSetsMap)
         {
