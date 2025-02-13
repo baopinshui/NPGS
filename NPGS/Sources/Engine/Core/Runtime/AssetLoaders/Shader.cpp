@@ -184,16 +184,9 @@ std::vector<vk::PipelineShaderStageCreateInfo> FShader::GetShaderStageCreateInfo
 std::vector<vk::DescriptorSetLayout> FShader::GetDescriptorSetLayouts() const
 {
     std::vector<vk::DescriptorSetLayout> NativeTypeLayouts;
-
-    for (std::uint32_t FrameIndex = 0; FrameIndex != Config::Graphics::kMaxFrameInFlight; ++FrameIndex)
+    for (const auto& [Set, Layouts] : _DescriptorSetLayoutsMap)
     {
-        for (const auto& [Set, Layouts] : _DescriptorSetLayoutsMap)
-        {
-            if (FrameIndex < Layouts.size())
-            {
-                NativeTypeLayouts.push_back(*Layouts[FrameIndex]);
-            }
-        }
+        NativeTypeLayouts.push_back(*Layouts.front());
     }
 
     return NativeTypeLayouts;
@@ -530,23 +523,20 @@ void FShader::CreateDescriptors()
     }
 }
 
-void FShader::UpdateDescriptorSets()
+void FShader::UpdateDescriptorSets(std::uint32_t FrameIndex)
 {
     if (!_bDescriptorSetsNeedUpdate)
     {
         return;
     }
 
-    _DescriptorSets.clear();
+    _DescriptorSets[FrameIndex].clear();
 
-    for (std::uint32_t FrameIndex = 0; FrameIndex != Config::Graphics::kMaxFrameInFlight; ++FrameIndex)
+    for (const auto& [Set, DescriptorSets] : _DescriptorSetsMap)
     {
-        for (const auto& [Set, DescriptorSets] : _DescriptorSetsMap)
+        if (FrameIndex < DescriptorSets.size())
         {
-            if (FrameIndex < DescriptorSets.size())
-            {
-                _DescriptorSets[FrameIndex].push_back(*DescriptorSets[FrameIndex]);
-            }
+            _DescriptorSets[FrameIndex].push_back(*DescriptorSets[FrameIndex]);
         }
     }
 

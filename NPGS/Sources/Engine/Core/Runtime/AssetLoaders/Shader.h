@@ -96,7 +96,7 @@ private:
     FShaderInfo LoadShader(const std::string& Filename);
     void ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& ResourceInfo);
     void CreateDescriptors();
-    void UpdateDescriptorSets();
+    void UpdateDescriptorSets(std::uint32_t FrameIndex);
 
 private:
     std::vector<std::pair<vk::ShaderStageFlagBits, Graphics::FVulkanShaderModule>>       _ShaderModules;
