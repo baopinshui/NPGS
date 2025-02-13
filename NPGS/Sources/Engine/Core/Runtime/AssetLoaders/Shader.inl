@@ -20,7 +20,7 @@ inline void FShader::WriteSharedDescriptors(std::uint32_t Set, std::uint32_t Bin
         DescriptorSet.Write(DescriptorInfos, Type, Binding);
     }
 
-    _bDescriptorSetsNeedUpdate = true;
+    MarkAllFramesForUpdate();
 }
 
 template <typename DescriptorInfoType>
@@ -37,7 +37,7 @@ inline void FShader::WriteDynamicDescriptors(std::uint32_t Set, std::uint32_t Bi
     const auto& DescriptorSet = SetIt->second[FrameIndex];
     DescriptorSet.Write(DescriptorInfos, Type, Binding);
 
-    _bDescriptorSetsNeedUpdate = true;
+    MarkAllFramesForUpdate();
 }
 
 NPGS_INLINE std::vector<vk::PushConstantRange> FShader::GetPushConstantRanges() const
@@ -64,6 +64,11 @@ NPGS_INLINE const std::vector<vk::DescriptorSet>& FShader::GetDescriptorSets(std
 {
     UpdateDescriptorSets(FrameIndex);
     return _DescriptorSets[FrameIndex];
+}
+
+NPGS_INLINE void FShader::MarkAllFramesForUpdate()
+{
+    _DescriptorSetsUpdateMask = 0xFFFFFFFF;
 }
 
 _ASSET_END

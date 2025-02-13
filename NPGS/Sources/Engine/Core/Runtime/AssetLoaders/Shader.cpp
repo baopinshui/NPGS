@@ -150,7 +150,7 @@ FShader::FShader(FShader&& Other) noexcept
     _DescriptorSetsMap(std::move(Other._DescriptorSetsMap)),
     _DescriptorSets(std::move(Other._DescriptorSets)),
     _DescriptorPool(std::move(Other._DescriptorPool)),
-    _bDescriptorSetsNeedUpdate(std::exchange(Other._bDescriptorSetsNeedUpdate, false))
+    _DescriptorSetsUpdateMask(std::exchange(Other._DescriptorSetsUpdateMask, 0xFFFFFFFF))
 {
 }
 
@@ -158,12 +158,13 @@ FShader& FShader::operator=(FShader&& Other) noexcept
 {
     if (this != &Other)
     {
-        _ShaderModules           = std::move(Other._ShaderModules);
-        _ReflectionInfo          = std::exchange(Other._ReflectionInfo, {});
-        _DescriptorSetLayoutsMap = std::move(Other._DescriptorSetLayoutsMap);
-        _DescriptorSetsMap       = std::move(Other._DescriptorSetsMap);
-        _DescriptorSets          = std::move(Other._DescriptorSets);
-        _DescriptorPool          = std::move(Other._DescriptorPool);
+        _ShaderModules            = std::move(Other._ShaderModules);
+        _ReflectionInfo           = std::exchange(Other._ReflectionInfo, {});
+        _DescriptorSetLayoutsMap  = std::move(Other._DescriptorSetLayoutsMap);
+        _DescriptorSetsMap        = std::move(Other._DescriptorSetsMap);
+        _DescriptorSets           = std::move(Other._DescriptorSets);
+        _DescriptorPool           = std::move(Other._DescriptorPool);
+        _DescriptorSetsUpdateMask = std::exchange(Other._DescriptorSetsUpdateMask, 0xFFFFFFFF);
     }
 
     return *this;
@@ -525,7 +526,7 @@ void FShader::CreateDescriptors()
 
 void FShader::UpdateDescriptorSets(std::uint32_t FrameIndex)
 {
-    if (!_bDescriptorSetsNeedUpdate)
+    if ((_DescriptorSetsUpdateMask & (1u << FrameIndex)) == 0)
     {
         return;
     }
@@ -540,7 +541,7 @@ void FShader::UpdateDescriptorSets(std::uint32_t FrameIndex)
         }
     }
 
-    _bDescriptorSetsNeedUpdate = false;
+    _DescriptorSetsUpdateMask &= ~(1u << FrameIndex);
 }
 
 _ASSET_END
