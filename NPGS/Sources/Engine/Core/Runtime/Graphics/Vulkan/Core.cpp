@@ -276,8 +276,44 @@ vk::Result FVulkanCore::CreateDevice(std::uint32_t PhysicalDeviceIndex, vk::Devi
         DeviceQueueCreateInfos.emplace_back(vk::DeviceQueueCreateFlags{}, _ComputeQueueFamilyIndex, 1, &QueuePriority);
     }
 
-    vk::PhysicalDeviceFeatures PhysicalDeviceFeatures = _PhysicalDevice.getFeatures();
-    vk::DeviceCreateInfo DeviceCreateInfo(Flags, DeviceQueueCreateInfos, {}, _DeviceExtensions, &PhysicalDeviceFeatures);
+    vk::PhysicalDeviceFeatures2 Features2;
+    vk::PhysicalDeviceVulkan11Features Features11;
+    vk::PhysicalDeviceVulkan12Features Features12;
+    vk::PhysicalDeviceVulkan13Features Features13;
+    vk::PhysicalDeviceVulkan14Features Features14;
+
+    Features2.setPNext(&Features11);
+    Features11.setPNext(&Features12);
+    Features12.setPNext(&Features13);
+    Features13.setPNext(&Features14);
+
+    _PhysicalDevice.getFeatures2(&Features2);
+
+    void* pNext = nullptr;
+    vk::PhysicalDeviceFeatures PhysicalDeviceFeatures = Features2.features;
+
+    if (_ApiVersion >= VK_API_VERSION_1_1)
+    {
+        Features11.setPNext(pNext);
+        pNext = &Features11;
+    }
+    if (_ApiVersion >= VK_API_VERSION_1_2)
+    {
+        Features12.setPNext(pNext);
+        pNext = &Features12;
+    }
+    if (_ApiVersion >= VK_API_VERSION_1_3)
+    {
+        Features13.setPNext(pNext);
+        pNext = &Features13;
+    }
+    if (_ApiVersion >= VK_API_VERSION_1_4)
+    {
+        Features14.setPNext(pNext);
+        pNext = &Features14;
+    }
+
+    vk::DeviceCreateInfo DeviceCreateInfo(Flags, DeviceQueueCreateInfos, {}, _DeviceExtensions, &PhysicalDeviceFeatures, pNext);
 
     try
     {

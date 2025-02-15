@@ -88,7 +88,7 @@ public:
     void WriteDynamicDescriptors(std::uint32_t Set, std::uint32_t Binding, std::uint32_t FrameIndex,
                                  vk::DescriptorType Type, const std::vector<DescriptorInfoType>& DescriptorInfos);
 
-    std::vector<vk::PipelineShaderStageCreateInfo> GetShaderStageCreateInfo() const;
+    std::vector<vk::PipelineShaderStageCreateInfo> CreateShaderStageCreateInfo() const;
     std::vector<vk::DescriptorSetLayout> GetDescriptorSetLayouts() const;
     std::vector<vk::PushConstantRange> GetPushConstantRanges() const;
     std::uint32_t GetPushConstantOffset(const std::string& Name) const;

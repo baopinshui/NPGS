@@ -170,7 +170,7 @@ FShader& FShader::operator=(FShader&& Other) noexcept
     return *this;
 }
 
-std::vector<vk::PipelineShaderStageCreateInfo> FShader::GetShaderStageCreateInfo() const
+std::vector<vk::PipelineShaderStageCreateInfo> FShader::CreateShaderStageCreateInfo() const
 {
     std::vector<vk::PipelineShaderStageCreateInfo> ShaderStageCreateInfos;
     for (const auto& [Stage, ShaderModule] : _ShaderModules)
