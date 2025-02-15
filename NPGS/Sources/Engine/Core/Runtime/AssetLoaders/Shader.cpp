@@ -185,9 +185,9 @@ std::vector<vk::PipelineShaderStageCreateInfo> FShader::GetShaderStageCreateInfo
 std::vector<vk::DescriptorSetLayout> FShader::GetDescriptorSetLayouts() const
 {
     std::vector<vk::DescriptorSetLayout> NativeTypeLayouts;
-    for (const auto& [Set, Layouts] : _DescriptorSetLayoutsMap)
+    for (const auto& [Set, Layout] : _DescriptorSetLayoutsMap)
     {
-        NativeTypeLayouts.push_back(*Layouts.front());
+        NativeTypeLayouts.push_back(*Layout);
     }
 
     return NativeTypeLayouts;
@@ -479,10 +479,7 @@ void FShader::CreateDescriptors()
     for (const auto& [Set, Bindings] : _ReflectionInfo.DescriptorSetBindings)
     {
         vk::DescriptorSetLayoutCreateInfo LayoutCreateInfo({}, Bindings);
-        for (std::uint32_t i = 0; i != Config::Graphics::kMaxFrameInFlight; ++i)
-        {
-            _DescriptorSetLayoutsMap[Set].emplace_back(LayoutCreateInfo);
-        }
+        _DescriptorSetLayoutsMap.emplace(Set, LayoutCreateInfo);
 
         NpgsCoreTrace("Created descriptor set layout for set {} with {} bindings", Set, Bindings.size());
     }
@@ -514,9 +511,10 @@ void FShader::CreateDescriptors()
     vk::DescriptorPoolCreateInfo PoolCreateInfo({}, MaxSets, PoolSizes);
     _DescriptorPool = std::make_unique<Graphics::FVulkanDescriptorPool>(PoolCreateInfo);
 
-    for (const auto& [Set, Layouts] : _DescriptorSetLayoutsMap)
+    for (const auto& [Set, Layout] : _DescriptorSetLayoutsMap)
     {
         std::vector<Graphics::FVulkanDescriptorSet> Sets(Config::Graphics::kMaxFrameInFlight);
+        std::vector<vk::DescriptorSetLayout> Layouts(Config::Graphics::kMaxFrameInFlight, *Layout);
         _DescriptorPool->AllocateSets(Layouts, Sets);
 
         NpgsCoreTrace("Allocated {} descriptor sets for set {}", Sets.size(), Set);

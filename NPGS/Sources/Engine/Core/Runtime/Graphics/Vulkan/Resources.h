@@ -85,8 +85,8 @@ public:
 
     void* MapMemory(vk::DeviceSize Size);
     void  UnmapMemory();
-    void  SubmitBufferData(vk::DeviceSize Size, const void* Data);
-    void  FetchBufferData(vk::DeviceSize Size, void* Target) const;
+    void  SubmitBufferData(vk::DeviceSize MapOffset, vk::DeviceSize SubmitOffset, vk::DeviceSize Size, const void* Data);
+    void  FetchBufferData(vk::DeviceSize MapOffset, vk::DeviceSize FetchOffset, vk::DeviceSize Size, void* Target) const;
     void  Release();
 
     FVulkanImage* CreateAliasedImage(vk::Format Format, vk::Extent2D Extent);

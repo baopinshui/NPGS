@@ -51,7 +51,6 @@ public:
         std::vector<FVertexBufferInfo>                                        VertexBufferInfos;
         std::vector<FVertexAttributeInfo>                                     VertexAttributeInfos;
         std::vector<FUniformBufferInfo>                                       UniformBufferInfos;
-        //std::vector<FDynamicResourceInfo>                                     DynamicResourceInfos;
         std::unordered_map<vk::ShaderStageFlagBits, std::vector<std::string>> PushConstantInfos;
     };
 
@@ -110,8 +109,7 @@ private:
     std::vector<std::pair<vk::ShaderStageFlagBits, Graphics::FVulkanShaderModule>> _ShaderModules;
     FShaderReflectionInfo                                                          _ReflectionInfo;
     std::unordered_map<std::string, std::uint32_t>                                 _PushConstantOffsetsMap;
-    std::unordered_map<std::uint32_t, std::vector<Graphics::FVulkanDescriptorSetLayout>>        _DescriptorSetLayoutsMap;
-    std::unordered_map<std::uint32_t, Graphics::FVulkanDescriptorSet>              _StaticDescriptorSetsMap;
+    std::unordered_map<std::uint32_t, Graphics::FVulkanDescriptorSetLayout>        _DescriptorSetLayoutsMap;
     std::unordered_map<std::uint32_t, std::vector<Graphics::FVulkanDescriptorSet>> _DescriptorSetsMap;
     std::unordered_map<std::uint32_t, std::vector<vk::DescriptorSet>>              _DescriptorSets;
     std::unique_ptr<Graphics::FVulkanDescriptorPool>                               _DescriptorPool;

@@ -336,7 +336,7 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize MapOffset, vk::DeviceSize Targe
     auto* VulkanContext = FVulkanContext::GetClassInstance();
 
     FStagingBuffer* StagingBuffer = _StagingBufferPool->AcquireBuffer(Size);
-    StagingBuffer->SubmitBufferData(Size, Data);
+    StagingBuffer->SubmitBufferData(MapOffset, TargetOffset, Size, Data);
 
     auto& TransferCommandBuffer = VulkanContext->GetTransferCommandBuffer();
     TransferCommandBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
@@ -377,7 +377,7 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementIndex, vk::DeviceSize El
     auto* VulkanContext = FVulkanContext::GetClassInstance();
 
     FStagingBuffer* StagingBuffer = _StagingBufferPool->AcquireBuffer(DstStride * ElementSize);
-    StagingBuffer->SubmitBufferData(SrcStride * ElementSize, Data);
+    StagingBuffer->SubmitBufferData(MapOffset, SrcStride * ElementIndex, SrcStride * ElementSize, Data);
 
     auto& TransferCommandBuffer = VulkanContext->GetTransferCommandBuffer();
     TransferCommandBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);

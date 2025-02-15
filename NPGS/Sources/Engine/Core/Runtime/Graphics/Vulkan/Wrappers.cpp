@@ -864,6 +864,36 @@ vk::Result FVulkanDescriptorPool::AllocateSets(const std::vector<vk::DescriptorS
     return vk::Result::eSuccess;
 }
 
+vk::Result FVulkanDescriptorPool::AllocateSets(const std::vector<vk::DescriptorSetLayout>& Layouts,
+                                               std::vector<FVulkanDescriptorSet>& Sets) const
+{
+    std::vector<vk::DescriptorSet> DescriptorSets(Layouts.size());
+    if (vk::Result Result = AllocateSets(Layouts, DescriptorSets); Result != vk::Result::eSuccess)
+    {
+        return Result;
+    }
+    Sets.resize(DescriptorSets.size());
+    for (std::size_t i = 0; i != DescriptorSets.size(); ++i)
+    {
+        *Sets[i] = DescriptorSets[i];
+    }
+
+    return vk::Result::eSuccess;
+}
+
+vk::Result FVulkanDescriptorPool::AllocateSets(const std::vector<FVulkanDescriptorSetLayout>& Layouts,
+                                               std::vector<vk::DescriptorSet>& Sets) const
+{
+    std::vector<vk::DescriptorSetLayout> DescriptorSetLayouts;
+    DescriptorSetLayouts.reserve(Layouts.size());
+    for (auto& Layout : Layouts)
+    {
+        DescriptorSetLayouts.push_back(*Layout);
+    }
+
+    return AllocateSets(DescriptorSetLayouts, Sets);
+}
+
 vk::Result FVulkanDescriptorPool::AllocateSets(const std::vector<FVulkanDescriptorSetLayout>& Layouts,
                                                std::vector<FVulkanDescriptorSet>& Sets) const
 {
@@ -895,6 +925,7 @@ vk::Result FVulkanDescriptorPool::FreeSets(std::vector<vk::DescriptorSet>& Sets)
         _Device.freeDescriptorSets(_Handle, Sets);
         Sets.clear();
     }
+
     return vk::Result::eSuccess;
 }
 

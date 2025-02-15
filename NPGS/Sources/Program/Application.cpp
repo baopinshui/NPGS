@@ -48,6 +48,9 @@ void FApplication::ExecuteMainRender()
     std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> DepthStencilAttachment;
     FRenderer                                                   Renderer;
 
+    VkPhysicalDeviceProperties deviceProps;
+    vkGetPhysicalDeviceProperties(_VulkanContext->GetPhysicalDevice(), &deviceProps);
+
     // Create screen renderer
     // ----------------------
     auto MaxUsableSampleCount = _VulkanContext->GetMaxUsableSampleCount();
@@ -191,39 +194,6 @@ void FApplication::ExecuteMainRender()
     auto& BasicLightingShader = *AssetManager->GetAsset<Art::FShader>("BasicLighting");
     auto& ContainerDiffuse    = *AssetManager->GetAsset<Art::FTexture2D>("ContainerDiffuse");
 
-    ////-----------------------
-    //vk::DescriptorSetLayoutBinding b1;
-    //b1.setBinding(0).setDescriptorCount(1).setDescriptorType(vk::DescriptorType::eUniformBufferDynamic).setStageFlags(vk::ShaderStageFlagBits::eVertex);
-    //vk::DescriptorSetLayoutBinding b2;
-    //b2.setBinding(0).setDescriptorCount(1).setDescriptorType(vk::DescriptorType::eCombinedImageSampler).setStageFlags(vk::ShaderStageFlagBits::eFragment);
-
-    //std::vector<vk::DescriptorPoolSize> ps{ { vk::DescriptorType::eUniformBufferDynamic, 2 }, { vk::DescriptorType::eCombinedImageSampler, 2 } };
-    //vk::DescriptorPoolCreateInfo pci({}, 4, ps);
-
-    //std::vector<Grt::FVulkanDescriptorSet> ss;
-
-    //Grt::FVulkanDescriptorPool p(pci);
-    //
-    //vk::DescriptorSetLayoutCreateInfo ci1({}, b1);
-    //vk::DescriptorSetLayoutCreateInfo ci2({}, b2);
-    //std::vector<Grt::FVulkanDescriptorSetLayout> sl1;
-    //std::vector<Grt::FVulkanDescriptorSetLayout> sl2;
-    //sl1.emplace_back(ci1);
-    //sl1.emplace_back(ci1);
-    //sl2.emplace_back(ci2);
-    //sl2.emplace_back(ci2);
-    //
-    //p.AllocateSets(sl1, ss);
-    //p.AllocateSets(sl2, ss);
-
-    //std::vector<vk::DescriptorSetLayout> nsl;
-    //for (size_t i = 0; i != sl1.size(); ++i)
-    //{
-    //    nsl.push_back(*sl1[i]);
-    //    nsl.push_back(*sl2[i]);
-    //}
-    ////-----------------------
-
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
     auto NativeArray = BasicLightingShader.GetDescriptorSetLayouts();
     PipelineLayoutCreateInfo.setSetLayouts(NativeArray);
@@ -261,7 +231,7 @@ void FApplication::ExecuteMainRender()
 
     std::vector<vk::DescriptorImageInfo> ImageInfos;
     ImageInfos.push_back(ContainerDiffuse.CreateDescriptorImageInfo(Sampler));
-    BasicLightingShader.WriteSharedDescriptors<vk::DescriptorImageInfo>(1, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+    BasicLightingShader.WriteSharedDescriptors(1, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
     ShaderResourceManager->BindShaderToBuffers("VpMatrices", "BasicLighting");
 
@@ -482,7 +452,7 @@ bool FApplication::InitializeWindow()
     _VulkanContext->SetSurface(Surface);
 
     if (_VulkanContext->CreateDevice(0) != vk::Result::eSuccess ||
-        _VulkanContext->CreateSwapchain(_WindowSize, false) != vk::Result::eSuccess)
+        _VulkanContext->CreateSwapchain(_WindowSize, _bEnableVSync) != vk::Result::eSuccess)
     {
         return false;
     }

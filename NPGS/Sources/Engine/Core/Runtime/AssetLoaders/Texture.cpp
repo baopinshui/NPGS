@@ -546,7 +546,7 @@ void FTexture2D::CreateTexture(const std::byte* Source, vk::Extent2D Extent, vk:
     _ImageExtent = Extent;
     vk::DeviceSize ImageSize = _ImageExtent.width * _ImageExtent.height * Graphics::GetFormatInfo(InitialFormat).PixelSize;
     auto* StagingBuffer = _StagingBufferPool->AcquireBuffer(ImageSize);
-    StagingBuffer->SubmitBufferData(ImageSize, Source);
+    StagingBuffer->SubmitBufferData(0, 0, ImageSize, Source);
     CreateTextureInternal(StagingBuffer, InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
     _StagingBufferPool->ReleaseBuffer(StagingBuffer);
 }

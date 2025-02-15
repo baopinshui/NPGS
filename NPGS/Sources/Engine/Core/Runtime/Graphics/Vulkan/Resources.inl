@@ -71,15 +71,15 @@ NPGS_INLINE void FStagingBuffer::UnmapMemory()
     _MemoryUsage = 0;
 }
 
-NPGS_INLINE void FStagingBuffer::SubmitBufferData(vk::DeviceSize Size, const void* Data)
+NPGS_INLINE void FStagingBuffer::SubmitBufferData(vk::DeviceSize MapOffset, vk::DeviceSize SubmitOffset, vk::DeviceSize Size, const void* Data)
 {
     Expand(Size);
-    _BufferMemory->SubmitBufferData(0, 0, Size, Data);
+    _BufferMemory->SubmitBufferData(MapOffset, SubmitOffset, Size, Data);
 }
 
-NPGS_INLINE void FStagingBuffer::FetchBufferData(vk::DeviceSize Size, void* Target) const
+NPGS_INLINE void FStagingBuffer::FetchBufferData(vk::DeviceSize MapOffset, vk::DeviceSize FetchOffset, vk::DeviceSize Size, void* Target) const
 {
-    _BufferMemory->FetchBufferData(0, 0, Size, Target);
+    _BufferMemory->FetchBufferData(MapOffset, FetchOffset, Size, Target);
 }
 
 NPGS_INLINE void FStagingBuffer::Release()

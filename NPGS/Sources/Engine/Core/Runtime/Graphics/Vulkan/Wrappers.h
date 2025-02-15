@@ -686,6 +686,8 @@ public:
                           vk::DescriptorPoolCreateFlags Flags = {});
 
     vk::Result AllocateSets(const std::vector<vk::DescriptorSetLayout>& Layouts, std::vector<vk::DescriptorSet>& Sets) const;
+    vk::Result AllocateSets(const std::vector<vk::DescriptorSetLayout>& Layouts, std::vector<FVulkanDescriptorSet>& Sets) const;
+    vk::Result AllocateSets(const std::vector<FVulkanDescriptorSetLayout>& Layouts, std::vector<vk::DescriptorSet>& Sets) const;
     vk::Result AllocateSets(const std::vector<FVulkanDescriptorSetLayout>& Layouts, std::vector<FVulkanDescriptorSet>& Sets) const;
     vk::Result FreeSets(std::vector<vk::DescriptorSet>& Sets) const;
     vk::Result FreeSets(std::vector<FVulkanDescriptorSet>& Sets) const;
