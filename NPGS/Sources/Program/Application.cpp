@@ -6,6 +6,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_aligned.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "Engine/Core/Base/Config/EngineConfig.h"
@@ -43,8 +44,8 @@ FApplication::~FApplication()
 void FApplication::ExecuteMainRender()
 {
     std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   PipelineLayout;
-    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         GraphicsPipeline;
-    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         GraphicsPipeline2;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         ContainerPipeline;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         LampPipeline;
     std::unique_ptr<Runtime::Graphics::FColorAttachment>        ColorAttachment;
     std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> DepthStencilAttachment;
 
@@ -53,10 +54,10 @@ void FApplication::ExecuteMainRender()
         _VulkanContext->WaitIdle();
 
         ColorAttachment = std::make_unique<Grt::FColorAttachment>(
-            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e1);
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e8);
 
         DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
-            vk::Format::eD32SfloatS8Uint, _WindowSize, 1, vk::SampleCountFlagBits::e1);
+            vk::Format::eD32SfloatS8Uint, _WindowSize, 1, vk::SampleCountFlagBits::e8);
     };
 
     auto DestroyFramebuffers = [&]() -> void
@@ -66,25 +67,6 @@ void FApplication::ExecuteMainRender()
 
     CreateFramebuffers();
 
-    // Dynamic rendering test
-    // ----------------------
-    vk::RenderingAttachmentInfo ColorAttachmentInfo = vk::RenderingAttachmentInfo()
-        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
-
-    vk::RenderingAttachmentInfo DepthStencilAttachmentInfo = vk::RenderingAttachmentInfo()
-        .setImageLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setClearValue(vk::ClearDepthStencilValue(1.0f, 0));
-
-    vk::RenderingAttachmentInfo ResolveAttachmentInfo = vk::RenderingAttachmentInfo()
-        .setImageLayout(vk::ImageLayout::ePresentSrcKHR)
-        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStoreOp(vk::AttachmentStoreOp::eStore);
-
     static bool bFramebufferCallbackAdded = false;
     if (!bFramebufferCallbackAdded)
     {
@@ -93,11 +75,26 @@ void FApplication::ExecuteMainRender()
         bFramebufferCallbackAdded = true;
     }
 
+    vk::RenderingAttachmentInfo ColorAttachmentInfo = vk::RenderingAttachmentInfo()
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setResolveMode(vk::ResolveModeFlagBits::eAverage)
+        .setResolveImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+
+    vk::RenderingAttachmentInfo DepthStencilAttachmentInfo = vk::RenderingAttachmentInfo()
+        .setImageLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eDontCare)
+        .setClearValue(vk::ClearDepthStencilValue(1.0f, 0));
+
     // Create pipeline layout
     // ----------------------
     struct FVertex
     {
         glm::vec3 Position;
+        glm::vec3 Normal;
         glm::vec2 TexCoord;
     };
 
@@ -110,10 +107,12 @@ void FApplication::ExecuteMainRender()
         },
         {
             { 0, 0, offsetof(FVertex, Position) },
-            { 0, 1, offsetof(FVertex, TexCoord) }
+            { 0, 1, offsetof(FVertex, Normal) },
+            { 0, 2, offsetof(FVertex, TexCoord) }
         },
         {
-            { 0, 0, true }
+            { 0, 0, false },
+            { 0, 1, false }
         },
         {
             { vk::ShaderStageFlagBits::eVertex, { "iModel" } }
@@ -125,10 +124,12 @@ void FApplication::ExecuteMainRender()
     AssetManager->AddAsset<Art::FShader>("BasicLightingShader", BasicLightingShaderFiles, ResourceInfo);
     AssetManager->AddAsset<Art::FShader>("LampShader", LampShaderFiles, ResourceInfo);
     AssetManager->AddAsset<Art::FTexture2D>("ContainerDiffuse", "ContainerDiffuse.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
+    AssetManager->AddAsset<Art::FTexture2D>("ContainerSpecular", "ContainerSpecular.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
 
     auto* BasicLightingShader = AssetManager->GetAsset<Art::FShader>("BasicLightingShader");
     auto* LampShader          = AssetManager->GetAsset<Art::FShader>("LampShader");
     auto* ContainerDiffuse    = AssetManager->GetAsset<Art::FTexture2D>("ContainerDiffuse");
+    auto* ContainerSpecular   = AssetManager->GetAsset<Art::FTexture2D>("ContainerSpecular");
 
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
     auto NativeArray = BasicLightingShader->GetDescriptorSetLayouts();
@@ -139,58 +140,75 @@ void FApplication::ExecuteMainRender()
     PipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
 
     // Test
-    struct FVpMatrices
+    struct FMatrices
     {
-        glm::mat4x4 View{ glm::mat4x4(1.0f) };
-        glm::mat4x4 Projection{ glm::mat4x4(1.0f) };
-    } VpMatrices;
+        glm::aligned_mat4x4 View{ glm::mat4x4(1.0f) };
+        glm::aligned_mat4x4 Projection{ glm::mat4x4(1.0f) };
+        glm::aligned_mat3x3 NormalMatrix{ glm::mat3x3(1.0f) };
+    } Matrices;
 
-    Grt::FShaderResourceManager::FUniformBufferCreateInfo VpMatricesCreateInfo
+    Grt::FShaderResourceManager::FUniformBufferCreateInfo MatricesCreateInfo
     {
-        .Name    = "VpMatrices",
-        .Fields  = { "View", "Projection" },
+        .Name    = "Matrices",
+        .Fields  = { "View", "Projection", "NormalMatrix" },
         .Set     = 0,
         .Binding = 0,
-        .Usage   = vk::DescriptorType::eUniformBufferDynamic
+        .Usage   = vk::DescriptorType::eUniformBuffer
+    };
+
+    struct FMaterial
+    {
+        alignas(16) float Shininess;
+    };
+
+    struct FLight
+    {
+        glm::aligned_vec3 Position;
+        glm::aligned_vec3 Ambient;
+        glm::aligned_vec3 Diffuse;
+        glm::aligned_vec3 Specular;
+    };
+
+    struct FLightMaterial
+    {
+        FMaterial         Material;
+        FLight            Light;
+        glm::aligned_vec3 ViewPos;
+    } LightMaterial;
+
+    Grt::FShaderResourceManager::FUniformBufferCreateInfo LightMaterialCreateInfo
+    {
+        .Name    = "LightMaterial",
+        .Fields  = { "Material", "Light", "ViewPos" },
+        .Set     = 0,
+        .Binding = 1,
+        .Usage   = vk::DescriptorType::eUniformBuffer
     };
 
     auto ShaderResourceManager = Grt::FShaderResourceManager::GetInstance();
-    ShaderResourceManager->CreateBuffer<FVpMatrices>(VpMatricesCreateInfo);
-
-    const auto ViewUpdaters       = ShaderResourceManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "View");
-    const auto ProjectionUpdaters = ShaderResourceManager->GetFieldUpdaters<glm::mat4x4>("VpMatrices", "Projection");
+    ShaderResourceManager->CreateBuffer<FMatrices>(MatricesCreateInfo);
+    ShaderResourceManager->CreateBuffer<FLightMaterial>(LightMaterialCreateInfo);
 
     // Create graphics pipeline
     // ------------------------
     vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
     Grt::FVulkanSampler Sampler(SamplerCreateInfo);
 
-    std::vector<vk::DescriptorImageInfo> ImageInfos;
-    ImageInfos.push_back(ContainerDiffuse->CreateDescriptorImageInfo(Sampler));
-    BasicLightingShader->WriteSharedDescriptors(1, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+    vk::DescriptorImageInfo SamplerInfo(*Sampler);
+    BasicLightingShader->WriteSharedDescriptors<vk::DescriptorImageInfo>(1, 0, vk::DescriptorType::eSampler, { SamplerInfo });
 
-    ShaderResourceManager->BindShaderToBuffers("VpMatrices", "BasicLightingShader");
+    std::vector<vk::DescriptorImageInfo> ImageInfos;
+    ImageInfos.push_back(ContainerDiffuse->CreateDescriptorImageInfo(nullptr));
+    ImageInfos.push_back(ContainerSpecular->CreateDescriptorImageInfo(nullptr));
+    BasicLightingShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eSampledImage, ImageInfos);
+
+    ShaderResourceManager->BindShaderToBuffers("Matrices", "BasicLightingShader");
+    ShaderResourceManager->BindShaderToBuffers("LightMaterial", "BasicLightingShader");
 
 #include "Vertices.inc"
 
-    std::vector<FVertex> Vertices
-    {
-        { { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f } },
-        { {  0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f } },
-        { { -0.5f,  0.5f, 0.0f }, { 0.0f, 1.0f } },
-        { {  0.5f,  0.5f, 0.0f }, { 1.0f, 1.0f } }
-    };
-
-    std::vector<std::uint16_t> Indices
-    {
-        0, 1, 2,
-        1, 2, 3
-    };
-
     Grt::FDeviceLocalBuffer VertexBuffer(CubeVertices.size() * sizeof(FVertex), vk::BufferUsageFlagBits::eVertexBuffer);
     VertexBuffer.CopyData(CubeVertices);
-    Grt::FDeviceLocalBuffer IndexBuffer(Indices.size() * sizeof(std::uint16_t), vk::BufferUsageFlagBits::eIndexBuffer);
-    IndexBuffer.CopyData(Indices);
 
     static auto BasicLightingShaderStageCreateInfos = BasicLightingShader->CreateShaderStageCreateInfo();
     static auto LampShaderStageCreateInfos = LampShader->CreateShaderStageCreateInfo();
@@ -202,16 +220,17 @@ void FApplication::ExecuteMainRender()
             .setColorAttachmentFormats(_VulkanContext->GetSwapchainCreateInfo().imageFormat)
             .setDepthAttachmentFormat(vk::Format::eD32SfloatS8Uint);
 
-        // 先创建新管线，再销毁旧管线
         Grt::FGraphicsPipelineCreateInfoPack CreateInfoPack;
         CreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&PipelineRenderingCreateInfo);
         CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**PipelineLayout);
         CreateInfoPack.VertexInputBindings.append_range(BasicLightingShader->GetVertexInputBindings());
         CreateInfoPack.VertexInputAttributes.append_range(BasicLightingShader->GetVertexInputAttributes());
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
-        //CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e8)
-        //                                         .setSampleShadingEnable(vk::True)
-        //                                         .setMinSampleShading(1.0f);
+
+        CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e8)
+                                                 .setSampleShadingEnable(vk::True)
+                                                 .setMinSampleShading(1.0f);
+
         CreateInfoPack.DepthStencilStateCreateInfo.setDepthTestEnable(vk::True)
                                                   .setDepthWriteEnable(vk::True)
                                                   .setDepthCompareOp(vk::CompareOp::eLess)
@@ -227,25 +246,23 @@ void FApplication::ExecuteMainRender()
         CreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height),
                                               static_cast<float>(_WindowSize.width), -static_cast<float>(_WindowSize.height),
                                               0.0f, 1.0f);
+
         CreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
         CreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
 
         CreateInfoPack.Update();
 
         _VulkanContext->WaitIdle();
-        GraphicsPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
+        ContainerPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
     
         CreateInfoPack.ShaderStages = LampShaderStageCreateInfos;
-        GraphicsPipeline2 = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
+        LampPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
     };
 
     auto DestroyGraphicsPipeline = [&]() -> void
     {
-        if (GraphicsPipeline->IsValid())
-        {
-            _VulkanContext->WaitIdle();
-            GraphicsPipeline.reset();
-        }
+        ContainerPipeline.reset();
+        LampPipeline.reset();
     };
 
     CreateGraphicsPipeline();
@@ -275,6 +292,8 @@ void FApplication::ExecuteMainRender()
     std::uint32_t  DynamicOffset = 0;
     std::uint32_t  CurrentFrame  = 0;
 
+    glm::vec3 LightPos(1.2f, 1.0f, 2.0f);
+
     while (!glfwWindowShouldClose(_Window))
     {
         while (glfwGetWindowAttrib(_Window, GLFW_ICONIFIED))
@@ -284,20 +303,43 @@ void FApplication::ExecuteMainRender()
 
         InFlightFences[CurrentFrame].WaitAndReset();
 
+        // Uniform update
+        // --------------
         glm::mat4x4 Model(1.0f);
-        VpMatrices.View       = _FreeCamera->GetViewMatrix();
-        VpMatrices.Projection = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f);
+        Matrices.View         = _FreeCamera->GetViewMatrix();
+        Matrices.Projection   = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / _WindowSize.height, 0.1f);
+        Matrices.NormalMatrix = glm::mat3x3(glm::transpose(glm::inverse(Model)));
 
-        ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "VpMatrices", VpMatrices);
+        ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "Matrices", Matrices);
 
-        auto& CurrentBuffer = CommandBuffers[CurrentFrame];
+        LightMaterial.Material.Shininess = 64.0f;
+        LightMaterial.Light.Position     = LightPos;
+        LightMaterial.Light.Ambient      = glm::vec3(0.1f);
+        LightMaterial.Light.Diffuse      = glm::vec3(1.0f);
+        LightMaterial.Light.Specular     = glm::vec3(1.0f);
+        LightMaterial.ViewPos            = _FreeCamera->GetCameraVector(SysSpa::FCamera::EVectorType::kPosition);
+
+        ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "LightMaterial", LightMaterial);
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
         std::uint32_t ImageIndex = _VulkanContext->GetCurrentImageIndex();
 
+        // Record commands
+        // ---------------
+        vk::RenderingInfo RenderingInfo = vk::RenderingInfo()
+            .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
+            .setLayerCount(1)
+            .setColorAttachments(ColorAttachmentInfo)
+            .setPDepthAttachment(&DepthStencilAttachmentInfo);
+
+        ColorAttachmentInfo.setImageView(*ColorAttachment->GetImageView())
+                           .setResolveImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
+        DepthStencilAttachmentInfo.setImageView(*DepthStencilAttachment->GetImageView());
+
+        auto& CurrentBuffer = CommandBuffers[CurrentFrame];
         CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
-        vk::ImageSubresourceRange TransitionRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+        vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
         vk::ImageMemoryBarrier2 InitialTransitionBarrier(vk::PipelineStageFlagBits2::eTopOfPipe,
                                                          vk::AccessFlagBits2::eNone,
                                                          vk::PipelineStageFlagBits2::eColorAttachmentOutput,
@@ -307,34 +349,25 @@ void FApplication::ExecuteMainRender()
                                                          vk::QueueFamilyIgnored,
                                                          vk::QueueFamilyIgnored,
                                                          _VulkanContext->GetSwapchainImage(ImageIndex),
-                                                         TransitionRange);
+                                                         SubresourceRange);
 
         vk::DependencyInfo InitialDependencyInfo = vk::DependencyInfo()
+            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             .setImageMemoryBarriers(InitialTransitionBarrier);
 
         CurrentBuffer->pipelineBarrier2(InitialDependencyInfo);
 
-        ColorAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
-        DepthStencilAttachmentInfo.setImageView(*DepthStencilAttachment->GetImageView());
-
-        vk::RenderingInfo RenderingInfo = vk::RenderingInfo()
-            .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
-            .setLayerCount(1)
-            .setColorAttachments(ColorAttachmentInfo)
-            .setPDepthAttachment(&DepthStencilAttachmentInfo);
-
         CurrentBuffer->beginRendering(RenderingInfo);
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **GraphicsPipeline);
+        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **ContainerPipeline);
         CurrentBuffer->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
         CurrentBuffer->pushConstants(**PipelineLayout, vk::ShaderStageFlagBits::eVertex, BasicLightingShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **PipelineLayout, 0, BasicLightingShader->GetDescriptorSets(CurrentFrame), DynamicOffset);
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **PipelineLayout, 0, BasicLightingShader->GetDescriptorSets(CurrentFrame), {});
         CurrentBuffer->draw(36, 1, 0, 0);
 
-        Model = glm::translate(Model, glm::vec3(1.0f, 0.0f, 0.0f));
+        Model = glm::scale(glm::translate(Model, LightPos), glm::vec3(0.2f));
 
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **GraphicsPipeline2);
-        CurrentBuffer->pushConstants(**PipelineLayout, vk::ShaderStageFlagBits::eVertex, BasicLightingShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **PipelineLayout, 0, BasicLightingShader->GetDescriptorSets(CurrentFrame), DynamicOffset);
+        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **LampPipeline);
+        CurrentBuffer->pushConstants(**PipelineLayout, vk::ShaderStageFlagBits::eVertex, LampShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
         CurrentBuffer->draw(36, 1, 0, 0);
         CurrentBuffer->endRendering();
 
@@ -347,9 +380,10 @@ void FApplication::ExecuteMainRender()
                                                        vk::QueueFamilyIgnored,
                                                        vk::QueueFamilyIgnored,
                                                        _VulkanContext->GetSwapchainImage(ImageIndex),
-                                                       TransitionRange);
+                                                       SubresourceRange);
 
         vk::DependencyInfo FinalDependencyInfo = vk::DependencyInfo()
+            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             .setImageMemoryBarriers(FinalTransitionBarrier);
 
         CurrentBuffer->pipelineBarrier2(FinalDependencyInfo);

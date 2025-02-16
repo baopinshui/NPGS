@@ -281,7 +281,9 @@ FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t
                     Data.Extent.height = static_cast<uint32_t>(Extent.y);
 
                     Data.Data.resize(Size);
-                    std::copy(static_cast<const std::byte*>(Texture.data()), static_cast<const std::byte*>(Texture.data()) + Size, Data.Data.begin());
+                    std::copy(static_cast<const std::byte*>(Texture.data()),
+                              static_cast<const std::byte*>(Texture.data()) + Size,
+                              Data.Data.begin());
 
                     return Data;
                 }

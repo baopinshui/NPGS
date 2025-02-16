@@ -12,6 +12,8 @@
 #include "Engine/Core/Runtime/Graphics/Vulkan/Context.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
+
+#define GLM_FORCE_ALIGNED_GENTYPES
 #include "Engine/Core/System/Spatial/Camera.h"
 
 _NPGS_BEGIN
