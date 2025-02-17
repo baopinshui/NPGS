@@ -69,7 +69,7 @@ FCivilizationGenerator& FCivilizationGenerator::operator=(const FCivilizationGen
     return *this;
 }
 
-FCivilizationGenerator& FCivilizationGenerator::operator=(FCivilizationGenerator&& Other)
+FCivilizationGenerator& FCivilizationGenerator::operator=(FCivilizationGenerator&& Other) noexcept
 {
     if (this != &Other)
     {

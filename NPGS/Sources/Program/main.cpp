@@ -14,22 +14,22 @@ int main() {
     FLogger::Initialize();
     FThreadPool::GetInstance();
 
-    //std::println("Enter the system count:");
-    //std::size_t StarCount = 0;
-    //std::cin >> StarCount;
+    std::println("Enter the system count:");
+    std::size_t StarCount = 0;
+    std::cin >> StarCount;
 
-    //std::println("Enter the seed:");
-    //unsigned Seed = 0;
-    //std::cin >> Seed;
+    std::println("Enter the seed:");
+    unsigned Seed = 0;
+    std::cin >> Seed;
 
-    //try {
-    //    FUniverse Space(Seed, StarCount);
-    //    Space.FillUniverse();
-    //    Space.CountStars();
-    //}
-    //catch (std::exception& e) {
-    //    std::cout << e.what() << std::endl;
-    //}
+    try {
+        FUniverse Space(Seed, StarCount);
+        Space.FillUniverse();
+        Space.CountStars();
+    }
+    catch (std::exception& e) {
+        std::cout << e.what() << std::endl;
+    }
 
     // ------------------------------------
 

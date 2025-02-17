@@ -259,7 +259,7 @@ FStellarGenerator::FStellarGenerator(const FStellarGenerator& Other)
 
 FStellarGenerator::FStellarGenerator(FStellarGenerator&& Other) noexcept
     :
-    _RandomEngine(std::move(_RandomEngine)),
+    _RandomEngine(std::move(Other._RandomEngine)),
     _MagneticGenerators(std::move(Other._MagneticGenerators)),
     _FeHGenerators(std::move(Other._FeHGenerators)),
     _SpinGenerators(std::move(Other._SpinGenerators)),
