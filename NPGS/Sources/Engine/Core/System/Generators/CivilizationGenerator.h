@@ -31,12 +31,12 @@ public:
     FCivilizationGenerator(const std::seed_seq& SeedSequence, float LifeOccurrenceProbability,
                            bool bEnableAsiFilter = false, float DestroyedByDisasterProbability = 0.001f);
 
-    FCivilizationGenerator(const FCivilizationGenerator&)     = default;
-    FCivilizationGenerator(FCivilizationGenerator&&) noexcept = default;
-    ~FCivilizationGenerator()                                 = default;
+    FCivilizationGenerator(const FCivilizationGenerator& Other);
+    FCivilizationGenerator(FCivilizationGenerator&& Other) noexcept;
+    ~FCivilizationGenerator() = default;
 
-    FCivilizationGenerator& operator=(const FCivilizationGenerator&)     = default;
-    FCivilizationGenerator& operator=(FCivilizationGenerator&&) noexcept = default;
+    FCivilizationGenerator& operator=(const FCivilizationGenerator& Other);
+    FCivilizationGenerator& operator=(FCivilizationGenerator&& Other) noexcept;
 
     void GenerateCivilization(const Astro::AStar* Star, float PoyntingVector, Astro::APlanet* Planet);
 

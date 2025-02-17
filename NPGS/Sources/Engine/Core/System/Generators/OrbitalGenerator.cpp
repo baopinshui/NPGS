@@ -138,7 +138,12 @@ FOrbitalGenerator::FOrbitalGenerator(const FOrbitalGenerator& Other)
     _AsteroidBeltProbability(Other._AsteroidBeltProbability),
     _MigrationProbability(Other._MigrationProbability),
     _ScatteringProbability(Other._ScatteringProbability),
-    _WalkInProbability(Other._WalkInProbability)
+    _WalkInProbability(Other._WalkInProbability),
+    _AsteroidUpperLimit(Other._AsteroidUpperLimit),
+    _CoilTemperatureLimit(Other._CoilTemperatureLimit),
+    _RingsParentLowerLimit(Other._RingsParentLowerLimit),
+    _UniverseAge(Other._UniverseAge),
+    _bContainUltravioletHabitableZone(Other._bContainUltravioletHabitableZone)
 {
     if (Other._CivilizationGenerator != nullptr)
     {
@@ -146,24 +151,72 @@ FOrbitalGenerator::FOrbitalGenerator(const FOrbitalGenerator& Other)
     }
 }
 
+FOrbitalGenerator::FOrbitalGenerator(FOrbitalGenerator&& Other) noexcept
+    :
+    _RandomEngine(std::move(Other._RandomEngine)),
+    _RingsProbabilities(std::move(Other._RingsProbabilities)),
+    _BinaryPeriodDistribution(std::move(Other._BinaryPeriodDistribution)),
+    _CommonGenerator(std::move(Other._CommonGenerator)),
+    _AsteroidBeltProbability(std::move(Other._AsteroidBeltProbability)),
+    _MigrationProbability(std::move(Other._MigrationProbability)),
+    _ScatteringProbability(std::move(Other._ScatteringProbability)),
+    _WalkInProbability(std::move(Other._WalkInProbability)),
+    _CivilizationGenerator(std::move(Other._CivilizationGenerator)),
+    _AsteroidUpperLimit(std::exchange(Other._AsteroidUpperLimit, 0.0f)),
+    _CoilTemperatureLimit(std::exchange(Other._CoilTemperatureLimit, 0.0f)),
+    _RingsParentLowerLimit(std::exchange(Other._RingsParentLowerLimit, 0.0f)),
+    _UniverseAge(std::exchange(Other._UniverseAge, 0.0f)),
+    _bContainUltravioletHabitableZone(std::exchange(Other._bContainUltravioletHabitableZone, false))
+{
+}
+
 FOrbitalGenerator& FOrbitalGenerator::operator=(const FOrbitalGenerator& Other)
 {
     if (this != &Other)
     {
-        _RandomEngine             = Other._RandomEngine;
-        _RingsProbabilities[0]    = Other._RingsProbabilities[0];
-        _RingsProbabilities[1]    = Other._RingsProbabilities[1];
-        _BinaryPeriodDistribution = Other._BinaryPeriodDistribution;
-        _CommonGenerator          = Other._CommonGenerator;
-        _AsteroidBeltProbability  = Other._AsteroidBeltProbability;
-        _MigrationProbability     = Other._MigrationProbability;
-        _ScatteringProbability    = Other._ScatteringProbability;
-        _WalkInProbability        = Other._WalkInProbability;
+        _RandomEngine                     = Other._RandomEngine;
+        _RingsProbabilities[0]            = Other._RingsProbabilities[0];
+        _RingsProbabilities[1]            = Other._RingsProbabilities[1];
+        _BinaryPeriodDistribution         = Other._BinaryPeriodDistribution;
+        _CommonGenerator                  = Other._CommonGenerator;
+        _AsteroidBeltProbability          = Other._AsteroidBeltProbability;
+        _MigrationProbability             = Other._MigrationProbability;
+        _ScatteringProbability            = Other._ScatteringProbability;
+        _WalkInProbability                = Other._WalkInProbability;
+        _AsteroidUpperLimit               = Other._AsteroidUpperLimit;
+        _CoilTemperatureLimit             = Other._CoilTemperatureLimit;
+        _RingsParentLowerLimit            = Other._RingsParentLowerLimit;
+        _UniverseAge                      = Other._UniverseAge;
+        _bContainUltravioletHabitableZone = Other._bContainUltravioletHabitableZone;
 
         if (Other._CivilizationGenerator != nullptr)
         {
             _CivilizationGenerator = std::make_unique<FCivilizationGenerator>(*Other._CivilizationGenerator);
         }
+    }
+
+    return *this;
+}
+
+FOrbitalGenerator& FOrbitalGenerator::operator=(FOrbitalGenerator&& Other) noexcept
+{
+    if (this != &Other)
+    {
+        _RandomEngine                     = std::move(Other._RandomEngine);
+        _RingsProbabilities[0]            = std::move(Other._RingsProbabilities[0]);
+        _RingsProbabilities[1]            = std::move(Other._RingsProbabilities[1]);
+        _BinaryPeriodDistribution         = std::move(Other._BinaryPeriodDistribution);
+        _CommonGenerator                  = std::move(Other._CommonGenerator);
+        _AsteroidBeltProbability          = std::move(Other._AsteroidBeltProbability);
+        _MigrationProbability             = std::move(Other._MigrationProbability);
+        _ScatteringProbability            = std::move(Other._ScatteringProbability);
+        _WalkInProbability                = std::move(Other._WalkInProbability);
+        _CivilizationGenerator            = std::move(Other._CivilizationGenerator);
+        _AsteroidUpperLimit               = std::exchange(Other._AsteroidUpperLimit,    0.0f);
+        _CoilTemperatureLimit             = std::exchange(Other._CoilTemperatureLimit,  0.0f);
+        _RingsParentLowerLimit            = std::exchange(Other._RingsParentLowerLimit, 0.0f);
+        _UniverseAge                      = std::exchange(Other._UniverseAge,           0.0f);
+        _bContainUltravioletHabitableZone = std::exchange(Other._bContainUltravioletHabitableZone, false);
     }
 
     return *this;
@@ -585,17 +638,8 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
     std::vector<float> CoreMassesSol(PlanetCount); // 初始核心质量，单位太阳
     for (std::size_t i = 0; i < PlanetCount; ++i)
     {
-        CoreMassesSol[i]     = PlanetaryDisk.DustMassSol * std::pow(10.0f, CoreBase[i]) / CoreBaseSum;
-        auto InitialCoreMass = boost::multiprecision::uint128_t(kSolarMass * CoreMassesSol[i]);
+        CoreMassesSol[i] = PlanetaryDisk.DustMassSol * std::pow(10.0f, CoreBase[i]) / CoreBaseSum;
 
-        int VolatilesRate        = 9000 + static_cast<int>(_CommonGenerator(_RandomEngine)) + 2000;
-        int EnergeticNuclideRate = 4500000 + static_cast<int>(_CommonGenerator(_RandomEngine)) * 1000000;
-
-        CoreMass.Volatiles        = InitialCoreMass / VolatilesRate;
-        CoreMass.EnergeticNuclide = InitialCoreMass / EnergeticNuclideRate;
-        CoreMass.Z                = InitialCoreMass - CoreMass.Volatiles - CoreMass.EnergeticNuclide;
-
-        Planets[i]->SetCoreMass(CoreMass);
 #ifdef DEBUG_OUTPUT
         std::println("Generate initial core mass: planet {} initial core mass: {} earth",
                      i + 1, CoreMassesSol[i] * kSolarMassToEarth);
@@ -664,8 +708,25 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
             Planet->SetPlanetType(Astro::APlanet::EPlanetType::kRockyAsteroidCluster);
         }
     }
+    else
+    {
+        Util::TBernoulliDistribution ConstructFailedProbability(0.5f);
+        for (std::size_t i = 0; i != PlanetCount; ++i)
+        {
+            if (CoreMassesSol[i] * kSolarMassToEarth < 0.5f)
+            {
+                if (ConstructFailedProbability(_RandomEngine))
+                {
+                    float StarAge  = static_cast<float>(Star->GetAge());
+                    float Exponent = StarAge / (5e9f * (Orbits[i]->GetSemiMajorAxis() / kAuToMeter) / 2.7f);
+                    float DiscountCoefficient = std::max(0.001f, std::pow(0.01f, Exponent));
+                    CoreMassesSol[i] *= DiscountCoefficient;
+                }
+            }
+        }
+    }
 
-    // 抹掉位于（双星）稳定区域以外的恒星
+    // 抹掉位于（双星）稳定区域以外的行星
     if (System.StarsData().size() > 1)
     {
         const Astro::AStar* Current  = System.StarsData()[StarIndex].get();
@@ -825,8 +886,8 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
                     // 迁移到指定位置
                     Planets[i]->SetMigration(true);
                     Planets[MigrationIndex]          = std::move(Planets[i]);
-                    NewCoreMassesSol[MigrationIndex] = NewCoreMassesSol[i];
                     CoreMassesSol[MigrationIndex]    = CoreMassesSol[i];
+                    NewCoreMassesSol[MigrationIndex] = NewCoreMassesSol[i];
                     MigratedOriginSemiMajorAxisAu    = Orbits[i]->GetSemiMajorAxis() / kAuToMeter;
                     // 抹掉内迁途中的经过的其他行星
                     Planets.erase(Planets.begin() + MigrationIndex + 1, Planets.begin() + i + 1);
@@ -923,6 +984,7 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
 
             switch (PlanetType)
             {
+            case Astro::APlanet::EPlanetType::kRocky:
             case Astro::APlanet::EPlanetType::kIcePlanet:
             case Astro::APlanet::EPlanetType::kOceanic:
             case Astro::APlanet::EPlanetType::kGasGiant:
@@ -1046,49 +1108,52 @@ void FOrbitalGenerator::GeneratePlanets(std::size_t StarIndex, Astro::FOrbit::FO
         }
 
         // 生成柯伊伯带
-        AsteroidClusters.push_back(std::make_unique<Astro::AAsteroidCluster>());
-        float Exponent                       = 1.0f + _CommonGenerator(_RandomEngine);
-        float KuiperBeltMass                 = PlanetaryDisk.DustMassSol * std::pow(10.0f, Exponent) * 1e-4f * kSolarMass;
-        float KuiperBeltRadiusAu             = PlanetaryDisk.OuterRadiusAu * (1.0f + _CommonGenerator(_RandomEngine) * 0.5f);
-        float KuiperBeltMassVolatiles        = 0.0f;
-        float KuiperBeltMassEnergeticNuclide = 0.0f;
-        float KuiperBeltMassZ                = 0.0f;
-
-        if (std::to_underlying(Star->GetEvolutionPhase()) < 1 && KuiperBeltRadiusAu > FrostLineAu)
+        if (System.StarsData().size() == 1)
         {
-            AsteroidClusters.back()->SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRockyIce);
-            KuiperBeltMassVolatiles = KuiperBeltMass * 0.064f;
-            KuiperBeltMassEnergeticNuclide = KuiperBeltMass * 0.064f * 5e-6f;
-            KuiperBeltMassZ = KuiperBeltMass - KuiperBeltMassVolatiles - KuiperBeltMassEnergeticNuclide;
-        }
-        else
-        {
-            AsteroidClusters.back()->SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRocky);
-            KuiperBeltMassEnergeticNuclide = KuiperBeltMass * 5e-6f;
-            KuiperBeltMassZ = KuiperBeltMass - KuiperBeltMassEnergeticNuclide;
-        }
+            AsteroidClusters.push_back(std::make_unique<Astro::AAsteroidCluster>());
+            float Exponent                       = 1.0f + _CommonGenerator(_RandomEngine);
+            float KuiperBeltMass                 = PlanetaryDisk.DustMassSol * std::pow(10.0f, Exponent) * 1e-4f * kSolarMass;
+            float KuiperBeltRadiusAu             = PlanetaryDisk.OuterRadiusAu * (1.0f + _CommonGenerator(_RandomEngine) * 0.5f);
+            float KuiperBeltMassVolatiles        = 0.0f;
+            float KuiperBeltMassEnergeticNuclide = 0.0f;
+            float KuiperBeltMassZ                = 0.0f;
 
-        auto KuiperBeltOrbit = std::make_unique<Astro::FOrbit>();
-        Astro::FOrbit::FOrbitalDetails KuiperBelt(
-            AsteroidClusters.back().get(), Astro::FOrbit::EObjectType::kAsteroidCluster, KuiperBeltOrbit.get());
+            if (std::to_underlying(Star->GetEvolutionPhase()) < 1 && KuiperBeltRadiusAu > FrostLineAu)
+            {
+                AsteroidClusters.back()->SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRockyIce);
+                KuiperBeltMassVolatiles        = KuiperBeltMass * 0.064f;
+                KuiperBeltMassEnergeticNuclide = KuiperBeltMass * 0.064f * 5e-6f;
+                KuiperBeltMassZ                = KuiperBeltMass - KuiperBeltMassVolatiles - KuiperBeltMassEnergeticNuclide;
+            }
+            else
+            {
+                AsteroidClusters.back()->SetAsteroidType(Astro::AAsteroidCluster::EAsteroidType::kRocky);
+                KuiperBeltMassEnergeticNuclide = KuiperBeltMass * 5e-6f;
+                KuiperBeltMassZ                = KuiperBeltMass - KuiperBeltMassEnergeticNuclide;
+            }
 
-        KuiperBeltOrbit->ObjectsData().push_back(KuiperBelt);
-        KuiperBeltOrbit->SetParent(Star, Astro::FOrbit::EObjectType::kStar);
-        KuiperBeltOrbit->SetSemiMajorAxis(KuiperBeltRadiusAu * kAuToMeter);
+            auto KuiperBeltOrbit = std::make_unique<Astro::FOrbit>();
+            Astro::FOrbit::FOrbitalDetails KuiperBelt(
+                AsteroidClusters.back().get(), Astro::FOrbit::EObjectType::kAsteroidCluster, KuiperBeltOrbit.get());
 
-        GenerateOrbitElements(*KuiperBeltOrbit);
+            KuiperBeltOrbit->ObjectsData().push_back(KuiperBelt);
+            KuiperBeltOrbit->SetParent(Star, Astro::FOrbit::EObjectType::kStar);
+            KuiperBeltOrbit->SetSemiMajorAxis(KuiperBeltRadiusAu * kAuToMeter);
+
+            GenerateOrbitElements(*KuiperBeltOrbit);
 
 #ifdef DEBUG_OUTPUT
-        std::println("");
-        std::println("Kuiper belt details:");
-        std::println("semi-major axis: {} AU, mass: {} moon, type: {}",
-                     KuiperBeltOrbit->GetSemiMajorAxis() / kAuToMeter, KuiperBeltMass / kMoonMass, std::to_underlying(AsteroidClusters.back()->GetAsteroidType()));
-        std::println("mass z: {:.2E} kg, mass vol: {:.2E} kg, mass nuc: {:.2E} kg",
-                     KuiperBeltMassZ, KuiperBeltMassVolatiles, KuiperBeltMassEnergeticNuclide);
-        std::println("");
+            std::println("");
+            std::println("Kuiper belt details:");
+            std::println("semi-major axis: {} AU, mass: {} moon, type: {}",
+                         KuiperBeltOrbit->GetSemiMajorAxis() / kAuToMeter, KuiperBeltMass / kMoonMass, std::to_underlying(AsteroidClusters.back()->GetAsteroidType()));
+            std::println("mass z: {:.2E} kg, mass vol: {:.2E} kg, mass nuc: {:.2E} kg",
+                         KuiperBeltMassZ, KuiperBeltMassVolatiles, KuiperBeltMassEnergeticNuclide);
+            std::println("");
 #endif // DEBUG_OUTPUT
 
-        Orbits.push_back(std::move(KuiperBeltOrbit));
+            Orbits.push_back(std::move(KuiperBeltOrbit));
+        }
     }
     else
     {
@@ -1302,8 +1367,15 @@ std::size_t FOrbitalGenerator::JudgeLargePlanets(std::size_t StarIndex, const st
 
     for (std::size_t i = 0; i < PlanetCount; ++i)
     {
-        NewCoreMassesSol[i] =
-            Orbits[i]->GetSemiMajorAxis() / kAuToMeter > FrostLineAu ? CoreMassesSol[i] * 2.35f : CoreMassesSol[i];
+        if (Planets[i]->GetPlanetType() != Astro::APlanet::EPlanetType::kRockyAsteroidCluster &&
+            Orbits[i]->GetSemiMajorAxis() / kAuToMeter > FrostLineAu)
+        {
+            NewCoreMassesSol[i] = CoreMassesSol[i] * 2.35f;
+        }
+        else
+        {
+            NewCoreMassesSol[i] = CoreMassesSol[i];
+        }
 
         // 计算前主序平衡温度
         float PlanetBalanceTemperatureWhenStarAtPrevMainSequence            = 0.0f;
@@ -1374,7 +1446,8 @@ std::size_t FOrbitalGenerator::JudgeLargePlanets(std::size_t StarIndex, const st
 
                 float Exponent            = -3.0f + _CommonGenerator(_RandomEngine) * 3.0f;
                 float DiscountCoefficient = std::pow(10.0f, Exponent);
-                CoreMassesSol[i] *= DiscountCoefficient; // 对核心质量打个折扣
+                CoreMassesSol[i]    *= DiscountCoefficient; // 对核心质量打个折扣
+                NewCoreMassesSol[i] *= DiscountCoefficient;
             }
             else
             {
@@ -1453,6 +1526,24 @@ float FOrbitalGenerator::CalculatePlanetMass(float CoreMass, float NewCoreMass, 
     float OceanMassEnergeticNuclide      = 0.0f;
     float OceanMassZ                     = 0.0f;
 
+    auto CalculateRockyMass = [&]() -> float
+    {
+        Random2 = 0.9f + _CommonGenerator(_RandomEngine) * 0.2f;
+        Random3 = 0.9f + _CommonGenerator(_RandomEngine) * 0.2f;
+
+        CoreMassVolatiles        = CoreMass * 1e-4f * Random2;
+        CoreMassEnergeticNuclide = CoreMass * 2e-7f * Random3;
+        CoreMassZ                = CoreMass - CoreMassVolatiles - CoreMassEnergeticNuclide;
+
+        Planet->SetCoreMass({
+            boost::multiprecision::uint128_t(CoreMassZ),
+            boost::multiprecision::uint128_t(CoreMassVolatiles),
+            boost::multiprecision::uint128_t(CoreMassEnergeticNuclide)
+        });
+
+        return (CoreMassVolatiles + CoreMassEnergeticNuclide + CoreMassZ) / kEarthMass;
+    };
+
     auto CalculateIcePlanetMass = [&]() -> float
     {
         Random2 = 0.9f + _CommonGenerator(_RandomEngine) * 0.2f;
@@ -1461,7 +1552,7 @@ float FOrbitalGenerator::CalculatePlanetMass(float CoreMass, float NewCoreMass, 
         if (std::to_underlying(Star->GetEvolutionPhase()) < 1)
         {
             OceanMassVolatiles        = CoreMass * 0.15f;
-            OceanMassEnergeticNuclide = 0.15f * 5e-5f * CoreMass;
+            OceanMassEnergeticNuclide = CoreMass * 0.15f * 5e-5f;
             OceanMassZ                = CoreMass * 1.35f - OceanMassVolatiles - OceanMassEnergeticNuclide;
         }
         else
@@ -1601,10 +1692,9 @@ float FOrbitalGenerator::CalculatePlanetMass(float CoreMass, float NewCoreMass, 
 
     auto CalculateRockyAsteroidMass = [&]() -> float
     {
-        Random2 = 0.9f + _CommonGenerator(_RandomEngine) * 0.2f;
         Random3 = 0.9f + _CommonGenerator(_RandomEngine) * 0.2f;
 
-        CoreMassVolatiles        = CoreMass * 1e-4f * Random2;
+        CoreMassVolatiles        = 0.0f;
         CoreMassEnergeticNuclide = CoreMass * 5e-6f * Random3;
         CoreMassZ                = CoreMass - CoreMassVolatiles - CoreMassEnergeticNuclide;
 
@@ -1622,17 +1712,9 @@ float FOrbitalGenerator::CalculatePlanetMass(float CoreMass, float NewCoreMass, 
         Random2 = 0.9f + _CommonGenerator(_RandomEngine) * 0.2f;
         Random3 = 0.9f + _CommonGenerator(_RandomEngine) * 0.2f;
 
-        OceanMassVolatiles        = CoreMass * 0.15f;
-        OceanMassEnergeticNuclide = 0.15f * 5e-5f * CoreMass;
-        OceanMassZ                = CoreMass * 1.35f - OceanMassVolatiles - OceanMassEnergeticNuclide;
-
-        CoreMassVolatiles        = CoreMass * 1e-4f * Random2;
-        CoreMassEnergeticNuclide = CoreMass * 5e-6f * Random3;
-        CoreMassZ                = CoreMass - CoreMassVolatiles - CoreMassEnergeticNuclide;
-
-        CoreMassVolatiles        += OceanMassVolatiles;
-        CoreMassEnergeticNuclide += OceanMassEnergeticNuclide;
-        CoreMassZ                += OceanMassZ;
+        CoreMassVolatiles        = CoreMass *    0.15f * Random2;
+        CoreMassEnergeticNuclide = CoreMass * 1.25e-5f * Random3;
+        CoreMassZ                = NewCoreMass - CoreMassVolatiles - CoreMassEnergeticNuclide;
 
         Planet->SetCoreMass({
             boost::multiprecision::uint128_t(CoreMassZ),
@@ -1646,6 +1728,8 @@ float FOrbitalGenerator::CalculatePlanetMass(float CoreMass, float NewCoreMass, 
     auto PlanetType = Planet->GetPlanetType();
     switch (PlanetType)
     {
+    case Astro::APlanet::EPlanetType::kRocky:
+        return CalculateRockyMass();
     case Astro::APlanet::EPlanetType::kIcePlanet:
         return CalculateIcePlanetMass();
     case Astro::APlanet::EPlanetType::kOceanic:
@@ -1722,7 +1806,13 @@ void FOrbitalGenerator::CalculatePlanetRadius(float MassEarth, Astro::APlanet* P
 
 void FOrbitalGenerator::GenerateSpin(float SemiMajorAxis, const Astro::FOrbit::FOrbitalObject& Parent, Astro::APlanet* Planet)
 {
-    auto  PlanetType = Planet->GetPlanetType();
+    auto PlanetType = Planet->GetPlanetType();
+    if (PlanetType == Astro::APlanet::EPlanetType::kRockyAsteroidCluster ||
+        PlanetType == Astro::APlanet::EPlanetType::kRockyIceAsteroidCluster)
+    {
+        return;
+    }
+
     float PlanetMass = Planet->GetMassDigital<float>();
     auto  ParentType = Parent.GetObjectType();
 
@@ -1792,7 +1882,13 @@ void FOrbitalGenerator::GenerateSpin(float SemiMajorAxis, const Astro::FOrbit::F
 
 void FOrbitalGenerator::CalculateTemperature(const Astro::FOrbit::EObjectType ParentType, float PoyntingVector, Astro::APlanet* Planet)
 {
-    auto  PlanetType = Planet->GetPlanetType();
+    auto PlanetType = Planet->GetPlanetType();
+    if (PlanetType == Astro::APlanet::EPlanetType::kRockyAsteroidCluster ||
+        PlanetType == Astro::APlanet::EPlanetType::kRockyIceAsteroidCluster)
+    {
+        return;
+    }
+
     float Albedo     = 0.0f;
     float Emissivity = 0.0f;
     float PlanetMass = Planet->GetMassDigital<float>();
@@ -1905,8 +2001,14 @@ void FOrbitalGenerator::GenerateMoons(std::size_t PlanetIndex, float FrostLineAu
                                       std::vector<std::unique_ptr<Astro::FOrbit>>& Orbits,
                                       std::vector<std::unique_ptr<Astro::APlanet>>& Planets)
 {
-    auto* Planet            = ParentPlanet.GetOrbitalObject().GetObject<Astro::APlanet>();
-    auto  PlanetType        = Planet->GetPlanetType();
+    auto* Planet     = ParentPlanet.GetOrbitalObject().GetObject<Astro::APlanet>();
+    auto  PlanetType = Planet->GetPlanetType();
+    if (PlanetType == Astro::APlanet::EPlanetType::kRockyAsteroidCluster ||
+        PlanetType == Astro::APlanet::EPlanetType::kRockyIceAsteroidCluster)
+    {
+        return;
+    }
+
     float PlanetMass        = Planet->GetMassDigital<float>();
     float PlanetMassEarth   = PlanetMass / kEarthMass;
     float LiquidRocheRadius = 2.02373e7f * std::pow(PlanetMassEarth, 1.0f / 3.0f);
@@ -2168,8 +2270,14 @@ void FOrbitalGenerator::GenerateRings(std::size_t PlanetIndex, float FrostLineAu
                                       std::vector<std::unique_ptr<Astro::FOrbit>>& Orbits,
                                       std::vector<std::unique_ptr<Astro::AAsteroidCluster>>& AsteroidClusters)
 {
-    auto* Planet            = ParentPlanet.GetOrbitalObject().GetObject<Astro::APlanet>();
-    auto  PlanetType        = Planet->GetPlanetType();
+    auto* Planet     = ParentPlanet.GetOrbitalObject().GetObject<Astro::APlanet>();
+    auto  PlanetType = Planet->GetPlanetType();
+    if (PlanetType == Astro::APlanet::EPlanetType::kRockyAsteroidCluster ||
+        PlanetType == Astro::APlanet::EPlanetType::kRockyIceAsteroidCluster)
+    {
+        return;
+    }
+
     float PlanetMass        = Planet->GetMassDigital<float>();
     float PlanetMassEarth   = PlanetMass / kEarthMass;
     float LiquidRocheRadius = 2.02373e7f * std::pow(PlanetMassEarth, 1.0f / 3.0f);
@@ -2253,7 +2361,13 @@ void FOrbitalGenerator::GenerateTerra(const Astro::AStar* Star, float PoyntingVe
                                       const std::pair<float, float>& HabitableZoneAu,
                                       const Astro::FOrbit* Orbit, Astro::APlanet* Planet)
 {
-    auto  PlanetType        = Planet->GetPlanetType();
+    auto PlanetType = Planet->GetPlanetType();
+    if (PlanetType == Astro::APlanet::EPlanetType::kRockyAsteroidCluster ||
+        PlanetType == Astro::APlanet::EPlanetType::kRockyIceAsteroidCluster)
+    {
+        return;
+    }
+
     float PlanetMass        = Planet->GetMassDigital<float>();
     float PlanetMassEarth   = Planet->GetMassDigital<float>() / kEarthMass;
     float CoreMass          = Planet->GetCoreMassDigital<float>();
@@ -2357,8 +2471,14 @@ void FOrbitalGenerator::GenerateTrojan(const Astro::AStar* Star, float FrostLine
                                        Astro::FOrbit::FOrbitalDetails& ParentPlanet,
                                        std::vector<std::unique_ptr<Astro::AAsteroidCluster>>& AsteroidClusters)
 {
-    auto* Planet            = ParentPlanet.GetOrbitalObject().GetObject<Astro::APlanet>();
-    auto  PlanetType        = Planet->GetPlanetType();
+    auto* Planet     = ParentPlanet.GetOrbitalObject().GetObject<Astro::APlanet>();
+    auto  PlanetType = Planet->GetPlanetType();
+    if (PlanetType == Astro::APlanet::EPlanetType::kRockyAsteroidCluster ||
+        PlanetType == Astro::APlanet::EPlanetType::kRockyIceAsteroidCluster)
+    {
+        return;
+    }
+
     float PlanetMass        = Planet->GetMassDigital<float>();
     float PlanetMassEarth   = PlanetMass / kEarthMass;
     float LiquidRocheRadius = 2.02373e7f * std::pow(PlanetMassEarth, 1.0f / 3.0f);
@@ -2493,7 +2613,9 @@ void FOrbitalGenerator::CalculateOrbitalPeriods(std::vector<std::unique_ptr<Astr
             CenterMass = Orbit->GetParent().GetObject<Astro::APlanet>()->GetMassDigital<float>();
         }
 
-        Orbit->SetPeriod(std::sqrt(4.0f * std::pow(Math::kPi, 2.0f) * std::pow(SemiMajorAxis, 3.0f) / (kGravityConstant * CenterMass)));
+        float Period =
+            static_cast<float>(std::sqrt(4.0 * std::pow(Math::kPi, 2.0) * std::pow(SemiMajorAxis, 3.0) / (kGravityConstant * CenterMass)));
+        Orbit->SetPeriod(Period);
 
         for (auto& Object : Orbit->ObjectsData())
         {

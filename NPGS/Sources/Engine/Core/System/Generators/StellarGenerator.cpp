@@ -257,6 +257,36 @@ FStellarGenerator::FStellarGenerator(const FStellarGenerator& Other)
     }
 }
 
+FStellarGenerator::FStellarGenerator(FStellarGenerator&& Other) noexcept
+    :
+    _RandomEngine(std::move(_RandomEngine)),
+    _MagneticGenerators(std::move(Other._MagneticGenerators)),
+    _FeHGenerators(std::move(Other._FeHGenerators)),
+    _SpinGenerators(std::move(Other._SpinGenerators)),
+    _AgeGenerator(std::move(Other._AgeGenerator)),
+    _CommonGenerator(std::move(Other._CommonGenerator)),
+    _LogMassGenerator(std::move(Other._LogMassGenerator)),
+    _MassPdfs(std::move(Other._MassPdfs)),
+    _MassMaxPdfs(std::move(Other._MassMaxPdfs)),
+    _AgeMaxPdf(std::move(Other._AgeMaxPdf)),
+    _AgePdf(std::move(Other._AgePdf)),
+    _UniverseAge(std::exchange(Other._UniverseAge, 0.0f)),
+    _AgeLowerLimit(std::exchange(Other._AgeLowerLimit, 0.0f)),
+    _AgeUpperLimit(std::exchange(Other._AgeUpperLimit, 0.0f)),
+    _FeHLowerLimit(std::exchange(Other._FeHLowerLimit, 0.0f)),
+    _FeHUpperLimit(std::exchange(Other._FeHUpperLimit, 0.0f)),
+    _MassLowerLimit(std::exchange(Other._MassLowerLimit, 0.0f)),
+    _MassUpperLimit(std::exchange(Other._MassUpperLimit, 0.0f)),
+    _CoilTemperatureLimit(std::exchange(Other._CoilTemperatureLimit, 0.0f)),
+    _dEpdM(std::exchange(Other._dEpdM, 0.0f)),
+    _AgeDistribution(std::exchange(Other._AgeDistribution, {})),
+    _FeHDistribution(std::exchange(Other._FeHDistribution, {})),
+    _MassDistribution(std::exchange(Other._MassDistribution, {})),
+    _StellarTypeOption(std::exchange(Other._StellarTypeOption, {})),
+    _MultiplicityOption(std::exchange(Other._MultiplicityOption, {}))
+{
+}
+
 FStellarGenerator& FStellarGenerator::operator=(const FStellarGenerator& Other)
 {
     if (this != &Other)
@@ -312,6 +342,40 @@ FStellarGenerator& FStellarGenerator::operator=(const FStellarGenerator& Other)
             auto* Normal = dynamic_cast<Util::TNormalDistribution<>*>(Other._FeHGenerators[3].get());
             _FeHGenerators[3] = std::make_unique<Util::TNormalDistribution<>>(*Normal);
         }
+    }
+
+    return *this;
+}
+
+FStellarGenerator& FStellarGenerator::operator=(FStellarGenerator&& Other) noexcept
+{
+    if (this != &Other)
+    {
+        _RandomEngine         = std::move(Other._RandomEngine);
+        _MagneticGenerators   = std::move(Other._MagneticGenerators);
+        _FeHGenerators        = std::move(Other._FeHGenerators);
+        _SpinGenerators       = std::move(Other._SpinGenerators);
+        _AgeGenerator         = std::move(Other._AgeGenerator);
+        _CommonGenerator      = std::move(Other._CommonGenerator);
+        _LogMassGenerator     = std::move(Other._LogMassGenerator);
+        _MassPdfs             = std::move(Other._MassPdfs);
+        _MassMaxPdfs          = std::move(Other._MassMaxPdfs);
+        _AgeMaxPdf            = std::move(Other._AgeMaxPdf);
+        _AgePdf               = std::move(Other._AgePdf);
+        _UniverseAge          = std::exchange(Other._UniverseAge,          0.0f);
+        _AgeLowerLimit        = std::exchange(Other._AgeLowerLimit,        0.0f);
+        _AgeUpperLimit        = std::exchange(Other._AgeUpperLimit,        0.0f);
+        _FeHLowerLimit        = std::exchange(Other._FeHLowerLimit,        0.0f);
+        _FeHUpperLimit        = std::exchange(Other._FeHUpperLimit,        0.0f);
+        _MassLowerLimit       = std::exchange(Other._MassLowerLimit,       0.0f);
+        _MassUpperLimit       = std::exchange(Other._MassUpperLimit,       0.0f);
+        _CoilTemperatureLimit = std::exchange(Other._CoilTemperatureLimit, 0.0f);
+        _dEpdM                = std::exchange(Other._dEpdM,                0.0f);
+        _AgeDistribution      = std::exchange(Other._AgeDistribution,      {});
+        _FeHDistribution      = std::exchange(Other._FeHDistribution,      {});
+        _MassDistribution     = std::exchange(Other._MassDistribution,     {});
+        _StellarTypeOption    = std::exchange(Other._StellarTypeOption,    {});
+        _MultiplicityOption   = std::exchange(Other._MultiplicityOption,   {});
     }
 
     return *this;

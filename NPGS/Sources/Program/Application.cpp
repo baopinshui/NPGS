@@ -43,7 +43,8 @@ FApplication::~FApplication()
 
 void FApplication::ExecuteMainRender()
 {
-    std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   PipelineLayout;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   ContainerPipelineLayout;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   LampPipelineLayout;
     std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         ContainerPipeline;
     std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         LampPipeline;
     std::unique_ptr<Runtime::Graphics::FColorAttachment>        ColorAttachment;
@@ -137,7 +138,14 @@ void FApplication::ExecuteMainRender()
     auto PushConstantRanges = BasicLightingShader->GetPushConstantRanges();
     PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
 
-    PipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
+    ContainerPipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
+
+    NativeArray = LampShader->GetDescriptorSetLayouts();
+    PipelineLayoutCreateInfo.setSetLayouts(NativeArray);
+    PushConstantRanges = LampShader->GetPushConstantRanges();
+    PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
+
+    LampPipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
 
     // Test
     struct FMatrices
@@ -222,7 +230,7 @@ void FApplication::ExecuteMainRender()
 
         Grt::FGraphicsPipelineCreateInfoPack CreateInfoPack;
         CreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&PipelineRenderingCreateInfo);
-        CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**PipelineLayout);
+        CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**ContainerPipelineLayout);
         CreateInfoPack.VertexInputBindings.append_range(BasicLightingShader->GetVertexInputBindings());
         CreateInfoPack.VertexInputAttributes.append_range(BasicLightingShader->GetVertexInputAttributes());
         CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
@@ -255,7 +263,10 @@ void FApplication::ExecuteMainRender()
         _VulkanContext->WaitIdle();
         ContainerPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
     
+        CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**LampPipelineLayout);
         CreateInfoPack.ShaderStages = LampShaderStageCreateInfos;
+        CreateInfoPack.Update();
+
         LampPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
     };
 
@@ -360,14 +371,15 @@ void FApplication::ExecuteMainRender()
         CurrentBuffer->beginRendering(RenderingInfo);
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **ContainerPipeline);
         CurrentBuffer->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->pushConstants(**PipelineLayout, vk::ShaderStageFlagBits::eVertex, BasicLightingShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **PipelineLayout, 0, BasicLightingShader->GetDescriptorSets(CurrentFrame), {});
+        CurrentBuffer->pushConstants(**ContainerPipelineLayout, vk::ShaderStageFlagBits::eVertex, BasicLightingShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **ContainerPipelineLayout, 0, BasicLightingShader->GetDescriptorSets(CurrentFrame), {});
         CurrentBuffer->draw(36, 1, 0, 0);
 
         Model = glm::scale(glm::translate(Model, LightPos), glm::vec3(0.2f));
 
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **LampPipeline);
-        CurrentBuffer->pushConstants(**PipelineLayout, vk::ShaderStageFlagBits::eVertex, LampShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
+        CurrentBuffer->pushConstants(**LampPipelineLayout, vk::ShaderStageFlagBits::eVertex, LampShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **LampPipelineLayout, 0, LampShader->GetDescriptorSets(CurrentFrame), {});
         CurrentBuffer->draw(36, 1, 0, 0);
         CurrentBuffer->endRendering();
 

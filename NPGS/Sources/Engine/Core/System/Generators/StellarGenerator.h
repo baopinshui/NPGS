@@ -120,11 +120,11 @@ public:
                       const std::array<glm::vec2, 2>& MassMaxPdfs = { glm::vec2(), glm::vec2() });
 
     FStellarGenerator(const FStellarGenerator& Other);
-    FStellarGenerator(FStellarGenerator&&) noexcept = default;
-    ~FStellarGenerator()                            = default;
+    FStellarGenerator(FStellarGenerator&& Other) noexcept;
+    ~FStellarGenerator() = default;
 
     FStellarGenerator& operator=(const FStellarGenerator& Other);
-    FStellarGenerator& operator=(FStellarGenerator&&) noexcept = default;
+    FStellarGenerator& operator=(FStellarGenerator&& Other) noexcept;
 
     FBasicProperties GenerateBasicProperties(float Age = std::numeric_limits<float>::quiet_NaN(),
                                              float FeH = std::numeric_limits<float>::quiet_NaN());

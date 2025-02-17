@@ -35,6 +35,54 @@ FCivilizationGenerator::FCivilizationGenerator(const std::seed_seq& SeedSequence
 {
 }
 
+FCivilizationGenerator::FCivilizationGenerator(const FCivilizationGenerator& Other)
+    :
+    _RandomEngine(Other._RandomEngine),
+    _CommonGenerator(Other._CommonGenerator),
+    _AsiFiltedProbability(Other._AsiFiltedProbability),
+    _DestroyedByDisasterProbability(Other._DestroyedByDisasterProbability),
+    _LifeOccurrenceProbability(Other._LifeOccurrenceProbability)
+{
+}
+
+FCivilizationGenerator::FCivilizationGenerator(FCivilizationGenerator&& Other) noexcept
+    :
+    _RandomEngine(std::move(Other._RandomEngine)),
+    _CommonGenerator(std::move(Other._CommonGenerator)),
+    _AsiFiltedProbability(std::move(Other._AsiFiltedProbability)),
+    _DestroyedByDisasterProbability(std::move(Other._DestroyedByDisasterProbability)),
+    _LifeOccurrenceProbability(std::move(Other._LifeOccurrenceProbability))
+{
+}
+
+FCivilizationGenerator& FCivilizationGenerator::operator=(const FCivilizationGenerator& Other)
+{
+    if (this != &Other)
+    {
+        _RandomEngine                   = Other._RandomEngine;
+        _CommonGenerator                = Other._CommonGenerator;
+        _AsiFiltedProbability           = Other._AsiFiltedProbability;
+        _DestroyedByDisasterProbability = Other._DestroyedByDisasterProbability;
+        _LifeOccurrenceProbability      = Other._LifeOccurrenceProbability;
+    }
+
+    return *this;
+}
+
+FCivilizationGenerator& FCivilizationGenerator::operator=(FCivilizationGenerator&& Other)
+{
+    if (this != &Other)
+    {
+        _RandomEngine                   = std::move(Other._RandomEngine);
+        _CommonGenerator                = std::move(Other._CommonGenerator);
+        _AsiFiltedProbability           = std::move(Other._AsiFiltedProbability);
+        _DestroyedByDisasterProbability = std::move(Other._DestroyedByDisasterProbability);
+        _LifeOccurrenceProbability      = std::move(Other._LifeOccurrenceProbability);
+    }
+
+    return *this;
+}
+
 void FCivilizationGenerator::GenerateCivilization(const Astro::AStar* Star, float PoyntingVector, Astro::APlanet* Planet)
 {
     if (Star->GetAge() < 2.4e9 || !_LifeOccurrenceProbability(_RandomEngine))

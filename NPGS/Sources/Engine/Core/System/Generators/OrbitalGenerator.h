@@ -54,11 +54,11 @@ public:
                       bool bContainUltravioletHabitableZone = false,     bool  bEnableAsiFilter          = true);
 
     FOrbitalGenerator(const FOrbitalGenerator& Other);
-    FOrbitalGenerator(FOrbitalGenerator&&) noexcept = default;
-    ~FOrbitalGenerator()                            = default;
+    FOrbitalGenerator(FOrbitalGenerator&& Other) noexcept;
+    ~FOrbitalGenerator() = default;
 
     FOrbitalGenerator& operator=(const FOrbitalGenerator& Other);
-    FOrbitalGenerator& operator=(FOrbitalGenerator&&) noexcept = default;
+    FOrbitalGenerator& operator=(FOrbitalGenerator&& Other) noexcept;
 
     void GenerateOrbitals(Astro::FStellarSystem& System);
 
