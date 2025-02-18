@@ -6,6 +6,7 @@ layout(location = 0) in  vec2 TexCoordFromVert;
 layout(location = 1) in  vec3 NormalFromVert;
 layout(location = 2) in  vec3 FragPosFromVert;
 layout(location = 0) out vec4 FragColor;
+layout(location = 1) out vec4 Test;
 
 struct FMaterial
 {
@@ -49,5 +50,6 @@ void main()
 
     vec3 Result = AmbientColor + DiffuseColor + SpecularColor;
     FragColor = vec4(Result, 1.0);
+    Test = vec4(1.0, 0.0, 0.0, 1.0);
 #endif
 }

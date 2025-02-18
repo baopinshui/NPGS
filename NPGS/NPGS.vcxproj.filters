@@ -102,10 +102,7 @@
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderBufferManager.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\PipelineLayoutManager.cpp">
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderResourceManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -221,13 +218,10 @@
     <ClInclude Include="Sources\Engine\Core\Base\Config\EngineConfig.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderBufferManager.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="Sources\Engine\Utils\FieldReflection.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\PipelineLayoutManager.h">
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderResourceManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -289,7 +283,7 @@
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.inl">
       <Filter>头文件</Filter>
     </None>
-    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderBufferManager.inl">
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderResourceManager.inl">
       <Filter>头文件</Filter>
     </None>
   </ItemGroup>

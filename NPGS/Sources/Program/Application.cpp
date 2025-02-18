@@ -45,38 +45,25 @@ void FApplication::ExecuteMainRender()
 {
     std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   ContainerPipelineLayout;
     std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   LampPipelineLayout;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipelineLayout>   PostPipelineLayout;
     std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         ContainerPipeline;
     std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         LampPipeline;
+    std::unique_ptr<Runtime::Graphics::FVulkanPipeline>         PostPipeline;
     std::unique_ptr<Runtime::Graphics::FColorAttachment>        ColorAttachment;
+    std::unique_ptr<Runtime::Graphics::FColorAttachment>        ColorAttachment2;
+    std::unique_ptr<Runtime::Graphics::FColorAttachment>        PostColorAttachment;
+    std::unique_ptr<Runtime::Graphics::FColorAttachment>        PostColorAttachment2;
     std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> DepthStencilAttachment;
 
-    auto CreateFramebuffers = [&]() -> void
-    {
-        _VulkanContext->WaitIdle();
-
-        ColorAttachment = std::make_unique<Grt::FColorAttachment>(
-            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e8);
-
-        DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
-            vk::Format::eD32SfloatS8Uint, _WindowSize, 1, vk::SampleCountFlagBits::e8);
-    };
-
-    auto DestroyFramebuffers = [&]() -> void
-    {
-        _VulkanContext->WaitIdle();
-    };
-
-    CreateFramebuffers();
-
-    static bool bFramebufferCallbackAdded = false;
-    if (!bFramebufferCallbackAdded)
-    {
-        _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreateFramebuffers", CreateFramebuffers);
-        _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kDestroySwapchain, "DestroyFramebuffers", DestroyFramebuffers);
-        bFramebufferCallbackAdded = true;
-    }
-
     vk::RenderingAttachmentInfo ColorAttachmentInfo = vk::RenderingAttachmentInfo()
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setResolveMode(vk::ResolveModeFlagBits::eAverage)
+        .setResolveImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+
+    vk::RenderingAttachmentInfo ColorAttachmentInfo2 = vk::RenderingAttachmentInfo()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setResolveMode(vk::ResolveModeFlagBits::eAverage)
         .setResolveImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
@@ -90,12 +77,76 @@ void FApplication::ExecuteMainRender()
         .setStoreOp(vk::AttachmentStoreOp::eDontCare)
         .setClearValue(vk::ClearDepthStencilValue(1.0f, 0));
 
+    vk::RenderingAttachmentInfo PostColorAttachmentInfo = vk::RenderingAttachmentInfo()
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+
+    vk::RenderingAttachmentInfo PostColorAttachmentInfo2 = vk::RenderingAttachmentInfo()
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+
+    vk::RenderingAttachmentInfo FinalOutputAttachmentInfo = vk::RenderingAttachmentInfo()
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+    std::array ColorAttachmentInfos{ ColorAttachmentInfo, ColorAttachmentInfo2 };
+
+    auto CreateFramebuffers = [&]() -> void
+    {
+        _VulkanContext->WaitIdle();
+
+        ColorAttachment = std::make_unique<Grt::FColorAttachment>(
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e8);
+
+        ColorAttachment2 = std::make_unique<Grt::FColorAttachment>(
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e8);
+
+        PostColorAttachment = std::make_unique<Grt::FColorAttachment>(
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e1,
+            vk::ImageUsageFlagBits::eSampled);
+
+        PostColorAttachment2 = std::make_unique<Grt::FColorAttachment>(
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e1,
+            vk::ImageUsageFlagBits::eSampled);
+
+        DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
+            vk::Format::eD32SfloatS8Uint, _WindowSize, 1, vk::SampleCountFlagBits::e8);
+
+        ColorAttachmentInfos[0].setImageView(*ColorAttachment->GetImageView())
+                               .setResolveImageView(*PostColorAttachment->GetImageView());
+        ColorAttachmentInfos[1].setImageView(*ColorAttachment2->GetImageView())
+                               .setResolveImageView(*PostColorAttachment2->GetImageView());
+        DepthStencilAttachmentInfo.setImageView(*DepthStencilAttachment->GetImageView());
+        PostColorAttachmentInfo.setImageView(*PostColorAttachment->GetImageView());
+    };
+
+    auto DestroyFramebuffers = [&]() -> void
+    {
+        _VulkanContext->WaitIdle();
+    };
+
+    CreateFramebuffers();
+
+    _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreateFramebuffers", CreateFramebuffers);
+    _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kDestroySwapchain, "DestroyFramebuffers", DestroyFramebuffers);
+
     // Create pipeline layout
     // ----------------------
     struct FVertex
     {
         glm::vec3 Position;
         glm::vec3 Normal;
+        glm::vec2 TexCoord;
+    };
+
+    struct FQuadVertex
+    {
+        glm::vec2 Position;
         glm::vec2 TexCoord;
     };
 
@@ -120,15 +171,29 @@ void FApplication::ExecuteMainRender()
         }
     };
 
+    Art::FShader::FResourceInfo PostResourceInfo
+    {
+        {
+            { 0, sizeof(FQuadVertex), false }
+        },
+        {
+            { 0, 0, offsetof(FQuadVertex, Position) },
+            { 0, 1, offsetof(FQuadVertex, TexCoord) }
+        }
+    };
+
     std::vector<std::string> BasicLightingShaderFiles({ "BasicLighting.vert.spv", "BasicLighting.frag.spv" });
     std::vector<std::string> LampShaderFiles({ "BasicLighting.vert.spv", "BasicLighting_Lamp.frag.spv" });
+    std::vector<std::string> PostShaderFiles({ "PostProcess.vert.spv", "PostProcess.frag.spv" });
     AssetManager->AddAsset<Art::FShader>("BasicLightingShader", BasicLightingShaderFiles, ResourceInfo);
     AssetManager->AddAsset<Art::FShader>("LampShader", LampShaderFiles, ResourceInfo);
+    AssetManager->AddAsset<Art::FShader>("PostShader", PostShaderFiles, PostResourceInfo);
     AssetManager->AddAsset<Art::FTexture2D>("ContainerDiffuse", "ContainerDiffuse.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
     AssetManager->AddAsset<Art::FTexture2D>("ContainerSpecular", "ContainerSpecular.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
 
     auto* BasicLightingShader = AssetManager->GetAsset<Art::FShader>("BasicLightingShader");
     auto* LampShader          = AssetManager->GetAsset<Art::FShader>("LampShader");
+    auto* PostShader          = AssetManager->GetAsset<Art::FShader>("PostShader");
     auto* ContainerDiffuse    = AssetManager->GetAsset<Art::FTexture2D>("ContainerDiffuse");
     auto* ContainerSpecular   = AssetManager->GetAsset<Art::FTexture2D>("ContainerSpecular");
 
@@ -146,6 +211,12 @@ void FApplication::ExecuteMainRender()
     PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
 
     LampPipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
+
+    NativeArray = PostShader->GetDescriptorSetLayouts();
+    PipelineLayoutCreateInfo.setSetLayouts(NativeArray);
+    PipelineLayoutCreateInfo.setPushConstantRanges({});
+
+    PostPipelineLayout = std::make_unique<Grt::FVulkanPipelineLayout>(PipelineLayoutCreateInfo);
 
     // Test
     struct FMatrices
@@ -210,22 +281,59 @@ void FApplication::ExecuteMainRender()
     ImageInfos.push_back(ContainerSpecular->CreateDescriptorImageInfo(nullptr));
     BasicLightingShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eSampledImage, ImageInfos);
 
+    SamplerCreateInfo.setMipmapMode(vk::SamplerMipmapMode::eNearest)
+        .setAddressModeU(vk::SamplerAddressMode::eClampToEdge)
+        .setAddressModeV(vk::SamplerAddressMode::eClampToEdge)
+        .setAddressModeW(vk::SamplerAddressMode::eClampToEdge)
+        .setAnisotropyEnable(vk::False)
+        .setMinLod(0.0f)
+        .setMaxLod(0.0f)
+        .setBorderColor(vk::BorderColor::eFloatTransparentBlack);
+    Grt::FVulkanSampler FramebufferSampler(SamplerCreateInfo);
+
+    auto CreatePostDescriptors = [&]() -> void
+    {
+        ImageInfos.clear();
+
+        vk::DescriptorImageInfo FramebufferImageInfo(*FramebufferSampler, *PostColorAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+        vk::DescriptorImageInfo FramebufferImageInfo2(*FramebufferSampler, *PostColorAttachment2->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+
+        ImageInfos.push_back(FramebufferImageInfo);
+        ImageInfos.push_back(FramebufferImageInfo2);
+
+        PostShader->WriteSharedDescriptors(0, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+    };
+
+    CreatePostDescriptors();
+
+    _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreatePostDescriptor", CreatePostDescriptors);
+
     ShaderResourceManager->BindShaderToBuffers("Matrices", "BasicLightingShader");
+    ShaderResourceManager->BindShaderToBuffers("Matrices", "LampShader");
     ShaderResourceManager->BindShaderToBuffers("LightMaterial", "BasicLightingShader");
 
 #include "Vertices.inc"
 
     Grt::FDeviceLocalBuffer VertexBuffer(CubeVertices.size() * sizeof(FVertex), vk::BufferUsageFlagBits::eVertexBuffer);
     VertexBuffer.CopyData(CubeVertices);
+    Grt::FDeviceLocalBuffer QuadVertexBuffer(QuadVertices.size() * sizeof(FQuadVertex), vk::BufferUsageFlagBits::eVertexBuffer);
+    QuadVertexBuffer.CopyData(QuadVertices);
 
-    static auto BasicLightingShaderStageCreateInfos = BasicLightingShader->CreateShaderStageCreateInfo();
-    static auto LampShaderStageCreateInfos = LampShader->CreateShaderStageCreateInfo();
+    auto BasicLightingShaderStageCreateInfos = BasicLightingShader->CreateShaderStageCreateInfo();
+    auto LampShaderStageCreateInfos = LampShader->CreateShaderStageCreateInfo();
+    auto PostShaderStageCreateInfos = PostShader->CreateShaderStageCreateInfo();
 
     auto CreateGraphicsPipeline = [&]() -> void
     {
+        std::array ColorFormats
+        {
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat,
+            _VulkanContext->GetSwapchainCreateInfo().imageFormat
+        };
+
         vk::PipelineRenderingCreateInfo PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
-            .setColorAttachmentCount(1)
-            .setColorAttachmentFormats(_VulkanContext->GetSwapchainCreateInfo().imageFormat)
+            .setColorAttachmentCount(2)
+            .setColorAttachmentFormats(ColorFormats)
             .setDepthAttachmentFormat(vk::Format::eD32SfloatS8Uint);
 
         Grt::FGraphicsPipelineCreateInfoPack CreateInfoPack;
@@ -247,20 +355,23 @@ void FApplication::ExecuteMainRender()
 
         CreateInfoPack.ShaderStages = BasicLightingShaderStageCreateInfos;
 
-        vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState = vk::PipelineColorBlendAttachmentState()
-            .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                               vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
-
         CreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height),
                                               static_cast<float>(_WindowSize.width), -static_cast<float>(_WindowSize.height),
                                               0.0f, 1.0f);
 
         CreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
+
+        vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState = vk::PipelineColorBlendAttachmentState()
+            .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                               vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
+
+        CreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
         CreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
 
         CreateInfoPack.Update();
 
         _VulkanContext->WaitIdle();
+
         ContainerPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
     
         CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**LampPipelineLayout);
@@ -268,23 +379,39 @@ void FApplication::ExecuteMainRender()
         CreateInfoPack.Update();
 
         LampPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
+
+        PipelineRenderingCreateInfo.setColorAttachmentCount(1)
+                                   .setColorAttachmentFormats(_VulkanContext->GetSwapchainCreateInfo().imageFormat);
+
+        CreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&PipelineRenderingCreateInfo);
+        CreateInfoPack.GraphicsPipelineCreateInfo.setLayout(**PostPipelineLayout);
+        CreateInfoPack.VertexInputBindings.clear();
+        CreateInfoPack.VertexInputBindings.append_range(PostShader->GetVertexInputBindings());
+        CreateInfoPack.VertexInputAttributes.clear();
+        CreateInfoPack.VertexInputAttributes.append_range(PostShader->GetVertexInputAttributes());
+
+        CreateInfoPack.MultisampleStateCreateInfo.setRasterizationSamples(vk::SampleCountFlagBits::e1)
+                                                 .setSampleShadingEnable(vk::False)
+                                                 .setMinSampleShading(0.0f);
+
+        CreateInfoPack.ColorBlendAttachmentStates.pop_back();
+        CreateInfoPack.ShaderStages = PostShaderStageCreateInfos;
+        CreateInfoPack.Update();
+
+        PostPipeline = std::make_unique<Grt::FVulkanPipeline>(CreateInfoPack);
     };
 
     auto DestroyGraphicsPipeline = [&]() -> void
     {
         ContainerPipeline.reset();
         LampPipeline.reset();
+        PostPipeline.reset();
     };
 
     CreateGraphicsPipeline();
 
-    static bool bPipelineCallbackAdded = false;
-    if (!bPipelineCallbackAdded)
-    {
-        _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreatePipeline", CreateGraphicsPipeline);
-        _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kDestroySwapchain, "DestroyPipeline", DestroyGraphicsPipeline);
-        bPipelineCallbackAdded = true;
-    }
+    _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreatePipeline", CreateGraphicsPipeline);
+    _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kDestroySwapchain, "DestroyPipeline", DestroyGraphicsPipeline);
 
     std::vector<Grt::FVulkanFence> InFlightFences;
     std::vector<Grt::FVulkanSemaphore> Semaphores_ImageAvailable;
@@ -337,36 +464,56 @@ void FApplication::ExecuteMainRender()
 
         // Record commands
         // ---------------
-        vk::RenderingInfo RenderingInfo = vk::RenderingInfo()
-            .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
-            .setLayerCount(1)
-            .setColorAttachments(ColorAttachmentInfo)
-            .setPDepthAttachment(&DepthStencilAttachmentInfo);
-
-        ColorAttachmentInfo.setImageView(*ColorAttachment->GetImageView())
-                           .setResolveImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
-        DepthStencilAttachmentInfo.setImageView(*DepthStencilAttachment->GetImageView());
-
         auto& CurrentBuffer = CommandBuffers[CurrentFrame];
         CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
         vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
-        vk::ImageMemoryBarrier2 InitialTransitionBarrier(vk::PipelineStageFlagBits2::eTopOfPipe,
-                                                         vk::AccessFlagBits2::eNone,
-                                                         vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                                         vk::AccessFlagBits2::eColorAttachmentWrite,
-                                                         vk::ImageLayout::eUndefined,
-                                                         vk::ImageLayout::eColorAttachmentOptimal,
-                                                         vk::QueueFamilyIgnored,
-                                                         vk::QueueFamilyIgnored,
-                                                         _VulkanContext->GetSwapchainImage(ImageIndex),
-                                                         SubresourceRange);
+        vk::ImageMemoryBarrier2 InitialSwapchainTransitionBarrier(vk::PipelineStageFlagBits2::eTopOfPipe,
+                                                                  vk::AccessFlagBits2::eNone,
+                                                                  vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                                                  vk::AccessFlagBits2::eColorAttachmentWrite,
+                                                                  vk::ImageLayout::eUndefined,
+                                                                  vk::ImageLayout::eColorAttachmentOptimal,
+                                                                  vk::QueueFamilyIgnored,
+                                                                  vk::QueueFamilyIgnored,
+                                                                  _VulkanContext->GetSwapchainImage(ImageIndex),
+                                                                  SubresourceRange);
+
+        vk::ImageMemoryBarrier2 PostRestoreTransitionBarrier(vk::PipelineStageFlagBits2::eTopOfPipe,
+                                                             vk::AccessFlagBits2::eNone,
+                                                             vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                                             vk::AccessFlagBits2::eColorAttachmentWrite,
+                                                             vk::ImageLayout::eUndefined,
+                                                             vk::ImageLayout::eColorAttachmentOptimal,
+                                                             vk::QueueFamilyIgnored,
+                                                             vk::QueueFamilyIgnored,
+                                                             *PostColorAttachment->GetImage(),
+                                                             SubresourceRange);
+
+        vk::ImageMemoryBarrier2 PostRestoreTransitionBarrier2(vk::PipelineStageFlagBits2::eTopOfPipe,
+                                                              vk::AccessFlagBits2::eNone,
+                                                              vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                                              vk::AccessFlagBits2::eColorAttachmentWrite,
+                                                              vk::ImageLayout::eUndefined,
+                                                              vk::ImageLayout::eColorAttachmentOptimal,
+                                                              vk::QueueFamilyIgnored,
+                                                              vk::QueueFamilyIgnored,
+                                                              *PostColorAttachment2->GetImage(),
+                                                              SubresourceRange);
+
+        std::array InitialTransitionBarriers{ InitialSwapchainTransitionBarrier, PostRestoreTransitionBarrier, PostRestoreTransitionBarrier2 };
 
         vk::DependencyInfo InitialDependencyInfo = vk::DependencyInfo()
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(InitialTransitionBarrier);
+            .setImageMemoryBarriers(InitialTransitionBarriers);
 
         CurrentBuffer->pipelineBarrier2(InitialDependencyInfo);
+
+        vk::RenderingInfo RenderingInfo = vk::RenderingInfo()
+            .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
+            .setLayerCount(1)
+            .setColorAttachments(ColorAttachmentInfos)
+            .setPDepthAttachment(&DepthStencilAttachmentInfo);
 
         CurrentBuffer->beginRendering(RenderingInfo);
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **ContainerPipeline);
@@ -383,22 +530,67 @@ void FApplication::ExecuteMainRender()
         CurrentBuffer->draw(36, 1, 0, 0);
         CurrentBuffer->endRendering();
 
-        vk::ImageMemoryBarrier2 FinalTransitionBarrier(vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                                       vk::AccessFlagBits2::eColorAttachmentWrite,
-                                                       vk::PipelineStageFlagBits2::eBottomOfPipe,
-                                                       vk::AccessFlagBits2::eNone,
-                                                       vk::ImageLayout::eColorAttachmentOptimal,
-                                                       vk::ImageLayout::ePresentSrcKHR,
-                                                       vk::QueueFamilyIgnored,
-                                                       vk::QueueFamilyIgnored,
-                                                       _VulkanContext->GetSwapchainImage(ImageIndex),
-                                                       SubresourceRange);
+        vk::ImageMemoryBarrier2 RenderEndTransitionBarrier(vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                                           vk::AccessFlagBits2::eColorAttachmentWrite,
+                                                           vk::PipelineStageFlagBits2::eFragmentShader,
+                                                           vk::AccessFlagBits2::eShaderRead,
+                                                           vk::ImageLayout::eColorAttachmentOptimal,
+                                                           vk::ImageLayout::eShaderReadOnlyOptimal,
+                                                           vk::QueueFamilyIgnored,
+                                                           vk::QueueFamilyIgnored,
+                                                           *PostColorAttachment->GetImage(),
+                                                           SubresourceRange);
+
+        vk::ImageMemoryBarrier2 RenderEndTransitionBarrier2(vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                                            vk::AccessFlagBits2::eColorAttachmentWrite,
+                                                            vk::PipelineStageFlagBits2::eFragmentShader,
+                                                            vk::AccessFlagBits2::eShaderRead,
+                                                            vk::ImageLayout::eColorAttachmentOptimal,
+                                                            vk::ImageLayout::eShaderReadOnlyOptimal,
+                                                            vk::QueueFamilyIgnored,
+                                                            vk::QueueFamilyIgnored,
+                                                            *PostColorAttachment2->GetImage(),
+                                                            SubresourceRange);
+
+        std::array RenderEndTransitionBarriers{ RenderEndTransitionBarrier, RenderEndTransitionBarrier2 };
+
+        vk::DependencyInfo RenderEndDependencyInfo = vk::DependencyInfo()
+            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+            .setImageMemoryBarriers(RenderEndTransitionBarriers);
+
+        CurrentBuffer->pipelineBarrier2(RenderEndDependencyInfo);
+
+        vk::RenderingInfo PostRenderingInfo = vk::RenderingInfo()
+            .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
+            .setLayerCount(1)
+            .setColorAttachments(FinalOutputAttachmentInfo);
+
+        FinalOutputAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
+
+        CurrentBuffer->beginRendering(PostRenderingInfo);
+        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **PostPipeline);
+        CurrentBuffer->bindVertexBuffers(0, *QuadVertexBuffer.GetBuffer(), Offset);
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **PostPipelineLayout, 0, PostShader->GetDescriptorSets(CurrentFrame), {});
+        CurrentBuffer->draw(6, 1, 0, 0);
+        CurrentBuffer->endRendering();
+
+        vk::ImageMemoryBarrier2 PresentTransitionBarrier(vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                                         vk::AccessFlagBits2::eColorAttachmentWrite,
+                                                         vk::PipelineStageFlagBits2::eBottomOfPipe,
+                                                         vk::AccessFlagBits2::eNone,
+                                                         vk::ImageLayout::eColorAttachmentOptimal,
+                                                         vk::ImageLayout::ePresentSrcKHR,
+                                                         vk::QueueFamilyIgnored,
+                                                         vk::QueueFamilyIgnored,
+                                                         _VulkanContext->GetSwapchainImage(ImageIndex),
+                                                         SubresourceRange);
 
         vk::DependencyInfo FinalDependencyInfo = vk::DependencyInfo()
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(FinalTransitionBarrier);
+            .setImageMemoryBarriers(PresentTransitionBarrier);
 
         CurrentBuffer->pipelineBarrier2(FinalDependencyInfo);
+
         CurrentBuffer.End();
 
         _VulkanContext->SubmitCommandBufferToGraphics(*CurrentBuffer, *Semaphores_ImageAvailable[CurrentFrame],

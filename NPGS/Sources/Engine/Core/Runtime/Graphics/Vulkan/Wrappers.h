@@ -557,11 +557,11 @@ public:
 
     template <typename ContainerType>
     requires std::is_class_v<ContainerType>
-    vk::Result SubmitData(const ContainerType& Data) const;
+    vk::Result SubmitData(const ContainerType& Data);
 
     template <typename ContainerType>
     requires std::is_class_v<ContainerType>
-    vk::Result FetchData(ContainerType& Data) const;
+    vk::Result FetchData(ContainerType& Data);
 
     const void* GetMappedDataMemory() const;
     void* GetMappedTargetMemory();

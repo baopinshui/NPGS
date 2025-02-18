@@ -21,25 +21,25 @@ NPGS_INLINE FGraphicsPipelineCreateInfoPack::operator const vk::GraphicsPipeline
 // ----------------------------
 template <typename ContainerType>
 requires std::is_class_v<ContainerType>
-NPGS_INLINE vk::Result FVulkanDeviceMemory::SubmitData(const ContainerType& Data) const
+NPGS_INLINE vk::Result FVulkanDeviceMemory::SubmitData(const ContainerType& Data)
 {
     using ValueType = typename ContainerType::value_type;
     NpgsStaticAssert(std::is_standard_layout_v<ValueType>, "Container value_type must be standard layout type");
 
     vk::DeviceSize DataSize = Data.size() * sizeof(ValueType);
-    return SubmitData(0, DataSize, static_cast<const void*>(Data.data()));
+    return SubmitData(0, 0, DataSize, static_cast<const void*>(Data.data()));
 }
 
 template <typename ContainerType>
 requires std::is_class_v<ContainerType>
-NPGS_INLINE vk::Result FVulkanDeviceMemory::FetchData(ContainerType& Data) const
+NPGS_INLINE vk::Result FVulkanDeviceMemory::FetchData(ContainerType& Data)
 {
     using ValueType = typename ContainerType::value_type;
     NpgsStaticAssert(std::is_standard_layout_v<ValueType>, "Container value_type must be standard layout type");
 
     Data.reserve(_AllocationSize / sizeof(ValueType));
     Data.resize(_AllocationSize / sizeof(ValueType));
-    return FetchData(0, _AllocationSize, static_cast<void*>(Data.data()));
+    return FetchData(0, 0, _AllocationSize, static_cast<void*>(Data.data()));
 }
 
 NPGS_INLINE const void* FVulkanDeviceMemory::GetMappedDataMemory() const

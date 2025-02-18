@@ -43,6 +43,18 @@ std::vector<FVertex> CubeVertices
     { { -0.5f,  0.5f, -0.5f }, { 0.0f,  1.0f, 0.0f }, { 0.0f, 1.0f } }
 };
 
+std::vector<FQuadVertex> QuadVertices
+{
+    // positions   // texCoords
+    { { -1.0f,  1.0f }, { 0.0f, 0.0f } },
+    { { -1.0f, -1.0f }, { 0.0f, 1.0f } },
+    { {  1.0f, -1.0f }, { 1.0f, 1.0f } },
+
+    { { -1.0f,  1.0f }, { 0.0f, 0.0f } },
+    { {  1.0f, -1.0f }, { 1.0f, 1.0f } },
+    { {  1.0f,  1.0f }, { 1.0f, 0.0f } }
+};
+
 std::vector<glm::vec3> CubePositions
 {
     glm::vec3( 0.0f,  0.0f,  0.0f), 
