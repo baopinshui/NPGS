@@ -93,8 +93,8 @@ void FThreadPool::Terminate()
 
 FThreadPool* FThreadPool::GetInstance()
 {
-    static FThreadPool Instance;
-    return &Instance;
+    static FThreadPool kInstance;
+    return &kInstance;
 }
 
 void FThreadPool::SetThreadAffinity(std::thread& Thread, std::size_t CoreId) const

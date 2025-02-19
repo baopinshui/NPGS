@@ -14,8 +14,8 @@ FAssetManager::~FAssetManager()
 
 FAssetManager* FAssetManager::GetInstance()
 {
-    static FAssetManager Instance;
-    return &Instance;
+    static FAssetManager kInstance;
+    return &kInstance;
 }
 
 _ASSET_END

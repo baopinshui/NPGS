@@ -96,13 +96,13 @@
     <ClCompile Include="Sources\Program\Universe.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderResourceManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Renderers\PipelineManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -209,9 +209,6 @@
     <ClInclude Include="Sources\Program\Universe.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -222,6 +219,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderResourceManager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Renderers\PipelineManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -277,13 +277,13 @@
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\Wrappers.inl">
       <Filter>头文件</Filter>
     </None>
-    <None Include="Sources\Engine\Core\Runtime\Graphics\Renderers\ScreenRenderer.inl">
-      <Filter>头文件</Filter>
-    </None>
     <None Include="Sources\Engine\Core\Runtime\AssetLoaders\Shader.inl">
       <Filter>头文件</Filter>
     </None>
     <None Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\ShaderResourceManager.inl">
+      <Filter>头文件</Filter>
+    </None>
+    <None Include="Sources\Engine\Core\Runtime\Graphics\Renderers\PipelineManager.inl">
       <Filter>头文件</Filter>
     </None>
   </ItemGroup>

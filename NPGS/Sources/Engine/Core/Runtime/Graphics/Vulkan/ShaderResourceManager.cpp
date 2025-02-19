@@ -131,8 +131,8 @@ void FShaderResourceManager::BindShadersToBuffer(std::uint32_t FrameIndex, const
 
 FShaderResourceManager* FShaderResourceManager::GetInstance()
 {
-    static FShaderResourceManager Instance;
-    return &Instance;
+    static FShaderResourceManager kInstance;
+    return &kInstance;
 }
 
 _GRAPHICS_END

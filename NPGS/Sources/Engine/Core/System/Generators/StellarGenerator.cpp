@@ -919,8 +919,7 @@ FStellarGenerator::GetFullMistData(const FBasicProperties& Properties, bool bIsW
     MassString = MassStream.str() + "0";
     std::string UpperMassFile = PrefixDirectory + "/" + MassString + "Ms_track.csv";
 
-    Files.first  = LowerMassFile;
-    Files.second = UpperMassFile;
+    Files = std::make_pair(LowerMassFile, UpperMassFile);
 
     std::vector<double> Result = InterpolateMistData(Files, TargetAge, TargetMass, MassCoefficient);
     Result.push_back(TargetFeH); // 加入插值使用的金属丰度，用于计算光谱类型
@@ -937,7 +936,7 @@ std::vector<double> FStellarGenerator::InterpolateMistData(const std::pair<std::
     {
         if (Files.first != Files.second) [[likely]]
         {
-            FMistData* LowerData = LoadCsvAsset<FMistData>(Files.first, _kMistHeaders);
+            FMistData* LowerData = LoadCsvAsset<FMistData>(Files.first,  _kMistHeaders);
             FMistData* UpperData = LoadCsvAsset<FMistData>(Files.second, _kMistHeaders);
 
             auto LowerPhaseChanges = FindPhaseChanges(LowerData);
@@ -968,7 +967,7 @@ std::vector<double> FStellarGenerator::InterpolateMistData(const std::pair<std::
             LowerRows.push_back(LowerLifetime);
             UpperRows.push_back(UpperLifetime);
 
-            Result = InterpolateFinalData({ LowerRows, UpperRows }, MassCoefficient, false);
+            Result = InterpolateFinalData(std::make_pair(LowerRows, UpperRows), MassCoefficient, false);
         }
         else [[unlikely]]
         {
@@ -1028,7 +1027,7 @@ std::vector<double> FStellarGenerator::InterpolateMistData(const std::pair<std::
             std::vector<double> LowerRows = InterpolateStarData(LowerData, TargetAge);
             std::vector<double> UpperRows = InterpolateStarData(UpperData, TargetAge);
 
-            Result = InterpolateFinalData({ LowerRows, UpperRows }, MassCoefficient, true);
+            Result = InterpolateFinalData(std::make_pair(LowerRows, UpperRows), MassCoefficient, true);
         }
         else [[unlikely]]
         {
@@ -1217,6 +1216,7 @@ FStellarGenerator::FindSurroundingTimePoints(const std::vector<std::vector<doubl
         UpperTimePoint = std::prev(PhaseChanges.end(), 1);
     }
 
+    // return std::make_pair(LowerTimePoint->back(), std::make_pair(LowerTimePoint->front(), UpperTimePoint->front()));
     return { (*LowerTimePoint)[_kXIndex], { (*LowerTimePoint)[_kStarAgeIndex], (*UpperTimePoint)[_kStarAgeIndex] } };
 }
 

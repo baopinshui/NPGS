@@ -255,8 +255,8 @@ vk::Result FVulkanContext::TransferImageOwnershipToPresent(const FVulkanCommandB
 
 FVulkanContext* FVulkanContext::GetClassInstance()
 {
-    static FVulkanContext Instance;
-    return &Instance;
+    static FVulkanContext kInstance;
+    return &kInstance;
 }
 
 void FVulkanContext::TransferImageOwnershipToPresentImpl(vk::CommandBuffer PresentCommandBuffer) const

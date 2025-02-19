@@ -31,7 +31,6 @@ public:
     vk::PipelineColorBlendStateCreateInfo              ColorBlendStateCreateInfo;
     vk::PipelineDynamicStateCreateInfo                 DynamicStateCreateInfo;
 
-
     std::vector<vk::PipelineShaderStageCreateInfo>     ShaderStages;
     std::vector<vk::VertexInputBindingDescription>     VertexInputBindings;
     std::vector<vk::VertexInputAttributeDescription>   VertexInputAttributes;
@@ -332,12 +331,11 @@ class TVulkanHandleNoDestroy
 {
 public:
     TVulkanHandleNoDestroy() = default;
-    // TVulkanHandleNoDestroy(HandleType Handle, vk::Result Status = vk::Result::eSuccess)
-    //     :
-    //     _Handle(Handle),
-    //     _Status(Status)
-    // {
-    // }
+    TVulkanHandleNoDestroy(HandleType Handle)
+        :
+        _Handle(Handle)
+    {
+    }
 
     TVulkanHandleNoDestroy(const TVulkanHandleNoDestroy&) = default;
     TVulkanHandleNoDestroy(TVulkanHandleNoDestroy&& Other) noexcept
@@ -358,11 +356,11 @@ public:
         return *this;
     }
 
-    // TVulkanHandleNoDestroy& operator=(HandleType Handle)
-    // {
-    //     _Handle = Handle;
-    //     return *this;
-    // }
+    TVulkanHandleNoDestroy& operator=(HandleType Handle)
+    {
+        _Handle = Handle;
+        return *this;
+    }
 
     HandleType* operator->()
     {
@@ -408,12 +406,14 @@ public:
     using Base::Base;
 
     TVulkanHandle() = delete;
-    // TVulkanHandle(HandleType Handle, const std::string& ReleaseInfo)
-    //     :
-    //     Base(Handle),
-    //     _Device(FVulkanCore::GetClassInstance()->GetDevice())
-    // {
-    // }
+    TVulkanHandle(HandleType Handle, const std::string& HandleName)
+        :
+        Base(Handle),
+        _ReleaseInfo(std::string(HandleName) + " destroyed successfully."),
+        _Device(FVulkanCore::GetClassInstance()->GetDevice()),
+        _Status(vk::Result::eSuccess)
+    {
+    }
 
     TVulkanHandle(vk::Device Device)
         : _Device(Device)
@@ -460,7 +460,13 @@ public:
 
         return *this;
     }
-
+    
+    TVulkanHandle& operator=(HandleType Handle)
+    {
+        _Device = FVulkanCore::GetClassInstance()->GetDevice();
+        this->_Handle = Handle;
+        return *this;
+    }
 
     vk::Result GetStatus() const
     {

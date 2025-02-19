@@ -112,16 +112,15 @@ void FGraphicsPipelineCreateInfoPack::Update()
 
 void FGraphicsPipelineCreateInfoPack::LinkToGraphicsPipelineCreateInfo()
 {
-    GraphicsPipelineCreateInfo
-        .setPVertexInputState(&VertexInputStateCreateInfo)
-        .setPInputAssemblyState(&InputAssemblyStateCreateInfo)
-        .setPTessellationState(&TessellationStateCreateInfo)
-        .setPViewportState(&ViewportStateCreateInfo)
-        .setPRasterizationState(&RasterizationStateCreateInfo)
-        .setPMultisampleState(&MultisampleStateCreateInfo)
-        .setPDepthStencilState(&DepthStencilStateCreateInfo)
-        .setPColorBlendState(&ColorBlendStateCreateInfo)
-        .setPDynamicState(&DynamicStateCreateInfo);
+    GraphicsPipelineCreateInfo.setPVertexInputState(&VertexInputStateCreateInfo)
+                              .setPInputAssemblyState(&InputAssemblyStateCreateInfo)
+                              .setPTessellationState(&TessellationStateCreateInfo)
+                              .setPViewportState(&ViewportStateCreateInfo)
+                              .setPRasterizationState(&RasterizationStateCreateInfo)
+                              .setPMultisampleState(&MultisampleStateCreateInfo)
+                              .setPDepthStencilState(&DepthStencilStateCreateInfo)
+                              .setPColorBlendState(&ColorBlendStateCreateInfo)
+                              .setPDynamicState(&DynamicStateCreateInfo);
 }
 
 void FGraphicsPipelineCreateInfoPack::UpdateAllInfoData()
@@ -149,6 +148,8 @@ void FGraphicsPipelineCreateInfoPack::UpdateAllInfoData()
     VertexInputStateCreateInfo.setVertexAttributeDescriptions(VertexInputAttributes);
     ColorBlendStateCreateInfo.setAttachments(ColorBlendAttachmentStates);
     DynamicStateCreateInfo.setDynamicStates(DynamicStates);
+
+    LinkToGraphicsPipelineCreateInfo();
 }
 
 FFormatInfo GetFormatInfo(vk::Format Format)

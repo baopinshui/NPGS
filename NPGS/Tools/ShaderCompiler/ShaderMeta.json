@@ -1,7 +1,7 @@
 {
   "BasicLighting.vert.spv": "25da6bd4cfea696ced1c6f5252bc8536",
-  "BasicLighting.frag.spv": "83ecf2fd3207aebe6d69707305f88241",
-  "BasicLighting_Lamp.frag.spv": "e96a0f93cf0c996494699f8733461248",
-  "PostProcess.frag.spv": "a5e734b529bdcfc25ca0f2d5276c9dc3",
+  "BasicLighting.frag.spv": "814d2fca7ca0e4352a454bfb432db20a",
+  "BasicLighting_Lamp.frag.spv": "68ae4100e49641076aee6d8969fcd3c1",
+  "PostProcess.frag.spv": "975f967549531b553d3deb117c761a1c",
   "PostProcess.vert.spv": "7d66a1afad0b1a2a122d6c835ebf20c8"
 }

@@ -744,8 +744,8 @@ vk::Result FVulkanCore::WaitIdle() const
 
 FVulkanCore* FVulkanCore::GetClassInstance()
 {
-    static FVulkanCore Instance;
-    return &Instance;
+    static FVulkanCore kInstance;
+    return &kInstance;
 }
 
 void FVulkanCore::AddElementChecked(const char* Element, std::vector<const char*>& Vector)

@@ -77,6 +77,8 @@ public:
     requires std::is_class_v<StructType>
     void CreateBuffer(const FUniformBufferCreateInfo& BufferCreateInfo);
 
+    void RemoveBuffer(const std::string& Name);
+
     template <typename StructType>
     requires std::is_class_v<StructType>
     void UpdateEntrieBuffers(const std::string& Name, const StructType& Data);

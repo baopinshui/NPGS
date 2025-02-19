@@ -232,7 +232,7 @@ def main() -> tuple:
             processed_sources.add(source_file)
                 
             if needs_recompile(source_file, target_file, variant.macros):
-                print(f"编译 {source_file.name}")
+                print(f"编译 {source_file.name} -> {target_file.name}")
                 if compile_shader(source_file, target_file, variant.macros):
                     compiled_count += 1
                 else:

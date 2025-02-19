@@ -8,5 +8,5 @@ layout(set = 0, binding = 0) uniform sampler2D iTextures[2];
 
 void main()
 {
-	FragColor = mix(texture(iTextures[0], TexCoordFromVert), texture(iTextures[1], TexCoordFromVert), 0.2);
+	FragColor = texture(iTextures[0], TexCoordFromVert) + texture(iTextures[1], TexCoordFromVert);
 }

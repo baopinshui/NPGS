@@ -297,8 +297,8 @@ void FStagingBufferPool::ReleaseBuffer(FStagingBuffer* Buffer)
 
 FStagingBufferPool* FStagingBufferPool::GetInstance()
 {
-    static FStagingBufferPool Instance;
-    return &Instance;
+    static FStagingBufferPool kInstance;
+    return &kInstance;
 }
 
 FDeviceLocalBuffer::FDeviceLocalBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage)

@@ -47,6 +47,18 @@ inline void FShaderResourceManager::CreateBuffer(const FUniformBufferCreateInfo&
     _UniformBuffers.emplace(BufferCreateInfo.Name, std::move(BufferInfo));
 }
 
+NPGS_INLINE void FShaderResourceManager::RemoveBuffer(const std::string& Name)
+{
+    auto it = _UniformBuffers.find(Name);
+    if (it == _UniformBuffers.end())
+    {
+        NpgsCoreError("Failed to find buffer \"{}\".", Name);
+        return;
+    }
+
+    _UniformBuffers.erase(it);
+}
+
 template <typename StructType>
 requires std::is_class_v<StructType>
 inline void FShaderResourceManager::UpdateEntrieBuffers(const std::string& Name, const StructType& Data)
