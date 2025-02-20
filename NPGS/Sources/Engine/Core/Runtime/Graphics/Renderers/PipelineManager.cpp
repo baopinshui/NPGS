@@ -21,6 +21,20 @@ void FPipelineManager::CreatePipeline(const std::string& PipelineName, const std
 
     VulkanContext->WaitIdle();
 
+    if (ShaderName == "")
+    {
+        GraphicsPipelineCreateInfoPack.Update();
+        FVulkanPipelineLayout PipelineLayout(GraphicsPipelineCreateInfoPack.GraphicsPipelineCreateInfo.layout, "Pipeline layout");
+        _PipelineLayouts.emplace(PipelineName, std::move(PipelineLayout));
+
+        FVulkanPipeline Pipeline(GraphicsPipelineCreateInfoPack);
+        _Pipelines.emplace(PipelineName, std::move(Pipeline));
+
+        RegisterCallback(PipelineName, EPipelineType::kGraphics);
+
+        return;
+    }
+
     vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
     auto NativeArray = Shader->GetDescriptorSetLayouts();
     PipelineLayoutCreateInfo.setSetLayouts(NativeArray);

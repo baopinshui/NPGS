@@ -55,6 +55,18 @@ std::vector<FQuadVertex> QuadVertices
     { {  1.0f,  1.0f }, { 1.0f, 0.0f } }
 };
 
+std::vector<FQuadOnlyVertex> QuadOnlyVertices
+{
+    // positions
+    { { -1.0f,  1.0f } },
+    { { -1.0f, -1.0f } },
+    { {  1.0f, -1.0f } },
+
+    { { -1.0f,  1.0f } },
+    { {  1.0f, -1.0f } },
+    { {  1.0f,  1.0f } }
+};
+
 std::vector<glm::vec3> CubePositions
 {
     glm::vec3( 0.0f,  0.0f,  0.0f), 
