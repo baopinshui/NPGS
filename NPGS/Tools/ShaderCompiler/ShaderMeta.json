@@ -4,6 +4,6 @@
   "BasicLighting_Lamp.frag.spv": "68ae4100e49641076aee6d8969fcd3c1",
   "PostProcess.frag.spv": "975f967549531b553d3deb117c761a1c",
   "PostProcess.vert.spv": "7d66a1afad0b1a2a122d6c835ebf20c8",
-  "BlackHole.frag.spv": "efaeeda03e26110084c5cf333e434e85",
+  "BlackHole.frag.spv": "d5e3ccc3ca0357f5d228f534129f7b3d",
   "BlackHole.vert.spv": "a32ee4a262877ffe57c4bf9181ba984a"
 }

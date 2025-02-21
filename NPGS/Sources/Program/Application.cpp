@@ -10,6 +10,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "Engine/Core/Base/Config/EngineConfig.h"
+#include "Engine/Core/Math/NumericConstants.h"
 #include "Engine/Core/Runtime/AssetLoaders/AssetManager.h"
 #include "Engine/Core/Runtime/AssetLoaders/Shader.h"
 #include "Engine/Core/Runtime/AssetLoaders/Texture.h"
@@ -532,7 +533,7 @@ void FApplication::ExecuteMainRender()
         BlackHoleArgs.Resolution       = glm::vec2(_WindowSize.width, _WindowSize.height);
         BlackHoleArgs.FovRadians       = glm::radians(_FreeCamera->GetCameraZoom());
         BlackHoleArgs.Time             = static_cast<float>(glfwGetTime());
-        BlackHoleArgs.TimeRate         = 30.0f;
+        BlackHoleArgs.TimeRate         = 3000.0f;
         BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
         BlackHoleArgs.Spin             = 0.0f;
         BlackHoleArgs.Mu               = 1.0f;

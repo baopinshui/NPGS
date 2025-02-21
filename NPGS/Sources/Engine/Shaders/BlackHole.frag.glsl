@@ -33,7 +33,7 @@ float RandomStep(vec2 Input, float Seed)
 
 float CubicInterpolate(float x)
 {
-    return 3.0 * x * x - 2.0 * x * x * x;
+    return 3.0 * pow(x, 2) - 2.0 * pow(x, 3);
 }
 
 float PerlinNoise(vec3 Position)
@@ -65,7 +65,7 @@ float SoftSaturate(float x)
     return 1.0 - 1.0 / (max(x, 0.0) + 1.0);
 }
 
-float GenerateAccretionDiskNoise(vec3 Position, int NoiseStartLevel, int NoiseEndLevel, float ContrastLevel)
+float GenerateDiskNoise(vec3 Position, int NoiseStartLevel, int NoiseEndLevel, float ContrastLevel)
 {
     float NoiseAccumulator = 10.0;
     float NoiseFrequency   = 1.0;
@@ -73,7 +73,9 @@ float GenerateAccretionDiskNoise(vec3 Position, int NoiseStartLevel, int NoiseEn
     for (int Level = NoiseStartLevel; Level < NoiseEndLevel; ++Level)
     {
         NoiseFrequency = pow(3.0, float(Level));
-        vec3 ScaledPosition = vec3(NoiseFrequency * Position.x, NoiseFrequency * Position.y, NoiseFrequency * Position.z);
+        vec3 ScaledPosition = vec3(NoiseFrequency * Position.x,
+                                   NoiseFrequency * Position.y,
+                                   NoiseFrequency * Position.z);
 
         NoiseAccumulator *= (1.0 + 0.1 * PerlinNoise(ScaledPosition));
     }
@@ -124,7 +126,8 @@ vec3 KelvinToRgb(float Kelvin)
 
 float GetKeplerianAngularVelocity(float Radius, float Rs)
 {
-    return sqrt(kSpeedOfLight / kLightYearToMeter * kSpeedOfLight * Rs / kLightYearToMeter / ((2.0 * Radius - 3.0 * Rs) * Radius * Radius));
+    return sqrt(kSpeedOfLight / kLightYearToMeter * kSpeedOfLight * Rs / kLightYearToMeter /
+                ((2.0 * Radius - 3.0 * Rs) * pow(Radius, 2)));
 }
 
 vec3 WorldToBlackHoleSpace(vec4 Position, vec3 BlackHolePos, vec3 DiskNormal,vec3 WorldUpView)
@@ -135,7 +138,7 @@ vec3 WorldToBlackHoleSpace(vec4 Position, vec3 BlackHolePos, vec3 DiskNormal,vec
     }
 
     vec3 BlackHoleSpaceY = normalize(DiskNormal);
-    vec3 BlackHoleSpaceZ = normalize(cross(WorldUpView, BlackHoleSpaceY));
+    vec3 BlackHoleSpaceZ = normalize(cross(WorldUpView,     BlackHoleSpaceY));
     vec3 BlackHoleSpaceX = normalize(cross(BlackHoleSpaceY, BlackHoleSpaceZ));
 
     mat4x4 Translate = mat4x4(1.0, 0.0, 0.0, -BlackHolePos.x,
@@ -148,8 +151,7 @@ vec3 WorldToBlackHoleSpace(vec4 Position, vec3 BlackHolePos, vec3 DiskNormal,vec
                            BlackHoleSpaceZ.x, BlackHoleSpaceZ.y, BlackHoleSpaceZ.z, 0.0,
                            0.0,               0.0,               0.0,               1.0);
 
-    Position = transpose(Translate) * Position;
-    Position = transpose(Rotate)    * Position;
+    Position = transpose(Rotate) * transpose(Translate) * Position;
     return Position.xyz;
 }
 
@@ -161,7 +163,7 @@ vec3 ApplyBlackHoleRelativeotation(vec4 Position, vec3 BlackHolePos, vec3 DiskNo
     }
 
     vec3 BlackHoleSpaceY = normalize(DiskNormal);
-    vec3 BlackHoleSpaceZ = normalize(cross(WorldUpView, BlackHoleSpaceY));
+    vec3 BlackHoleSpaceZ = normalize(cross(WorldUpView,     BlackHoleSpaceY));
     vec3 BlackHoleSpaceX = normalize(cross(BlackHoleSpaceY, BlackHoleSpaceZ));
 
     mat4x4 Rotate = mat4x4(BlackHoleSpaceX.x, BlackHoleSpaceX.y, BlackHoleSpaceX.z, 0.0,
@@ -181,7 +183,7 @@ float Shape(float x, float Alpha, float Beta)
 
 vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, vec3 LastRayPos,
                vec3 RayDir, vec3 LastRayDir, vec3 WorldUpView, vec3 BlackHolePos, vec3 DiskNormal,
-               float Rs, float iInterRadiusLy, float iOuterRadiusLy, float DiskTemperatureArgument,
+               float Rs, float InterRadiusLy, float OuterRadiusLy, float DiskTemperatureArgument,
                float QuadraticedPeakTemperature, float ShiftMax)
 {
     vec3 CameraPos = WorldToBlackHoleSpace(vec4(0.0, 0.0, 0.0, 1.0),  BlackHolePos, DiskNormal, WorldUpView);
@@ -192,23 +194,24 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
     float PosY = PosOnDisk.y;
 
     vec4 Color = vec4(0.0);
-    if (abs(PosY) < 0.5 * Rs && PosR < iOuterRadiusLy && PosR > iInterRadiusLy)
+    if (abs(PosY) < 0.5 * Rs && PosR < OuterRadiusLy && PosR > InterRadiusLy)
     {
-        float EffectiveRadius = 1.0 - ((PosR - iInterRadiusLy) / (iOuterRadiusLy - iInterRadiusLy) * 0.5);
-        if ((iOuterRadiusLy - iInterRadiusLy) > 9.0 * Rs)
+        float EffectiveRadius = 1.0 - ((PosR - InterRadiusLy) / (OuterRadiusLy - InterRadiusLy) * 0.5);
+        if ((OuterRadiusLy - InterRadiusLy) > 9.0 * Rs)
         {
-            if (PosR < 5.0 * Rs + iInterRadiusLy)
+            if (PosR < 5.0 * Rs + InterRadiusLy)
             {
-                EffectiveRadius = 1.0 - ((PosR - iInterRadiusLy) / (9.0 * Rs) * 0.5);
+                EffectiveRadius = 1.0 - ((PosR - InterRadiusLy) / (9.0 * Rs) * 0.5);
             }
             else
             {
-                EffectiveRadius = 1.0 - (0.5 / 0.9 * 0.5 + ((PosR - iInterRadiusLy) / (iOuterRadiusLy - iInterRadiusLy) -
-                                  5.0 * Rs / (iOuterRadiusLy - iInterRadiusLy)) / (1.0 - 5.0 * Rs / (iOuterRadiusLy - iInterRadiusLy)) * 0.5);
+                EffectiveRadius = 1.0 - (0.5 / 0.9 * 0.5 + ((PosR - InterRadiusLy) / (OuterRadiusLy - InterRadiusLy) -
+                                  5.0 * Rs / (OuterRadiusLy - InterRadiusLy)) / (1.0 - 5.0 * Rs / (OuterRadiusLy - InterRadiusLy)) * 0.5);
             }
         }
 
-        if ((abs(PosY) < 0.5 * Rs * Shape(EffectiveRadius, 4.0, 0.9)) || (PosY < 0.5 * Rs * (1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0))))
+        if ((abs(PosY) < 0.5 * Rs * Shape(EffectiveRadius, 4.0, 0.9)) ||
+            (PosY < 0.5 * Rs * (1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0))))
         {
             float AngularVelocity  = GetKeplerianAngularVelocity(PosR, Rs);
             float HalfPiTimeInside = kPi / GetKeplerianAngularVelocity(3.0 * Rs, Rs);
@@ -216,13 +219,13 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
             float EffectiveTime1   = fract(iTime * TimeRate / (HalfPiTimeInside) + 0.5) * HalfPiTimeInside + 1.0 * HalfPiTimeInside;
             float PhaseTimeIndex0  = trunc(iTime * TimeRate / (HalfPiTimeInside));
             float PhaseTimeIndex1  = trunc(iTime * TimeRate / (HalfPiTimeInside) + 0.5);
-            float Phase0           = 2.0 * kPi * fract(43758.5453 * sin(PhaseTimeIndex0));
-            float Phase1           = 2.0 * kPi * fract(43758.5453 * sin(PhaseTimeIndex1));
+            float Phase0           = k2Pi * fract(43758.5453 * sin(PhaseTimeIndex0));
+            float Phase1           = k2Pi * fract(43758.5453 * sin(PhaseTimeIndex1));
 
             float PosThetaWithoutTime = Vec2ToTheta(PosOnDisk.zx, vec2(1.0, 0.0));
-            float PosTheta            = fract((PosThetaWithoutTime + AngularVelocity * EffectiveTime0 + Phase0) / 2.0 / kPi) * 2.0 * kPi;
+            float PosTheta            = fract((PosThetaWithoutTime + AngularVelocity * EffectiveTime0 + Phase0) / 2.0 / kPi) * k2Pi;
 
-            float DiskTemperature  = pow(DiskTemperatureArgument * Rs * Rs * Rs / (PosR * PosR * PosR) * max(1.0 - sqrt(iInterRadiusLy / PosR), 0.000001), 0.25);
+            float DiskTemperature  = pow(DiskTemperatureArgument * pow(Rs, 3) / pow(PosR, 3) * max(1.0 - sqrt(InterRadiusLy / PosR), 0.000001), 0.25);
             vec3  CloudVelocity    = kLightYearToMeter / kSpeedOfLight * AngularVelocity * cross(vec3(0.0, 1.0, 0.0), PosOnDisk);
             float RelativeVelocity = dot(-DirOnDisk, CloudVelocity);
 
@@ -239,42 +242,44 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
             Density = Shape(EffectiveRadius, 4.0, 0.9);
             if (abs(PosY) < 0.5 * Rs * Density)
             {
-                Thick = 0.5 * Rs * Density * (0.4 + 0.6 * SoftSaturate(GenerateAccretionDiskNoise(vec3(1.5 * PosTheta, PosR / Rs, 1.0), 1, 3, 80.0)));
+                Thick = 0.5 * Rs * Density * (0.4 + 0.6 * SoftSaturate(GenerateDiskNoise(vec3(1.5 * PosTheta, PosR / Rs, 1.0), 1, 3, 80.0)));
                 VerticalMixFactor = max(0.0, (1.0 - abs(PosY) / Thick));
                 Density    *= 0.7 * VerticalMixFactor * Density;
-                Color0      = vec4(GenerateAccretionDiskNoise(vec3(1.0 * PosR / Rs, 1.0 * PosY / Rs, 0.5 * PosTheta), 3, 6, 80.0));
+                Color0      = vec4(GenerateDiskNoise(vec3(1.0 * PosR / Rs, 1.0 * PosY / Rs, 0.5 * PosTheta), 3, 6, 80.0));
                 Color0.xyz *= Density * 1.4 * (0.2 + 0.8 * VerticalMixFactor + (0.8 - 0.8 * VerticalMixFactor) *
-                              GenerateAccretionDiskNoise(vec3(PosR / Rs, 1.5 * PosTheta, PosY / Rs), 1, 3, 80.0));
+                              GenerateDiskNoise(vec3(PosR / Rs, 1.5 * PosTheta, PosY / Rs), 1, 3, 80.0));
                 Color0.a   *= Density; // * (1.0 + VerticalMixFactor);
             }
             if (abs(PosY) < 0.5 * Rs * (1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0)))
             {
-                DustColor = max(1.0 - pow(PosY / (0.5 * Rs * max(1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0), 0.0001)), 2.0), 0.0) * GenerateAccretionDiskNoise(vec3(1.5 * fract((1.5 * PosThetaWithoutTime + kPi / HalfPiTimeInside * EffectiveTime0 + Phase0) / 2.0 / kPi) * 2.0 * kPi, PosR / Rs, PosY / Rs), 0, 6, 80.0);
+                DustColor = max(1.0 - pow(PosY / (0.5 * Rs * max(1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0), 0.0001)), 2.0), 0.0) *
+                            GenerateDiskNoise(vec3(1.5 * fract((1.5 * PosThetaWithoutTime + kPi / HalfPiTimeInside * EffectiveTime0 + Phase0) / 2.0 / kPi) * k2Pi, PosR / Rs, PosY / Rs), 0, 6, 80.0);
                 Color0 += 0.02 * vec4(vec3(DustColor), 0.2 * DustColor) * sqrt(1.0001 - DirOnDisk.y * DirOnDisk.y) * min(1.0, Dopler * Dopler);
             }
-            Color0 *= 0.5 - 0.5 * cos(2. * kPi * fract(iTime * TimeRate / (HalfPiTimeInside)));
+            Color0 *= 0.5 - 0.5 * cos(k2Pi * fract(iTime * TimeRate / (HalfPiTimeInside)));
 
-            PosTheta = fract((PosThetaWithoutTime + AngularVelocity * EffectiveTime1 + Phase1) / (2.0 * kPi)) * 2.0 * kPi;
+            PosTheta = fract((PosThetaWithoutTime + AngularVelocity * EffectiveTime1 + Phase1) / (k2Pi)) * k2Pi;
 
             Density = Shape(EffectiveRadius, 4.0, 0.9);
             if (abs(PosY) < 0.5 * Rs * Density)
             {
-                Thick = 0.5 * Rs * Density * (0.4 + 0.6 * SoftSaturate(GenerateAccretionDiskNoise(vec3(1.5 * PosTheta, PosR / Rs, 1.0), 1, 3, 80.0)));
+                Thick = 0.5 * Rs * Density * (0.4 + 0.6 * SoftSaturate(GenerateDiskNoise(vec3(1.5 * PosTheta, PosR / Rs, 1.0), 1, 3, 80.0)));
                 VerticalMixFactor = max(0.0, (1.0 - abs(PosY) / Thick));
                 Density    *= 0.7 * VerticalMixFactor * Density;
-                Color1      = vec4(GenerateAccretionDiskNoise(vec3(1.0 * PosR / Rs, 1.0 * PosY / Rs, 0.5 * PosTheta), 3, 6, 80.0));
-                Color1.xyz *= Density * 1.4 * (0.2 + 0.8 * VerticalMixFactor + (0.8 - 0.8 * VerticalMixFactor) * GenerateAccretionDiskNoise(vec3(PosR / Rs, 1.5 * PosTheta, PosY / Rs), 1, 3, 80.0));
+                Color1      = vec4(GenerateDiskNoise(vec3(1.0 * PosR / Rs, 1.0 * PosY / Rs, 0.5 * PosTheta), 3, 6, 80.0));
+                Color1.xyz *= Density * 1.4 * (0.2 + 0.8 * VerticalMixFactor + (0.8 - 0.8 * VerticalMixFactor) * GenerateDiskNoise(vec3(PosR / Rs, 1.5 * PosTheta, PosY / Rs), 1, 3, 80.0));
                 Color1.a   *= Density; // * (1.0 + VerticalMixFactor);
             }
             if (abs(PosY) < 0.5 * Rs * (1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0)))
             {
-                DustColor = max(1. - pow(PosY / (0.5 * Rs * max(1. - 5. * pow(2.0 * (1. - EffectiveRadius), 2.0), 0.0001)), 2.0), 0.0) * GenerateAccretionDiskNoise(vec3(1.5 * fract((1.5 * PosThetaWithoutTime + kPi / HalfPiTimeInside * EffectiveTime1 + Phase1) / 2.0 / kPi) * 2.0 * kPi, PosR / Rs, PosY / Rs), 0, 6, 80.0);
+                DustColor = max(1.0 - pow(PosY / (0.5 * Rs * max(1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0), 0.0001)), 2.0), 0.0) *
+                            GenerateDiskNoise(vec3(1.5 * fract((1.5 * PosThetaWithoutTime + kPi / HalfPiTimeInside * EffectiveTime1 + Phase1) / 2.0 / kPi) * k2Pi, PosR / Rs, PosY / Rs), 0, 6, 80.0);
                 Color1 += 0.02 * vec4(vec3(DustColor), 0.2 * DustColor) * sqrt(1.0001 - DirOnDisk.y * DirOnDisk.y) * min(1.0, Dopler * Dopler);
             }
-            Color1 *= 0.5 - 0.5 * cos(2.0 * kPi * fract(iTime * TimeRate / (HalfPiTimeInside) + 0.5));
+            Color1 *= 0.5 - 0.5 * cos(k2Pi * fract(iTime * TimeRate / (HalfPiTimeInside) + 0.5));
 
             Color = Color1 + Color0;
-            Color *= 1.0 + 20.0 * exp(-10.0 * (PosR - iInterRadiusLy) / (iOuterRadiusLy - iInterRadiusLy));
+            Color *= 1.0 + 20.0 * exp(-10.0 * (PosR - InterRadiusLy) / (OuterRadiusLy - InterRadiusLy));
 
             float BrightWithoutRedShift = 4.5 * pow(DiskTemperature, 4) / QuadraticedPeakTemperature;
             if (DiskTemperature > 1000.0)
@@ -284,12 +289,12 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
 
             DiskTemperature = min(100000.0, DiskTemperature);
 
-            Color.xyz *= BrightWithoutRedShift * min(1.0, 1.8 * (iOuterRadiusLy - PosR) / (iOuterRadiusLy - iInterRadiusLy)) *
-                         KelvinToRgb(DiskTemperature / exp((PosR - iInterRadiusLy) / (0.6 * (iOuterRadiusLy - iInterRadiusLy))));
+            Color.xyz *= BrightWithoutRedShift * min(1.0, 1.8 * (OuterRadiusLy - PosR) / (OuterRadiusLy - InterRadiusLy)) *
+                         KelvinToRgb(DiskTemperature / exp((PosR - InterRadiusLy) / (0.6 * (OuterRadiusLy - InterRadiusLy))));
             Color.xyz *= min(ShiftMax, RedShift) * min(ShiftMax, Dopler);
 
-            Color.xyz *= pow((1.0 - (1.0 - min(1.0, RedShift)) * (PosR - iInterRadiusLy) / (iOuterRadiusLy - iInterRadiusLy)), 9.0);
-            Color.xyz *= min(1.0, 1.0 + 0.5 * ((PosR - iInterRadiusLy) / iInterRadiusLy + iInterRadiusLy / (PosR - iInterRadiusLy)) - max(1.0, RedShift));
+            Color.xyz *= pow((1.0 - (1.0 - min(1.0, RedShift)) * (PosR - InterRadiusLy) / (OuterRadiusLy - InterRadiusLy)), 9.0);
+            Color.xyz *= min(1.0, 1.0 + 0.5 * ((PosR - InterRadiusLy) / InterRadiusLy + InterRadiusLy / (PosR - InterRadiusLy)) - max(1.0, RedShift));
 
             Color *= StepLength / Rs;
         }
@@ -304,13 +309,13 @@ void main()
     vec2  FragUv = gl_FragCoord.xy / iResolution.xy;
     float Fov    = tan(iFovRadians / 2.0);
 
-    float Rs = 2.0 * iBlackHoleMassSol * kGravityConstant / kSpeedOfLight / kSpeedOfLight * kSolarMass;
-    float z1 = 1.0 + pow(1.0 - iSpin * iSpin, 0.333333333333333) * (pow(1.0 + iSpin * iSpin, 0.333333333333333) + pow(1.0 - iSpin, 0.333333333333333)); // 辅助变量
-    float RmsRatio = (3.0 + sqrt(3.0 * iSpin * iSpin + z1 * z1) - sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * sqrt(3.0 * iSpin * iSpin + z1 * z1)))) / 2.0;     // 赤道顺行最内稳定圆轨与视界半径之比
+    float Rs = 2.0 * iBlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass;
+    float z1 = 1.0 + pow(1.0 - pow(iSpin, 2), 0.333333333333333) * (pow(1.0 + pow(iSpin, 2), 0.333333333333333) + pow(1.0 - iSpin, 0.333333333333333)); // 辅助变量
+    float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpin, 2) + z1 * z1) - sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * sqrt(3.0 * pow(iSpin, 2) + z1 * z1)))) / 2.0;     // 赤道顺行最内稳定圆轨与视界半径之比
     float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); // 吸积放能效率，以落到最内稳定圆轨为基准
 
-    float EddingtonAccRate = 6.327 * iMu / kSpeedOfLight / kSpeedOfLight * iBlackHoleMassSol * kSolarMass / AccretionEffective;           // 爱丁顿吸积率
-    float DiskArgument = 3.0 * kGravityConstant * kSolarMass / Rs / Rs / Rs * iBlackHoleMassSol * iAccretionRate / (8.0 * kPi * kSigma);  // 吸积盘温度系数
+    float EddingtonAccRate = 6.327 * iMu / pow(kSpeedOfLight, 2) * iBlackHoleMassSol * kSolarMass / AccretionEffective;         // 爱丁顿吸积率
+    float DiskArgument = 3.0 * kGravityConstant * kSolarMass / pow(Rs, 3) * iBlackHoleMassSol * iAccretionRate / (8.0 * kPi * kSigma);  // 吸积盘温度系数
 
     // 计算峰值温度的四次方，用于自适应亮度。峰值温度出现在 49 * iInterRadiusLy / 36 处
     float QuadraticedPeakTemperature = DiskArgument * 0.05665278;
@@ -368,8 +373,8 @@ void main()
         LastRayPos   = RayPos;
         LastRayDir   = RayDir;
         LastDistance = DistanceToBlackHole;
-        CosTheta     = length(cross(NormalizedPosToBlackHole, RayDir));                          // 前进方向与切向夹角
-        DeltaPhiRate = -1.0 * CosTheta * CosTheta * CosTheta * (1.5 * Rs / DistanceToBlackHole); // 单位长度光偏折角
+        CosTheta     = length(cross(NormalizedPosToBlackHole, RayDir)); // 前进方向与切向夹角
+        DeltaPhiRate = -1.0 * pow(CosTheta, 3) * (1.5 * Rs / DistanceToBlackHole); // 单位长度光偏折角
 
         if (Count == 0)
         {
@@ -395,7 +400,7 @@ void main()
         {
             RayStep *= max(abs(dot(BlackHoleRelativeDiskNormal, PosToBlackHole)), Rs);
         }
-        else if ((DistanceToBlackHole) > 2. * Rs)
+        else if ((DistanceToBlackHole) > 2.0 * Rs)
         {
             RayStep *= (max(abs(dot(BlackHoleRelativeDiskNormal, PosToBlackHole)), Rs) * (DistanceToBlackHole - 2.0 * Rs) +
                         DistanceToBlackHole * (iInterRadiusLy - DistanceToBlackHole)) / (iInterRadiusLy - 2.0 * Rs);
@@ -418,14 +423,14 @@ void main()
     // float colorBFactor = Result.b / Result.g;
 
     // float bloomMax = 12.0;
-    // Result.r    = min(-4.0 * log(1. - pow(Result.r, 2.2)), bloomMax * colorRFactor);
-    // Result.g    = min(-4.0 * log(1. - pow(Result.g, 2.2)), bloomMax);
-    // Result.b    = min(-4.0 * log(1. - pow(Result.b, 2.2)), bloomMax * colorBFactor);
-    // Result.a    = min(-4.0 * log(1. - pow(Result.a, 2.2)), 4.0);
+    // Result.r    = min(-4.0 * log(1.0 - pow(Result.r, 2.2)), bloomMax * colorRFactor);
+    // Result.g    = min(-4.0 * log(1.0 - pow(Result.g, 2.2)), bloomMax);
+    // Result.b    = min(-4.0 * log(1.0 - pow(Result.b, 2.2)), bloomMax * colorBFactor);
+    // Result.a    = min(-4.0 * log(1.0 - pow(Result.a, 2.2)), 4.0);
 
     // // TAA
 
-    // float blendWeight = 1.0 - pow(0.5, (iTimeDelta) / max(min((0.131 * 36.0 / (TimeRate) * (GetKeplerianAngularVelocity(3. * 0.00000465, 0.00000465)) / (GetKeplerianAngularVelocity(3. * Rs, Rs))), 0.3),
+    // float blendWeight = 1.0 - pow(0.5, (iTimeDelta) / max(min((0.131 * 36.0 / (TimeRate) * (GetKeplerianAngularVelocity(3.0 * 0.00000465, 0.00000465)) / (GetKeplerianAngularVelocity(3.0 * Rs, Rs))), 0.3),
     //                                                       0.02));  // 本部分在实际使用时max(min((0.131*36.0/(TimeRate)*(omega(3.*0.00000465,0.00000465))/(omega(3.*Rs,Rs))),0.3),0.02)由uniform输入
     // blendWeight       = (iFrame < 2 || iMouse.z > 0.0) ? 1.0 : blendWeight;
 
