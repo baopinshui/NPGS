@@ -390,7 +390,7 @@ void FTextureBase::CreateImageView(vk::ImageViewType ImageViewType, vk::Format F
 void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Extent, std::uint32_t MipLevels, std::uint32_t ArrayLayers,
                                            vk::Filter Filter, vk::Image DstImageSrcBlit, vk::Image DstImageDstBlit)
 {
-    static constexpr std::array Barriers
+    static constexpr std::array kBarriers
     {
         Graphics::FImageMemoryBarrierParameterPack(vk::PipelineStageFlagBits::eFragmentShader,
                                                    vk::AccessFlagBits::eShaderRead,
@@ -418,7 +418,7 @@ void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Ex
     Graphics::FImageMemoryBarrierParameterPack CopyBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
                                                            vk::AccessFlagBits::eNone,
                                                            vk::ImageLayout::eUndefined);
-    CopyBufferToImage(CommandBuffer, SrcBuffer, CopyBarrier, Barriers[bGenerateMipmaps || bNeedBlit], BufferImageCopy, DstImageSrcBlit);
+    CopyBufferToImage(CommandBuffer, SrcBuffer, CopyBarrier, kBarriers[bGenerateMipmaps || bNeedBlit], BufferImageCopy, DstImageSrcBlit);
 
     if (bNeedBlit)
     {
@@ -431,12 +431,12 @@ void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Ex
         Graphics::FImageMemoryBarrierParameterPack BlitBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
                                                                vk::AccessFlagBits::eNone,
                                                                vk::ImageLayout::eUndefined);
-        BlitImage(CommandBuffer, DstImageSrcBlit, BlitBarrier, Barriers[bGenerateMipmaps], Region, Filter, DstImageDstBlit);
+        BlitImage(CommandBuffer, DstImageSrcBlit, BlitBarrier, kBarriers[bGenerateMipmaps], Region, Filter, DstImageDstBlit);
     }
 
     if (bGenerateMipmaps)
     {
-        GenerateMipmaps(CommandBuffer, DstImageDstBlit, Extent, MipLevels, ArrayLayers, Filter, Barriers[0]);
+        GenerateMipmaps(CommandBuffer, DstImageDstBlit, Extent, MipLevels, ArrayLayers, Filter, kBarriers[0]);
     }
 
     CommandBuffer.End();
@@ -445,7 +445,7 @@ void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Ex
 
 void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, std::uint32_t MipLevels, std::uint32_t ArrayLayers, vk::Filter Filter, vk::Image DstImage)
 {
-    static constexpr std::array Barriers
+    static constexpr std::array kBarriers
     {
         Graphics::FImageMemoryBarrierParameterPack(vk::PipelineStageFlagBits::eFragmentShader,
                                                    vk::AccessFlagBits::eShaderRead,
@@ -487,12 +487,12 @@ void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, 
             Graphics::FImageMemoryBarrierParameterPack BlitBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
                                                                    vk::AccessFlagBits::eNone,
                                                                    vk::ImageLayout::eUndefined);
-            BlitImage(CommandBuffer, SrcImage, BlitBarrier, Barriers[bGenerateMipmaps], Region, Filter, DstImage);
+            BlitImage(CommandBuffer, SrcImage, BlitBarrier, kBarriers[bGenerateMipmaps], Region, Filter, DstImage);
         }
 
         if (bGenerateMipmaps)
         {
-            GenerateMipmaps(CommandBuffer, DstImage, Extent, MipLevels, ArrayLayers, Filter, Barriers[0]);
+            GenerateMipmaps(CommandBuffer, DstImage, Extent, MipLevels, ArrayLayers, Filter, kBarriers[0]);
         }
 
         CommandBuffer.End();
