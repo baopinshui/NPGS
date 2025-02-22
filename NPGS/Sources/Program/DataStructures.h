@@ -6,7 +6,7 @@
 // --------------
 struct FVertex
 {
-    glm::vec3 Postion;
+    glm::vec3 Position;
     glm::vec3 Normal;
     glm::vec2 TexCoord;
 };
@@ -45,3 +45,30 @@ struct FBlackHoleArgs
     float InterRadiusLy;
     float OuterRadiusLy;
 } BlackHoleArgs{};
+
+struct FMatrices
+{
+    glm::aligned_mat4x4 View{ glm::mat4x4(1.0f) };
+    glm::aligned_mat4x4 Projection{ glm::mat4x4(1.0f) };
+    glm::aligned_mat3x3 NormalMatrix{ glm::mat3x3(1.0f) };
+} Matrices;
+
+struct FMaterial
+{
+    alignas(16) float Shininess;
+};
+
+struct FLight
+{
+    glm::aligned_vec3 Position;
+    glm::aligned_vec3 Ambient;
+    glm::aligned_vec3 Diffuse;
+    glm::aligned_vec3 Specular;
+};
+
+struct FLightMaterial
+{
+    FMaterial         Material;
+    FLight            Light;
+    glm::aligned_vec3 ViewPos;
+} LightMaterial;

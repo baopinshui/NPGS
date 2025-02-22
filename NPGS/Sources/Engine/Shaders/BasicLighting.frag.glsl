@@ -5,7 +5,6 @@ layout(location = 0) in  vec2 TexCoordFromVert;
 layout(location = 1) in  vec3 NormalFromVert;
 layout(location = 2) in  vec3 FragPosFromVert;
 layout(location = 0) out vec4 FragColor;
-layout(location = 1) out vec4 FragColor2;
 
 struct FMaterial
 {
@@ -34,7 +33,6 @@ void main()
 {
 #ifdef LAMP_BOX
     FragColor  = vec4(1.0, 1.0, 1.0, 1.0);
-    FragColor2 = vec4(0.0, 0.0, 1.0, 1.0);
 #else
     vec3 AmbientColor = iLight.Ambient * texture(sampler2D(iTextures[0], iSampler), TexCoordFromVert).rgb;
 
