@@ -25,5 +25,6 @@
 #define NPGS_ENABLE_CONSOLE_LOGGER
 #else
 #define GLM_FORCE_INLINE
+#define NPGS_ENABLE_FILE_LOGGER
 #endif // _RELEASE
 #include "Engine/Utils/Logger.h"

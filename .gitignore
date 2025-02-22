@@ -364,6 +364,8 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
+/Package/
+
 # Vcpkg 
 /NPGS/vcpkg_installed/
 .vcpkg/

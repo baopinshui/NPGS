@@ -471,7 +471,7 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
             std::vector<vk::VertexInputBindingDescription>(UniqueBindings.begin(), UniqueBindings.end());
     }
 
-    NpgsCoreInfo("Shader reflection completed.");
+    NpgsCoreTrace("Shader reflection completed.");
 }
 
 void FShader::CreateDescriptors()

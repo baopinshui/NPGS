@@ -1,5 +1,4 @@
 #version 450
-#extension GL_EXT_debug_printf : enable
 #pragma shader_stage(fragment)
 
 layout(location = 0) in  vec2 TexCoordFromVert;

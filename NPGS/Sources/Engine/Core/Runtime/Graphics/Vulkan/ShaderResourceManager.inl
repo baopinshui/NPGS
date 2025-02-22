@@ -13,7 +13,7 @@ _GRAPHICS_BEGIN
 
 template <typename StructType>
 requires std::is_class_v<StructType>
-inline void FShaderResourceManager::CreateBuffer(const FUniformBufferCreateInfo& BufferCreateInfo)
+inline void FShaderResourceManager::CreateBuffers(const FUniformBufferCreateInfo& BufferCreateInfo, std::uint32_t BufferCount)
 {
     const auto* VulkanContext = FVulkanContext::GetClassInstance();
     FUniformBufferInfo BufferInfo;
@@ -24,11 +24,13 @@ inline void FShaderResourceManager::CreateBuffer(const FUniformBufferCreateInfo&
     Util::ForEachField(Buffer, [&](const auto& Field, std::size_t Index)
     {
         FBufferFieldInfo FieldInfo;
-        FieldInfo.Offset    = reinterpret_cast<const std::byte*>(&Field) - reinterpret_cast<const std::byte*>(&Buffer);
         FieldInfo.Size      = sizeof(decltype(Field));
         FieldInfo.Alignment = BufferCreateInfo.Usage == vk::DescriptorType::eUniformBufferDynamic
                             ? (FieldInfo.Size + MinUniformAlignment - 1) & ~(MinUniformAlignment - 1)
                             : FieldInfo.Size;
+        FieldInfo.Offset    = BufferCreateInfo.Usage == vk::DescriptorType::eUniformBufferDynamic
+                            ? BufferInfo.Size
+                            : reinterpret_cast<const std::byte*>(&Field) - reinterpret_cast<const std::byte*>(&Buffer);
 
         BufferInfo.Size += FieldInfo.Alignment;
         BufferInfo.Fields.emplace(BufferCreateInfo.Fields[Index], std::move(FieldInfo));
@@ -36,8 +38,10 @@ inline void FShaderResourceManager::CreateBuffer(const FUniformBufferCreateInfo&
 
     StructType EmptyData{};
 
-    BufferInfo.Buffers.reserve(Config::Graphics::kMaxFrameInFlight);
-    for (std::uint32_t i = 0; i != Config::Graphics::kMaxFrameInFlight; ++i)
+    BufferCount = BufferCount ? BufferCount : Config::Graphics::kMaxFrameInFlight;
+
+    BufferInfo.Buffers.reserve(BufferCount);
+    for (std::uint32_t i = 0; i != BufferCount; ++i)
     {
         BufferInfo.Buffers.emplace_back(BufferInfo.Size, vk::BufferUsageFlagBits::eUniformBuffer);
         BufferInfo.Buffers[i].EnablePersistentMapping();
@@ -63,16 +67,17 @@ template <typename StructType>
 requires std::is_class_v<StructType>
 inline void FShaderResourceManager::UpdateEntrieBuffers(const std::string& Name, const StructType& Data)
 {
-    auto it = _UniformBuffers.find(Name);
-    if (it == _UniformBuffers.end())
-    {
-        NpgsCoreError("Failed to find buffer \"{}\".", Name);
-        return;
-    }
+    // auto it = _UniformBuffers.find(Name);
+    // if (it == _UniformBuffers.end())
+    // {
+    //     NpgsCoreError("Failed to find buffer \"{}\".", Name);
+    //     return;
+    // }
 
+    auto& UniformBuffers = _UniformBuffers.at(Name);
     for (std::uint32_t i = 0; i != Config::Graphics::kMaxFrameInFlight; ++i)
     {
-        it->second.Buffers[i].CopyData(0, 0, it->second.Size, &Data);
+        UniformBuffers.Buffers[i].CopyData(0, 0, UniformBuffers.Size, &Data);
     }
 }
 
@@ -80,14 +85,17 @@ template <typename StructType>
 requires std::is_class_v<StructType>
 inline void FShaderResourceManager::UpdateEntrieBuffer(std::uint32_t FrameIndex, const std::string& Name, const StructType& Data)
 {
-    auto it = _UniformBuffers.find(Name);
-    if (it == _UniformBuffers.end())
-    {
-        NpgsCoreError("Failed to find buffer \"{}\".", Name);
-        return;
-    }
+    // auto it = _UniformBuffers.find(Name);
+    // if (it == _UniformBuffers.end())
+    // {
+    //     NpgsCoreError("Failed to find buffer \"{}\".", Name);
+    //     return;
+    // }
 
-    it->second.Buffers[FrameIndex].CopyData(0, 0, it->second.Size, &Data);
+    // it->second.Buffers[FrameIndex].CopyData(0, 0, it->second.Size, &Data);
+
+    auto& UniformBuffers = _UniformBuffers.at(Name);
+    UniformBuffers.Buffers[FrameIndex].CopyData(0, 0, UniformBuffers.Size, &Data);
 }
 
 template<typename FieldType>

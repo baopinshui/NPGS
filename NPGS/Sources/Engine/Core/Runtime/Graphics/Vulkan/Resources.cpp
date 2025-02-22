@@ -17,7 +17,7 @@ _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
 FColorAttachment::FColorAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
-                                   vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlagBits ExtraUsage)
+                                   vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage)
 {
     vk::Result Result = CreateAttachment(Format, Extent, LayerCount, SampleCount, ExtraUsage);
     if (Result != vk::Result::eSuccess)
@@ -48,7 +48,7 @@ bool FColorAttachment::CheckFormatAvailability(vk::Format Format, bool bSupportB
 }
 
 vk::Result FColorAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
-                                              vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlagBits ExtraUsage)
+                                              vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage)
 {
     vk::ImageCreateInfo ImageCreateInfo;
     ImageCreateInfo.setImageType(vk::ImageType::e2D)
@@ -86,7 +86,8 @@ vk::Result FColorAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Ex
     return vk::Result::eSuccess;
 }
 
-FDepthStencilAttachment::FDepthStencilAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlagBits ExtraUsage, bool bStencilOnly)
+FDepthStencilAttachment::FDepthStencilAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
+                                                 vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly)
 {
     vk::Result Result = CreateAttachment(Format, Extent, LayerCount, SampleCount, ExtraUsage, bStencilOnly);
     if (Result != vk::Result::eSuccess)
@@ -106,7 +107,8 @@ bool FDepthStencilAttachment::CheckFormatAvailability(vk::Format Format)
     return false;
 }
 
-vk::Result FDepthStencilAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlagBits ExtraUsage, bool bStencilOnly)
+vk::Result FDepthStencilAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
+                                                     vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly)
 {
     vk::ImageCreateInfo ImageCreateInfo;
     ImageCreateInfo.setImageType(vk::ImageType::e2D)

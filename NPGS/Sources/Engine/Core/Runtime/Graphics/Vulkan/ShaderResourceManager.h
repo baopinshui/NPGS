@@ -75,7 +75,7 @@ private:
 public:
     template <typename StructType>
     requires std::is_class_v<StructType>
-    void CreateBuffer(const FUniformBufferCreateInfo& BufferCreateInfo);
+    void CreateBuffers(const FUniformBufferCreateInfo& BufferCreateInfo, std::uint32_t BufferCount = 0);
 
     void RemoveBuffer(const std::string& Name);
 
@@ -93,8 +93,8 @@ public:
     template <typename FieldType>
     TUpdater<FieldType> GetFieldUpdater(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& FieldName) const;
 
-    void BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName);
-    void BindShaderToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& ShaderName);
+    void BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName, vk::DeviceSize Range = 0);
+    void BindShaderToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& ShaderName, vk::DeviceSize Range = 0);
     void BindShadersToBuffers(const std::string& BufferName, const std::vector<std::string>& ShaderNames);
     void BindShadersToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::vector<std::string>& ShaderNames);
 

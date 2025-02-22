@@ -1,5 +1,6 @@
 #include "Logger.h"
 
+#include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 _NPGS_BEGIN
@@ -15,6 +16,7 @@ void FLogger::Initialize()
     // %v 是实际的日志消息
     spdlog::set_pattern("[%T][%^%l%$] %n: %v");
 
+#if defined(NPGS_ENABLE_CONSOLE_LOGGER)
     _kCoreLogger   = spdlog::stdout_color_mt("NPGS");
     _kClientLogger = spdlog::stdout_color_mt("App");
 
@@ -29,6 +31,10 @@ void FLogger::Initialize()
     {
         ConsoleSink->set_color(spdlog::level::trace, FOREGROUND_BLUE | FOREGROUND_INTENSITY);
     }
+#elif defined(NPGS_ENABLE_FILE_LOGGER)
+    _kCoreLogger   = spdlog::basic_logger_mt("NPGS", "NpgsCore.log", true);
+    _kClientLogger = spdlog::basic_logger_mt("App",  "Npgs.log",     true);
+#endif
 
     _kCoreLogger->set_level(spdlog::level::trace);
     _kClientLogger->set_level(spdlog::level::trace);

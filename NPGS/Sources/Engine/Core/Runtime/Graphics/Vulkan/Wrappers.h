@@ -437,7 +437,7 @@ public:
             ReleaseHandle();
             if constexpr (bEnableReleaseInfoOutput)
             {
-                NpgsCoreInfo(_ReleaseInfo);
+                NpgsCoreTrace(_ReleaseInfo);
             }
         }
     }

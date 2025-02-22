@@ -300,7 +300,7 @@ vk::Result FVulkanCommandPool::AllocateBuffer(vk::CommandBufferLevel Level, vk::
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Command buffer allocated successfully.");
+    NpgsCoreTrace("Command buffer allocated successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -317,7 +317,7 @@ vk::Result FVulkanCommandPool::AllocateBuffer(vk::CommandBufferLevel Level, FVul
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Command buffer allocated successfully.");
+    NpgsCoreTrace("Command buffer allocated successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -334,7 +334,7 @@ vk::Result FVulkanCommandPool::AllocateBuffers(vk::CommandBufferLevel Level, std
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Command buffers allocated successfully.");
+    NpgsCoreTrace("Command buffers allocated successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -358,7 +358,7 @@ vk::Result FVulkanCommandPool::AllocateBuffers(vk::CommandBufferLevel Level, std
         *Buffers[i] = CommandBuffers[i];
     }
 
-    NpgsCoreInfo("Command buffers allocated successfully.");
+    NpgsCoreTrace("Command buffers allocated successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -366,7 +366,7 @@ vk::Result FVulkanCommandPool::FreeBuffer(vk::CommandBuffer& Buffer) const
 {
     _Device.freeCommandBuffers(_Handle, Buffer);
     Buffer = vk::CommandBuffer();
-    NpgsCoreInfo("Command buffer freed successfully.");
+    NpgsCoreTrace("Command buffer freed successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -379,7 +379,7 @@ vk::Result FVulkanCommandPool::FreeBuffers(std::vector<vk::CommandBuffer>& Buffe
 {
     _Device.freeCommandBuffers(_Handle, Buffers);
     Buffers.clear();
-    NpgsCoreInfo("Command buffers freed successfully.");
+    NpgsCoreTrace("Command buffers freed successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -408,7 +408,7 @@ vk::Result FVulkanCommandPool::CreateCommandPool(vk::CommandPoolCreateInfo& Crea
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Command pool created successfully.");
+    NpgsCoreTrace("Command pool created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -626,7 +626,7 @@ vk::Result FVulkanDeviceMemory::AllocateDeviceMemory(const vk::MemoryAllocateInf
     _AllocationSize      = AllocateInfo.allocationSize;
     _MemoryPropertyFlags = _PhysicalDeviceMemoryProperties->memoryTypes[AllocateInfo.memoryTypeIndex].propertyFlags;
 
-    NpgsCoreInfo("Device memory allocated successfully.");
+    NpgsCoreTrace("Device memory allocated successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -642,7 +642,7 @@ vk::Result FVulkanDeviceMemory::MapMemory(vk::DeviceSize Offset, vk::DeviceSize 
         return static_cast<vk::Result>(e.code().value());
     }
 
-    // NpgsCoreInfo("Memory mapped successfully.");
+    // NpgsCoreTrace("Memory mapped successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -701,7 +701,7 @@ vk::Result FVulkanBuffer::BindMemory(const FVulkanDeviceMemory& DeviceMemory, vk
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Buffer memory bound successfully.");
+    NpgsCoreTrace("Buffer memory bound successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -717,7 +717,7 @@ vk::Result FVulkanBuffer::CreateBuffer(const vk::BufferCreateInfo& CreateInfo)
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Buffer created successfully.");
+    NpgsCoreTrace("Buffer created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -761,7 +761,7 @@ vk::Result FVulkanBufferView::CreateBufferView(const vk::BufferViewCreateInfo& C
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Buffer view created successfully.");
+    NpgsCoreTrace("Buffer view created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -809,7 +809,7 @@ vk::Result FVulkanDescriptorSetLayout::CreateDescriptorSetLayout(const vk::Descr
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Descriptor set layout created successfully.");
+    NpgsCoreTrace("Descriptor set layout created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -861,7 +861,7 @@ vk::Result FVulkanDescriptorPool::AllocateSets(const std::vector<vk::DescriptorS
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Descriptor sets allocated successfully.");
+    NpgsCoreTrace("Descriptor sets allocated successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -959,7 +959,7 @@ vk::Result FVulkanDescriptorPool::CreateDescriptorPool(const vk::DescriptorPoolC
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Descriptor pool created successfully.");
+    NpgsCoreTrace("Descriptor pool created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1063,7 +1063,7 @@ vk::Result FVulkanFence::CreateFence(const vk::FenceCreateInfo& CreateInfo)
         return static_cast<vk::Result>(e.code().value());
     }
 
-    // NpgsCoreInfo("Fence created successfully.");
+    // NpgsCoreTrace("Fence created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1099,7 +1099,7 @@ vk::Result FVulkanFramebuffer::CreateFramebuffer(const vk::FramebufferCreateInfo
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Framebuffer created successfully.");
+    NpgsCoreTrace("Framebuffer created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1149,7 +1149,7 @@ vk::Result FVulkanImage::BindMemory(const FVulkanDeviceMemory& DeviceMemory, vk:
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Image memory bound successfully.");
+    NpgsCoreTrace("Image memory bound successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1165,7 +1165,7 @@ vk::Result FVulkanImage::CreateImage(const vk::ImageCreateInfo& CreateInfo)
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Image created successfully.");
+    NpgsCoreTrace("Image created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1211,7 +1211,7 @@ vk::Result FVulkanImageView::CreateImageView(const vk::ImageViewCreateInfo& Crea
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Image view created successfully.");
+    NpgsCoreTrace("Image view created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1288,7 +1288,7 @@ vk::Result FVulkanPipelineCache::CreatePipelineCache(const vk::PipelineCacheCrea
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Pipeline cache created successfully.");
+    NpgsCoreTrace("Pipeline cache created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1334,7 +1334,7 @@ vk::Result FVulkanPipeline::CreateGraphicsPipeline(const vk::GraphicsPipelineCre
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Graphics pipeline created successfully");
+    NpgsCoreTrace("Graphics pipeline created successfully");
     return vk::Result::eSuccess;
 }
 
@@ -1352,7 +1352,7 @@ vk::Result FVulkanPipeline::CreateComputePipeline(const vk::ComputePipelineCreat
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Compute pipeline created successfully");
+    NpgsCoreTrace("Compute pipeline created successfully");
     return vk::Result::eSuccess;
 }
 
@@ -1383,7 +1383,7 @@ vk::Result FVulkanPipelineLayout::CreatePipelineLayout(const vk::PipelineLayoutC
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Pipeline layout created successfully");
+    NpgsCoreTrace("Pipeline layout created successfully");
     return vk::Result::eSuccess;
 }
 
@@ -1421,7 +1421,7 @@ vk::Result FVulkanRenderPass::CreateRenderPass(const vk::RenderPassCreateInfo& C
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Render pass created successfully.");
+    NpgsCoreTrace("Render pass created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1451,7 +1451,7 @@ vk::Result FVulkanSampler::CreateSampler(const vk::SamplerCreateInfo& CreateInfo
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Sampler created successfully.");
+    NpgsCoreTrace("Sampler created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1493,7 +1493,7 @@ vk::Result FVulkanSemaphore::CreateSemaphore(const vk::SemaphoreCreateInfo& Crea
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Semaphore created successfully.");
+    NpgsCoreTrace("Semaphore created successfully.");
     return vk::Result::eSuccess;
 }
 
@@ -1541,7 +1541,7 @@ vk::Result FVulkanShaderModule::CreateShaderModule(const vk::ShaderModuleCreateI
         return static_cast<vk::Result>(e.code().value());
     }
 
-    NpgsCoreInfo("Shader module created successfully.");
+    NpgsCoreTrace("Shader module created successfully.");
     return vk::Result::eSuccess;
 }
 

@@ -1,27 +1,35 @@
 #version 450
 #pragma shader_stage(fragment)
+#extension GL_EXT_samplerless_texture_functions : enable
 
 #include "Common/CoordConverter.glsl"
 #include "Common/NumericConstants.glsl"
 
 layout(location = 0) out vec4 FragColor;
-layout(location = 0) in  vec3 WorldUpView;
-layout(location = 1) in  vec3 BlackHoleRelativePos;
-layout(location = 2) in  vec3 BlackHoleRelativeDiskNormal;
 
-layout(set = 0, binding = 1) uniform UniformBuffer
+ layout(set = 0, binding = 0) uniform GameArgs
+ {
+    vec2  iResolution;                  // 视口分辨率
+    float iFovRadians;                  // 视场角（弧度）
+    float iTime;                        // 时间
+    float iTimeDelta;                   // 时间间隔
+    float iTimeRate;                    // 时间速率
+ };
+
+layout(set = 0, binding = 1) uniform BlackHoleArgs
 {
-    vec2  iResolution;       // 视口分辨率
-    float iFovRadians;       // 视场角（弧度）
-    float iTime;             // 时间
-    float iTimeRate;         // 时间速率
-    float iBlackHoleMassSol; // 黑洞质量，单位太阳质量
-    float iSpin;             // 无量纲自旋参数
-    float iMu;               // 吸积物比荷的倒数
-    float iAccretionRate;    // 吸积率
-    float iInterRadiusLy;    // 盘内缘，单位光年
-    float iOuterRadiusLy;    // 盘外缘，单位光年
+    vec3  iWorldUpView;                 // 相机上方向
+    vec3  iBlackHoleRelativePos;        // 黑洞位置
+    vec3  iBlackHoleRelativeDiskNormal; // 吸积盘法线
+    float iBlackHoleMassSol;            // 黑洞质量，单位太阳质量
+    float iSpin;                        // 无量纲自旋参数
+    float iMu;                          // 吸积物比荷的倒数
+    float iAccretionRate;               // 吸积率
+    float iInterRadiusLy;               // 盘内缘，单位光年
+    float iOuterRadiusLy;               // 盘外缘，单位光年
 };
+
+layout(set = 1, binding = 0) uniform texture2D iHistoryTex;
 
 const float kSigma            = 5.670373e-8;
 const float kLightYearToMeter = 9460730472580800.0;
@@ -345,7 +353,7 @@ void main()
     while (bShouldContinueMarchRay)
     {
 
-        PosToBlackHole           = RayPos - BlackHoleRelativePos;
+        PosToBlackHole           = RayPos - iBlackHoleRelativePos;
         DistanceToBlackHole      = length(PosToBlackHole);
         NormalizedPosToBlackHole = PosToBlackHole / DistanceToBlackHole;
 
@@ -361,7 +369,7 @@ void main()
         if (bShouldContinueMarchRay)
         {
             Result = DiskColor(Result, iTimeRate, StepLength, RayPos, LastRayPos, RayDir, LastRayDir,
-                               WorldUpView, BlackHoleRelativePos, BlackHoleRelativeDiskNormal, Rs,
+                               iWorldUpView, iBlackHoleRelativePos, iBlackHoleRelativeDiskNormal, Rs,
                                iInterRadiusLy, iOuterRadiusLy, DiskArgument, QuadraticedPeakTemperature, ShiftMax); // 吸积盘颜色
         }
 
@@ -393,16 +401,16 @@ void main()
         }
         else if ((DistanceToBlackHole) >= 1.0 * iOuterRadiusLy)
         {
-            RayStep *= (max(abs(dot(BlackHoleRelativeDiskNormal, PosToBlackHole)), Rs) * (2.0 * iOuterRadiusLy - DistanceToBlackHole) +
+            RayStep *= (max(abs(dot(iBlackHoleRelativeDiskNormal, PosToBlackHole)), Rs) * (2.0 * iOuterRadiusLy - DistanceToBlackHole) +
                         DistanceToBlackHole * (DistanceToBlackHole - iOuterRadiusLy)) / iOuterRadiusLy;
         }
         else if ((DistanceToBlackHole) >= iInterRadiusLy)
         {
-            RayStep *= max(abs(dot(BlackHoleRelativeDiskNormal, PosToBlackHole)), Rs);
+            RayStep *= max(abs(dot(iBlackHoleRelativeDiskNormal, PosToBlackHole)), Rs);
         }
         else if ((DistanceToBlackHole) > 2.0 * Rs)
         {
-            RayStep *= (max(abs(dot(BlackHoleRelativeDiskNormal, PosToBlackHole)), Rs) * (DistanceToBlackHole - 2.0 * Rs) +
+            RayStep *= (max(abs(dot(iBlackHoleRelativeDiskNormal, PosToBlackHole)), Rs) * (DistanceToBlackHole - 2.0 * Rs) +
                         DistanceToBlackHole * (iInterRadiusLy - DistanceToBlackHole)) / (iInterRadiusLy - 2.0 * Rs);
         }
         else
@@ -418,24 +426,19 @@ void main()
 
         ++Count;
     }
-    // // 为了套bloom先逆处理一遍
-    // float colorRFactor = Result.r / Result.g;
-    // float colorBFactor = Result.b / Result.g;
 
-    // float bloomMax = 12.0;
-    // Result.r    = min(-4.0 * log(1.0 - pow(Result.r, 2.2)), bloomMax * colorRFactor);
-    // Result.g    = min(-4.0 * log(1.0 - pow(Result.g, 2.2)), bloomMax);
-    // Result.b    = min(-4.0 * log(1.0 - pow(Result.b, 2.2)), bloomMax * colorBFactor);
-    // Result.a    = min(-4.0 * log(1.0 - pow(Result.a, 2.2)), 4.0);
+     float RedFactor  = Result.r / Result.g;
+     float BlueFactor = Result.b / Result.g;
+     float BloomMax   = 12.0;
+     Result.r = min(-4.0 * log(1.0 - pow(Result.r, 2.2)), BloomMax * RedFactor);
+     Result.g = min(-4.0 * log(1.0 - pow(Result.g, 2.2)), BloomMax);
+     Result.b = min(-4.0 * log(1.0 - pow(Result.b, 2.2)), BloomMax * BlueFactor);
+     Result.a = min(-4.0 * log(1.0 - pow(Result.a, 2.2)), 4.0);
 
-    // // TAA
+    // TAA
 
-    // float blendWeight = 1.0 - pow(0.5, (iTimeDelta) / max(min((0.131 * 36.0 / (TimeRate) * (GetKeplerianAngularVelocity(3.0 * 0.00000465, 0.00000465)) / (GetKeplerianAngularVelocity(3.0 * Rs, Rs))), 0.3),
-    //                                                       0.02));  // 本部分在实际使用时max(min((0.131*36.0/(TimeRate)*(omega(3.*0.00000465,0.00000465))/(omega(3.*Rs,Rs))),0.3),0.02)由uniform输入
-    // blendWeight       = (iFrame < 2 || iMouse.z > 0.0) ? 1.0 : blendWeight;
+    float BlendWeight = 1.0 - pow(0.5, (iTimeDelta) / max(min((0.131 * 36.0 / (iTimeRate) * (GetKeplerianAngularVelocity(3.0 * 0.00000465, 0.00000465)) / (GetKeplerianAngularVelocity(3.0 * Rs, Rs))), 0.3), 0.02));
 
-    // vec4 previousColor = texelFetch(iChannel3, ivec2(fragCoord), 0);                     // 获取前一帧的颜色
-    // Result          = (blendWeight)*Result + (1.0 - blendWeight) * previousColor;  // 混合当前帧和前一帧
-
-    FragColor = Result;
+    vec4 PrevColor = texelFetch(iHistoryTex, ivec2(gl_FragCoord.xy), 0);
+    FragColor      = (BlendWeight) * Result + (1.0 - BlendWeight) * PrevColor;
 }

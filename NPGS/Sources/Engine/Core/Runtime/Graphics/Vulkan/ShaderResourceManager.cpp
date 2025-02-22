@@ -13,7 +13,7 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
-void FShaderResourceManager::BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName)
+void FShaderResourceManager::BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName, vk::DeviceSize Range)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -37,12 +37,13 @@ void FShaderResourceManager::BindShaderToBuffers(const std::string& BufferName, 
 
     for (std::uint32_t i = 0; i != Config::Graphics::kMaxFrameInFlight; ++i)
     {
-        vk::DescriptorBufferInfo WriteBufferInfo(*StoredBufferInfo.Buffers[i].GetBuffer(), 0, Size);
+        vk::DescriptorBufferInfo WriteBufferInfo(*StoredBufferInfo.Buffers[i].GetBuffer(), 0, Range ? Range : Size);
         Shader->WriteDynamicDescriptors<vk::DescriptorBufferInfo>(Set, Binding, i, Usage, { WriteBufferInfo });
     }
 }
 
-void FShaderResourceManager::BindShaderToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& ShaderName)
+void FShaderResourceManager::BindShaderToBuffer(std::uint32_t FrameIndex, const std::string& BufferName,
+                                                const std::string& ShaderName, vk::DeviceSize Range)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -64,7 +65,7 @@ void FShaderResourceManager::BindShaderToBuffer(std::uint32_t FrameIndex, const 
         return;
     }
 
-    vk::DescriptorBufferInfo WriteBufferInfo(*StoredBufferInfo.Buffers[FrameIndex].GetBuffer(), 0, Size);
+    vk::DescriptorBufferInfo WriteBufferInfo(*StoredBufferInfo.Buffers[FrameIndex].GetBuffer(), 0, Range ? Range : Size);
     Shader->WriteDynamicDescriptors<vk::DescriptorBufferInfo>(Set, Binding, FrameIndex, Usage, { WriteBufferInfo });
 }
 

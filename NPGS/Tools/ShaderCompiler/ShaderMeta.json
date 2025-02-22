@@ -1,9 +1,12 @@
 {
-  "BasicLighting.vert.spv": "25da6bd4cfea696ced1c6f5252bc8536",
-  "BasicLighting.frag.spv": "814d2fca7ca0e4352a454bfb432db20a",
-  "BasicLighting_Lamp.frag.spv": "68ae4100e49641076aee6d8969fcd3c1",
+  "BasicLighting.vert.spv": "4b7fdd86487e555150a2d6bcba807d27",
+  "BasicLighting.frag.spv": "30c2be481950cd339ded7db6a295d83c",
+  "BasicLighting_Lamp.frag.spv": "add686765621b8d2ab88ff4fdba2b60f",
+  "PreBloom.frag.spv": "1dff07eb24971ac9d366260be79feaee",
+  "GaussBlur.frag.spv": "cccbb37ba09b5418b4799fcd79fb4679",
+  "BlackHole.frag.spv": "90cd58ab8867e8ee9537b86666f7324c",
+  "ColorBlend.frag.spv": "317378b2a6976eac7deb164dfc3ea8ab",
   "PostProcess.frag.spv": "975f967549531b553d3deb117c761a1c",
   "PostProcess.vert.spv": "7d66a1afad0b1a2a122d6c835ebf20c8",
-  "BlackHole.frag.spv": "d5e3ccc3ca0357f5d228f534129f7b3d",
-  "BlackHole.vert.spv": "a32ee4a262877ffe57c4bf9181ba984a"
+  "ScreenQuad.vert.spv": "8049ac2c3cba80de4793a646600e514a"
 }

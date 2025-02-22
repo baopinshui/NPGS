@@ -224,6 +224,9 @@
     <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Renderers\PipelineManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Sources\Program\DataStructures.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Sources\Engine\Utils\Logger.inl">
@@ -286,5 +289,6 @@
     <None Include="Sources\Engine\Core\Runtime\Graphics\Renderers\PipelineManager.inl">
       <Filter>头文件</Filter>
     </None>
+    <None Include="Sources\Program\Application.cpp.bak" />
   </ItemGroup>
 </Project>

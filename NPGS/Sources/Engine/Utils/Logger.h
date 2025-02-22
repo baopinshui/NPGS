@@ -27,7 +27,7 @@ _NPGS_END
 
 #include "Logger.inl"
 
-#ifdef NPGS_ENABLE_CONSOLE_LOGGER
+#if defined(NPGS_ENABLE_CONSOLE_LOGGER)
 // Core logger
 // -----------
 #define NpgsCoreCritical(...) ::Npgs::Util::FLogger::GetCoreLogger()->critical(__VA_ARGS__)
@@ -44,6 +44,22 @@ _NPGS_END
 #define NpgsTrace(...)        ::Npgs::Util::FLogger::GetClientLogger()->trace(__VA_ARGS__)
 #define NpgsWarn(...)         ::Npgs::Util::FLogger::GetClientLogger()->warn(__VA_ARGS__)
 
+#elif defined(NPGS_ENABLE_FILE_LOGGER)
+
+#define NpgsCoreCritical(...) ::Npgs::Util::FLogger::GetCoreLogger()->critical(__VA_ARGS__)
+#define NpgsCoreError(...)    ::Npgs::Util::FLogger::GetCoreLogger()->error(__VA_ARGS__)
+#define NpgsCoreInfo(...)     ::Npgs::Util::FLogger::GetCoreLogger()->info(__VA_ARGS__)
+#define NpgsCoreTrace(...)    static_cast<void>(0)
+#define NpgsCoreWarn(...)     ::Npgs::Util::FLogger::GetCoreLogger()->warn(__VA_ARGS__)
+
+// Client logger
+// -------------
+#define NpgsCritical(...)     ::Npgs::Util::FLogger::GetClientLogger()->critical(__VA_ARGS__)
+#define NpgsError(...)        ::Npgs::Util::FLogger::GetClientLogger()->error(__VA_ARGS__)
+#define NpgsInfo(...)         ::Npgs::Util::FLogger::GetClientLogger()->info(__VA_ARGS__)
+#define NpgsTrace(...)        static_cast<void>(0)
+#define NpgsWarn(...)         ::Npgs::Util::FLogger::GetClientLogger()->warn(__VA_ARGS__)
+
 #else
 
 #define NpgsCoreCritical(...) static_cast<void>(0)
@@ -58,4 +74,4 @@ _NPGS_END
 #define NpgsTrace(...)        static_cast<void>(0)
 #define NpgsWarn(...)         static_cast<void>(0)
 
-#endif // NPGS_ENABLE_CONSOLE_LOGGER
+#endif // NPGS_ENABLE_CONSOLE_LOGGER || NPGS_ENABLE_FILE_LOGGER
