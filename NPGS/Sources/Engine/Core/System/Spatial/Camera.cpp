@@ -74,7 +74,7 @@ void FCamera::ProcessKeyboard(EMovement Direction, double DeltaTime)
 
 void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
 {
-    static float SmoothCoefficient = 0.1f;
+    static float SmoothCoefficient = 1.0f;
     float SmoothedX = SmoothCoefficient * static_cast<float>(OffsetX) + (1.0f - SmoothCoefficient) * _PrevOffsetX;
     float SmoothedY = SmoothCoefficient * static_cast<float>(OffsetY) + (1.0f - SmoothCoefficient) * _PrevOffsetY;
     _PrevOffsetX = SmoothedX;

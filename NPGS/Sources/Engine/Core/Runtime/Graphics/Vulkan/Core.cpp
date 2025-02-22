@@ -527,8 +527,8 @@ vk::Result FVulkanCore::CreateSwapchain(vk::Extent2D Extent, bool bLimitFps, vk:
 
     if (_SwapchainCreateInfo.imageFormat == vk::Format::eUndefined)
     {
-        if (SetSurfaceFormat({ vk::Format::eR8G8B8A8Snorm, vk::ColorSpaceKHR::eSrgbNonlinear }) != vk::Result::eSuccess &&
-            SetSurfaceFormat({ vk::Format::eB8G8R8A8Snorm, vk::ColorSpaceKHR::eSrgbNonlinear }) != vk::Result::eSuccess)
+        if (SetSurfaceFormat({ vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }) != vk::Result::eSuccess &&
+            SetSurfaceFormat({ vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }) != vk::Result::eSuccess)
         {
             _SwapchainCreateInfo.setImageFormat(_AvailableSurfaceFormats[0].format)
                                 .setImageColorSpace(_AvailableSurfaceFormats[0].colorSpace);

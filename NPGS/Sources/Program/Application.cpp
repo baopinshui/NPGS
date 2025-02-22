@@ -367,7 +367,7 @@ void FApplication::ExecuteMainRender()
 
         BlackHoleArgs.WorldUpView                 = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
         BlackHoleArgs.BlackHoleRelativePos        = glm::vec3(0.0f, 0.0f, -0.0001f);
-        BlackHoleArgs.BlackHoleRelativeDiskNormal = glm::vec3(0.2f, 1.0f, 0.5f);
+        BlackHoleArgs.BlackHoleRelativeDiskNormal = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.2f, 1.0f, 0.5f, 1.0f));
         BlackHoleArgs.BlackHoleMassSol            = 1.49e7f;
         BlackHoleArgs.Spin                        = 0.0f;
         BlackHoleArgs.Mu                          = 1.0f;
