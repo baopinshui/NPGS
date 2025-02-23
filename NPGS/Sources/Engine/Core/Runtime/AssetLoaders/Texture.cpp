@@ -217,9 +217,9 @@ namespace
                 {
                     Regions[Layer] = vk::ImageBlit(
                         vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel - 1, Layer, 1),
-                        { vk::Offset3D{0, 0, 0}, SrcExtent },
+                        { vk::Offset3D(0, 0, 0), SrcExtent },
                         vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel,     Layer, 1),
-                        { vk::Offset3D{0, 0, 0}, DstExtent }
+                        { vk::Offset3D(0, 0, 0), DstExtent }
                     );
                 }
 
@@ -262,7 +262,7 @@ namespace
                 vk::ImageBlit Region(
                     vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel - 1, 0, 1),
                     { vk::Offset3D(), MipmapExtent(Extent, MipLevel - 1) },
-                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel,  0, 1),
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel,     0, 1),
                     { vk::Offset3D(), MipmapExtent(Extent, MipLevel) }
                 );
 
@@ -412,8 +412,8 @@ FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t
     Data.Extent.width  = ImageWidth;
     Data.Extent.height = ImageHeight;
 
-    Data.Data = std::move(std::vector<std::byte>(static_cast<std::byte*>(ImageData),
-                          static_cast<std::byte*>(ImageData) + ImageWidth * ImageHeight * FormatInfo.PixelSize));
+    Data.Data = std::move(std::vector<std::byte>(
+        static_cast<std::byte*>(ImageData), static_cast<std::byte*>(ImageData) + ImageWidth * ImageHeight * FormatInfo.PixelSize));
 
     return Data;
 }
@@ -697,8 +697,8 @@ void FTexture2D::CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, 
                 .setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst);
 
             Graphics::FVulkanImageMemory Conversion(ImageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
-            CopyBlitGenerateTexture(*StagingBuffer->GetBuffer(), _ImageExtent, MipLevels, 1, vk::Filter::eLinear,
-                                    *Conversion.GetResource(), *Conversion.GetResource());
+            CopyBlitGenerateTexture(*StagingBuffer->GetBuffer(), _ImageExtent, MipLevels, 1,
+                                    vk::Filter::eLinear, *Conversion.GetResource(), *Conversion.GetResource());
         }
     }
 }
