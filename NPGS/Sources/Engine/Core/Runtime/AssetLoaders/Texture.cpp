@@ -39,38 +39,45 @@ namespace
                            const Graphics::FImageMemoryBarrierParameterPack& DstBarrier,
                            const vk::BufferImageCopy& Region, vk::Image DstImage)
     {
-        vk::ImageSubresourceRange ImageSubresourceRange(Region.imageSubresource.aspectMask,
-                                                        Region.imageSubresource.mipLevel,
-                                                        1,
-                                                        Region.imageSubresource.baseArrayLayer,
-                                                        Region.imageSubresource.layerCount);
+        vk::ImageSubresourceRange ImageSubresourceRange(
+            Region.imageSubresource.aspectMask,
+            Region.imageSubresource.mipLevel,
+            1,
+            Region.imageSubresource.baseArrayLayer,
+            Region.imageSubresource.layerCount);
 
-        vk::ImageMemoryBarrier ImageMemoryBarrier(SrcBarrier.kAccessFlags,
-                                                  vk::AccessFlagBits::eTransferWrite,
-                                                  SrcBarrier.kImageLayout,
-                                                  vk::ImageLayout::eTransferDstOptimal,
-                                                  vk::QueueFamilyIgnored,
-                                                  vk::QueueFamilyIgnored,
-                                                  DstImage,
-                                                  ImageSubresourceRange);
+        vk::ImageMemoryBarrier2 Barrier;
+        vk::DependencyInfo DependencyInfo = vk::DependencyInfo()
+            .setDependencyFlags(vk::DependencyFlagBits::eByRegion);
 
         if (SrcBarrier.kbEnable)
         {
-            CommandBuffer->pipelineBarrier(SrcBarrier.kPipelineStageFlags, vk::PipelineStageFlagBits::eTransfer,
-                                           {}, {}, {}, ImageMemoryBarrier);
+            Barrier.setSrcStageMask(SrcBarrier.kPipelineStageFlagBits)
+                   .setSrcAccessMask(SrcBarrier.kAccessFlagBits)
+                   .setDstStageMask(vk::PipelineStageFlagBits2::eTransfer)
+                   .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite)
+                   .setOldLayout(SrcBarrier.kImageLayout)
+                   .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
+                   .setImage(DstImage)
+                   .setSubresourceRange(ImageSubresourceRange);
+
+            DependencyInfo.setImageMemoryBarriers(Barrier);
+
+            CommandBuffer->pipelineBarrier2(DependencyInfo);
         }
 
         CommandBuffer->copyBufferToImage(SrcBuffer, DstImage, vk::ImageLayout::eTransferDstOptimal, Region);
 
         if (DstBarrier.kbEnable)
         {
-            ImageMemoryBarrier.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
-                .setDstAccessMask(DstBarrier.kAccessFlags)
-                .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
-                .setNewLayout(DstBarrier.kImageLayout);
+            Barrier.setSrcStageMask(vk::PipelineStageFlagBits2::eTransfer)
+                   .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
+                   .setDstStageMask(DstBarrier.kPipelineStageFlagBits)
+                   .setDstAccessMask(DstBarrier.kAccessFlagBits)
+                   .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
+                   .setNewLayout(DstBarrier.kImageLayout);
 
-            CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, DstBarrier.kPipelineStageFlags,
-                                           {}, {}, {}, ImageMemoryBarrier);
+            CommandBuffer->pipelineBarrier2(DependencyInfo);
         }
     }
 
@@ -79,42 +86,53 @@ namespace
                    const Graphics::FImageMemoryBarrierParameterPack& DstBarrier,
                    const vk::ImageBlit& Region, vk::Filter Filter, vk::Image DstImage)
     {
-        vk::ImageSubresourceRange SrcImageSubresourceRange(Region.srcSubresource.aspectMask,
-                                                           Region.srcSubresource.mipLevel,
-                                                           1,
-                                                           Region.srcSubresource.baseArrayLayer,
-                                                           Region.srcSubresource.layerCount);
+        vk::ImageSubresourceRange SrcImageSubresourceRange(
+            Region.srcSubresource.aspectMask,
+            Region.srcSubresource.mipLevel,
+            1,
+            Region.srcSubresource.baseArrayLayer,
+            Region.srcSubresource.layerCount);
 
-        vk::ImageMemoryBarrier ConvertToTransferSrcBarrier(SrcBarrier.kAccessFlags,
-                                                           vk::AccessFlagBits::eTransferRead,
-                                                           SrcBarrier.kImageLayout,
-                                                           vk::ImageLayout::eTransferSrcOptimal,
-                                                           vk::QueueFamilyIgnored,
-                                                           vk::QueueFamilyIgnored,
-                                                           SrcImage,
-                                                           SrcImageSubresourceRange);
-
-        vk::ImageSubresourceRange DstImageSubresourceRange(Region.dstSubresource.aspectMask,
-                                                           Region.dstSubresource.mipLevel,
-                                                           1,
-                                                           Region.dstSubresource.baseArrayLayer,
-                                                           Region.dstSubresource.layerCount);
-
-        vk::ImageMemoryBarrier ConvertToTransferDstBarrier(SrcBarrier.kAccessFlags,
-                                                           vk::AccessFlagBits::eTransferWrite,
-                                                           SrcBarrier.kImageLayout,
-                                                           vk::ImageLayout::eTransferDstOptimal,
-                                                           vk::QueueFamilyIgnored,
-                                                           vk::QueueFamilyIgnored,
-                                                           DstImage,
-                                                           DstImageSubresourceRange);
-
-        std::array ImageMemoryBarriers{ ConvertToTransferSrcBarrier, ConvertToTransferDstBarrier };
+        vk::ImageSubresourceRange DstImageSubresourceRange(
+            Region.dstSubresource.aspectMask,
+            Region.dstSubresource.mipLevel,
+            1,
+            Region.dstSubresource.baseArrayLayer,
+            Region.dstSubresource.layerCount);
 
         if (SrcBarrier.kbEnable)
         {
-            CommandBuffer->pipelineBarrier(SrcBarrier.kPipelineStageFlags, vk::PipelineStageFlagBits::eTransfer,
-                                           {}, {}, {}, ImageMemoryBarriers);
+            vk::ImageMemoryBarrier2 ConvertToTransferSrcBarrier(
+                SrcBarrier.kPipelineStageFlagBits,
+                SrcBarrier.kAccessFlagBits,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                SrcBarrier.kImageLayout,
+                vk::ImageLayout::eTransferSrcOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                SrcImage,
+                SrcImageSubresourceRange);
+
+            vk::ImageMemoryBarrier2 ConvertToTransferDstBarrier(
+                SrcBarrier.kPipelineStageFlagBits,
+                SrcBarrier.kAccessFlagBits,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferWrite,
+                SrcBarrier.kImageLayout,
+                vk::ImageLayout::eTransferDstOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                DstImage,
+                DstImageSubresourceRange);
+
+            std::array InitImageBarriers{ ConvertToTransferSrcBarrier, ConvertToTransferDstBarrier };
+
+            vk::DependencyInfo InitTransferDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(InitImageBarriers);
+
+            CommandBuffer->pipelineBarrier2(InitTransferDependencyInfo);
         }
 
         CommandBuffer->blitImage(SrcImage, vk::ImageLayout::eTransferSrcOptimal,
@@ -122,17 +140,23 @@ namespace
 
         if (DstBarrier.kbEnable)
         {
-            vk::ImageMemoryBarrier FinalBarrier(vk::AccessFlagBits::eTransferWrite,
-                                                DstBarrier.kAccessFlags,
-                                                vk::ImageLayout::eTransferDstOptimal,
-                                                DstBarrier.kImageLayout,
-                                                vk::QueueFamilyIgnored,
-                                                vk::QueueFamilyIgnored,
-                                                DstImage,
-                                                DstImageSubresourceRange);
+            vk::ImageMemoryBarrier2 FinalBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferWrite,
+                DstBarrier.kPipelineStageFlagBits,
+                DstBarrier.kAccessFlagBits,
+                vk::ImageLayout::eTransferDstOptimal,
+                DstBarrier.kImageLayout,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                DstImage,
+                DstImageSubresourceRange);
 
-            CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, DstBarrier.kPipelineStageFlags,
-                                           {}, {}, {}, FinalBarrier);
+            vk::DependencyInfo FinalDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(FinalBarrier);
+
+            CommandBuffer->pipelineBarrier2(FinalDependencyInfo);
         }
     }
 
@@ -145,17 +169,24 @@ namespace
             std::vector<vk::ImageBlit> Regions(ArrayLayers);
 
             vk::ImageSubresourceRange InitialMipRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, ArrayLayers);
-            vk::ImageMemoryBarrier InitialBarrier(vk::AccessFlagBits::eNone,
-                                                  vk::AccessFlagBits::eTransferRead,
-                                                  vk::ImageLayout::eUndefined,
-                                                  vk::ImageLayout::eTransferSrcOptimal,
-                                                  vk::QueueFamilyIgnored,
-                                                  vk::QueueFamilyIgnored,
-                                                  Image,
-                                                  InitialMipRange);
 
-            CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                                           {}, {}, {}, InitialBarrier);
+            vk::ImageMemoryBarrier2 InitImageBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eNone,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eTransferSrcOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                Image,
+                InitialMipRange);
+
+            vk::DependencyInfo InitDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(InitImageBarrier);
+
+            CommandBuffer->pipelineBarrier2(InitDependencyInfo);
 
             for (std::uint32_t MipLevel = 1; MipLevel != MipLevels; ++MipLevel)
             {
@@ -163,58 +194,75 @@ namespace
                 vk::Offset3D DstExtent = MipmapExtent(Extent, MipLevel);
 
                 vk::ImageSubresourceRange CurrentMipRange(vk::ImageAspectFlagBits::eColor, MipLevel, 1, 0, ArrayLayers);
-                vk::ImageMemoryBarrier ConvertToTransferDstBarrier(vk::AccessFlagBits::eNone,
-                                                                   vk::AccessFlagBits::eTransferWrite,
-                                                                   vk::ImageLayout::eUndefined,
-                                                                   vk::ImageLayout::eTransferDstOptimal,
-                                                                   vk::QueueFamilyIgnored,
-                                                                   vk::QueueFamilyIgnored,
-                                                                   Image,
-                                                                   CurrentMipRange);
 
-                CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                                               {}, {}, {}, ConvertToTransferDstBarrier);
+                vk::ImageMemoryBarrier2 ConvertToTransferDstBarrier(
+                    vk::PipelineStageFlagBits2::eTransfer,
+                    vk::AccessFlagBits2::eNone,
+                    vk::PipelineStageFlagBits2::eTransfer,
+                    vk::AccessFlagBits2::eTransferWrite,
+                    vk::ImageLayout::eUndefined,
+                    vk::ImageLayout::eTransferDstOptimal,
+                    vk::QueueFamilyIgnored,
+                    vk::QueueFamilyIgnored,
+                    Image,
+                    CurrentMipRange);
+
+                vk::DependencyInfo ConvertToTransferDstDependencyInfo = vk::DependencyInfo()
+                    .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                    .setImageMemoryBarriers(ConvertToTransferDstBarrier);
+
+                CommandBuffer->pipelineBarrier2(ConvertToTransferDstDependencyInfo);
 
                 for (std::uint32_t Layer = 0; Layer != ArrayLayers; ++Layer)
                 {
                     Regions[Layer] = vk::ImageBlit(
                         vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel - 1, Layer, 1),
                         { vk::Offset3D{0, 0, 0}, SrcExtent },
-                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel, Layer, 1),
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel,     Layer, 1),
                         { vk::Offset3D{0, 0, 0}, DstExtent }
                     );
                 }
 
-                CommandBuffer->blitImage(Image, vk::ImageLayout::eTransferSrcOptimal, Image, vk::ImageLayout::eTransferDstOptimal,
-                                         Regions, Filter);
+                CommandBuffer->blitImage(Image, vk::ImageLayout::eTransferSrcOptimal,
+                                         Image, vk::ImageLayout::eTransferDstOptimal, Regions, Filter);
 
-                vk::ImageMemoryBarrier ConvertToTransferSrcBarrier(vk::AccessFlagBits::eTransferWrite,
-                                                                   vk::AccessFlagBits::eTransferRead,
-                                                                   vk::ImageLayout::eTransferDstOptimal,
-                                                                   vk::ImageLayout::eTransferSrcOptimal,
-                                                                   vk::QueueFamilyIgnored,
-                                                                   vk::QueueFamilyIgnored,
-                                                                   Image,
-                                                                   CurrentMipRange);
+                vk::ImageMemoryBarrier2 ConvertToTransferSrcBarrier(
+                    vk::PipelineStageFlagBits2::eTransfer,
+                    vk::AccessFlagBits2::eTransferWrite,
+                    vk::PipelineStageFlagBits2::eTransfer,
+                    vk::AccessFlagBits2::eTransferRead,
+                    vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageLayout::eTransferSrcOptimal,
+                    vk::QueueFamilyIgnored,
+                    vk::QueueFamilyIgnored,
+                    Image,
+                    CurrentMipRange);
 
-                CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                                               {}, {}, {}, ConvertToTransferSrcBarrier);
+                vk::DependencyInfo ConvertToTransferSrcDependencyInfo = vk::DependencyInfo()
+                    .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                    .setImageMemoryBarriers(ConvertToTransferSrcBarrier);
+
+                CommandBuffer->pipelineBarrier2(ConvertToTransferSrcDependencyInfo);
             }
         }
         else
         {
-            Graphics::FImageMemoryBarrierParameterPack SrcBarrier(vk::PipelineStageFlagBits::eTransfer,
-                                                                  vk::AccessFlagBits::eNone,
-                                                                  vk::ImageLayout::eUndefined);
-            Graphics::FImageMemoryBarrierParameterPack DstBarrier(vk::PipelineStageFlagBits::eTransfer,
-                                                                  vk::AccessFlagBits::eTransferRead,
-                                                                  vk::ImageLayout::eTransferSrcOptimal);
+            Graphics::FImageMemoryBarrierParameterPack SrcBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eNone,
+                vk::ImageLayout::eUndefined);
+
+            Graphics::FImageMemoryBarrierParameterPack DstBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                vk::ImageLayout::eTransferSrcOptimal);
+
             for (std::uint32_t MipLevel = 1; MipLevel != MipLevels; ++MipLevel)
             {
                 vk::ImageBlit Region(
                     vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel - 1, 0, 1),
                     { vk::Offset3D(), MipmapExtent(Extent, MipLevel - 1) },
-                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel, 0, 1),
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel,  0, 1),
                     { vk::Offset3D(), MipmapExtent(Extent, MipLevel) }
                 );
 
@@ -225,17 +273,24 @@ namespace
         if (FinalBarrier.kbEnable)
         {
             vk::ImageSubresourceRange FinalMipRange(vk::ImageAspectFlagBits::eColor, 0, MipLevels, 0, ArrayLayers);
-            vk::ImageMemoryBarrier FinalTransitionBarrier(vk::AccessFlagBits::eNone,
-                                                          FinalBarrier.kAccessFlags,
-                                                          vk::ImageLayout::eTransferSrcOptimal,
-                                                          FinalBarrier.kImageLayout,
-                                                          vk::QueueFamilyIgnored,
-                                                          vk::QueueFamilyIgnored,
-                                                          Image,
-                                                          FinalMipRange);
 
-            CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, FinalBarrier.kPipelineStageFlags,
-                                           {}, {}, {}, FinalTransitionBarrier);
+            vk::ImageMemoryBarrier2 FinalTransitionBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eNone,
+                FinalBarrier.kPipelineStageFlagBits,
+                FinalBarrier.kAccessFlagBits,
+                vk::ImageLayout::eTransferSrcOptimal,
+                FinalBarrier.kImageLayout,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                Image,
+                FinalMipRange);
+
+            vk::DependencyInfo FinalDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(FinalTransitionBarrier);
+
+            CommandBuffer->pipelineBarrier2(FinalDependencyInfo);
         }
     }
 }
@@ -374,9 +429,7 @@ void FTextureBase::CreateImageMemory(vk::ImageType ImageType, vk::Format Format,
         .setMipLevels(MipLevels)
         .setArrayLayers(ArrayLayers)
         .setSamples(vk::SampleCountFlagBits::e1)
-        .setUsage(vk::ImageUsageFlagBits::eTransferSrc |
-                  vk::ImageUsageFlagBits::eTransferDst |
-                  vk::ImageUsageFlagBits::eSampled);
+        .setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled);
 
     if (_Allocator != nullptr)
     {
@@ -403,13 +456,15 @@ void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Ex
 {
     static constexpr std::array kBarriers
     {
-        Graphics::FImageMemoryBarrierParameterPack(vk::PipelineStageFlagBits::eFragmentShader,
-                                                   vk::AccessFlagBits::eShaderRead,
-                                                   vk::ImageLayout::eShaderReadOnlyOptimal),
+        Graphics::FImageMemoryBarrierParameterPack(
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderRead,
+            vk::ImageLayout::eShaderReadOnlyOptimal),
 
-        Graphics::FImageMemoryBarrierParameterPack(vk::PipelineStageFlagBits::eTransfer,
-                                                   vk::AccessFlagBits::eTransferWrite,
-                                                   vk::ImageLayout::eTransferDstOptimal)
+        Graphics::FImageMemoryBarrierParameterPack(
+            vk::PipelineStageFlagBits2::eTransfer,
+            vk::AccessFlagBits2::eTransferWrite,
+            vk::ImageLayout::eTransferDstOptimal)
     };
 
     bool bGenerateMipmaps = MipLevels > 1;
@@ -426,9 +481,11 @@ void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Ex
         .setImageSubresource(Subresource)
         .setImageExtent(Extent3D);
 
-    Graphics::FImageMemoryBarrierParameterPack CopyBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
-                                                           vk::AccessFlagBits::eNone,
-                                                           vk::ImageLayout::eUndefined);
+    Graphics::FImageMemoryBarrierParameterPack CopyBarrier(
+        vk::PipelineStageFlagBits2::eTopOfPipe,
+        vk::AccessFlagBits2::eNone,
+        vk::ImageLayout::eUndefined);
+
     CopyBufferToImage(CommandBuffer, SrcBuffer, CopyBarrier, kBarriers[bGenerateMipmaps || bNeedBlit], BufferImageCopy, DstImageSrcBlit);
 
     if (bNeedBlit)
@@ -439,9 +496,11 @@ void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Ex
 
         vk::ImageBlit Region(Subresource, Offsets, Subresource, Offsets);
 
-        Graphics::FImageMemoryBarrierParameterPack BlitBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
-                                                               vk::AccessFlagBits::eNone,
-                                                               vk::ImageLayout::eUndefined);
+        Graphics::FImageMemoryBarrierParameterPack BlitBarrier(
+            vk::PipelineStageFlagBits2::eTopOfPipe,
+            vk::AccessFlagBits2::eNone,
+            vk::ImageLayout::eUndefined);
+
         BlitImage(CommandBuffer, DstImageSrcBlit, BlitBarrier, kBarriers[bGenerateMipmaps], Region, Filter, DstImageDstBlit);
     }
 
@@ -458,13 +517,15 @@ void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, 
 {
     static constexpr std::array kBarriers
     {
-        Graphics::FImageMemoryBarrierParameterPack(vk::PipelineStageFlagBits::eFragmentShader,
-                                                   vk::AccessFlagBits::eShaderRead,
-                                                   vk::ImageLayout::eShaderReadOnlyOptimal),
+        Graphics::FImageMemoryBarrierParameterPack(
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderRead,
+            vk::ImageLayout::eShaderReadOnlyOptimal),
 
-        Graphics::FImageMemoryBarrierParameterPack(vk::PipelineStageFlagBits::eTransfer,
-                                                   vk::AccessFlagBits::eTransferWrite,
-                                                   vk::ImageLayout::eTransferDstOptimal)
+        Graphics::FImageMemoryBarrierParameterPack(
+            vk::PipelineStageFlagBits2::eTransfer,
+            vk::AccessFlagBits2::eTransferWrite,
+            vk::ImageLayout::eTransferDstOptimal)
     };
 
     bool bGenerateMipmaps = MipLevels > 1;
@@ -477,17 +538,23 @@ void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, 
 
         if (bNeedBlit)
         {
-            vk::ImageMemoryBarrier PipelineBarrier(vk::AccessFlagBits::eNone,
-                                                   vk::AccessFlagBits::eTransferRead,
-                                                   vk::ImageLayout::ePreinitialized,
-                                                   vk::ImageLayout::eTransferSrcOptimal,
-                                                   vk::QueueFamilyIgnored,
-                                                   vk::QueueFamilyIgnored,
-                                                   SrcImage,
-                                                   { vk::ImageAspectFlagBits::eColor, 0, 1, 0, ArrayLayers });
+            vk::ImageMemoryBarrier2 PipelineBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                vk::ImageLayout::ePreinitialized,
+                vk::ImageLayout::eTransferSrcOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                SrcImage,
+                { vk::ImageAspectFlagBits::eColor, 0, 1, 0, ArrayLayers });
 
-            CommandBuffer->pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-                                           {}, {}, {}, PipelineBarrier);
+            vk::DependencyInfo DependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(PipelineBarrier);
+
+            CommandBuffer->pipelineBarrier2(DependencyInfo);
 
             vk::ImageSubresourceLayers Subresource(vk::ImageAspectFlagBits::eColor, 0, 0, ArrayLayers);
             std::array<vk::Offset3D, 2> Offsets;
@@ -495,9 +562,11 @@ void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, 
 
             vk::ImageBlit Region(Subresource, Offsets, Subresource, Offsets);
 
-            Graphics::FImageMemoryBarrierParameterPack BlitBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
-                                                                   vk::AccessFlagBits::eNone,
-                                                                   vk::ImageLayout::eUndefined);
+            Graphics::FImageMemoryBarrierParameterPack BlitBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::ImageLayout::eUndefined);
+
             BlitImage(CommandBuffer, SrcImage, BlitBarrier, kBarriers[bGenerateMipmaps], Region, Filter, DstImage);
         }
 
