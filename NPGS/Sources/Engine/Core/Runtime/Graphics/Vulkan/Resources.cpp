@@ -16,10 +16,34 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
+FAttachment::FAttachment(VmaAllocator Allocator)
+    : _Allocator(Allocator)
+{
+}
+
+FColorAttachment::FColorAttachment(const VmaAllocationCreateInfo& AllocationCreateInfo, vk::Format Format, vk::Extent2D Extent,
+                                   std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage)
+    : FColorAttachment(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo,
+                       Format, Extent, LayerCount, SampleCount, ExtraUsage)
+{
+}
+
+FColorAttachment::FColorAttachment(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, vk::Format Format,
+                                   vk::Extent2D Extent, std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage)
+    : Base(Allocator)
+{
+    vk::Result Result = CreateAttachment(&AllocationCreateInfo, Format, Extent, LayerCount, SampleCount, ExtraUsage);
+    if (Result != vk::Result::eSuccess)
+    {
+        NpgsCoreError("Failed to create color attachment: {}", vk::to_string(Result));
+    }
+}
+
 FColorAttachment::FColorAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
                                    vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage)
+    : Base(nullptr)
 {
-    vk::Result Result = CreateAttachment(Format, Extent, LayerCount, SampleCount, ExtraUsage);
+    vk::Result Result = CreateAttachment(nullptr, Format, Extent, LayerCount, SampleCount, ExtraUsage);
     if (Result != vk::Result::eSuccess)
     {
         NpgsCoreError("Failed to create color attachment: {}", vk::to_string(Result));
@@ -47,8 +71,8 @@ bool FColorAttachment::CheckFormatAvailability(vk::Format Format, bool bSupportB
     return false;
 }
 
-vk::Result FColorAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
-                                              vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage)
+vk::Result FColorAttachment::CreateAttachment(const VmaAllocationCreateInfo* AllocationCreateInfo, vk::Format Format, vk::Extent2D Extent,
+                                              std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage)
 {
     vk::ImageCreateInfo ImageCreateInfo;
     ImageCreateInfo.setImageType(vk::ImageType::e2D)
@@ -65,14 +89,16 @@ vk::Result FColorAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Ex
         MemoryPropertyFlags |= vk::MemoryPropertyFlagBits::eLazilyAllocated;
     }
 
-    _ImageMemory = std::make_unique<FVulkanImageMemory>(ImageCreateInfo, MemoryPropertyFlags);
+    _ImageMemory = AllocationCreateInfo
+                 ? std::make_unique<FVulkanImageMemory>(_Allocator, *AllocationCreateInfo, ImageCreateInfo)
+                 : std::make_unique<FVulkanImageMemory>(ImageCreateInfo, MemoryPropertyFlags);
+    
     if (!_ImageMemory->IsValid())
     {
         return vk::Result::eErrorInitializationFailed;
     }
 
     vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, LayerCount);
-
     _ImageView = std::make_unique<FVulkanImageView>(_ImageMemory->GetResource(),
                                                     LayerCount > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D,
                                                     Format,
@@ -86,10 +112,31 @@ vk::Result FColorAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Ex
     return vk::Result::eSuccess;
 }
 
+FDepthStencilAttachment::FDepthStencilAttachment(const VmaAllocationCreateInfo& AllocationCreateInfo, vk::Format Format,
+                                                 vk::Extent2D Extent, std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount,
+                                                 vk::ImageUsageFlags ExtraUsage, bool bStencilOnly)
+    : FDepthStencilAttachment(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo,
+                              Format, Extent, LayerCount, SampleCount, ExtraUsage, bStencilOnly)
+{
+}
+
+FDepthStencilAttachment::FDepthStencilAttachment(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
+                                                 vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
+                                                 vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly)
+    : Base(Allocator)
+{
+    vk::Result Result = CreateAttachment(&AllocationCreateInfo, Format, Extent, LayerCount, SampleCount, ExtraUsage, bStencilOnly);
+    if (Result != vk::Result::eSuccess)
+    {
+        NpgsCoreError("Failed to create depth-stencil attachment: {}", vk::to_string(Result));
+    }
+}
+
 FDepthStencilAttachment::FDepthStencilAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
                                                  vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly)
+    : Base(nullptr)
 {
-    vk::Result Result = CreateAttachment(Format, Extent, LayerCount, SampleCount, ExtraUsage, bStencilOnly);
+    vk::Result Result = CreateAttachment(nullptr, Format, Extent, LayerCount, SampleCount, ExtraUsage, bStencilOnly);
     if (Result != vk::Result::eSuccess)
     {
         NpgsCoreError("Failed to create depth-stencil attachment: {}", vk::to_string(Result));
@@ -107,8 +154,8 @@ bool FDepthStencilAttachment::CheckFormatAvailability(vk::Format Format)
     return false;
 }
 
-vk::Result FDepthStencilAttachment::CreateAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
-                                                     vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly)
+vk::Result FDepthStencilAttachment::CreateAttachment(const VmaAllocationCreateInfo* AllocationCreateInfo, vk::Format Format, vk::Extent2D Extent,
+                                                     std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly)
 {
     vk::ImageCreateInfo ImageCreateInfo;
     ImageCreateInfo.setImageType(vk::ImageType::e2D)
@@ -125,7 +172,9 @@ vk::Result FDepthStencilAttachment::CreateAttachment(vk::Format Format, vk::Exte
         MemoryPropertyFlags |= vk::MemoryPropertyFlagBits::eLazilyAllocated;
     }
 
-    _ImageMemory = std::make_unique<FVulkanImageMemory>(ImageCreateInfo, MemoryPropertyFlags);
+    _ImageMemory = AllocationCreateInfo
+                 ? std::make_unique<FVulkanImageMemory>(_Allocator, *AllocationCreateInfo, ImageCreateInfo)
+                 : std::make_unique<FVulkanImageMemory>(ImageCreateInfo, MemoryPropertyFlags);
     if (!_ImageMemory->IsValid())
     {
         return vk::Result::eErrorInitializationFailed;
@@ -142,7 +191,6 @@ vk::Result FDepthStencilAttachment::CreateAttachment(vk::Format Format, vk::Exte
     }
 
     vk::ImageSubresourceRange SubresourceRange(AspectFlags, 0, 1, 0, LayerCount);
-
     _ImageView = std::make_unique<FVulkanImageView>(_ImageMemory->GetResource(),
                                                     LayerCount > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D,
                                                     Format,
@@ -171,9 +219,29 @@ FStagingBuffer::FStagingBuffer(vk::Device Device, const vk::PhysicalDeviceProper
     _PhysicalDeviceProperties(&PhysicalDeviceProperties),
     _PhysicalDeviceMemoryProperties(&PhysicalDeviceMemoryProperties),
     _BufferMemory(nullptr),
-    _AliasedImage(nullptr)
+    _AliasedImage(nullptr),
+    _Allocator(nullptr)
 {
     Expand(Size);
+}
+
+FStagingBuffer::FStagingBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo)
+    : FStagingBuffer(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, BufferCreateInfo)
+{
+}
+
+FStagingBuffer::FStagingBuffer(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
+                               const vk::BufferCreateInfo& BufferCreateInfo)
+    :
+    _Device(FVulkanCore::GetClassInstance()->GetDevice()),
+    _PhysicalDeviceProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceProperties()),
+    _PhysicalDeviceMemoryProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceMemoryProperties()),
+    _BufferMemory(nullptr),
+    _AliasedImage(nullptr),
+    _Allocator(Allocator),
+    _AllocationCreateInfo(AllocationCreateInfo)
+{
+    Expand(BufferCreateInfo.size);
 }
 
 FStagingBuffer::FStagingBuffer(FStagingBuffer&& Other) noexcept
@@ -183,7 +251,9 @@ FStagingBuffer::FStagingBuffer(FStagingBuffer&& Other) noexcept
     _PhysicalDeviceMemoryProperties(std::exchange(Other._PhysicalDeviceMemoryProperties, nullptr)),
     _BufferMemory(std::move(Other._BufferMemory)),
     _AliasedImage(std::move(Other._AliasedImage)),
-    _MemoryUsage(std::exchange(Other._MemoryUsage, 0))
+    _MemoryUsage(std::exchange(Other._MemoryUsage, 0)),
+    _Allocator(std::exchange(Other._Allocator, nullptr)),
+    _AllocationCreateInfo(std::exchange(Other._AllocationCreateInfo, {}))
 {
 }
 
@@ -197,6 +267,8 @@ FStagingBuffer& FStagingBuffer::operator=(FStagingBuffer&& Other) noexcept
         _BufferMemory                   = std::move(Other._BufferMemory);
         _AliasedImage                   = std::move(Other._AliasedImage);
         _MemoryUsage                    = std::exchange(Other._MemoryUsage, 0);
+        _Allocator                      = std::exchange(Other._Allocator, nullptr);
+        _AllocationCreateInfo           = std::exchange(Other._AllocationCreateInfo, {});
     }
 
     return *this;
@@ -257,17 +329,27 @@ void FStagingBuffer::Expand(vk::DeviceSize Size)
     Release();
 
     vk::BufferCreateInfo BufferCreateInfo({}, Size, vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst);
-    _BufferMemory = std::make_unique<FVulkanBufferMemory>(_Device, *_PhysicalDeviceProperties, *_PhysicalDeviceMemoryProperties,
-                                                          BufferCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible);
+
+    if (_Allocator != nullptr)
+    {
+        _BufferMemory = std::make_unique<FVulkanBufferMemory>(_Allocator, _AllocationCreateInfo, BufferCreateInfo);
+    }
+    else
+    {
+        _BufferMemory = std::make_unique<FVulkanBufferMemory>(_Device, *_PhysicalDeviceProperties, *_PhysicalDeviceMemoryProperties,
+                                                              BufferCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible);
+    }
 }
 
-FStagingBuffer* FStagingBufferPool::AcquireBuffer(vk::DeviceSize Size)
+FStagingBuffer* FStagingBufferPool::AcquireBuffer(vk::DeviceSize Size, const VmaAllocationCreateInfo* AllocationCreateInfo)
 {
     std::lock_guard<std::mutex> Lock(_Mutex);
     auto it = std::find_if(_FreeBuffers.begin(), _FreeBuffers.end(),
-    [Size](const std::unique_ptr<FStagingBuffer>& Buffer) -> bool
+    [Size, AllocationCreateInfo](const std::unique_ptr<FStagingBuffer>& Buffer) -> bool
     {
-        return Buffer->GetMemory().GetAllocationSize() >= Size;
+        bool bEnoughSize             = Buffer->GetMemory().GetAllocationSize() >= Size;
+        bool bAllocationMethodNeeded = (Buffer->IsUsingVma()) == (AllocationCreateInfo != nullptr);
+        return bEnoughSize && bAllocationMethodNeeded;
     });
 
     if (it != _FreeBuffers.end())
@@ -277,7 +359,19 @@ FStagingBuffer* FStagingBufferPool::AcquireBuffer(vk::DeviceSize Size)
         return _BusyBuffers.back().get();
     }
 
-    _BusyBuffers.push_back(std::make_unique<FStagingBuffer>(Size));
+    std::unique_ptr<FStagingBuffer> NewBuffer;
+    if (AllocationCreateInfo != nullptr)
+    {
+        vk::BufferCreateInfo BufferCreateInfo({}, Size, vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst);
+        NewBuffer = std::make_unique<FStagingBuffer>(*AllocationCreateInfo, BufferCreateInfo);
+    }
+    else
+    {
+        NewBuffer = std::make_unique<FStagingBuffer>(Size);
+    }
+
+    NewBuffer->GetMemory().SetPersistentMapping(true);
+    _BusyBuffers.push_back(std::move(NewBuffer));
     return _BusyBuffers.back().get();
 }
 
@@ -304,15 +398,27 @@ FStagingBufferPool* FStagingBufferPool::GetInstance()
 }
 
 FDeviceLocalBuffer::FDeviceLocalBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage)
-    : _BufferMemory(nullptr), _StagingBufferPool(FStagingBufferPool::GetInstance())
+    : _BufferMemory(nullptr), _StagingBufferPool(FStagingBufferPool::GetInstance()), _Allocator(nullptr)
 {
     CreateBuffer(Size, Usage);
+}
+
+FDeviceLocalBuffer::FDeviceLocalBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo)
+    : FDeviceLocalBuffer(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, BufferCreateInfo)
+{
+}
+
+FDeviceLocalBuffer::FDeviceLocalBuffer(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo)
+    : _BufferMemory(nullptr), _StagingBufferPool(FStagingBufferPool::GetInstance()), _Allocator(Allocator)
+{
+    CreateBuffer(AllocationCreateInfo, BufferCreateInfo);
 }
 
 FDeviceLocalBuffer::FDeviceLocalBuffer(FDeviceLocalBuffer&& Other) noexcept
     :
     _BufferMemory(std::move(Other._BufferMemory)),
-    _StagingBufferPool(std::exchange(Other._StagingBufferPool, nullptr))
+    _StagingBufferPool(std::exchange(Other._StagingBufferPool, nullptr)),
+    _Allocator(std::exchange(Other._Allocator, nullptr))
 {
 }
 
@@ -322,6 +428,7 @@ FDeviceLocalBuffer& FDeviceLocalBuffer::operator=(FDeviceLocalBuffer&& Other) no
     {
         _BufferMemory      = std::move(Other._BufferMemory);
         _StagingBufferPool = std::exchange(Other._StagingBufferPool, nullptr);
+        _Allocator         = std::exchange(Other._Allocator, nullptr);
     }
 
     return *this;
@@ -337,7 +444,10 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize MapOffset, vk::DeviceSize Targe
 
     auto* VulkanContext = FVulkanContext::GetClassInstance();
 
-    FStagingBuffer* StagingBuffer = _StagingBufferPool->AcquireBuffer(Size);
+    VmaAllocationCreateInfo StagingCreateInfo{ .usage = VMA_MEMORY_USAGE_CPU_TO_GPU };
+    VmaAllocationCreateInfo* AllocationCreateInfo = _Allocator ? &StagingCreateInfo : nullptr;
+
+    FStagingBuffer* StagingBuffer = _StagingBufferPool->AcquireBuffer(Size, AllocationCreateInfo);
     StagingBuffer->SubmitBufferData(MapOffset, TargetOffset, Size, Data);
 
     auto& TransferCommandBuffer = VulkanContext->GetTransferCommandBuffer();
@@ -378,7 +488,10 @@ void FDeviceLocalBuffer::CopyData(vk::DeviceSize ElementIndex, vk::DeviceSize El
 
     auto* VulkanContext = FVulkanContext::GetClassInstance();
 
-    FStagingBuffer* StagingBuffer = _StagingBufferPool->AcquireBuffer(DstStride * ElementSize);
+    VmaAllocationCreateInfo StagingCreateInfo{ .usage = VMA_MEMORY_USAGE_CPU_TO_GPU };
+    VmaAllocationCreateInfo* AllocationCreateInfo = _Allocator ? &StagingCreateInfo : nullptr;
+
+    FStagingBuffer* StagingBuffer = _StagingBufferPool->AcquireBuffer(DstStride * ElementSize, AllocationCreateInfo);
     StagingBuffer->SubmitBufferData(MapOffset, SrcStride * ElementIndex, SrcStride * ElementSize, Data);
 
     auto& TransferCommandBuffer = VulkanContext->GetTransferCommandBuffer();
@@ -418,11 +531,31 @@ vk::Result FDeviceLocalBuffer::CreateBuffer(vk::DeviceSize Size, vk::BufferUsage
     return vk::Result::eSuccess;
 }
 
+vk::Result FDeviceLocalBuffer::CreateBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo,
+                                            const vk::BufferCreateInfo& BufferCreateInfo)
+{
+    _BufferMemory = std::make_unique<FVulkanBufferMemory>(_Allocator, AllocationCreateInfo, BufferCreateInfo);
+    if (!_BufferMemory->IsValid())
+    {
+        return vk::Result::eErrorInitializationFailed;
+    }
+
+    return vk::Result::eSuccess;
+}
+
 vk::Result FDeviceLocalBuffer::RecreateBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage)
 {
     FVulkanCore::GetClassInstance()->WaitIdle();
     _BufferMemory.reset();
     return CreateBuffer(Size, Usage);
+}
+
+vk::Result FDeviceLocalBuffer::RecreateBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo,
+                                              const vk::BufferCreateInfo& BufferCreateInfo)
+{
+    FVulkanCore::GetClassInstance()->WaitIdle();
+    _BufferMemory.reset();
+    return CreateBuffer(AllocationCreateInfo, BufferCreateInfo);
 }
 
 _GRAPHICS_END

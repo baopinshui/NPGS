@@ -67,6 +67,23 @@ NPGS_INLINE bool FVulkanDeviceMemory::IsPereistentlyMapped() const
     return _bPersistentlyMapped;
 }
 
+// Wrapper fo vk::Buffer
+// ---------------------
+NPGS_INLINE VmaAllocator FVulkanBuffer::GetAllocator() const
+{
+    return _Allocator;
+}
+
+NPGS_INLINE VmaAllocation FVulkanBuffer::GetAllocation() const
+{
+    return _Allocation;
+}
+
+NPGS_INLINE const VmaAllocationInfo& FVulkanBuffer::GetAllocationInfo() const
+{
+    return _AllocationInfo;
+}
+
 // Wrapper for vk::DescriptorSet
 // -----------------------------
 NPGS_INLINE void FVulkanDescriptorSet::Write(const std::vector<vk::DescriptorImageInfo>& ImageInfos, vk::DescriptorType Type,
@@ -108,6 +125,23 @@ NPGS_INLINE void FVulkanDescriptorSet::Update(const std::vector<vk::WriteDescrip
     FVulkanCore::GetClassInstance()->GetDevice().updateDescriptorSets(Writes, Copies);
 }
 
+// Wrapper for vk::Image
+// ---------------------
+NPGS_INLINE VmaAllocator FVulkanImage::GetAllocator() const
+{
+    return _Allocator;
+}
+
+NPGS_INLINE VmaAllocation FVulkanImage::GetAllocation() const
+{
+    return _Allocation;
+}
+
+NPGS_INLINE const VmaAllocationInfo& FVulkanImage::GetAllocationInfo() const
+{
+    return _AllocationInfo;
+}
+
 // Wrapper for vk::RenderPass
 // --------------------------
 NPGS_INLINE void FVulkanRenderPass::CommandBegin(const FVulkanCommandBuffer& CommandBuffer,
@@ -130,14 +164,9 @@ NPGS_INLINE void FVulkanRenderPass::CommandEnd(const FVulkanCommandBuffer& Comma
 // -------------------
 // Native wrappers end
 
-NPGS_INLINE void FVulkanDeviceMemory::EnablePersistentMapping()
+NPGS_INLINE void FVulkanDeviceMemory::SetPersistentMapping(bool bFlag)
 {
-    _bPersistentlyMapped = true;
-}
-
-NPGS_INLINE void FVulkanDeviceMemory::DisablePersistentMapping()
-{
-    _bPersistentlyMapped = false;
+    _bPersistentlyMapped = bFlag;
 }
 
 NPGS_INLINE vk::Result FVulkanBufferMemory::MapMemoryForSubmit(vk::DeviceSize Offset, vk::DeviceSize Size, void*& Target) const

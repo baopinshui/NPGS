@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <glm/glm.hpp>
+#include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan_handles.hpp>
 
 #include "Engine/Core/Base/Base.h"
@@ -75,7 +76,9 @@ private:
 public:
     template <typename StructType>
     requires std::is_class_v<StructType>
-    void CreateBuffers(const FUniformBufferCreateInfo& BufferCreateInfo, std::uint32_t BufferCount = 0);
+    void CreateBuffers(const FUniformBufferCreateInfo& BufferCreateInfo,
+                       const VmaAllocationCreateInfo* AllocationCreateInfo = nullptr,
+                       std::uint32_t BufferCount = 0);
 
     void RemoveBuffer(const std::string& Name);
 
@@ -103,7 +106,7 @@ public:
     static FShaderResourceManager* GetInstance();
 
 private:
-    FShaderResourceManager()                              = default;
+    FShaderResourceManager();
     FShaderResourceManager(const FShaderResourceManager&) = delete;
     FShaderResourceManager(FShaderResourceManager&&)      = delete;
     ~FShaderResourceManager()                             = default;
@@ -113,6 +116,7 @@ private:
 
 private:
     std::unordered_map<std::string, FUniformBufferInfo> _UniformBuffers;
+    VmaAllocator                                        _Allocator;
 };
 
 _GRAPHICS_END

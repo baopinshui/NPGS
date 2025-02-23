@@ -11,8 +11,6 @@
 #include <utility>
 
 #include <gli/gli.hpp>
-
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 #include "Engine/Core/Runtime/AssetLoaders/GetAssetFullPath.h"
@@ -242,6 +240,11 @@ namespace
     }
 }
 
+FTextureBase::FTextureBase(VmaAllocator Allocator, const VmaAllocationCreateInfo* AllocationCreateInfo)
+    : _Allocator(Allocator), _AllocationCreateInfo(AllocationCreateInfo)
+{
+}
+
 FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat, bool bFlipVertically)
 {
     int   ImageWidth    = 0;
@@ -375,7 +378,14 @@ void FTextureBase::CreateImageMemory(vk::ImageType ImageType, vk::Format Format,
                   vk::ImageUsageFlagBits::eTransferDst |
                   vk::ImageUsageFlagBits::eSampled);
 
-    _ImageMemory = std::make_unique<Graphics::FVulkanImageMemory>(ImageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    if (_Allocator != nullptr)
+    {
+        _ImageMemory = std::make_unique<Graphics::FVulkanImageMemory>(_Allocator, *_AllocationCreateInfo, ImageCreateInfo);
+    }
+    else
+    {
+        _ImageMemory = std::make_unique<Graphics::FVulkanImageMemory>(ImageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    }
 }
 
 void FTextureBase::CreateImageView(vk::ImageViewType ImageViewType, vk::Format Format, std::uint32_t MipmapLevelCount,
@@ -385,6 +395,7 @@ void FTextureBase::CreateImageView(vk::ImageViewType ImageViewType, vk::Format F
 
     _ImageView = std::make_unique<Graphics::FVulkanImageView>(_ImageMemory->GetResource(), ImageViewType, Format,
                                                               vk::ComponentMapping(), ImageSubresourceRange, Flags);
+
 }
 
 void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Extent, std::uint32_t MipLevels, std::uint32_t ArrayLayers,
@@ -502,14 +513,42 @@ void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, 
 
 FTexture2D::FTexture2D(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
                        vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
-    : _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+    : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
 {
     CreateTexture(GetAssetFullPath(EAssetType::kTexture, Filename), InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
 }
 
 FTexture2D::FTexture2D(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat,
                        vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
-    : _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+    : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+    CreateTexture(Source, Extent, InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
+}
+
+FTexture2D::FTexture2D(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename, vk::Format InitialFormat,
+                       vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+    : FTexture2D(Graphics::FVulkanContext::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, Filename, InitialFormat,
+                 FinalFormat, Flags, bGenerateMipmaps, bFlipVertically)
+{
+}
+
+FTexture2D::FTexture2D(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename,
+                       vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+    : Base(Allocator, &AllocationCreateInfo), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+    CreateTexture(GetAssetFullPath(EAssetType::kTexture, Filename), InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+}
+
+FTexture2D::FTexture2D(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::byte* Source, vk::Extent2D Extent,
+                       vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
+    : FTexture2D(Graphics::FVulkanContext::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo,
+                 Source, Extent, InitialFormat, FinalFormat, Flags, bGenerateMipmaps)
+{
+}
+
+FTexture2D::FTexture2D(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const std::byte* Source,
+                       vk::Extent2D Extent, vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
+    : Base(Allocator, &AllocationCreateInfo), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
 {
     CreateTexture(Source, Extent, InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
 }
@@ -547,7 +586,11 @@ void FTexture2D::CreateTexture(const std::byte* Source, vk::Extent2D Extent, vk:
 {
     _ImageExtent = Extent;
     vk::DeviceSize ImageSize = _ImageExtent.width * _ImageExtent.height * Graphics::GetFormatInfo(InitialFormat).PixelSize;
-    auto* StagingBuffer = _StagingBufferPool->AcquireBuffer(ImageSize);
+
+    VmaAllocationCreateInfo StagingCreateInfo{ .usage = VMA_MEMORY_USAGE_CPU_TO_GPU };
+    VmaAllocationCreateInfo* AllocationCreateInfo = _Allocator ? &StagingCreateInfo : nullptr;
+
+    auto* StagingBuffer = _StagingBufferPool->AcquireBuffer(ImageSize, AllocationCreateInfo);
     StagingBuffer->SubmitBufferData(0, 0, ImageSize, Source);
     CreateTextureInternal(StagingBuffer, InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
     _StagingBufferPool->ReleaseBuffer(StagingBuffer);
@@ -567,11 +610,11 @@ void FTexture2D::CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, 
     }
     else
     {
-        vk::Image ConvertedImage = **StagingBuffer->CreateAliasedImage(FinalFormat, _ImageExtent);
+        Graphics::FVulkanImage* ConvertedImage = StagingBuffer->CreateAliasedImage(FinalFormat, _ImageExtent);
 
         if (ConvertedImage)
         {
-            BlitGenerateTexture(ConvertedImage, _ImageExtent, MipLevels, 1, vk::Filter::eLinear, *_ImageMemory->GetResource());
+            BlitGenerateTexture(**ConvertedImage, _ImageExtent, MipLevels, 1, vk::Filter::eLinear, *_ImageMemory->GetResource());
         }
         else
         {

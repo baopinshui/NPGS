@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan_handles.hpp>
 #include "Engine/Core/Base/Base.h"
 
@@ -68,6 +69,7 @@ public:
     vk::Queue GetPresentQueue() const;
     vk::Queue GetComputeQueue() const;
     vk::SwapchainKHR GetSwapchain() const;
+    VmaAllocator GetVmaAllocator() const;
 
     const vk::PhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
     const vk::PhysicalDeviceMemoryProperties& GetPhysicalDeviceMemoryProperties() const;
@@ -114,6 +116,7 @@ private:
 
     vk::Result ObtainPhysicalDeviceSurfaceFormats();
     vk::Result CreateSwapchainInternal();
+    vk::Result InitializeVmaAllocator();
 
 private:
     std::vector<std::pair<std::string, std::function<void()>>> _CreateDeviceCallbacks;
@@ -139,6 +142,8 @@ private:
     vk::Queue                          _PresentQueue;
     vk::Queue                          _ComputeQueue;
     vk::SwapchainKHR                   _Swapchain;
+
+    VmaAllocator                       _VmaAllocator;
 
     vk::PhysicalDeviceProperties       _PhysicalDeviceProperties;
     vk::PhysicalDeviceMemoryProperties _PhysicalDeviceMemoryProperties;

@@ -6,7 +6,9 @@
 #include <string>
 #include <vector>
 
+#include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan_handles.hpp>
+
 #include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 
@@ -35,7 +37,7 @@ public:
     static vk::SamplerCreateInfo CreateDefaultSamplerCreateInfo();
 
 protected:
-    FTextureBase()                        = default;
+    FTextureBase(VmaAllocator Allocator, const VmaAllocationCreateInfo* AllocationCreateInfo);
     FTextureBase(const FTextureBase&)     = delete;
     FTextureBase(FTextureBase&&) noexcept = default;
     virtual ~FTextureBase()               = default;
@@ -60,6 +62,8 @@ protected:
 protected:
     std::unique_ptr<Graphics::FVulkanImageMemory> _ImageMemory;
     std::unique_ptr<Graphics::FVulkanImageView>   _ImageView;
+    VmaAllocator                                  _Allocator;
+    const VmaAllocationCreateInfo*                _AllocationCreateInfo;
 };
 
 class FTexture2D : public FTextureBase
@@ -73,6 +77,18 @@ public:
 
     FTexture2D(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat, vk::Format FinalFormat,
                vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
+
+    FTexture2D(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename, vk::Format InitialFormat,
+               vk::Format FinalFormat, vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTexture2D(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename, vk::Format InitialFormat,
+               vk::Format FinalFormat, vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTexture2D(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::byte* Source, vk::Extent2D Extent,
+               vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
+
+    FTexture2D(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const std::byte* Source, vk::Extent2D Extent,
+               vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
 
     FTexture2D(const FTexture2D&) = delete;
     FTexture2D(FTexture2D&& Other) noexcept;

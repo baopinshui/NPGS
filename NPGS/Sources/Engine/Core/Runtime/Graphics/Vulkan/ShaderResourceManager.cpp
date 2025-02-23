@@ -13,6 +13,11 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
+FShaderResourceManager::FShaderResourceManager()
+    : _Allocator(FVulkanContext::GetClassInstance()->GetVmaAllocator())
+{
+}
+
 void FShaderResourceManager::BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName, vk::DeviceSize Range)
 {
     auto it = _UniformBuffers.find(BufferName);

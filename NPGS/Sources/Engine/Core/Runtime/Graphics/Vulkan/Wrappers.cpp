@@ -1,12 +1,13 @@
 #include "Wrappers.h"
 
-#include <cstddef>
 #include <algorithm>
 #include <limits>
 #include <utility>
 
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_to_string.hpp>
 
+#include "Engine/Core/Base/Assert.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Core.h"
 #include "Engine/Utils/Logger.h"
 
@@ -433,6 +434,9 @@ FVulkanDeviceMemory::FVulkanDeviceMemory(vk::Device Device, const vk::PhysicalDe
                                          const vk::MemoryAllocateInfo& AllocateInfo)
     :
     Base(Device),
+    _Allocator(nullptr),
+    _Allocation(nullptr),
+    _AllocationInfo{},
     _PhysicalDeviceProperties(&PhysicalDeviceProperties),
     _PhysicalDeviceMemoryProperties(&PhysicalDeviceMemoryProperties),
     _MappedDataMemory(nullptr),
@@ -443,27 +447,121 @@ FVulkanDeviceMemory::FVulkanDeviceMemory(vk::Device Device, const vk::PhysicalDe
     _Status      = AllocateDeviceMemory(AllocateInfo);
 }
 
+FVulkanDeviceMemory::FVulkanDeviceMemory(const VmaAllocationCreateInfo& AllocationCreateInfo,
+                                         const vk::MemoryRequirements& MemoryRequirements)
+    : FVulkanDeviceMemory(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, MemoryRequirements)
+{
+}
+
+FVulkanDeviceMemory::FVulkanDeviceMemory(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
+                                         const vk::MemoryRequirements& MemoryRequirements)
+    :
+    Base(FVulkanCore::GetClassInstance()->GetDevice()),
+    _Allocator(Allocator),
+    _Allocation(nullptr),
+    _AllocationInfo{},
+    _PhysicalDeviceProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceProperties()),
+    _PhysicalDeviceMemoryProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceMemoryProperties()),
+    _MappedDataMemory(nullptr),
+    _MappedTargetMemory(nullptr),
+    _bPersistentlyMapped(false)
+{
+    _ReleaseInfo = "Device memory freed successfully.";
+    _Status      = AllocateDeviceMemory(AllocationCreateInfo, MemoryRequirements);
+}
+
+FVulkanDeviceMemory::FVulkanDeviceMemory(VmaAllocator Allocator, VmaAllocation Allocation,
+                                         const VmaAllocationInfo& AllocationInfo, vk::DeviceMemory Handle)
+    :
+    Base(FVulkanCore::GetClassInstance()->GetDevice()),
+    _Allocator(Allocator),
+    _Allocation(Allocation),
+    _AllocationInfo(AllocationInfo),
+    _PhysicalDeviceProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceProperties()),
+    _PhysicalDeviceMemoryProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceMemoryProperties()),
+    _MappedDataMemory(nullptr),
+    _MappedTargetMemory(nullptr),
+    _AllocationSize(AllocationInfo.size),
+    _bPersistentlyMapped(false),
+    _bHostingVma(true)
+{
+    _ReleaseInfo = "Device memory freed successfully.";
+    _Handle      = Handle;
+    _Status      = vk::Result::eSuccess;
+
+    vmaGetMemoryTypeProperties(_Allocator, _AllocationInfo.memoryType,
+                               reinterpret_cast<VkMemoryPropertyFlags*>(&_MemoryPropertyFlags));
+}
+
 FVulkanDeviceMemory::FVulkanDeviceMemory(FVulkanDeviceMemory&& Other) noexcept
     :
     Base(std::move(Other)),
+    _Allocator(std::exchange(Other._Allocator, nullptr)),
+    _Allocation(std::exchange(Other._Allocation, nullptr)),
+    _AllocationInfo(std::exchange(Other._AllocationInfo, {})),
     _PhysicalDeviceProperties(std::exchange(Other._PhysicalDeviceProperties, nullptr)),
     _PhysicalDeviceMemoryProperties(std::exchange(Other._PhysicalDeviceMemoryProperties, nullptr)),
     _AllocationSize(std::exchange(Other._AllocationSize, 0)),
     _MemoryPropertyFlags(std::exchange(Other._MemoryPropertyFlags, {})),
     _MappedDataMemory(std::exchange(Other._MappedDataMemory, nullptr)),
     _MappedTargetMemory(std::exchange(Other._MappedTargetMemory, nullptr)),
-    _bPersistentlyMapped(std::exchange(Other._bPersistentlyMapped, false))
+    _bPersistentlyMapped(std::exchange(Other._bPersistentlyMapped, false)),
+    _bHostingVma(std::exchange(Other._bHostingVma, false))
 {
 }
 
 FVulkanDeviceMemory::~FVulkanDeviceMemory()
 {
-    if (_bPersistentlyMapped && (_MappedDataMemory != nullptr || _MappedTargetMemory != nullptr))
+    if (_bHostingVma)
     {
-        UnmapMemory(0, _AllocationSize);
+        if (_bPersistentlyMapped)
+        {
+            vmaUnmapMemory(_Allocator, _Allocation);
+        }
+
+        _Handle              = vk::DeviceMemory();
         _MappedDataMemory    = nullptr;
         _MappedTargetMemory  = nullptr;
         _bPersistentlyMapped = false;
+
+        return;
+    }
+
+    if (_bPersistentlyMapped && (_MappedDataMemory != nullptr || _MappedTargetMemory != nullptr))
+    {
+        if (_Allocator != nullptr && _Allocation != nullptr)
+        {
+            vmaUnmapMemory(_Allocator, _Allocation);
+        }
+        else
+        {
+            UnmapMemory(0, _AllocationSize);
+        }
+
+        _MappedDataMemory    = nullptr;
+        _MappedTargetMemory  = nullptr;
+        _bPersistentlyMapped = false;
+    }
+
+    if (_Allocator != nullptr && _Allocation != nullptr)
+    {
+        if (_Handle == _AllocationInfo.deviceMemory)
+        {
+            auto it = _HandleTracker.find(_Handle);
+            if (it != _HandleTracker.end())
+            {
+                if (--it->second == 0)
+                {
+                    _HandleTracker.erase(it);
+                }
+                else
+                {
+                    _Handle = vk::DeviceMemory();
+                }
+            }
+        }
+
+        vmaFreeMemory(_Allocator, _Allocation);
     }
 }
 
@@ -473,6 +571,9 @@ FVulkanDeviceMemory& FVulkanDeviceMemory::operator=(FVulkanDeviceMemory&& Other)
     {
         Base::operator=(std::move(Other));
 
+        _Allocator                      = std::exchange(Other._Allocator, nullptr);
+        _Allocation                     = std::exchange(Other._Allocation, nullptr);
+        _AllocationInfo                 = std::exchange(Other._AllocationInfo, {});
         _PhysicalDeviceProperties       = std::exchange(Other._PhysicalDeviceProperties, nullptr);
         _PhysicalDeviceMemoryProperties = std::exchange(Other._PhysicalDeviceMemoryProperties, nullptr);
         _AllocationSize                 = std::exchange(Other._AllocationSize, 0);
@@ -480,6 +581,7 @@ FVulkanDeviceMemory& FVulkanDeviceMemory::operator=(FVulkanDeviceMemory&& Other)
         _MappedDataMemory               = std::exchange(Other._MappedDataMemory, nullptr);
         _MappedTargetMemory             = std::exchange(Other._MappedTargetMemory, nullptr);
         _bPersistentlyMapped            = std::exchange(Other._bPersistentlyMapped, false);
+        _bHostingVma                    = std::exchange(Other._bHostingVma, false);
     }
 
     return *this;
@@ -487,6 +589,22 @@ FVulkanDeviceMemory& FVulkanDeviceMemory::operator=(FVulkanDeviceMemory&& Other)
 
 vk::Result FVulkanDeviceMemory::MapMemoryForSubmit(vk::DeviceSize Offset, vk::DeviceSize Size, void*& Target)
 {
+    if (_Allocator != nullptr && _Allocation != nullptr)
+    {
+        if (VkResult Result = vmaMapMemory(_Allocator, _Allocation, &Target); Result != VK_SUCCESS)
+        {
+            return static_cast<vk::Result>(Result);
+        }
+
+        if (Offset > 0)
+        {
+            Target = static_cast<std::byte*>(Target) + Offset;
+        }
+
+        _MappedTargetMemory = Target;
+        return vk::Result::eSuccess;
+    }
+
     vk::DeviceSize AdjustedOffset = 0;
     if (!(_MemoryPropertyFlags & vk::MemoryPropertyFlagBits::eHostCoherent))
     {
@@ -505,6 +623,22 @@ vk::Result FVulkanDeviceMemory::MapMemoryForSubmit(vk::DeviceSize Offset, vk::De
 
 vk::Result FVulkanDeviceMemory::MapMemoryForFetch(vk::DeviceSize Offset, vk::DeviceSize Size, void*& Data)
 {
+    if (_Allocator != nullptr && _Allocation != nullptr)
+    {
+        if (VkResult Result = vmaMapMemory(_Allocator, _Allocation, &Data); Result != VK_SUCCESS)
+        {
+            return static_cast<vk::Result>(Result);
+        }
+
+        if (Offset > 0)
+        {
+            Data = static_cast<std::byte*>(Data) + Offset;
+        }
+
+        _MappedDataMemory = Data;
+        return vk::Result::eSuccess;
+    }
+
     vk::DeviceSize AdjustedOffset = 0;
     if (!(_MemoryPropertyFlags & vk::MemoryPropertyFlagBits::eHostCoherent))
     {
@@ -559,10 +693,22 @@ vk::Result FVulkanDeviceMemory::SubmitData(vk::DeviceSize MapOffset, vk::DeviceS
     void* Target = nullptr;
     if (!_bPersistentlyMapped || _MappedTargetMemory == nullptr)
     {
-        vk::DeviceSize MappedBase = _bPersistentlyMapped ? 0 : MapOffset;
-        if (vk::Result Result = MapMemoryForSubmit(MappedBase, Size, Target); Result != vk::Result::eSuccess)
+        if (_Allocator != nullptr && _Allocation != nullptr)
         {
-            return Result;
+            if (VkResult Result = vmaMapMemory(_Allocator, _Allocation, &Target); Result != VK_SUCCESS)
+            {
+                return static_cast<vk::Result>(Result);
+            }
+
+            _MappedTargetMemory = Target;
+        }
+        else
+        {
+            vk::DeviceSize MappedBase = _bPersistentlyMapped ? 0 : MapOffset;
+            if (vk::Result Result = MapMemoryForSubmit(MappedBase, Size, Target); Result != vk::Result::eSuccess)
+            {
+                return Result;
+            }
         }
     }
     else
@@ -572,9 +718,42 @@ vk::Result FVulkanDeviceMemory::SubmitData(vk::DeviceSize MapOffset, vk::DeviceS
 
     std::copy(static_cast<const std::byte*>(Data), static_cast<const std::byte*>(Data) + Size, static_cast<std::byte*>(Target) + SubmitOffset);
 
+    if (!(_MemoryPropertyFlags & vk::MemoryPropertyFlagBits::eHostCoherent))
+    {
+        if (_Allocator != nullptr && _Allocation != nullptr)
+        {
+            if (VkResult Result = vmaFlushAllocation(_Allocator, _Allocation, SubmitOffset, Size); Result != VK_SUCCESS)
+            {
+                NpgsCoreError("Failed to flush allocation: {}.", vk::to_string(static_cast<vk::Result>(Result)));
+                return static_cast<vk::Result>(Result);
+            }
+        }
+        else
+        {
+            vk::MappedMemoryRange MappedMemoryRange(_Handle, SubmitOffset, Size);
+            try
+            {
+                _Device.flushMappedMemoryRanges(MappedMemoryRange);
+            }
+            catch (const vk::SystemError& e)
+            {
+                NpgsCoreError("Failed to flush mapped memory range: {}", e.what());
+                return static_cast<vk::Result>(e.code().value());
+            }
+        }
+    }
+
     if (!_bPersistentlyMapped)
     {
-        return UnmapMemory(MapOffset, Size);
+        if (_Allocator != nullptr && _Allocation != nullptr)
+        {
+            vmaUnmapMemory(_Allocator, _Allocation);
+            return vk::Result::eSuccess;
+        }
+        else
+        {
+            return UnmapMemory(MapOffset, Size);
+        }
     }
 
     return vk::Result::eSuccess;
@@ -585,10 +764,22 @@ vk::Result FVulkanDeviceMemory::FetchData(vk::DeviceSize MapOffset, vk::DeviceSi
     void* Data = nullptr;
     if (!_bPersistentlyMapped || _MappedTargetMemory == nullptr)
     {
-        vk::DeviceSize MappedBase = _bPersistentlyMapped ? 0 : MapOffset;
-        if (vk::Result Result = MapMemoryForFetch(MappedBase, Size, Data); Result != vk::Result::eSuccess)
+        if (_Allocator != nullptr && _Allocation != nullptr)
         {
-            return Result;
+            if (VkResult Result = vmaMapMemory(_Allocator, _Allocation, &Data); Result != VK_SUCCESS)
+            {
+                return static_cast<vk::Result>(Result);
+            }
+
+            _MappedDataMemory = Data;
+        }
+        else
+        {
+            vk::DeviceSize MappedBase = _bPersistentlyMapped ? 0 : MapOffset;
+            if (vk::Result Result = MapMemoryForFetch(MappedBase, Size, Data); Result != vk::Result::eSuccess)
+            {
+                return Result;
+            }
         }
     }
     else
@@ -598,9 +789,42 @@ vk::Result FVulkanDeviceMemory::FetchData(vk::DeviceSize MapOffset, vk::DeviceSi
 
     std::copy(static_cast<const std::byte*>(Data) + FetchOffset, static_cast<const std::byte*>(Data) + FetchOffset + Size, static_cast<std::byte*>(Target));
 
+    if (!(_MemoryPropertyFlags & vk::MemoryPropertyFlagBits::eHostCoherent))
+    {
+        if (_Allocator != nullptr && _Allocation != nullptr)
+        {
+            if (VkResult Result = vmaInvalidateAllocation(_Allocator, _Allocation, FetchOffset, Size); Result != VK_SUCCESS)
+            {
+                NpgsCoreError("Failed to invalidate allocation: {}.", vk::to_string(static_cast<vk::Result>(Result)));
+                return static_cast<vk::Result>(Result);
+            }
+        }
+        else
+        {
+            vk::MappedMemoryRange MappedMemoryRange(_Handle, FetchOffset, Size);
+            try
+            {
+                _Device.invalidateMappedMemoryRanges(MappedMemoryRange);
+            }
+            catch (const vk::SystemError& e)
+            {
+                NpgsCoreError("Failed to invalidate mapped memory range: {}", e.what());
+                return static_cast<vk::Result>(e.code().value());
+            }
+        }
+    }
+
     if (!_bPersistentlyMapped)
     {
-        return UnmapMemory(MapOffset, Size);
+        if (_Allocator != nullptr && _Allocation != nullptr)
+        {
+            vmaUnmapMemory(_Allocator, _Allocation);
+            return vk::Result::eSuccess;
+        }
+        else
+        {
+            return UnmapMemory(MapOffset, Size);
+        }
     }
 
     return vk::Result::eSuccess;
@@ -625,6 +849,36 @@ vk::Result FVulkanDeviceMemory::AllocateDeviceMemory(const vk::MemoryAllocateInf
     }
     _AllocationSize      = AllocateInfo.allocationSize;
     _MemoryPropertyFlags = _PhysicalDeviceMemoryProperties->memoryTypes[AllocateInfo.memoryTypeIndex].propertyFlags;
+
+    NpgsCoreTrace("Device memory allocated successfully.");
+    return vk::Result::eSuccess;
+}
+
+vk::Result FVulkanDeviceMemory::AllocateDeviceMemory(const VmaAllocationCreateInfo& AllocationCreateInfo,
+                                                     const vk::MemoryRequirements& MemoryRequirements)
+{
+    VkResult Result = vmaAllocateMemory(_Allocator, reinterpret_cast<const VkMemoryRequirements*>(&MemoryRequirements),
+                                        &AllocationCreateInfo, &_Allocation, &_AllocationInfo);
+    if (Result != VK_SUCCESS)
+    {
+        NpgsCoreError("Failed to allocate memory: {}.", vk::to_string(static_cast<vk::Result>(Result)));
+        return static_cast<vk::Result>(Result);
+    }
+
+    _Handle         = _AllocationInfo.deviceMemory;
+    _AllocationSize = MemoryRequirements.size;
+
+    ++_HandleTracker[_Handle];
+
+    VmaAllocationInfo AllocationInfo;
+    vmaGetAllocationInfo(_Allocator, _Allocation, &AllocationInfo);
+    vmaGetMemoryTypeProperties(_Allocator, AllocationInfo.memoryType,
+                               reinterpret_cast<VkMemoryPropertyFlags*>(&_MemoryPropertyFlags));
+
+    if (_AllocationInfo.pMappedData != nullptr)
+    {
+        NpgsAssert(false, "Don't use VMA_ALLOCATION_CREATE_MAPPED_BIT, try to use EnablePersistentMapping or SetPersistentMapping");
+    }
 
     NpgsCoreTrace("Device memory allocated successfully.");
     return vk::Result::eSuccess;
@@ -663,6 +917,8 @@ vk::DeviceSize FVulkanDeviceMemory::AlignNonCoherentMemoryRange(vk::DeviceSize& 
     return OriginalOffset - RangeBegin;
 }
 
+std::unordered_map<vk::DeviceMemory, std::size_t, FVulkanDeviceMemory::FVulkanDeviceMemoryHash> FVulkanDeviceMemory::_HandleTracker;
+
 // Wrapper for vk::Buffer
 // ----------------------
 FVulkanBuffer::FVulkanBuffer(const vk::BufferCreateInfo& CreateInfo)
@@ -678,6 +934,33 @@ FVulkanBuffer::FVulkanBuffer(vk::Device Device, const vk::PhysicalDeviceMemoryPr
 {
     _ReleaseInfo = "Buffer destroyed successfully.";
     _Status      = CreateBuffer(CreateInfo);
+}
+
+FVulkanBuffer::FVulkanBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& CreateInfo)
+    : FVulkanBuffer(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, CreateInfo)
+{
+}
+
+FVulkanBuffer::FVulkanBuffer(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& CreateInfo)
+    :
+    Base(FVulkanCore::GetClassInstance()->GetDevice()),
+    _PhysicalDeviceMemoryProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceMemoryProperties()),
+    _Allocator(Allocator),
+    _Allocation(nullptr),
+    _AllocationInfo{}
+{
+    _ReleaseInfo = "Buffer destroyed successfully.";
+    _Status      = CreateBuffer(AllocationCreateInfo, CreateInfo);
+}
+
+FVulkanBuffer::~FVulkanBuffer()
+{
+    if (_Allocator != nullptr && _Allocation != nullptr)
+    {
+        vmaDestroyBuffer(_Allocator, _Handle, _Allocation);
+        _Handle = vk::Buffer();
+        NpgsCoreTrace(_ReleaseInfo);
+    }
 }
 
 vk::MemoryAllocateInfo FVulkanBuffer::CreateMemoryAllocateInfo(vk::MemoryPropertyFlags Flags) const
@@ -716,6 +999,23 @@ vk::Result FVulkanBuffer::CreateBuffer(const vk::BufferCreateInfo& CreateInfo)
         NpgsCoreError("Failed to create buffer: {}", e.what());
         return static_cast<vk::Result>(e.code().value());
     }
+
+    NpgsCoreTrace("Buffer created successfully.");
+    return vk::Result::eSuccess;
+}
+
+vk::Result FVulkanBuffer::CreateBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& CreateInfo)
+{
+    VkBuffer Buffer;
+    VkResult Result = vmaCreateBuffer(_Allocator, reinterpret_cast<const VkBufferCreateInfo*>(&CreateInfo),
+                                      &AllocationCreateInfo, &Buffer, &_Allocation, &_AllocationInfo);
+    if (Result != VK_SUCCESS)
+    {
+        NpgsCoreError("Failed to create buffer: {}", vk::to_string(static_cast<vk::Result>(Result)));
+        return static_cast<vk::Result>(Result);
+    }
+
+    _Handle = Buffer;
 
     NpgsCoreTrace("Buffer created successfully.");
     return vk::Result::eSuccess;
@@ -1120,6 +1420,33 @@ FVulkanImage::FVulkanImage(vk::Device Device, const vk::PhysicalDeviceMemoryProp
     _Status      = CreateImage(CreateInfo);
 }
 
+FVulkanImage::FVulkanImage(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::ImageCreateInfo& CreateInfo)
+    : FVulkanImage(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, CreateInfo)
+{
+}
+
+FVulkanImage::FVulkanImage(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::ImageCreateInfo& CreateInfo)
+    :
+    Base(FVulkanCore::GetClassInstance()->GetDevice()),
+    _PhysicalDeviceMemoryProperties(&FVulkanCore::GetClassInstance()->GetPhysicalDeviceMemoryProperties()),
+    _Allocator(Allocator),
+    _Allocation(nullptr),
+    _AllocationInfo{}
+{
+    _ReleaseInfo = "Image destroyed successfully.";
+    _Status      = CreateImage(AllocationCreateInfo, CreateInfo);
+}
+
+FVulkanImage::~FVulkanImage()
+{
+    if (_Allocator != nullptr && _Allocation != nullptr)
+    {
+        vmaDestroyImage(_Allocator, _Handle, _Allocation);
+        _Handle = vk::Image();
+        NpgsCoreTrace(_ReleaseInfo);
+    }
+}
+
 vk::MemoryAllocateInfo FVulkanImage::CreateMemoryAllocateInfo(vk::MemoryPropertyFlags Flags) const
 {
     vk::MemoryRequirements MemoryRequirements = _Device.getImageMemoryRequirements(_Handle);
@@ -1164,6 +1491,23 @@ vk::Result FVulkanImage::CreateImage(const vk::ImageCreateInfo& CreateInfo)
         NpgsCoreError("Failed to create image: {}", e.what());
         return static_cast<vk::Result>(e.code().value());
     }
+
+    NpgsCoreTrace("Image created successfully.");
+    return vk::Result::eSuccess;
+}
+
+vk::Result FVulkanImage::CreateImage(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::ImageCreateInfo& CreateInfo)
+{
+    VkImage Image;
+    VkResult Result = vmaCreateImage(_Allocator, reinterpret_cast<const VkImageCreateInfo*>(&CreateInfo),
+                                     &AllocationCreateInfo, &Image, &_Allocation, &_AllocationInfo);
+    if (Result != VK_SUCCESS)
+    {
+        NpgsCoreError("Failed to create image: {}", vk::to_string(static_cast<vk::Result>(Result)));
+        return static_cast<vk::Result>(Result);
+    }
+
+    _Handle = Image;
 
     NpgsCoreTrace("Image created successfully.");
     return vk::Result::eSuccess;
@@ -1517,18 +1861,6 @@ FVulkanShaderModule::FVulkanShaderModule(vk::Device Device, const vk::ShaderModu
     _Status      = CreateShaderModule(CreateInfo);
 }
 
-// FVulkanShaderModule::FVulkanShaderModule(const std::string& Filename)
-//     : FVulkanShaderModule(FVulkanCore::GetClassInstance()->GetDevice(), Filename)
-// {
-// }
-
-// FVulkanShaderModule::FVulkanShaderModule(vk::Device Device, const std::string& Filename)
-//     : Base(Device)
-// {
-//     _ReleaseInfo = "Shader module destroyed successfully.";
-//     _Status      = CreateShaderModule(Filename);
-// }
-
 vk::Result FVulkanShaderModule::CreateShaderModule(const vk::ShaderModuleCreateInfo& CreateInfo)
 {
     try
@@ -1544,25 +1876,6 @@ vk::Result FVulkanShaderModule::CreateShaderModule(const vk::ShaderModuleCreateI
     NpgsCoreTrace("Shader module created successfully.");
     return vk::Result::eSuccess;
 }
-
-// vk::Result FVulkanShaderModule::CreateShaderModule(const std::string& Filename)
-// {
-//     std::ifstream ShaderFile(Filename, std::ios::ate | std::ios::binary);
-//     if (!ShaderFile.is_open())
-//     {
-//         NpgsCoreError("Failed to open shader file: {}", Filename);
-//         return vk::Result::eErrorInitializationFailed;
-//     }
-// 
-//     std::size_t FileSize = static_cast<std::size_t>(ShaderFile.tellg());
-//     std::vector<std::uint32_t> ShaderCode(FileSize / sizeof(std::uint32_t));
-//     ShaderFile.seekg(0);
-//     ShaderFile.read(reinterpret_cast<char*>(ShaderCode.data()), FileSize);
-//     ShaderFile.close();
-// 
-//     vk::ShaderModuleCreateInfo ShaderModuleCreateInfo({}, ShaderCode);
-//     return CreateShaderModule(ShaderModuleCreateInfo);
-// }
 // -------------------
 // Native wrappers end
 
@@ -1577,13 +1890,26 @@ FVulkanBufferMemory::FVulkanBufferMemory(const vk::BufferCreateInfo& BufferCreat
 FVulkanBufferMemory::FVulkanBufferMemory(vk::Device Device, const vk::PhysicalDeviceProperties& PhysicalDeviceProperties,
                                          const vk::PhysicalDeviceMemoryProperties& PhysicalDeviceMemoryProperties,
                                          const vk::BufferCreateInfo& BufferCreateInfo, vk::MemoryPropertyFlags MemoryPropertyFlags)
-    : Base(nullptr, std::make_unique<FVulkanBuffer>(Device, PhysicalDeviceMemoryProperties, BufferCreateInfo))
+    : Base(std::make_unique<FVulkanBuffer>(Device, PhysicalDeviceMemoryProperties, BufferCreateInfo), nullptr)
 {
     auto MemoryAllocateInfo = _Resource->CreateMemoryAllocateInfo(MemoryPropertyFlags);
     _Memory = std::make_unique<FVulkanDeviceMemory>(
         Device, PhysicalDeviceProperties, PhysicalDeviceMemoryProperties, MemoryAllocateInfo);
-
     _bMemoryBound = _Memory->IsValid() && (_Resource->BindMemory(*_Memory) == vk::Result::eSuccess);
+}
+
+FVulkanBufferMemory::FVulkanBufferMemory(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo)
+    : FVulkanBufferMemory(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, BufferCreateInfo)
+{
+}
+
+FVulkanBufferMemory::FVulkanBufferMemory(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo)
+    : Base(std::make_unique<FVulkanBuffer>(Allocator, AllocationCreateInfo, BufferCreateInfo), nullptr)
+{
+    auto& AllocationInfo = _Resource->GetAllocationInfo();
+    _Memory = std::make_unique<FVulkanDeviceMemory>(
+        _Resource->GetAllocator(), _Resource->GetAllocation(), AllocationInfo, AllocationInfo.deviceMemory);
+    _bMemoryBound = true;
 }
 
 FVulkanImageMemory::FVulkanImageMemory(const vk::ImageCreateInfo& ImageCreateInfo, vk::MemoryPropertyFlags MemoryPropertyFlags)
@@ -1597,12 +1923,26 @@ FVulkanImageMemory::FVulkanImageMemory(const vk::ImageCreateInfo& ImageCreateInf
 FVulkanImageMemory::FVulkanImageMemory(vk::Device Device, const vk::PhysicalDeviceProperties& PhysicalDeviceProperties,
                                        const vk::PhysicalDeviceMemoryProperties& PhysicalDeviceMemoryProperties,
                                        const vk::ImageCreateInfo& ImageCreateInfo, vk::MemoryPropertyFlags MemoryPropertyFlags)
-    : Base(nullptr, std::make_unique<FVulkanImage>(Device, PhysicalDeviceMemoryProperties, ImageCreateInfo))
+    : Base(std::make_unique<FVulkanImage>(Device, PhysicalDeviceMemoryProperties, ImageCreateInfo), nullptr)
 {
     auto MemoryAllocateInfo = _Resource->CreateMemoryAllocateInfo(MemoryPropertyFlags);
     _Memory = std::make_unique<FVulkanDeviceMemory>(
         Device, PhysicalDeviceProperties, PhysicalDeviceMemoryProperties, MemoryAllocateInfo);
     _bMemoryBound = _Memory->IsValid() && (_Resource->BindMemory(*_Memory) == vk::Result::eSuccess);
+}
+
+FVulkanImageMemory::FVulkanImageMemory(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::ImageCreateInfo& ImageCreateInfo)
+    : FVulkanImageMemory(FVulkanCore::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo, ImageCreateInfo)
+{
+}
+
+FVulkanImageMemory::FVulkanImageMemory(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::ImageCreateInfo& ImageCreateInfo)
+    : Base(std::make_unique<FVulkanImage>(Allocator, AllocationCreateInfo, ImageCreateInfo), nullptr)
+{
+    auto& AllocationInfo = _Resource->GetAllocationInfo();
+    _Memory = std::make_unique<FVulkanDeviceMemory>(
+        _Resource->GetAllocator(), _Resource->GetAllocation(), AllocationInfo, AllocationInfo.deviceMemory);
+    _bMemoryBound = true;
 }
 
 _GRAPHICS_END

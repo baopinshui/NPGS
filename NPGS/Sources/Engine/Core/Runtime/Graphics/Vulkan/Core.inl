@@ -139,6 +139,11 @@ NPGS_INLINE vk::SwapchainKHR FVulkanCore::GetSwapchain() const
     return _Swapchain;
 }
 
+NPGS_INLINE VmaAllocator FVulkanCore::GetVmaAllocator() const
+{
+    return _VmaAllocator;
+}
+
 NPGS_INLINE const vk::PhysicalDeviceProperties& FVulkanCore::GetPhysicalDeviceProperties() const
 {
     return _PhysicalDeviceProperties;

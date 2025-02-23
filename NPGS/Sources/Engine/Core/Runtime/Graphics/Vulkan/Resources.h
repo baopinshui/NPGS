@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan_handles.hpp>
 
 #include "Engine/Core/Base/Base.h"
@@ -18,6 +19,7 @@ _GRAPHICS_BEGIN
 class FAttachment
 {
 public:
+    FAttachment(VmaAllocator Allocator);
     virtual ~FAttachment() = default;
 
     vk::DescriptorImageInfo CreateDescriptorImageInfo(const FVulkanSampler& Sampler) const;
@@ -31,12 +33,24 @@ public:
 protected:
     std::unique_ptr<FVulkanImageMemory> _ImageMemory;
     std::unique_ptr<FVulkanImageView>   _ImageView;
+    VmaAllocator                        _Allocator;
 };
 
 class FColorAttachment : public FAttachment
 {
 public:
+    using Base = FAttachment;
+    using Base::Base;
+
     FColorAttachment() = delete;
+    FColorAttachment(const VmaAllocationCreateInfo& AllocationCreateInfo, vk::Format Format, vk::Extent2D Extent,
+                     std::uint32_t LayerCount = 1, vk::SampleCountFlagBits SampleCount = vk::SampleCountFlagBits::e1,
+                     vk::ImageUsageFlags ExtraUsage = static_cast<vk::ImageUsageFlagBits>(0));
+
+    FColorAttachment(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, vk::Format Format,
+                     vk::Extent2D Extent, std::uint32_t LayerCount = 1, vk::SampleCountFlagBits SampleCount = vk::SampleCountFlagBits::e1,
+                     vk::ImageUsageFlags ExtraUsage = static_cast<vk::ImageUsageFlagBits>(0));
+
     FColorAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount = 1,
                      vk::SampleCountFlagBits SampleCount = vk::SampleCountFlagBits::e1,
                      vk::ImageUsageFlags ExtraUsage = static_cast<vk::ImageUsageFlagBits>(0));
@@ -44,14 +58,25 @@ public:
     static bool CheckFormatAvailability(vk::Format Format, bool bSupportBlend = true);
 
 private:
-    vk::Result CreateAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
-                                vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage);
+    vk::Result CreateAttachment(const VmaAllocationCreateInfo* AllocationCreateInfo, vk::Format Format, vk::Extent2D Extent,
+                                std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage);
 };
 
 class FDepthStencilAttachment : public FAttachment
 {
 public:
+    using Base = FAttachment;
+    using Base::Base;
+
     FDepthStencilAttachment() = delete;
+    FDepthStencilAttachment(const VmaAllocationCreateInfo& AllocationCreateInfo, vk::Format Format, vk::Extent2D Extent,
+                            std::uint32_t LayerCount = 1, vk::SampleCountFlagBits SampleCount = vk::SampleCountFlagBits::e1,
+                            vk::ImageUsageFlags ExtraUsage = static_cast<vk::ImageUsageFlagBits>(0), bool bStencilOnly = false);
+
+    FDepthStencilAttachment(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, vk::Format Format,
+                            vk::Extent2D Extent, std::uint32_t LayerCount = 1, vk::SampleCountFlagBits SampleCount = vk::SampleCountFlagBits::e1,
+                            vk::ImageUsageFlags ExtraUsage = static_cast<vk::ImageUsageFlagBits>(0), bool bStencilOnly = false);
+
     FDepthStencilAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount = 1,
                             vk::SampleCountFlagBits SampleCount = vk::SampleCountFlagBits::e1,
                             vk::ImageUsageFlags ExtraUsage = static_cast<vk::ImageUsageFlagBits>(0),
@@ -60,8 +85,8 @@ public:
     static bool CheckFormatAvailability(vk::Format Format);
 
 private:
-    vk::Result CreateAttachment(vk::Format Format, vk::Extent2D Extent, std::uint32_t LayerCount,
-                                vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly);
+    vk::Result CreateAttachment(const VmaAllocationCreateInfo* AllocationCreateInfo, vk::Format Format, vk::Extent2D Extent,
+                                std::uint32_t LayerCount, vk::SampleCountFlagBits SampleCount, vk::ImageUsageFlags ExtraUsage, bool bStencilOnly);
 };
 
 class FStagingBuffer
@@ -71,6 +96,10 @@ public:
     FStagingBuffer(vk::DeviceSize Size);
     FStagingBuffer(vk::Device Device, const vk::PhysicalDeviceProperties& PhysicalDeviceProperties,
                    const vk::PhysicalDeviceMemoryProperties& PhysicalDeviceMemoryProperties, vk::DeviceSize Size);
+
+    FStagingBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo);
+    FStagingBuffer(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
+                   const vk::BufferCreateInfo& BufferCreateInfo);
 
     FStagingBuffer(const FStagingBuffer&) = delete;
     FStagingBuffer(FStagingBuffer&& Other) noexcept;
@@ -89,6 +118,7 @@ public:
     void  SubmitBufferData(vk::DeviceSize MapOffset, vk::DeviceSize SubmitOffset, vk::DeviceSize Size, const void* Data);
     void  FetchBufferData(vk::DeviceSize MapOffset, vk::DeviceSize FetchOffset, vk::DeviceSize Size, void* Target) const;
     void  Release();
+    bool  IsUsingVma() const;
 
     FVulkanImage* CreateAliasedImage(vk::Format Format, vk::Extent2D Extent);
 
@@ -109,12 +139,14 @@ private:
     std::unique_ptr<FVulkanBufferMemory>      _BufferMemory;
     std::unique_ptr<FVulkanImage>             _AliasedImage;
     vk::DeviceSize                            _MemoryUsage;
+    VmaAllocator                              _Allocator;
+    VmaAllocationCreateInfo                   _AllocationCreateInfo;
 };
 
 class FStagingBufferPool
 {
 public:
-    FStagingBuffer* AcquireBuffer(vk::DeviceSize Size);
+    FStagingBuffer* AcquireBuffer(vk::DeviceSize Size, const VmaAllocationCreateInfo* AllocationCreateInfo = nullptr);
     void ReleaseBuffer(FStagingBuffer* Buffer);
 
     static FStagingBufferPool* GetInstance();
@@ -139,6 +171,8 @@ class FDeviceLocalBuffer
 public:
     FDeviceLocalBuffer() = delete;
     FDeviceLocalBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage);
+    FDeviceLocalBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo);
+    FDeviceLocalBuffer(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const vk::BufferCreateInfo& BufferCreateInfo);
     FDeviceLocalBuffer(const FDeviceLocalBuffer&) = delete;
     FDeviceLocalBuffer(FDeviceLocalBuffer&& Other) noexcept;
     ~FDeviceLocalBuffer() = default;
@@ -170,13 +204,21 @@ public:
     FVulkanBuffer& GetBuffer();
     const FVulkanBuffer& GetBuffer() const;
 
+    bool IsUsingVma() const;
+
 private:
     vk::Result CreateBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage);
+    vk::Result CreateBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo,
+                            const vk::BufferCreateInfo& BufferCreateInfo);
+
     vk::Result RecreateBuffer(vk::DeviceSize Size, vk::BufferUsageFlags Usage);
+    vk::Result RecreateBuffer(const VmaAllocationCreateInfo& AllocationCreateInfo,
+                              const vk::BufferCreateInfo& BufferCreateInfo);
 
 private:
     std::unique_ptr<FVulkanBufferMemory> _BufferMemory;
     FStagingBufferPool*                  _StagingBufferPool;
+    VmaAllocator                         _Allocator;
 };
 
 _GRAPHICS_END

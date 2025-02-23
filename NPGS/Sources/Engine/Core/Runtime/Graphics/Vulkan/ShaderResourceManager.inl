@@ -13,7 +13,9 @@ _GRAPHICS_BEGIN
 
 template <typename StructType>
 requires std::is_class_v<StructType>
-inline void FShaderResourceManager::CreateBuffers(const FUniformBufferCreateInfo& BufferCreateInfo, std::uint32_t BufferCount)
+inline void FShaderResourceManager::CreateBuffers(const FUniformBufferCreateInfo& BufferCreateInfo,
+                                                  const VmaAllocationCreateInfo* AllocationCreateInfo,
+                                                  std::uint32_t BufferCount)
 {
     const auto* VulkanContext = FVulkanContext::GetClassInstance();
     FUniformBufferInfo BufferInfo;
@@ -43,7 +45,17 @@ inline void FShaderResourceManager::CreateBuffers(const FUniformBufferCreateInfo
     BufferInfo.Buffers.reserve(BufferCount);
     for (std::uint32_t i = 0; i != BufferCount; ++i)
     {
-        BufferInfo.Buffers.emplace_back(BufferInfo.Size, vk::BufferUsageFlagBits::eUniformBuffer);
+        if (AllocationCreateInfo != nullptr)
+        {
+            vk::BufferCreateInfo BufferCreateInfo({}, BufferInfo.Size,
+                vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst);
+            BufferInfo.Buffers.emplace_back(*AllocationCreateInfo, BufferCreateInfo);
+        }
+        else
+        {
+            BufferInfo.Buffers.emplace_back(BufferInfo.Size, vk::BufferUsageFlagBits::eUniformBuffer);
+        }
+
         BufferInfo.Buffers[i].EnablePersistentMapping();
         BufferInfo.Buffers[i].CopyData(0, 0, BufferInfo.Size, &EmptyData);
     }

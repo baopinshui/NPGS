@@ -1,7 +1,7 @@
 <Solution>
   <Configurations>
     <BuildType Name="Debug" />
-    <BuildType Name="FinalRelease" />
+    <BuildType Name="Package" />
     <BuildType Name="Release" />
     <Platform Name="x64" />
     <Platform Name="x86" />

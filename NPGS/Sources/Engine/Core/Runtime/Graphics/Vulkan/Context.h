@@ -7,6 +7,7 @@
 #include <utility>
 
 #include <magic_enum/magic_enum.hpp>
+#include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan_handles.hpp>
 
 #include "Engine/Core/Base/Base.h"
@@ -122,6 +123,7 @@ public:
     vk::Queue GetPresentQueue() const;
     vk::Queue GetComputeQueue() const;
     vk::SwapchainKHR GetSwapchain() const;
+    VmaAllocator GetVmaAllocator() const;
 
     const vk::PhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
     const vk::PhysicalDeviceMemoryProperties& GetPhysicalDeviceMemoryProperties() const;

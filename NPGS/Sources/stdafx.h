@@ -5,6 +5,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+#include <boost/multiprecision/cpp_int.hpp>
 #include <fast-cpp-csv-parser/csv.h>
 
 #define GLFW_INCLUDE_VULKAN
@@ -16,8 +17,10 @@
 #include <spdlog/spdlog.h>
 #include <spirv_cross/spirv_reflect.hpp>
 #include <stb_image.h>
+#include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_format_traits.hpp>
+#include <vulkan/vulkan_to_string.hpp>
 
 #include <Windows.h>
 

@@ -5,6 +5,7 @@
 #include <limits>
 
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_to_string.hpp>
 
 #include "Engine/Core/Runtime/Graphics/Vulkan/ExtFunctionsImpl.h"
 #include "Engine/Utils/Logger.h"
@@ -32,6 +33,13 @@ FVulkanCore::~FVulkanCore()
         if (_Device)
         {
             WaitIdle();
+            if (_VmaAllocator)
+            {
+                vmaDestroyAllocator(_VmaAllocator);
+                _VmaAllocator = nullptr;
+                NpgsCoreInfo("Destroyed VMA allocator.");
+            }
+
             if (_Swapchain)
             {
                 for (auto& Callback : _DestroySwapchainCallbacks)
@@ -349,7 +357,7 @@ vk::Result FVulkanCore::CreateDevice(std::uint32_t PhysicalDeviceIndex, vk::Devi
         Callback.second();
     }
 
-    return vk::Result::eSuccess;
+    return InitializeVmaAllocator();
 }
 
 vk::Result FVulkanCore::RecreateDevice(std::uint32_t PhysicalDeviceIndex, vk::DeviceCreateFlags Flags)
@@ -1069,6 +1077,27 @@ vk::Result FVulkanCore::CreateSwapchainInternal()
         _SwapchainImageViews.push_back(ImageView);
     }
 
+    return vk::Result::eSuccess;
+}
+
+vk::Result FVulkanCore::InitializeVmaAllocator()
+{
+    VmaAllocatorCreateInfo AllocatorCreateInfo
+    {
+        .flags          = VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT,
+        .physicalDevice = _PhysicalDevice,
+        .device         = _Device,
+        .instance       = _Instance,
+    };
+
+    if (vk::Result Result = static_cast<vk::Result>(vmaCreateAllocator(&AllocatorCreateInfo, &_VmaAllocator));
+        Result != vk::Result::eSuccess)
+    {
+        NpgsCoreError("Failed to create VMA allocator: {}", vk::to_string(Result));
+        return Result;
+    }
+
+    NpgsCoreInfo("VMA allocator created successfully.");
     return vk::Result::eSuccess;
 }
 

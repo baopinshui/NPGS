@@ -105,6 +105,12 @@
     <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Renderers\PipelineManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\ExternalImpl\stb_impl.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\ExternalImpl\vma_impl.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">

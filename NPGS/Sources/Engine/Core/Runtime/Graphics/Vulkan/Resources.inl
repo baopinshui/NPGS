@@ -87,6 +87,11 @@ NPGS_INLINE void FStagingBuffer::Release()
     _BufferMemory.reset();
 }
 
+NPGS_INLINE bool FStagingBuffer::IsUsingVma() const
+{
+    return _Allocator != nullptr;
+}
+
 NPGS_INLINE FVulkanBuffer& FStagingBuffer::GetBuffer()
 {
     return _BufferMemory->GetResource();
@@ -157,12 +162,12 @@ NPGS_INLINE void FDeviceLocalBuffer::UpdateData(const FVulkanCommandBuffer& Comm
 
 NPGS_INLINE void FDeviceLocalBuffer::EnablePersistentMapping() const
 {
-    _BufferMemory->GetMemory().EnablePersistentMapping();
+    _BufferMemory->GetMemory().SetPersistentMapping(true);
 }
 
 NPGS_INLINE void FDeviceLocalBuffer::DisablePersistentMapping() const
 {
-    _BufferMemory->GetMemory().DisablePersistentMapping();
+    _BufferMemory->GetMemory().SetPersistentMapping(false);
 }
 
 NPGS_INLINE FVulkanBuffer& FDeviceLocalBuffer::GetBuffer()
@@ -173,6 +178,11 @@ NPGS_INLINE FVulkanBuffer& FDeviceLocalBuffer::GetBuffer()
 NPGS_INLINE const FVulkanBuffer& FDeviceLocalBuffer::GetBuffer() const
 {
     return _BufferMemory->GetResource();
+}
+
+NPGS_INLINE bool FDeviceLocalBuffer::IsUsingVma() const
+{
+    return _Allocator != nullptr;
 }
 
 _GRAPHICS_END
