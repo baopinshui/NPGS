@@ -300,7 +300,7 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
             Color.xyz *= BrightWithoutRedShift * min(1.0, 1.8 * (OuterRadiusLy - PosR) / (OuterRadiusLy - InterRadiusLy)) *
                          KelvinToRgb(DiskTemperature / exp((PosR - InterRadiusLy) / (0.6 * (OuterRadiusLy - InterRadiusLy))));
             Color.xyz *= min(ShiftMax, RedShift) * min(ShiftMax, Dopler);
-
+            RedShift=min(RedShift,ShiftMax);
             Color.xyz *= pow((1.0 - (1.0 - min(1.0, RedShift)) * (PosR - InterRadiusLy) / (OuterRadiusLy - InterRadiusLy)), 9.0);
             Color.xyz *= min(1.0, 1.0 + 0.5 * ((PosR - InterRadiusLy) / InterRadiusLy + InterRadiusLy / (PosR - InterRadiusLy)) - max(1.0, RedShift));
 
@@ -357,7 +357,7 @@ void main()
         DistanceToBlackHole      = length(PosToBlackHole);
         NormalizedPosToBlackHole = PosToBlackHole / DistanceToBlackHole;
 
-        if (DistanceToBlackHole > (2.5 * iOuterRadiusLy) && DistanceToBlackHole > LastDistance && Count > 50)
+        if (DistanceToBlackHole > (2.5 * iOuterRadiusLy) && DistanceToBlackHole > LastDistance && (Count > 20))
         {
             bShouldContinueMarchRay = false;
             FragUv = DirToFragUv(RayDir, iResolution);
