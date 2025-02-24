@@ -48,6 +48,7 @@ public:
     void ProcessMouseMovement(double OffsetX, double OffsetY);
     void ProcessMouseScroll(double OffsetY);
     void SetOrientation(const glm::quat& Orientation);
+    void SetPosition(const glm::vec3& Position);
     const glm::quat& GetOrientation() const;
     const glm::vec3& GetCameraVector(EVectorType Type) const;
     glm::mat4x4 GetViewMatrix() const;

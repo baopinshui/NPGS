@@ -17,6 +17,10 @@ layout(set = 1, binding = 0) uniform sampler2D iBloomTex;
 
 vec3 ColorFetch(vec2 TexCoord)
 {
+    if (TexCoord.x < 0.00001 || TexCoord.x > 0.99999 || TexCoord.y < 0.00001 || TexCoord.y > 0.99999)
+    {
+        return vec3(0.0);
+    }
     return texture(iBloomTex, TexCoord).rgb;
 }
 
@@ -92,6 +96,7 @@ vec3 GetMipmapTree(vec2 FragUv)
     Color += GrabN(FragUv, 8.0, vec2(CalcOffset(7.0)), 16);
 
     return Color;
+   // return vec3(0.,.,2.);
 }
 
 vec3 GaussBlur(vec2 FragUv, bool bHorizontal)
@@ -121,6 +126,7 @@ vec3 GaussBlur(vec2 FragUv, bool bHorizontal)
     }
 
     return Color;
+    //return ColorFetch(FragUv);
 }
 
 void main()
