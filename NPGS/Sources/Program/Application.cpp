@@ -228,8 +228,10 @@ void FApplication::ExecuteMainRender()
 
     std::vector<vk::DescriptorImageInfo> ImageInfos;
     ImageInfos.push_back(ContainerDiffuse->CreateDescriptorImageInfo(nullptr));
-    ImageInfos.push_back(ContainerSpecular->CreateDescriptorImageInfo(nullptr));
     BasicLightingShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eSampledImage, ImageInfos);
+    ImageInfos.clear();
+    ImageInfos.push_back(ContainerSpecular->CreateDescriptorImageInfo(nullptr));
+    BasicLightingShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eSampledImage, ImageInfos);
 
     SamplerCreateInfo
         .setMipmapMode(vk::SamplerMipmapMode::eNearest)
@@ -357,6 +359,8 @@ void FApplication::ExecuteMainRender()
     std::uint32_t  DynamicOffset = 0;
     std::uint32_t  CurrentFrame  = 0;
     glm::vec3      LightPos(1.2f, 1.0f, 2.0f);
+
+    _FreeCamera->SetOrbitTarget(glm::vec3(0.0f), 3.0f);
 
     vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
     while (!glfwWindowShouldClose(_Window))
