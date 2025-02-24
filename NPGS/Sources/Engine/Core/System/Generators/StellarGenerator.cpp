@@ -101,7 +101,7 @@ namespace
 }
 
 // FStellarGenerator implementations
-// --------------------------------
+// ---------------------------------
 FStellarGenerator::FStellarGenerator(const FStellarGenerationInfo& GenerationInfo)
     :
     _RandomEngine(*GenerationInfo.SeedSequence),
