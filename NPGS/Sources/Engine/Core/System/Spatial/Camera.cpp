@@ -19,6 +19,27 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     UpdateVectors();
 }
 
+void FCamera::SetCameraVector(EVectorType Type, const glm::vec3& NewVector)
+{
+    switch (Type)
+    {
+    case EVectorType::kPosition:
+        _Position = NewVector;
+        break;
+    case EVectorType::kFront:
+        _Front = NewVector;
+        break;
+    case EVectorType::kUp:
+        _Up = NewVector;
+        break;
+    case EVectorType::kRight:
+        _Right = NewVector;
+        break;
+    default:
+        NpgsAssert(false, "Invalid vector type");
+    }
+}
+
 const glm::vec3& FCamera::GetCameraVector(EVectorType Type) const
 {
     switch (Type)

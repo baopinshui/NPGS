@@ -365,6 +365,7 @@ MigrationBackup/
 FodyWeavers.xsd
 
 /Package/
+/NPGS/Assets/Shaders/
 
 # Vcpkg 
 /NPGS/vcpkg_installed/
