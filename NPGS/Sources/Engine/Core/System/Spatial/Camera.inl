@@ -21,6 +21,11 @@ NPGS_INLINE void FCamera::SetOrientation(const glm::quat& Orientation)
     _Orientation = Orientation;
 }
 
+NPGS_INLINE void FCamera::SetPosition(const glm::vec3& Position)
+{
+    _Position = Position;
+}
+
 NPGS_INLINE const glm::quat& FCamera::GetOrientation() const
 {
     return _Orientation;
