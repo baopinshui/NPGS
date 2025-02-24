@@ -680,7 +680,7 @@ void FTexture2D::CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, 
     }
     else
     {
-        Graphics::FVulkanImage* ConvertedImage = StagingBuffer->CreateAliasedImage(FinalFormat, _ImageExtent);
+        Graphics::FVulkanImage* ConvertedImage = StagingBuffer->CreateAliasedImage(InitialFormat, FinalFormat, _ImageExtent);
 
         if (ConvertedImage)
         {

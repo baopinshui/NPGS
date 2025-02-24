@@ -16,6 +16,133 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
+namespace
+{
+    // 格式描述，用于统一管理格式属性
+    struct FFormatDescription
+    {
+        std::uint32_t Family;        // 格式所属族
+        std::uint32_t BitDepth;      // 位深度
+        bool          bIsSrgb;       // 是否为 sRGB 格式
+        bool          bIsCompressed; // 是否为压缩格式
+        bool          bIsDepth;      // 是否为深度格式
+    };
+
+    // 格式族枚举
+    enum class EFormatFamily : std::uint32_t
+    {
+        kUnknown = 0,
+        kR8,             // R8 系列
+        kRG8,            // RG8 系列
+        kRGBA8,          // RGBA8 系列
+        kBGRA8,          // BGRA8 系列
+        kDepth16,        // 16位深度格式
+        kDepth24,        // 24位深度格式
+        kDepth32,        // 32位深度格式
+        kBC1,            // BC1压缩格式
+        kBC2,            // BC2压缩格式
+        kBC3,            // BC3压缩格式
+        // 可以继续添加更多格式族...
+    };
+
+    // 获取格式描述符
+    FFormatDescription GetFormatDescription(vk::Format Format)
+    {
+        switch (Format)
+        {
+            // R8 格式族
+        case vk::Format::eR8Unorm:
+            return { static_cast<uint32_t>(EFormatFamily::kR8), 8, false, false, false };
+        case vk::Format::eR8Srgb:
+            return { static_cast<uint32_t>(EFormatFamily::kR8), 8, true, false, false };
+
+            // RG8 格式族
+        case vk::Format::eR8G8Unorm:
+            return { static_cast<uint32_t>(EFormatFamily::kRG8), 16, false, false, false };
+        case vk::Format::eR8G8Srgb:
+            return { static_cast<uint32_t>(EFormatFamily::kRG8), 16, true, false, false };
+
+            // RGBA8 格式族
+        case vk::Format::eR8G8B8A8Unorm:
+            return { static_cast<uint32_t>(EFormatFamily::kRGBA8), 32, false, false, false };
+        case vk::Format::eR8G8B8A8Srgb:
+            return { static_cast<uint32_t>(EFormatFamily::kRGBA8), 32, true, false, false };
+
+            // BGRA8 格式族
+        case vk::Format::eB8G8R8A8Unorm:
+            return { static_cast<uint32_t>(EFormatFamily::kBGRA8), 32, false, false, false };
+        case vk::Format::eB8G8R8A8Srgb:
+            return { static_cast<uint32_t>(EFormatFamily::kBGRA8), 32, true, false, false };
+
+            // 深度格式
+        case vk::Format::eD16Unorm:
+            return { static_cast<uint32_t>(EFormatFamily::kDepth16), 16, false, false, true };
+        case vk::Format::eD24UnormS8Uint:
+            return { static_cast<uint32_t>(EFormatFamily::kDepth24), 32, false, false, true };
+        case vk::Format::eD32Sfloat:
+            return { static_cast<uint32_t>(EFormatFamily::kDepth32), 32, false, false, true };
+
+            // 压缩格式
+        case vk::Format::eBc1RgbaUnormBlock:
+            return { static_cast<uint32_t>(EFormatFamily::kBC1), 64, false, true, false };
+        case vk::Format::eBc1RgbaSrgbBlock:
+            return { static_cast<uint32_t>(EFormatFamily::kBC1), 64, true, true, false };
+
+        default:
+            return { static_cast<uint32_t>(EFormatFamily::kUnknown), 0, false, false, false };
+        }
+    }
+
+    bool IsFormatAliasingCompatible(vk::Format SrcFormat, vk::Format DstFormat)
+    {
+        FFormatDescription SrcDesc = GetFormatDescription(SrcFormat);
+        FFormatDescription DstDesc = GetFormatDescription(DstFormat);
+
+        if (SrcDesc.Family == static_cast<uint32_t>(EFormatFamily::kUnknown) ||
+            DstDesc.Family == static_cast<uint32_t>(EFormatFamily::kUnknown) ||
+            SrcDesc.Family        != DstDesc.Family        || // 必须是同一格式族
+            SrcDesc.BitDepth      != DstDesc.BitDepth      || // 位深度必须相同
+            SrcDesc.bIsCompressed != DstDesc.bIsCompressed || // 压缩状态必须相同
+            SrcDesc.bIsSrgb       != DstDesc.bIsSrgb       || // sRGB 和非 sRGB 不能混叠
+            SrcDesc.bIsDepth)                                 // 深度格式不允许混叠
+        {
+            return false;
+        }
+
+        auto* VulkanContext = FVulkanContext::GetClassInstance();
+        vk::FormatProperties SrcFormatProperties = VulkanContext->GetPhysicalDevice().getFormatProperties(SrcFormat);
+        vk::FormatProperties DstFormatProperties = VulkanContext->GetPhysicalDevice().getFormatProperties(DstFormat);
+
+        bool bLinearTilingCompatible =
+            (SrcFormatProperties.linearTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage) &&
+            (DstFormatProperties.linearTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage);
+
+        bool bOptimalTilingCompatible =
+            (SrcFormatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage) &&
+            (DstFormatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage);
+
+        if (!bLinearTilingCompatible && !bOptimalTilingCompatible)
+        {
+            return false;
+        }
+
+        FFormatInfo SrcFormatInfo = GetFormatInfo(SrcFormat);
+        FFormatInfo DstFormatInfo = GetFormatInfo(DstFormat);
+
+        if (SrcDesc.bIsCompressed)
+        {
+            // 确保组件数量和每个组件的位深度相同
+            const auto SrcComponents = SrcFormatInfo.ComponentCount;
+            const auto DstComponents = SrcFormatInfo.ComponentCount;
+            if (SrcComponents != DstComponents)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
 FAttachment::FAttachment(VmaAllocator Allocator)
     : _Allocator(Allocator)
 {
@@ -274,24 +401,29 @@ FStagingBuffer& FStagingBuffer::operator=(FStagingBuffer&& Other) noexcept
     return *this;
 }
 
-FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format Format, vk::Extent2D Extent)
+FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format OriganFormat, vk::Format NewFormat, vk::Extent2D Extent)
 {
+    if (!IsFormatAliasingCompatible(OriganFormat, NewFormat))
+    {
+        return nullptr;
+    }
+
     vk::PhysicalDevice   PhysicalDevice   = FVulkanCore::GetClassInstance()->GetPhysicalDevice();
-    vk::FormatProperties FormatProperties = PhysicalDevice.getFormatProperties(Format);
+    vk::FormatProperties FormatProperties = PhysicalDevice.getFormatProperties(NewFormat);
 
     if (!(FormatProperties.linearTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc))
     {
         return nullptr;
     }
 
-    vk::DeviceSize ImageDataSize = static_cast<vk::DeviceSize>(Extent.width * Extent.height * GetFormatInfo(Format).PixelSize);
+    vk::DeviceSize ImageDataSize = static_cast<vk::DeviceSize>(Extent.width * Extent.height * GetFormatInfo(NewFormat).PixelSize);
     if (ImageDataSize > _BufferMemory->GetMemory().GetAllocationSize())
     {
         return nullptr;
     }
 
     vk::ImageFormatProperties ImageFormatProperties =
-        PhysicalDevice.getImageFormatProperties(Format, vk::ImageType::e2D, vk::ImageTiling::eLinear,
+        PhysicalDevice.getImageFormatProperties(NewFormat, vk::ImageType::e2D, vk::ImageTiling::eLinear,
                                                 vk::ImageUsageFlagBits::eTransferSrc);
     if (Extent.width  > ImageFormatProperties.maxExtent ||
         Extent.height > ImageFormatProperties.maxExtent ||
@@ -302,7 +434,7 @@ FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format Format, vk::Extent2D
 
     vk::Extent3D Extent3D = { Extent.width, Extent.height, 1 };
 
-    vk::ImageCreateInfo ImageCreateInfo({}, vk::ImageType::e2D, Format, Extent3D, 1, 1, vk::SampleCountFlagBits::e1,
+    vk::ImageCreateInfo ImageCreateInfo({}, vk::ImageType::e2D, NewFormat, Extent3D, 1, 1, vk::SampleCountFlagBits::e1,
                                         vk::ImageTiling::eLinear, vk::ImageUsageFlagBits::eTransferSrc,
                                         vk::SharingMode::eExclusive, 0, nullptr, vk::ImageLayout::ePreinitialized);
     _AliasedImage = std::make_unique<FVulkanImage>(_Device, *_PhysicalDeviceMemoryProperties, ImageCreateInfo);
