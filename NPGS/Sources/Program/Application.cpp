@@ -176,11 +176,11 @@ void FApplication::ExecuteMainRender()
     AssetManager->AddAsset<Art::FShader>("PostShader", PostShaderFiles, PostResourceInfo);
 
     AssetManager->AddAsset<Art::FTexture2D>(
-        "ContainerDiffuse", TextureAllocationCreateInfo, "ContainerDiffuse.png",
-        vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
+        "ContainerDiffuse", "AwesomeFace.png",
+        vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Srgb, vk::ImageCreateFlagBits::eMutableFormat, true);
 
     AssetManager->AddAsset<Art::FTexture2D>(
-        "ContainerSpecular", TextureAllocationCreateInfo, "ContainerSpecular.png",
+        "ContainerSpecular", "ContainerSpecular.png",
         vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
 
     auto* BasicLightingShader = AssetManager->GetAsset<Art::FShader>("BasicLightingShader");

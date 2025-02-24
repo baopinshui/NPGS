@@ -167,7 +167,6 @@ namespace
         if (ArrayLayers > 1)
         {
             std::vector<vk::ImageBlit> Regions(ArrayLayers);
-
             vk::ImageSubresourceRange InitialMipRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, ArrayLayers);
 
             vk::ImageMemoryBarrier2 InitImageBarrier(
@@ -429,7 +428,9 @@ void FTextureBase::CreateImageMemory(vk::ImageType ImageType, vk::Format Format,
         .setMipLevels(MipLevels)
         .setArrayLayers(ArrayLayers)
         .setSamples(vk::SampleCountFlagBits::e1)
-        .setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled);
+        .setUsage(vk::ImageUsageFlagBits::eTransferSrc |
+                  vk::ImageUsageFlagBits::eTransferDst |
+                  vk::ImageUsageFlagBits::eSampled);
 
     if (_Allocator != nullptr)
     {
@@ -691,14 +692,115 @@ void FTexture2D::CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, 
                 .setImageType(vk::ImageType::e2D)
                 .setFormat(InitialFormat)
                 .setExtent({ _ImageExtent.width, _ImageExtent.height, 1 })
-                .setMipLevels(1)
+                .setMipLevels(MipLevels)
                 .setArrayLayers(1)
                 .setSamples(vk::SampleCountFlagBits::e1)
-                .setUsage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst);
+                .setUsage(vk::ImageUsageFlagBits::eTransferSrc |
+                          vk::ImageUsageFlagBits::eTransferDst |
+                          vk::ImageUsageFlagBits::eSampled);
 
-            Graphics::FVulkanImageMemory Conversion(ImageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
-            CopyBlitGenerateTexture(*StagingBuffer->GetBuffer(), _ImageExtent, MipLevels, 1,
-                                    vk::Filter::eLinear, *Conversion.GetResource(), *Conversion.GetResource());
+            std::unique_ptr<Graphics::FVulkanImageMemory> ConversionImage;
+            if (_Allocator != nullptr)
+            {
+                ConversionImage = std::make_unique<Graphics::FVulkanImageMemory>(_Allocator, *_AllocationCreateInfo, ImageCreateInfo);
+            }
+            else
+            {
+                ConversionImage = std::make_unique<Graphics::FVulkanImageMemory>(ImageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            }
+
+            CopyBlitGenerateTexture(*StagingBuffer->GetBuffer(), _ImageExtent, MipLevels, 1, vk::Filter::eLinear,
+                                    *ConversionImage->GetResource(), *ConversionImage->GetResource());
+
+            CreateImageMemory(vk::ImageType::e2D, FinalFormat, { _ImageExtent.width, _ImageExtent.height, 1 }, MipLevels, 1, Flags);
+            CreateImageView(vk::ImageViewType::e2D, FinalFormat, MipLevels, 1);
+
+            auto* VulkanContext = Graphics::FVulkanContext::GetClassInstance();
+            auto& CommandBuffer = VulkanContext->GetTransferCommandBuffer();
+            CommandBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+            Graphics::FImageMemoryBarrierParameterPack SrcBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::ImageLayout::eUndefined);
+
+            Graphics::FImageMemoryBarrierParameterPack DstBarrier(
+                vk::PipelineStageFlagBits2::eFragmentShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::ImageLayout::eShaderReadOnlyOptimal);
+
+            if (bGenerateMipmaps)
+            {
+                for (std::uint32_t MipLevel = 0; MipLevel != MipLevels; ++MipLevel)
+                {
+                    vk::Offset3D SrcExtent = MipmapExtent(_ImageExtent, MipLevel);
+
+                    vk::ImageBlit Region(
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel, 0, 1),
+                        { vk::Offset3D(0, 0, 0), SrcExtent },
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel, 0, 1),
+                        { vk::Offset3D(0, 0, 0), SrcExtent }
+                    );
+
+                    Graphics::FImageMemoryBarrierParameterPack SrcBarrier(
+                        vk::PipelineStageFlagBits2::eTopOfPipe,
+                        vk::AccessFlagBits2::eNone,
+                        vk::ImageLayout::eUndefined);
+
+                    Graphics::FImageMemoryBarrierParameterPack DstBarrier(
+                        vk::PipelineStageFlagBits2::eTransfer,
+                        vk::AccessFlagBits2::eTransferWrite,
+                        vk::ImageLayout::eTransferDstOptimal);
+
+                    BlitImage(CommandBuffer, *ConversionImage->GetResource(), SrcBarrier, DstBarrier,
+                              Region, vk::Filter::eLinear, *_ImageMemory->GetResource());
+                }
+
+                vk::ImageSubresourceRange FinalRange(vk::ImageAspectFlagBits::eColor, 0, MipLevels, 0, 1);
+
+                vk::ImageMemoryBarrier2 FinalBarrier(
+                    vk::PipelineStageFlagBits2::eTransfer,
+                    vk::AccessFlagBits2::eTransferWrite,
+                    vk::PipelineStageFlagBits2::eFragmentShader,
+                    vk::AccessFlagBits2::eShaderRead,
+                    vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageLayout::eShaderReadOnlyOptimal,
+                    vk::QueueFamilyIgnored,
+                    vk::QueueFamilyIgnored,
+                    *_ImageMemory->GetResource(),
+                    FinalRange);
+
+                vk::DependencyInfo FinalDependencyInfo = vk::DependencyInfo()
+                    .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                    .setImageMemoryBarriers(FinalBarrier);
+
+                CommandBuffer->pipelineBarrier2(FinalDependencyInfo);
+            }
+            else
+            {
+                vk::ImageBlit Region(
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                    { vk::Offset3D(0, 0, 0), vk::Offset3D(_ImageExtent.width, _ImageExtent.height, 1) },
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                    { vk::Offset3D(0, 0, 0), vk::Offset3D(_ImageExtent.width, _ImageExtent.height, 1) }
+                );
+
+                Graphics::FImageMemoryBarrierParameterPack SrcBarrier(
+                    vk::PipelineStageFlagBits2::eTopOfPipe,
+                    vk::AccessFlagBits2::eNone,
+                    vk::ImageLayout::eUndefined);
+
+                Graphics::FImageMemoryBarrierParameterPack DstBarrier(
+                    vk::PipelineStageFlagBits2::eFragmentShader,
+                    vk::AccessFlagBits2::eShaderRead,
+                    vk::ImageLayout::eShaderReadOnlyOptimal);
+
+                BlitImage(CommandBuffer, *ConversionImage->GetResource(), SrcBarrier, DstBarrier,
+                          Region, vk::Filter::eLinear, *_ImageMemory->GetResource());
+            }
+
+            CommandBuffer.End();
+            VulkanContext->ExecuteGraphicsCommands(CommandBuffer);
         }
     }
 }
