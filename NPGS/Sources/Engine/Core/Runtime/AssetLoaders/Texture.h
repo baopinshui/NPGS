@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -114,6 +115,79 @@ private:
     Graphics::FStagingBufferPool* _StagingBufferPool;
     vk::Extent2D                  _ImageExtent;
 };
+
+class FTextureCube : public FTextureBase
+{
+public:
+    enum class EFace : std::uint32_t
+    {
+        kPositiveX = 0,
+        kNegativeX = 1,
+        kPositiveY = 2,
+        kNegativeY = 3,
+        kPositiveZ = 4,
+        kNegativeZ = 5
+    };
+
+public:
+    using Base = FTextureBase;
+    using Base::Base;
+
+    FTextureCube(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
+                 vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTextureCube(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
+                 vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTextureCube(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
+                 vk::Format FinalFormat, vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
+
+    FTextureCube(vk::Extent2D Extent, vk::Format Format, vk::ImageCreateFlags Flags = {},
+                 vk::ImageUsageFlags Usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled);
+
+    FTextureCube(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename, vk::Format InitialFormat,
+                 vk::Format FinalFormat, vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename,
+                 vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags = {},
+                 bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTextureCube(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::array<std::string, 6>& Filenames,
+                 vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags = {},
+                 bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
+                 const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
+                 vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
+
+    FTextureCube(const FTextureCube&) = delete;
+    FTextureCube(FTextureCube&& Other) noexcept;
+
+    FTextureCube& operator=(const FTextureCube&) = delete;
+    FTextureCube& operator=(FTextureCube&& Other) noexcept;
+
+    std::uint32_t GetImageWidth()  const;
+    std::uint32_t GetImageHeight() const;
+    vk::Extent2D  GetImageExtent() const;
+
+private:
+    void CreateCubemap(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
+                       vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically);
+
+    void CreateCubemap(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
+                       vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically);
+
+    void CreateCubemap(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
+                       vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
+
+    void CreateCubemapInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat,
+                               vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
+
+private:
+    Graphics::FStagingBufferPool* _StagingBufferPool;
+    vk::Extent2D                  _ImageExtent;
+};
+
 
 _ASSET_END
 _RUNTIME_END

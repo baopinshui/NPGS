@@ -364,11 +364,13 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
-/Package/
-/NPGS/Assets/Shaders/
+# Built shaders
+*.spv
+NPGS/Assets/Shaders
+NPGS/Tools/ShaderCompiler/ShaderMeta.json
 
 # Vcpkg 
-/NPGS/vcpkg_installed/
+NPGS/vcpkg_installed/
 .vcpkg/
 
 # Vcpkg manifest mode

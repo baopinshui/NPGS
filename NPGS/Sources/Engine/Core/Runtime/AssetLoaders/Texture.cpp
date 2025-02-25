@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <algorithm>
-#include <array>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -803,6 +802,106 @@ void FTexture2D::CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, 
             VulkanContext->ExecuteGraphicsCommands(CommandBuffer);
         }
     }
+}
+
+FTextureCube::FTextureCube(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
+                           vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+    : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+    CreateCubemap(GetAssetFullPath(EAssetType::kTexture, Filename),
+                  InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+}
+
+FTextureCube::FTextureCube(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
+                           vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+    : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+    CreateCubemap(Filenames, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+}
+
+FTextureCube::FTextureCube(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
+                           vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
+    : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+    CreateCubemap(Sources, Extent, InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
+}
+
+FTextureCube::FTextureCube(vk::Extent2D Extent, vk::Format Format, vk::ImageCreateFlags Flags, vk::ImageUsageFlags Usage)
+    : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+}
+
+FTextureCube::FTextureCube(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename,
+                           vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags,
+                           bool bGenerateMipmaps, bool bFlipVertically)
+    : FTextureCube(Graphics::FVulkanContext::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo,
+                   Filename, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically)
+{
+}
+
+FTextureCube::FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
+                           const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
+                           vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+    : Base(Allocator, &AllocationCreateInfo), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+    CreateCubemap(GetAssetFullPath(EAssetType::kTexture, Filename), InitialFormat,
+                  FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+}
+
+FTextureCube::FTextureCube(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::array<std::string, 6>& Filenames,
+                           vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags,
+                           bool bGenerateMipmaps, bool bFlipVertically)
+    : FTextureCube(Graphics::FVulkanContext::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo,
+                   Filenames, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically)
+{
+}
+
+FTextureCube::FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
+                           const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
+                           vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+    : Base(Allocator, &AllocationCreateInfo), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
+{
+    CreateCubemap(Filenames, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+}
+
+FTextureCube::FTextureCube(FTextureCube&& Other) noexcept
+    :
+    Base(std::move(Other)),
+    _StagingBufferPool(std::exchange(Other._StagingBufferPool, nullptr)),
+    _ImageExtent(std::exchange(Other._ImageExtent, {}))
+{
+}
+
+FTextureCube& FTextureCube::operator=(FTextureCube&& Other) noexcept
+{
+    if (this != &Other)
+    {
+        Base::operator     =(std::move(Other));
+        _StagingBufferPool = std::exchange(Other._StagingBufferPool, nullptr);
+        _ImageExtent       = std::exchange(Other._ImageExtent, {});
+    }
+
+    return *this;
+}
+
+void FTextureCube::CreateCubemap(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
+                                 vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+{
+}
+
+void FTextureCube::CreateCubemap(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat,
+                                 vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
+{
+}
+
+void FTextureCube::CreateCubemap(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
+                                 vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
+{
+}
+
+void FTextureCube::CreateCubemapInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat,
+                                         vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
+{
 }
 
 _ASSET_END
