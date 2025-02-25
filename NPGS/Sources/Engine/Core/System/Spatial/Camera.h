@@ -47,8 +47,12 @@ public:
     void ProcessKeyboard(EMovement Direction, double DeltaTime);
     void ProcessMouseMovement(double OffsetX, double OffsetY);
     void ProcessMouseScroll(double OffsetY);
+    void ProcessOrbital(double OffsetX, double OffsetY);
+    void ProcessTimeEvolution(double DeltaTime);
     void SetOrientation(const glm::quat& Orientation);
     void SetCameraVector(EVectorType Type, const glm::vec3& NewVector);
+    void SetCameraMode(bool bIsOrbiting);
+    void SetOrbitMode(bool bAllowCrossRotZenith);
     const glm::quat& GetOrientation() const;
     const glm::vec3& GetCameraVector(EVectorType Type) const;
     glm::mat4x4 GetViewMatrix() const;
@@ -66,11 +70,22 @@ private:
     glm::vec3 _Up;
     glm::vec3 _Right;
     glm::vec3 _WorldUp;
+
+    glm::vec3 _AxisDir;//绕转轴方向
+    glm::vec3 _OrbitalCenter;
+    float     _Theta;
+    float     _Phi;
+    float     _DistanceToOrbitalCenter;
+    float     _TargetDistanceToOrbitalCenter;
+
+
     float     _Sensitivity;
     float     _Speed;
     float     _Zoom;
     float     _PrevOffsetX;
     float     _PrevOffsetY;
+    bool      _bIsOrbiting;
+    bool      _bAllowCrossZenith;
 };
 
 _SPATIAL_END

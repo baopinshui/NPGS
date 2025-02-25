@@ -38,7 +38,7 @@ private:
     void InitializeInputCallbacks();
     void ShowTitleFps();
     void ProcessInput();
-
+    void update();
     static void FramebufferSizeCallback(GLFWwindow* Window, int Width, int Height);
     static void CursorPosCallback(GLFWwindow* Window, double PosX, double PosY);
     static void ScrollCallback(GLFWwindow* Window, double OffsetX, double OffsetY);

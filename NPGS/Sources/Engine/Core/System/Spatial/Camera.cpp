@@ -14,7 +14,15 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _Speed(Speed),
     _Zoom(Zoom),
     _PrevOffsetX(0.0f),
-    _PrevOffsetY(0.0f)
+    _PrevOffsetY(0.0f),
+    _AxisDir(0.0f, 1.0f, 0.2f),
+    _OrbitalCenter(0.0f, 0.0f, 0.0f),
+    _Theta(0.0f),
+    _Phi(0.0f),
+    _DistanceToOrbitalCenter(0.0001f),
+    _TargetDistanceToOrbitalCenter(0.0001f),
+    _bIsOrbiting(false),
+    _bAllowCrossZenith(false)
 {
     UpdateVectors();
 }
@@ -100,11 +108,17 @@ void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
     float SmoothedY = SmoothCoefficient * static_cast<float>(OffsetY) + (1.0f - SmoothCoefficient) * _PrevOffsetY;
     _PrevOffsetX = SmoothedX;
     _PrevOffsetY = SmoothedY;
+    if (!_bIsOrbiting)
+    {
+        float HorizontalAngle = static_cast<float>(_Sensitivity * -SmoothedX);
+        float VerticalAngle = static_cast<float>(_Sensitivity * -SmoothedY);
 
-    float HorizontalAngle = static_cast<float>(_Sensitivity * -SmoothedX);
-    float VerticalAngle   = static_cast<float>(_Sensitivity * -SmoothedY);
-
-    ProcessRotation(HorizontalAngle, VerticalAngle, 0.0f);
+        ProcessRotation(HorizontalAngle, VerticalAngle, 0.0f);
+    }
+    else
+    {
+        ProcessOrbital(SmoothedX, SmoothedY);
+    }
 }
 
 void FCamera::ProcessRotation(float Yaw, float Pitch, float Roll)
@@ -117,7 +131,91 @@ void FCamera::ProcessRotation(float Yaw, float Pitch, float Roll)
 
     UpdateVectors();
 }
+void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
+{
+    if(!_bIsOrbiting)
+    {
+        return;
+    }
+    _AxisDir = glm::normalize(_AxisDir);
+    _Theta += static_cast<float>(_Sensitivity * OffsetX);
+    if (_Theta >= 360.0f) 
+    {
+        _Theta -= 360.0f; 
+    }
+    else if (_Theta < 0.0f)
+    {
+        _Theta += 360.0f; 
+    }
+    _Phi += static_cast<float>(_Sensitivity * OffsetY);
+    if (_bAllowCrossZenith)
+    {
+        if (_Phi >= 360.0f) 
+        { 
+            _Phi -= 360.0f; 
+        }
+        else if (_Phi < 0.0f) 
+        {
+            _Phi += 360.0f; 
+        }
+    }
+    else
+    {
+        if (_Phi > 180.0f) 
+        {
+            _Phi = 180.f; 
+        }
+        else if (_Phi < 0.0f) 
+        {
+            _Phi = 0.0f; 
+        }
+    }
+    glm::vec3 Up = glm::vec3(0.0f, 0.0f, -1.0f);
+    glm::vec3 Back    = glm::vec3(0.0f, 1.0f, 0.0f);
 
+    glm::quat ThetaRotate = glm::angleAxis(glm::radians(_Theta), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::quat PhiRotate   = glm::angleAxis(glm::radians(_Phi), glm::vec3(1.0f, 0.0f, 0.0f));
+
+    glm::vec3 ToAxisNormal;
+    float ToAxisTheta;
+    if (_AxisDir.x == 0.0f && _AxisDir.z == 0.0f)
+    {
+        if (_AxisDir.y > 0.0f) 
+        { 
+            ToAxisTheta = 0.0f;
+            ToAxisNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+        } 
+        else
+        {
+            ToAxisTheta = 180.0f;
+            ToAxisNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+        }
+    }
+    else
+    {
+        ToAxisNormal = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), _AxisDir);
+        if (_AxisDir.y >= 0.0f)
+        {
+            ToAxisTheta = glm::degrees(glm::asin(glm::length(ToAxisNormal)));
+        }
+        else
+        {
+            ToAxisTheta = 180.0f-glm::degrees(glm::asin(glm::length(ToAxisNormal)));
+        }
+    }
+    glm::quat ToAxisRotate   = glm::angleAxis(glm::radians(ToAxisTheta), ToAxisNormal);
+
+    Up   = ToAxisRotate *( ThetaRotate *(PhiRotate * Up));
+    Back    = ToAxisRotate *( ThetaRotate *(PhiRotate * Back ));
+    glm::vec3 Right = glm::cross(Up,Back);
+    _Orientation = glm::conjugate(glm::quat_cast(glm::mat3x3(Right, Up, Back)));
+    SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter + _DistanceToOrbitalCenter * Back);
+    UpdateVectors();
+}
+void FCamera::ProcessTimeEvolution(double DeltaTime)
+{
+    _DistanceToOrbitalCenter += (_TargetDistanceToOrbitalCenter - _DistanceToOrbitalCenter) * std::min(1.0, DeltaTime);
+}
 void FCamera::UpdateVectors()
 {
     _Orientation = glm::normalize(_Orientation);

@@ -374,10 +374,9 @@ void FApplication::ExecuteMainRender()
         GameArgs.TimeRate   = 30.0f;
 
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
-        _FreeCamera->SetCameraVector(SysSpa::FCamera::EVectorType::kPosition, glm::inverse(glm::mat4_cast(_FreeCamera->GetOrientation())) * glm::vec4(0.0f, 0.0f, +0.000105, 1.0f));
         BlackHoleArgs.WorldUpView                 = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
         BlackHoleArgs.BlackHoleRelativePos        = glm::vec3(_FreeCamera->GetViewMatrix()*glm::vec4(0.0f, 0.0f, -0.000f,1.0f));
-        BlackHoleArgs.BlackHoleRelativeDiskNormal = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.2f, 1.0f, 0.5f, 1.0f));
+        BlackHoleArgs.BlackHoleRelativeDiskNormal = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0001f, 1.0f));
         BlackHoleArgs.BlackHoleMassSol            = 1.49e7f;
         BlackHoleArgs.Spin                        = 0.0f;
         BlackHoleArgs.Mu                          = 1.0f;
@@ -703,6 +702,7 @@ void FApplication::ExecuteMainRender()
         ProcessInput();
         glfwPollEvents();
         ShowTitleFps();
+        update();
     }
 
     _VulkanContext->WaitIdle();
@@ -780,8 +780,8 @@ bool FApplication::InitializeWindow()
         return false;
     }
 
-    _FreeCamera = std::make_unique<SysSpa::FCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 0.05, 2.5, 90.0);
-
+    _FreeCamera = std::make_unique<SysSpa::FCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 0.05, 2.5, 60.0);
+    _FreeCamera->SetCameraMode(true);
     return true;
 }
 
@@ -864,7 +864,10 @@ void FApplication::FramebufferSizeCallback(GLFWwindow* Window, int Width, int He
     App->_VulkanContext->WaitIdle();
     App->_VulkanContext->RecreateSwapchain();
 }
-
+void FApplication::update()
+{
+    _FreeCamera->ProcessTimeEvolution(_DeltaTime);
+}
 void FApplication::CursorPosCallback(GLFWwindow* Window, double PosX, double PosY)
 {
     auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(Window));

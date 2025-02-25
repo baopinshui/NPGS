@@ -8,11 +8,19 @@ _SPATIAL_BEGIN
 
 NPGS_INLINE void FCamera::ProcessMouseScroll(double OffsetY)
 {
-    _Speed += static_cast<float>(OffsetY * 0.1);
-
-    if (_Speed <= 0)
+    if (!_bIsOrbiting)
     {
-        _Speed = 0;
+        _Speed += static_cast<float>(OffsetY * 0.1);
+
+        if (_Speed <= 0)
+        {
+            _Speed = 0;
+        }
+    }
+    else
+    {
+        _TargetDistanceToOrbitalCenter *= pow(1.2,-OffsetY);
+       
     }
 }
 
@@ -20,7 +28,13 @@ NPGS_INLINE void FCamera::SetOrientation(const glm::quat& Orientation)
 {
     _Orientation = Orientation;
 }
-
+NPGS_INLINE void FCamera::SetCameraMode(bool bIsOrbiting) {
+    _bIsOrbiting = bIsOrbiting;
+}
+NPGS_INLINE void FCamera::SetOrbitMode(bool bAllowCrossRotZenith)
+{
+    _bAllowCrossZenith = bAllowCrossRotZenith;
+}
 NPGS_INLINE const glm::quat& FCamera::GetOrientation() const
 {
     return _Orientation;
