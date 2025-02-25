@@ -866,7 +866,7 @@ void FApplication::FramebufferSizeCallback(GLFWwindow* Window, int Width, int He
 }
 void FApplication::update()
 {
-    _FreeCamera->ProcessTimeEvolution(_DeltaTime);
+    _FreeCamera->ProcessTimeEvolution(9.6 *_DeltaTime);
 }
 void FApplication::CursorPosCallback(GLFWwindow* Window, double PosX, double PosY)
 {
