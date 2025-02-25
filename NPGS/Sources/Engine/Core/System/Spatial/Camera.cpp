@@ -60,7 +60,7 @@ void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
 {
     if (_bIsOrbiting)
     {
-        ProcessOrbitRotation(OffsetX, OffsetY);
+        ProcessOrbital(OffsetX, OffsetY);
     }
     else
     {
@@ -77,12 +77,42 @@ void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
     }
 }
 
-void FCamera::ProcessOrbitRotation(double OffsetX, double OffsetY)
+void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
 {
     if (!_bIsOrbiting)
     {
         return;
     }
+
+    static float SmoothCoefficient = 1.0f;
+    float SmoothedX = SmoothCoefficient * static_cast<float>(OffsetX) + (1.0f - SmoothCoefficient) * _PrevOffsetX;
+    float SmoothedY = SmoothCoefficient * static_cast<float>(OffsetY) + (1.0f - SmoothCoefficient) * _PrevOffsetY;
+    _PrevOffsetX = SmoothedX;
+    _PrevOffsetY = SmoothedY;
+
+    glm::vec3 OrbitAxis         = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 PrevRight         = _Right;
+    glm::vec3 DirectionToCamera = _Position - _OrbitTarget;
+
+    float HorizontalAngle = static_cast<float>(_Sensitivity * -SmoothedX);
+    float VerticalAngle   = static_cast<float>(_Sensitivity *  SmoothedY);
+
+    glm::quat HorizontalRotation = glm::angleAxis(glm::radians(HorizontalAngle), OrbitAxis);
+    glm::quat VerticalRotation   = glm::angleAxis(glm::radians(VerticalAngle), _Right);
+
+    DirectionToCamera = HorizontalRotation * VerticalRotation * DirectionToCamera;
+    _Position         = _OrbitTarget + DirectionToCamera;
+
+    glm::vec3 Direction = glm::normalize(_OrbitTarget - _Position);
+    glm::vec3 Right     = glm::normalize(glm::cross(Direction, OrbitAxis));
+
+    Right = glm::dot(Right, PrevRight) < 0.0f ? -Right : Right;
+
+    glm::vec3 Up = glm::normalize(glm::cross(Right, Direction));
+    glm::mat3 RotationMatrix(Right, Up, -Direction);
+    _Orientation = glm::conjugate(glm::quat_cast(RotationMatrix));
+
+    UpdateVectors();
 }
 
 void FCamera::SetCameraVector(EVectorType Type, const glm::vec3& NewVector)
@@ -119,7 +149,7 @@ void FCamera::SetOrbitTarget(const glm::vec3& Target, float Radius)
     glm::vec3 Up        = glm::normalize(glm::cross(Right, Direction));
     
     glm::mat3x3 RotationMatrix(Right, Up, -Direction);
-    _Orientation = glm::quat_cast(RotationMatrix);
+    _Orientation = glm::conjugate(glm::quat_cast(RotationMatrix));
 
     UpdateVectors();
 }

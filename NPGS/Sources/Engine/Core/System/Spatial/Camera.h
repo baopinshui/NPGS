@@ -47,7 +47,7 @@ public:
     void ProcessKeyboard(EMovement Direction, double DeltaTime);
     void ProcessMouseMovement(double OffsetX, double OffsetY);
     void ProcessMouseScroll(double OffsetY);
-    void ProcessOrbitRotation(double OffsetX, double OffsetY);
+    void ProcessOrbital(double OffsetX, double OffsetY);
     void SetOrientation(const glm::quat& Orientation);
     void SetCameraVector(EVectorType Type, const glm::vec3& NewVector);
     void SetOrbitTarget(const glm::vec3& Target, float Radius);
