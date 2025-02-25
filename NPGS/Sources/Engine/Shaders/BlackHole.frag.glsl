@@ -6,6 +6,7 @@
 #include "Common/NumericConstants.glsl"
 
 layout(location = 0) out vec4 FragColor;
+layout(location = 0) in  vec2 TexCoordFromVert;
 
  layout(set = 0, binding = 0) uniform GameArgs
  {
@@ -30,6 +31,7 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 };
 
 layout(set = 1, binding = 0) uniform texture2D iHistoryTex;
+layout(set = 1, binding = 1) uniform sampler2D iBackground;
 
 const float kSigma            = 5.670373e-8;
 const float kLightYearToMeter = 9460730472580800.0;
@@ -360,7 +362,11 @@ void main()
         if (DistanceToBlackHole > (2.5 * iOuterRadiusLy) && DistanceToBlackHole > LastDistance && (Count > 20))
         {
             bShouldContinueMarchRay = false;
-            FragUv = DirToFragUv(RayDir, iResolution);
+            FragUv = DirToFragUv(vec3(RayDir.xy/Fov,RayDir.z), iResolution);
+
+            //Result+=0.1* texelFetch(iBackground, ivec2(textureSize(iBackground], 0)*FragUv),0)*(1.0-Result.a);
+            vec4 TexColor = texture(iBackground, vec2(FragUv.x,1.0-FragUv.y));
+            Result += 0.7 * TexColor * (1.0 - Result.a);
         }
         if (DistanceToBlackHole < 0.1 * Rs)
         {

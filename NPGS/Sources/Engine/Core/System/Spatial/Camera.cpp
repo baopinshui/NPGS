@@ -101,7 +101,7 @@ void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
     _PrevOffsetX = SmoothedX;
     _PrevOffsetY = SmoothedY;
 
-    float HorizontalAngle = static_cast<float>(_Sensitivity *  SmoothedX);
+    float HorizontalAngle = static_cast<float>(_Sensitivity * -SmoothedX);
     float VerticalAngle   = static_cast<float>(_Sensitivity * -SmoothedY);
 
     ProcessRotation(HorizontalAngle, VerticalAngle, 0.0f);
