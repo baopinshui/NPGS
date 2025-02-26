@@ -28,6 +28,7 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     float iAccretionRate;               // 吸积率
     float iInterRadiusLy;               // 盘内缘，单位光年
     float iOuterRadiusLy;               // 盘外缘，单位光年
+    float iBlendWeight;
 };
 
 layout(set = 1, binding = 0) uniform texture2D iHistoryTex;
@@ -362,7 +363,7 @@ void main()
         if (DistanceToBlackHole > (2.5 * iOuterRadiusLy) && DistanceToBlackHole > LastDistance && (Count > 20))
         {
             bShouldContinueMarchRay = false;
-            FragUv = DirToFragUv(vec3(RayDir.xy/Fov,RayDir.z), iResolution);
+            FragUv = DirToFragUv(vec3(RayDir.xy,RayDir.z), iResolution);
 
             //Result+=0.1* texelFetch(iBackground, ivec2(textureSize(iBackground], 0)*FragUv),0)*(1.0-Result.a);
             vec4 TexColor = texture(iBackground, vec2(FragUv.x,1.0-FragUv.y));
@@ -443,7 +444,7 @@ void main()
 
     // TAA
 
-    float BlendWeight = 1.0 - pow(0.5, (iTimeDelta) / max(min((0.131 * 36.0 / (iTimeRate) * (GetKeplerianAngularVelocity(3.0 * 0.00000465, 0.00000465)) / (GetKeplerianAngularVelocity(3.0 * Rs, Rs))), 0.3), 0.02));
+    float BlendWeight = iBlendWeight;//1.0 - pow(0.5, (iTimeDelta) / max(min((0.131 * 36.0 / (iTimeRate) * (GetKeplerianAngularVelocity(3.0 * 0.00000465, 0.00000465)) / (GetKeplerianAngularVelocity(3.0 * Rs, Rs))), 0.3), 0.02));
 
     vec4 PrevColor = texelFetch(iHistoryTex, ivec2(gl_FragCoord.xy), 0);
     FragColor      = (BlendWeight) * Result + (1.0 - BlendWeight) * PrevColor;

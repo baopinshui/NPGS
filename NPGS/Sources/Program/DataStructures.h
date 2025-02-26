@@ -44,6 +44,7 @@ struct FBlackHoleArgs
     float AccretionRate;
     float InterRadiusLy;
     float OuterRadiusLy;
+    float BlendWeight;
 } BlackHoleArgs{};
 
 struct FMatrices

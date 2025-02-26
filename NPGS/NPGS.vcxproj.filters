@@ -111,6 +111,9 @@
     <ClCompile Include="Sources\ExternalImpl\vma_impl.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Utils\TooolfuncForStarMap.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -231,6 +234,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Program\DataStructures.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Utils\TooolfuncForStarMap.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

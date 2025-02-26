@@ -4,7 +4,7 @@
   "BasicLighting_Lamp.frag.spv": "21a0cecf1b46888b4a1f93b44fd259f2",
   "PreBloom.frag.spv": "c68059f021923cd8ee6d995b989974a9",
   "GaussBlur.frag.spv": "cc62863b839e312286cf13ed9b90681b",
-  "BlackHole.frag.spv": "62a36d788bbbf4154d7fb3022359dd0b",
+  "BlackHole.frag.spv": "02fe4f21168136b886fe37465e6300a3",
   "ColorBlend.frag.spv": "317378b2a6976eac7deb164dfc3ea8ab",
   "PostProcess.frag.spv": "da5b7e8b7dff0798ca1e8b11fefa8650",
   "PostProcess.vert.spv": "7d66a1afad0b1a2a122d6c835ebf20c8",

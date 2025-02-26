@@ -17,6 +17,7 @@
 #include "Engine/Core/Runtime/Graphics/Renderers/PipelineManager.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/ShaderResourceManager.h"
 #include "Engine/Utils/Logger.h"
+#include "Engine/Utils/TooolfuncForStarMap.h"
 #include "DataStructures.h"
 
 _NPGS_BEGIN
@@ -177,7 +178,7 @@ void FApplication::ExecuteMainRender()
     {
         .Name    = "BlackHoleArgs",
         .Fields  = { "WorldUpView", "BlackHoleRelativePos", "BlackHoleRelativeDiskNormal",
-                     "BlackHoleMassSol", "Spin", "Mu", "AccretionRate", "InterRadiusLy", "OuterRadiusLy" },
+                     "BlackHoleMassSol", "Spin", "Mu", "AccretionRate", "InterRadiusLy", "OuterRadiusLy" ,"BlendWeight"},
         .Set     = 0,
         .Binding = 1,
         .Usage   = vk::DescriptorType::eUniformBuffer
@@ -355,7 +356,8 @@ void FApplication::ExecuteMainRender()
     InitialHistory();
 
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "InitialHistory", InitialHistory);
-
+    glm::aligned_vec3 LastBlackHoleRelativePos(0.0f,0.0f,0.0f);
+    glm::vec3 LastBlackHoleRelativeDiskNormal(0.0f, 0.0f, 0.0f);
     while (!glfwWindowShouldClose(_Window))
     {
         while (glfwGetWindowAttrib(_Window, GLFW_ICONIFIED))
@@ -371,8 +373,9 @@ void FApplication::ExecuteMainRender()
         GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
         GameArgs.Time       = static_cast<float>(glfwGetTime());
         GameArgs.TimeDelta  = static_cast<float>(_DeltaTime);
-        GameArgs.TimeRate   = 30.0f;
-
+        GameArgs.TimeRate   = 30000000.0f;
+        LastBlackHoleRelativePos =        BlackHoleArgs.BlackHoleRelativePos;
+        LastBlackHoleRelativeDiskNormal = BlackHoleArgs.BlackHoleRelativeDiskNormal;
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
         BlackHoleArgs.WorldUpView                 = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
         BlackHoleArgs.BlackHoleRelativePos        = glm::vec3(_FreeCamera->GetViewMatrix()*glm::vec4(0.0f, 0.0f, -0.000f,1.0f));
@@ -384,6 +387,10 @@ void FApplication::ExecuteMainRender()
         BlackHoleArgs.InterRadiusLy               = 9.7756e-6f;
         BlackHoleArgs.OuterRadiusLy               = 5.586e-5f;
 
+
+        float Rs= 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
+        BlackHoleArgs.BlendWeight                 = (1.0 - pow(0.5, (_DeltaTime) / fmax(fmin((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs/0.00000465)), 0.3), 0.02)));
+        if (glm::length(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)> glm::length(LastBlackHoleRelativePos)*0.01* _DeltaTime || glm::length(LastBlackHoleRelativeDiskNormal - BlackHoleArgs.BlackHoleRelativeDiskNormal)> 0.01 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);

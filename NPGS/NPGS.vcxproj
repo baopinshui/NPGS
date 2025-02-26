@@ -284,6 +284,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\Types\Properties\Intelli\Civilization.cpp" />
     <ClCompile Include="Sources\Engine\Core\Types\Properties\StellarClass.cpp" />
     <ClCompile Include="Sources\Engine\Utils\Logger.cpp" />
+    <ClCompile Include="Sources\Engine\Utils\TooolfuncForStarMap.cpp" />
     <ClCompile Include="Sources\Engine\Utils\Utils.cpp" />
     <ClCompile Include="Sources\ExternalImpl\stb_impl.cpp" />
     <ClCompile Include="Sources\ExternalImpl\vma_impl.cpp" />
@@ -330,6 +331,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Utils\FieldReflection.hpp" />
     <ClInclude Include="Sources\Engine\Utils\Logger.h" />
     <ClInclude Include="Sources\Engine\Utils\Random.hpp" />
+    <ClInclude Include="Sources\Engine\Utils\TooolfuncForStarMap.h" />
     <ClInclude Include="Sources\Engine\Utils\Utils.h" />
     <ClInclude Include="Sources\Program\Application.h" />
     <ClInclude Include="Sources\Program\Npgs.h" />
