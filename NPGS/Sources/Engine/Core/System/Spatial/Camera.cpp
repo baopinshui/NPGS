@@ -11,15 +11,19 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _Orientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)),
     _Position(Position),
     _Sensitivity(Sensitivity),
+    _RotationSmoothCoefficient(9.6f),
+    _OrbitDistanceRotationSmoothCoefficient(9.6),
     _Speed(Speed),
     _Zoom(Zoom),
-    _PrevOffsetX(0.0f),
-    _PrevOffsetY(0.0f),
+    _OffsetX(0.0f),
+    _OffsetY(0.0f),
+    _TargetOffsetX(0.0f),
+    _TargetOffsetY(0.0f),
     _AxisDir(0.0f, 1.0f, 0.2f),
     _OrbitalCenter(0.0f, 0.0f, 0.0f),
     _Theta(0.0f),
-    _Phi(0.0f),
-    _DistanceToOrbitalCenter(0.0001f),
+    _Phi(45.0f),
+    _DistanceToOrbitalCenter(1.0f),
     _TargetDistanceToOrbitalCenter(0.0001f),
     _bIsOrbiting(false),
     _bAllowCrossZenith(false)
@@ -103,22 +107,8 @@ void FCamera::ProcessKeyboard(EMovement Direction, double DeltaTime)
 
 void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
 {
-    static float SmoothCoefficient = 1.0f;
-    float SmoothedX = SmoothCoefficient * static_cast<float>(OffsetX) + (1.0f - SmoothCoefficient) * _PrevOffsetX;
-    float SmoothedY = SmoothCoefficient * static_cast<float>(OffsetY) + (1.0f - SmoothCoefficient) * _PrevOffsetY;
-    _PrevOffsetX = SmoothedX;
-    _PrevOffsetY = SmoothedY;
-    if (!_bIsOrbiting)
-    {
-        float HorizontalAngle = static_cast<float>(_Sensitivity * -SmoothedX);
-        float VerticalAngle = static_cast<float>(_Sensitivity * -SmoothedY);
-
-        ProcessRotation(HorizontalAngle, VerticalAngle, 0.0f);
-    }
-    else
-    {
-        ProcessOrbital(SmoothedX, SmoothedY);
-    }
+    _TargetOffsetX   =OffsetX;
+    _TargetOffsetY   =OffsetY;
 }
 
 void FCamera::ProcessRotation(float Yaw, float Pitch, float Roll)
@@ -214,7 +204,23 @@ void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
 }
 void FCamera::ProcessTimeEvolution(double DeltaTime)
 {
-    _DistanceToOrbitalCenter += (_TargetDistanceToOrbitalCenter - _DistanceToOrbitalCenter) * std::min(1.0, DeltaTime);
+    _DistanceToOrbitalCenter += (_TargetDistanceToOrbitalCenter - _DistanceToOrbitalCenter) * std::min(1.0, _OrbitDistanceRotationSmoothCoefficient*DeltaTime);
+    SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter - _DistanceToOrbitalCenter * _Front);
+    _OffsetX += (_TargetOffsetX - _OffsetX) * std::min(1.0, _RotationSmoothCoefficient * DeltaTime);
+    _OffsetY += (_TargetOffsetY - _OffsetY) * std::min(1.0, _RotationSmoothCoefficient * DeltaTime);
+    _TargetOffsetX = 0.0f;
+    _TargetOffsetY = 0.0f;
+    if (!_bIsOrbiting)
+    {
+        float HorizontalAngle = static_cast<float>(_Sensitivity * -_OffsetX);
+        float VerticalAngle   = static_cast<float>(_Sensitivity * -_OffsetY);
+
+        ProcessRotation(HorizontalAngle, VerticalAngle, 0.0f);
+    }
+    else
+    {
+        ProcessOrbital(_OffsetX, _OffsetY);
+    }
 }
 void FCamera::UpdateVectors()
 {

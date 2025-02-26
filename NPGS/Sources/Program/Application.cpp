@@ -833,9 +833,9 @@ void FApplication::ProcessInput()
     }
 
     if (glfwGetKey(_Window, GLFW_KEY_W) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kForward, _DeltaTime);
+        _FreeCamera->SetFov(glm::degrees( 2*atan(tan(0.5 *glm::radians( _FreeCamera->GetFov()) + _DeltaTime ))));
     if (glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kBack, _DeltaTime);
+        _FreeCamera->SetFov(glm::degrees(2 * atan(tan(0.5 * glm::radians(_FreeCamera->GetFov()) - _DeltaTime))));
     if (glfwGetKey(_Window, GLFW_KEY_A) == GLFW_PRESS)
         _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kLeft, _DeltaTime);
     if (glfwGetKey(_Window, GLFW_KEY_D) == GLFW_PRESS)
@@ -866,7 +866,7 @@ void FApplication::FramebufferSizeCallback(GLFWwindow* Window, int Width, int He
 }
 void FApplication::update()
 {
-    _FreeCamera->ProcessTimeEvolution(9.6 *_DeltaTime);
+    _FreeCamera->ProcessTimeEvolution(_DeltaTime);
 }
 void FApplication::CursorPosCallback(GLFWwindow* Window, double PosX, double PosY)
 {

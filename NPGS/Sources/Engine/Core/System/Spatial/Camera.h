@@ -53,6 +53,8 @@ public:
     void SetCameraVector(EVectorType Type, const glm::vec3& NewVector);
     void SetCameraMode(bool bIsOrbiting);
     void SetOrbitMode(bool bAllowCrossRotZenith);
+    void SetFov(float Fov);
+    float GetFov() const;
     const glm::quat& GetOrientation() const;
     const glm::vec3& GetCameraVector(EVectorType Type) const;
     glm::mat4x4 GetViewMatrix() const;
@@ -78,12 +80,15 @@ private:
     float     _DistanceToOrbitalCenter;
     float     _TargetDistanceToOrbitalCenter;
 
-
+    float     _RotationSmoothCoefficient;
+    float     _OrbitDistanceRotationSmoothCoefficient;
     float     _Sensitivity;
     float     _Speed;
     float     _Zoom;
-    float     _PrevOffsetX;
-    float     _PrevOffsetY;
+    float     _TargetOffsetX;
+    float     _TargetOffsetY;
+    float     _OffsetX;
+    float     _OffsetY;
     bool      _bIsOrbiting;
     bool      _bAllowCrossZenith;
 };
