@@ -53,6 +53,8 @@ public:
     void SetCameraVector(EVectorType Type, const glm::vec3& NewVector);
     void SetCameraMode(bool bIsOrbiting);
     void SetOrbitMode(bool bAllowCrossRotZenith);
+    void SetTargetOrbitCenter(glm::vec3 Center);
+    void SetTargetOrbitAxis(glm::vec3 Axis);
     void SetFov(float Fov);
     float GetFov() const;
     const glm::quat& GetOrientation() const;
@@ -74,7 +76,9 @@ private:
     glm::vec3 _WorldUp;
 
     glm::vec3 _AxisDir;//绕转轴方向
+    glm::vec3 _TargetAxisDir;//绕转轴方向
     glm::vec3 _OrbitalCenter;
+    glm::vec3 _TargetOrbitalCenter;
     float     _Theta;
     float     _Phi;
     float     _DistanceToOrbitalCenter;
@@ -82,6 +86,8 @@ private:
 
     float     _RotationSmoothCoefficient;
     float     _OrbitDistanceRotationSmoothCoefficient;
+    float     _OrbitCenterChangeSmoothCoefficient;
+    float     _OrbitAxisChangeSmoothCoefficient;
     float     _Sensitivity;
     float     _Speed;
     float     _Zoom;

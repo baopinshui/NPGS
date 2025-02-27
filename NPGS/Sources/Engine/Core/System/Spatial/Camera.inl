@@ -35,6 +35,14 @@ NPGS_INLINE void FCamera::SetOrbitMode(bool bAllowCrossRotZenith)
 {
     _bAllowCrossZenith = bAllowCrossRotZenith;
 }
+NPGS_INLINE void FCamera::SetTargetOrbitCenter(glm::vec3 Center)
+{
+    _TargetOrbitalCenter = Center;
+}
+NPGS_INLINE void FCamera::SetTargetOrbitAxis(glm::vec3 Axis)
+{
+    _TargetAxisDir = glm::normalize(Axis);
+}
 NPGS_INLINE void FCamera::SetFov(float Fov)
 {
     _Zoom = Fov;

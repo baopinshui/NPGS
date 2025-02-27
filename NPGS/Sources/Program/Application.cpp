@@ -373,7 +373,7 @@ void FApplication::ExecuteMainRender()
         GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
         GameArgs.Time       = static_cast<float>(glfwGetTime());
         GameArgs.TimeDelta  = static_cast<float>(_DeltaTime);
-        GameArgs.TimeRate   = 30000000.0f;
+        GameArgs.TimeRate   = 300.0f;
         LastBlackHoleRelativePos =        BlackHoleArgs.BlackHoleRelativePos;
         LastBlackHoleRelativeDiskNormal = BlackHoleArgs.BlackHoleRelativeDiskNormal;
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
@@ -389,8 +389,11 @@ void FApplication::ExecuteMainRender()
 
 
         float Rs= 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
-        BlackHoleArgs.BlendWeight                 = (1.0 - pow(0.5, (_DeltaTime) / fmax(fmin((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs/0.00000465)), 0.3), 0.02)));
+        BlackHoleArgs.BlendWeight                 = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs/0.00000465)), 0.3), 0.02)));
         if (glm::length(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)> glm::length(LastBlackHoleRelativePos)*0.01* _DeltaTime || glm::length(LastBlackHoleRelativeDiskNormal - BlackHoleArgs.BlackHoleRelativeDiskNormal)> 0.01 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
+
+
+        if (int(glfwGetTime()) % 2 == 0) { _FreeCamera->SetTargetOrbitAxis(glm::vec3(1.,0.,0.)); }else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); }
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
@@ -556,7 +559,7 @@ void FApplication::ExecuteMainRender()
                                                  SubresourceRange);
 
         vk::DependencyInfo PreBlurDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+            //.setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             .setImageMemoryBarriers(FirstBlurBarrier);
 
         CurrentBuffer->pipelineBarrier2(PreBlurDependencyInfo);
