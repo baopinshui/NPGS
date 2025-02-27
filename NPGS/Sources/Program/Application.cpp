@@ -386,14 +386,16 @@ void FApplication::ExecuteMainRender()
         BlackHoleArgs.AccretionRate               = 5e15f;
         BlackHoleArgs.InterRadiusLy               = 9.7756e-6f;
         BlackHoleArgs.OuterRadiusLy               = 5.586e-5f;
-
-
         float Rs= 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
         BlackHoleArgs.BlendWeight                 = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs/0.00000465)), 0.3), 0.02)));
         if (glm::length(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)> glm::length(LastBlackHoleRelativePos)*0.01* _DeltaTime || glm::length(LastBlackHoleRelativeDiskNormal - BlackHoleArgs.BlackHoleRelativeDiskNormal)> 0.01 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
 
 
-        if (int(glfwGetTime()) % 2 == 0) { _FreeCamera->SetTargetOrbitAxis(glm::vec3(1.,0.,0.)); }else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); }
+        if (int(glfwGetTime()) % 2 == 0)
+        {
+            _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
+        }else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
+        }
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);

@@ -448,4 +448,5 @@ void main()
 
     vec4 PrevColor = texelFetch(iHistoryTex, ivec2(gl_FragCoord.xy), 0);
     FragColor      = (BlendWeight) * Result + (1.0 - BlendWeight) * PrevColor;
+    if(isnan(FragColor.x)||isnan(FragColor.y)||isnan(FragColor.z)||isnan(FragColor.a)){FragColor=vec4(0.0f,0.0f,0.0f,0.0f);}
 }

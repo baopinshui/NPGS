@@ -226,7 +226,7 @@ void FCamera::ProcessTimeEvolution(double DeltaTime)
     {
         ProcessOrbital(_OffsetX, _OffsetY);
     }//鼠标拖动平滑更新
-    if (glm::length(_TargetAxisDir - _AxisDir) > 0)
+    if (glm::length(_TargetAxisDir - _AxisDir) > 0&& abs(asin(glm::length((_TargetAxisDir - _AxisDir)) / 2.0f))>1e-10)
     {
         _AxisDir = glm::normalize(_AxisDir + (std::min(1.0f, _OrbitAxisChangeSmoothCoefficient * static_cast<float>(DeltaTime)) * 2.0f * asin(glm::length((_TargetAxisDir - _AxisDir)) / 2.0f) * glm::normalize(glm::cross(glm::cross(_AxisDir, (_TargetAxisDir - _AxisDir)), _AxisDir))));
     }//绕转轴更新平滑
