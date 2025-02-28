@@ -149,6 +149,40 @@ vk::Result FVulkanContext::ExecuteGraphicsCommands(vk::CommandBuffer CommandBuff
     return vk::Result::eSuccess;
 }
 
+vk::Result FVulkanContext::ExecutePresentCommands(vk::CommandBuffer CommandBuffer) const
+{
+    FVulkanFence Fence(_VulkanCore->GetDevice());
+    vk::Result Result;
+    if ((Result = SubmitCommandBufferToPresent(CommandBuffer, *Fence)) == vk::Result::eSuccess)
+    {
+        Fence.Wait();
+    }
+    else
+    {
+        NpgsCoreError("Failed to execute present command: {}", vk::to_string(Result));
+        return Result;
+    }
+
+    return vk::Result::eSuccess;
+}
+
+vk::Result FVulkanContext::ExecuteComputeCommands(vk::CommandBuffer CommandBuffer) const
+{
+    FVulkanFence Fence(_VulkanCore->GetDevice());
+    vk::Result Result;
+    if ((Result = SubmitCommandBufferToCompute(CommandBuffer, *Fence)) == vk::Result::eSuccess)
+    {
+        Fence.Wait();
+    }
+    else
+    {
+        NpgsCoreError("Failed to execute compute command: {}", vk::to_string(Result));
+        return Result;
+    }
+
+    return vk::Result::eSuccess;
+}
+
 vk::Result FVulkanContext::SubmitCommandBufferToGraphics(const vk::SubmitInfo& SubmitInfo, vk::Fence Fence) const
 {
     try
@@ -176,6 +210,27 @@ FVulkanContext::SubmitCommandBufferToGraphics(vk::CommandBuffer Buffer, vk::Sema
 {
     vk::SubmitInfo SubmitInfo = CreateSubmitInfo(Buffer, WaitSemaphore, SignalSemaphore, Flags);
     return SubmitCommandBufferToGraphics(SubmitInfo, Fence);
+}
+
+vk::Result FVulkanContext::SubmitCommandBufferToPresent(const vk::SubmitInfo& SubmitInfo, vk::Fence Fence) const
+{
+    try
+    {
+        _VulkanCore->GetPresentQueue().submit(SubmitInfo, Fence);
+    }
+    catch (const vk::SystemError& e)
+    {
+        NpgsCoreError("Failed to submit command buffer to present queue: {}", e.what());
+        return static_cast<vk::Result>(e.code().value());
+    }
+
+    return vk::Result::eSuccess;
+}
+
+vk::Result FVulkanContext::SubmitCommandBufferToPresent(vk::CommandBuffer Buffer, vk::Fence Fence) const
+{
+    vk::SubmitInfo SubmitInfo(0, nullptr, nullptr, 1, &Buffer, 0, nullptr);
+    return SubmitCommandBufferToPresent(SubmitInfo, Fence);
 }
 
 vk::Result FVulkanContext::SubmitCommandBufferToPresent(vk::CommandBuffer Buffer, vk::Semaphore WaitSemaphore,
@@ -212,7 +267,7 @@ vk::Result FVulkanContext::SubmitCommandBufferToCompute(const vk::SubmitInfo& Su
 
 vk::Result FVulkanContext::SubmitCommandBufferToCompute(vk::CommandBuffer Buffer, vk::Fence Fence) const
 {
-    vk::SubmitInfo SubmitInfo(1, nullptr, nullptr, 1, &Buffer, 0, nullptr);
+    vk::SubmitInfo SubmitInfo(0, nullptr, nullptr, 1, &Buffer, 0, nullptr);
     return SubmitCommandBufferToCompute(SubmitInfo, Fence);
 }
 

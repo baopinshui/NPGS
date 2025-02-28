@@ -27,6 +27,9 @@ public:
     void CreatePipeline(const std::string& PipelineName, const std::string& ShaderName,
                         FGraphicsPipelineCreateInfoPack& GraphicsPipelineCreateInfoPack);
 
+    void CreatePipeline(const std::string& PipelineName, const std::string& ShaderName,
+                        vk::ComputePipelineCreateInfo* ComputePipelineCreateInfo = nullptr);
+
     void RemovePipeline(const std::string& Name);
     vk::PipelineLayout GetPipelineLayout(const std::string& Name) const;
     vk::Pipeline GetPipeline(const std::string& Name) const;
@@ -46,6 +49,7 @@ private:
 
 private:
     std::unordered_map<std::string, FGraphicsPipelineCreateInfoPack> _GraphicsPipelineCreateInfoPacks;
+    std::unordered_map<std::string, vk::ComputePipelineCreateInfo>   _ComputePipelineCreateInfos;
     std::unordered_map<std::string, FVulkanPipelineLayout>           _PipelineLayouts;
     std::unordered_map<std::string, FVulkanPipeline>                 _Pipelines;
 };

@@ -59,7 +59,7 @@ vec4 BicubicTexture(in sampler2D Tex, in vec2 TexCoord)
 
 vec3 ColorFetch(vec2 TexCoord)
 {
-    return texture(iBloomTexs[1], TexCoord).rgb;
+    return texture(iBloomTexs[0], TexCoord).rgb;
 }
 
 vec3 BloomFetch(vec2 TexCoord)
@@ -110,7 +110,7 @@ void main()
 {
     vec2 FragUv = gl_FragCoord.xy / iResolution;
     vec3 Color  = ColorFetch(FragUv);
-    //Color += GetBloom(FragUv) * 0.08;
+    Color += GetBloom(FragUv) * 0.08;
 
     // Tonemapping and color grading
     Color = pow(Color, vec3(1.5));

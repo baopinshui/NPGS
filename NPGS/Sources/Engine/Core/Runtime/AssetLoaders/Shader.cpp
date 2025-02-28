@@ -397,6 +397,25 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
         _ReflectionInfo.DescriptorSetBindings[Set].push_back(LayoutBinding);
     }
 
+    for (const auto& Image : Resources->storage_images)
+    {
+        std::uint32_t Set     = Reflection->get_decoration(Image.id, spv::DecorationDescriptorSet);
+        std::uint32_t Binding = Reflection->get_decoration(Image.id, spv::DecorationBinding);
+
+        const auto&   Type      = Reflection->get_type(Image.type_id);
+        std::uint32_t ArraySize = Type.array.empty() ? 1 : Type.array[0];
+
+        NpgsCoreTrace("Storage Image \"{}\" at set={}, binding={}, array_size={}", Image.name, Set, Binding, ArraySize);
+
+        vk::DescriptorSetLayoutBinding LayoutBinding = vk::DescriptorSetLayoutBinding()
+            .setBinding(Binding)
+            .setDescriptorType(vk::DescriptorType::eStorageImage)
+            .setDescriptorCount(ArraySize)
+            .setStageFlags(ShaderInfo.Stage);
+
+        _ReflectionInfo.DescriptorSetBindings[Set].push_back(LayoutBinding);
+    }
+
     if (ShaderInfo.Stage == vk::ShaderStageFlagBits::eVertex)
     {
         std::unordered_map<std::uint32_t, FVertexBufferInfo> BufferMap;
