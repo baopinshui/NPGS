@@ -61,49 +61,44 @@ public:
 
     vk::Result ExecuteGraphicsCommands(vk::CommandBuffer CommandBuffer) const;
     vk::Result ExecuteGraphicsCommands(const FVulkanCommandBuffer& CommandBuffer) const;
-    vk::Result SubmitCommandBufferToGraphics(const vk::SubmitInfo& SubmitInfo,   vk::Fence Fence           = {}) const;
-    vk::Result SubmitCommandBufferToGraphics(const vk::SubmitInfo& SubmitInfo,   const FVulkanFence* Fence = nullptr) const;
-    vk::Result SubmitCommandBufferToGraphics(vk::CommandBuffer Buffer,           vk::Fence Fence           = {}) const;
-    vk::Result SubmitCommandBufferToGraphics(const FVulkanCommandBuffer& Buffer, const FVulkanFence* Fence = nullptr) const;
+    vk::Result ExecutePresentCommands(vk::CommandBuffer CommandBuffer) const;
+    vk::Result ExecutePresentCommands(const FVulkanCommandBuffer& CommandBuffer) const;
+    vk::Result ExecuteComputeCommands(vk::CommandBuffer CommandBuffer) const;
+    vk::Result ExecuteComputeCommands(const FVulkanCommandBuffer& CommandBuffer) const;
+    vk::Result SubmitCommandBufferToGraphics(const vk::SubmitInfo& SubmitInfo, vk::Fence Fence) const;
+    vk::Result SubmitCommandBufferToGraphics(const vk::SubmitInfo& SubmitInfo, const FVulkanFence* Fence) const;
+    vk::Result SubmitCommandBufferToGraphics(vk::CommandBuffer Buffer, vk::Fence Fence) const;
+    vk::Result SubmitCommandBufferToGraphics(const FVulkanCommandBuffer& Buffer, const FVulkanFence* Fence) const;
 
-    vk::Result SubmitCommandBufferToGraphics(vk::CommandBuffer      Buffer,
-                                             vk::Semaphore          WaitSemaphore   = {},
-                                             vk::Semaphore          SignalSemaphore = {},
-                                             vk::Fence              Fence           = {},
-                                             vk::PipelineStageFlags Flags           = vk::PipelineStageFlagBits::eColorAttachmentOutput) const;
+    vk::Result SubmitCommandBufferToGraphics(vk::CommandBuffer Buffer, vk::Semaphore WaitSemaphore, vk::Semaphore SignalSemaphore,
+                                             vk::Fence Fence, vk::PipelineStageFlags Flags = vk::PipelineStageFlagBits::eColorAttachmentOutput) const;
 
-    vk::Result SubmitCommandBufferToGraphics(const FVulkanCommandBuffer& Buffer,
-                                             const FVulkanSemaphore*     WaitSemaphore   = nullptr,
-                                             const FVulkanSemaphore*     SignalSemaphore = nullptr, 
-                                             const FVulkanFence*         Fence           = nullptr, 
-                                             vk::PipelineStageFlags      Flags           = vk::PipelineStageFlagBits::eColorAttachmentOutput) const;
+    vk::Result SubmitCommandBufferToGraphics(const FVulkanCommandBuffer& Buffer, const FVulkanSemaphore* WaitSemaphore,
+                                             const FVulkanSemaphore* SignalSemaphore, const FVulkanFence* Fence,
+                                             vk::PipelineStageFlags Flags = vk::PipelineStageFlagBits::eColorAttachmentOutput) const;
 
-    vk::Result SubmitCommandBufferToPresent(vk::CommandBuffer Buffer,
-                                            vk::Semaphore     WaitSemaphore   = {},
-                                            vk::Semaphore     SignalSemaphore = {},
-                                            vk::Fence         Fence           = {}) const;
+    vk::Result SubmitCommandBufferToPresent(const vk::SubmitInfo& SubmitInfo, vk::Fence Fence) const;
+    vk::Result SubmitCommandBufferToPresent(const vk::SubmitInfo& SubmitInfo, const FVulkanFence* Fence) const;
+    vk::Result SubmitCommandBufferToPresent(vk::CommandBuffer Buffer, vk::Fence Fence) const;
+    vk::Result SubmitCommandBufferToPresent(const FVulkanCommandBuffer& Buffer, const FVulkanFence* Fence) const;
 
-    vk::Result SubmitCommandBufferToPresent(const FVulkanCommandBuffer& Buffer,
-                                            const FVulkanSemaphore*     WaitSemaphore   = nullptr,
-                                            const FVulkanSemaphore*     SignalSemaphore = nullptr,
-                                            const FVulkanFence*         Fence           = nullptr) const;
+    vk::Result SubmitCommandBufferToPresent(vk::CommandBuffer Buffer, vk::Semaphore WaitSemaphore,
+                                            vk::Semaphore SignalSemaphore, vk::Fence Fence) const;
 
-    vk::Result SubmitCommandBufferToCompute(const vk::SubmitInfo& SubmitInfo,   vk::Fence Fence           = {}) const;
-    vk::Result SubmitCommandBufferToCompute(const vk::SubmitInfo& SubmitInfo,   const FVulkanFence* Fence = nullptr) const;
-    vk::Result SubmitCommandBufferToCompute(vk::CommandBuffer Buffer,           vk::Fence Fence           = {}) const;
-    vk::Result SubmitCommandBufferToCompute(const FVulkanCommandBuffer& Buffer, const FVulkanFence* Fence = nullptr) const;
+    vk::Result SubmitCommandBufferToPresent(const FVulkanCommandBuffer& Buffer, const FVulkanSemaphore* WaitSemaphore,
+                                            const FVulkanSemaphore* SignalSemaphore, const FVulkanFence* Fence) const;
 
-    vk::Result SubmitCommandBufferToCompute(vk::CommandBuffer      Buffer,
-                                            vk::Semaphore          WaitSemaphore   = {},
-                                            vk::Semaphore          SignalSemaphore = {},
-                                            vk::Fence              Fence           = {},
-                                            vk::PipelineStageFlags Flags           = vk::PipelineStageFlagBits::eComputeShader) const;
+    vk::Result SubmitCommandBufferToCompute(const vk::SubmitInfo& SubmitInfo, vk::Fence Fence) const;
+    vk::Result SubmitCommandBufferToCompute(const vk::SubmitInfo& SubmitInfo, const FVulkanFence* Fence) const;
+    vk::Result SubmitCommandBufferToCompute(vk::CommandBuffer Buffer, vk::Fence Fence) const;
+    vk::Result SubmitCommandBufferToCompute(const FVulkanCommandBuffer& Buffer, const FVulkanFence* Fence) const;
 
-    vk::Result SubmitCommandBufferToCompute(const FVulkanCommandBuffer& Buffer,
-                                            const FVulkanSemaphore*     WaitSemaphore   = nullptr,
-                                            const FVulkanSemaphore*     SignalSemaphore = nullptr,
-                                            const FVulkanFence*         Fence           = nullptr,
-                                            vk::PipelineStageFlags      Flags           = vk::PipelineStageFlagBits::eComputeShader) const;
+    vk::Result SubmitCommandBufferToCompute(vk::CommandBuffer Buffer, vk::Semaphore WaitSemaphore, vk::Semaphore SignalSemaphore,
+                                            vk::Fence Fence, vk::PipelineStageFlags Flags = vk::PipelineStageFlagBits::eComputeShader) const;
+
+    vk::Result SubmitCommandBufferToCompute(const FVulkanCommandBuffer& Buffer, const FVulkanSemaphore* WaitSemaphore,
+                                            const FVulkanSemaphore* SignalSemaphore, const FVulkanFence* Fence,
+                                            vk::PipelineStageFlags Flags = vk::PipelineStageFlagBits::eComputeShader) const;
 
     vk::Result TransferImageOwnershipToPresent(vk::CommandBuffer PresentCommandBuffer) const;
     vk::Result TransferImageOwnershipToPresent(const FVulkanCommandBuffer& PresentCommandBuffer) const;

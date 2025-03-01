@@ -1,7 +1,7 @@
 #version 450
-#pragma shader_stage(fragment)
+#pragma shader_stage(compute)
 
-layout(location = 0) out vec4 FragColor;
+layout(local_size_x = 10, local_size_y = 10, local_size_z = 1) in;
 
 layout(push_constant) uniform PushConstant
 {
@@ -14,6 +14,7 @@ layout(set = 0, binding = 0) uniform GameArgs
 };
 
 layout(set = 1, binding = 0) uniform sampler2D iBloomTex;
+layout(set = 1, binding = 1) uniform writeonly image2D iStorageImage;
 
 vec3 ColorFetch(vec2 TexCoord)
 {
@@ -129,10 +130,15 @@ vec3 GaussBlur(vec2 FragUv, bool bHorizontal)
 
 void main()
 {
-    vec2 FragUv = gl_FragCoord.xy / iResolution;
+    vec2 TexelCoord = gl_GlobalInvocationID.xy;
+    vec2 FragUv     = (TexelCoord.xy + 0.5) / iResolution;
+    vec4 FragColor  = vec4(1.0);
+
 #if defined(GENERATE_MIPMAP)
     FragColor = vec4(GetMipmapTree(FragUv), 1.0);
 #elif defined(GAUSS_BLUR)
     FragColor = vec4(GaussBlur(FragUv, ibHorizontal), 1.0);
 #endif
+
+    imageStore(iStorageImage, ivec2(TexelCoord), FragColor);
 }

@@ -124,10 +124,19 @@ NPGS_INLINE vk::Result FVulkanContext::RecreateSwapchain()
     return _VulkanCore->RecreateSwapchain();
 }
 
-NPGS_INLINE vk::Result
-FVulkanContext::ExecuteGraphicsCommands(const FVulkanCommandBuffer& CommandBuffer) const
+NPGS_INLINE vk::Result FVulkanContext::ExecuteGraphicsCommands(const FVulkanCommandBuffer& CommandBuffer) const
 {
     return ExecuteGraphicsCommands(*CommandBuffer);
+}
+
+NPGS_INLINE vk::Result FVulkanContext::ExecutePresentCommands(const FVulkanCommandBuffer& CommandBuffer) const
+{
+    return ExecutePresentCommands(*CommandBuffer);
+}
+
+NPGS_INLINE vk::Result FVulkanContext::ExecuteComputeCommands(const FVulkanCommandBuffer& CommandBuffer) const
+{
+    return ExecuteComputeCommands(*CommandBuffer);
 }
 
 NPGS_INLINE vk::Result
@@ -152,6 +161,18 @@ FVulkanContext::SubmitCommandBufferToGraphics(const FVulkanCommandBuffer& Buffer
     return SubmitCommandBufferToGraphics(*Buffer, WaitSemaphore ? **WaitSemaphore : vk::Semaphore(),
                                          SignalSemaphore ? **SignalSemaphore : vk::Semaphore(),
                                          Fence ? **Fence : vk::Fence(), Flags);
+}
+
+NPGS_INLINE vk::Result
+FVulkanContext::SubmitCommandBufferToPresent(const vk::SubmitInfo& SubmitInfo, const FVulkanFence* Fence) const
+{
+    return SubmitCommandBufferToPresent(SubmitInfo, Fence ? **Fence : vk::Fence());
+}
+
+NPGS_INLINE vk::Result
+FVulkanContext::SubmitCommandBufferToPresent(const FVulkanCommandBuffer& Buffer, const FVulkanFence* Fence) const
+{
+    return SubmitCommandBufferToPresent(*Buffer, **Fence);
 }
 
 NPGS_INLINE vk::Result

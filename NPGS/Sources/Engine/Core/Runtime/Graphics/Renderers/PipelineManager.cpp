@@ -59,6 +59,50 @@ void FPipelineManager::CreatePipeline(const std::string& PipelineName, const std
     RegisterCallback(PipelineName, EPipelineType::kGraphics);
 }
 
+void FPipelineManager::CreatePipeline(const std::string& PipelineName, const std::string& ShaderName,
+                                      vk::ComputePipelineCreateInfo* ComputePipelineCreateInfo)
+{
+    auto* VulkanContext = FVulkanContext::GetClassInstance();
+    auto* AssetManager  = Asset::FAssetManager::GetInstance();
+    auto* Shader        = AssetManager->GetAsset<Asset::FShader>(ShaderName);
+
+    VulkanContext->WaitIdle();
+
+    if (ShaderName == "" && ComputePipelineCreateInfo != nullptr)
+    {
+        FVulkanPipelineLayout PipelineLayout(ComputePipelineCreateInfo->layout, "Pipeline layout");
+        _PipelineLayouts.emplace(PipelineName, std::move(PipelineLayout));
+
+        FVulkanPipeline Pipeline(*ComputePipelineCreateInfo);
+        _Pipelines.emplace(PipelineName, std::move(Pipeline));
+
+        RegisterCallback(PipelineName, EPipelineType::kCompute);
+
+        return;
+    }
+
+    ComputePipelineCreateInfo = ComputePipelineCreateInfo == nullptr
+                              ? new vk::ComputePipelineCreateInfo() : ComputePipelineCreateInfo;
+
+    vk::PipelineLayoutCreateInfo PipelineLayoutCreateInfo;
+    auto NativeArray = Shader->GetDescriptorSetLayouts();
+    PipelineLayoutCreateInfo.setSetLayouts(NativeArray);
+    auto PushConstantRanges = Shader->GetPushConstantRanges();
+    PipelineLayoutCreateInfo.setPushConstantRanges(PushConstantRanges);
+
+    FVulkanPipelineLayout PipelineLayout(PipelineLayoutCreateInfo);
+    ComputePipelineCreateInfo->setLayout(*PipelineLayout);
+    ComputePipelineCreateInfo->setStage(Shader->CreateShaderStageCreateInfo().front());
+    _PipelineLayouts.emplace(PipelineName, std::move(PipelineLayout));
+
+    _ComputePipelineCreateInfos.emplace(PipelineName, *ComputePipelineCreateInfo);
+
+    FVulkanPipeline Pipeline(*ComputePipelineCreateInfo);
+    _Pipelines.emplace(PipelineName, std::move(Pipeline));
+
+    RegisterCallback(PipelineName, EPipelineType::kCompute);
+}
+
 void FPipelineManager::RemovePipeline(const std::string& Name)
 {
     _Pipelines.erase(Name);
@@ -112,6 +156,11 @@ void FPipelineManager::RegisterCallback(const std::string& Name, EPipelineType T
         {
             FVulkanPipeline Pipeline = std::move(_Pipelines.at(Name));
         };
+    }
+    else
+    {
+        CreatePipeline  = []() -> void {};
+        DestroyPipeline = []() -> void {};
     }
 
     VulkanContext->RegisterAutoRemovedCallbacks(FVulkanContext::ECallbackType::kCreateSwapchain, Name, CreatePipeline);
