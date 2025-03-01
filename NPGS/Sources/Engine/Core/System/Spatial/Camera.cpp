@@ -22,7 +22,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _TargetOffsetX(0.0f),
     _TargetOffsetY(0.0f),
     _AxisDir(1.0f, 1.0f, 0.2f),
-    _TargetAxisDir(1.0f, 1.0f, 0.2f),
+    _TargetAxisDir(0.0f, 1.0f, 0.2f),
     _OrbitalCenter(0.0f, 0.0f, 0.0f),
     _TargetOrbitalCenter(0.0f, 0.0f, 0.0f),
     _Theta(0.0f),
