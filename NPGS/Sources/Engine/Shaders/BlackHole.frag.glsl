@@ -51,7 +51,14 @@ float PerlinNoise(vec3 Position)
 {
     vec3 PosInt   = floor(Position);
     vec3 PosFloat = fract(Position);
-
+    
+    float Sx = CubicInterpolate(PosFloat.x);
+    float Sy = CubicInterpolate(PosFloat.y);
+    float Sz = CubicInterpolate(PosFloat.z);
+    float Sx1 = 1.0 - Sx;
+    float Sy1 = 1.0 - Sy;
+    float Sz1 = 1.0 - Sz;
+    
     float v000 = 2.0 * fract(sin(dot(vec3(PosInt.x,       PosInt.y,       PosInt.z),       vec3(12.9898, 78.233, 213.765))) * 43758.5453) - 1.0;
     float v100 = 2.0 * fract(sin(dot(vec3(PosInt.x + 1.0, PosInt.y,       PosInt.z),       vec3(12.9898, 78.233, 213.765))) * 43758.5453) - 1.0;
     float v010 = 2.0 * fract(sin(dot(vec3(PosInt.x,       PosInt.y + 1.0, PosInt.z),       vec3(12.9898, 78.233, 213.765))) * 43758.5453) - 1.0;
@@ -61,14 +68,9 @@ float PerlinNoise(vec3 Position)
     float v011 = 2.0 * fract(sin(dot(vec3(PosInt.x,       PosInt.y + 1.0, PosInt.z + 1.0), vec3(12.9898, 78.233, 213.765))) * 43758.5453) - 1.0;
     float v111 = 2.0 * fract(sin(dot(vec3(PosInt.x + 1.0, PosInt.y + 1.0, PosInt.z + 1.0), vec3(12.9898, 78.233, 213.765))) * 43758.5453) - 1.0;
 
-    float v00 = v001 * CubicInterpolate(PosFloat.z) + v000 * CubicInterpolate(1.0 - PosFloat.z);
-    float v10 = v101 * CubicInterpolate(PosFloat.z) + v100 * CubicInterpolate(1.0 - PosFloat.z);
-    float v01 = v011 * CubicInterpolate(PosFloat.z) + v010 * CubicInterpolate(1.0 - PosFloat.z);
-    float v11 = v111 * CubicInterpolate(PosFloat.z) + v110 * CubicInterpolate(1.0 - PosFloat.z);
-    float v0  = v01  * CubicInterpolate(PosFloat.y) + v00  * CubicInterpolate(1.0 - PosFloat.y);
-    float v1  = v11  * CubicInterpolate(PosFloat.y) + v10  * CubicInterpolate(1.0 - PosFloat.y);
 
-    return v1 * CubicInterpolate(PosFloat.x) + v0 * CubicInterpolate(1.0 - PosFloat.x);
+    return mix(mix(mix(v000, v100, Sx), mix(v010, v110, Sx), Sy),
+               mix(mix(v001, v101, Sx), mix(v011, v111, Sx), Sy), Sz);
 }
 
 float SoftSaturate(float x)
@@ -96,18 +98,16 @@ float GenerateDiskNoise(vec3 Position, int NoiseStartLevel, int NoiseEndLevel, f
 
 float Vec2ToTheta(vec2 v1, vec2 v2)
 {
-    if (dot(v1, v2) > 0.0)
-    {
-        return asin(0.999999 * (v1.x * v2.y - v1.y * v2.x) / length(v1) / length(v2));
-    }
-    else if (dot(v1, v2) < 0.0 && (-v1.x * v2.y + v1.y * v2.x) < 0.0)
-    {
-        return kPi - asin(0.999999 * (v1.x * v2.y - v1.y * v2.x) / length(v1) / length(v2));
-    }
-    else if (dot(v1, v2) < 0.0 && (-v1.x * v2.y + v1.y * v2.x) > 0.0)
-    {
-        return -kPi - asin(0.999999 * (v1.x * v2.y - v1.y * v2.x) / length(v1) / length(v2));
-    }
+    float VecDot   = dot(v1, v2);
+    float VecCross = v1.x * v2.y - v1.y * v2.x;
+    float Angle    = asin(0.999999 * VecCross / (length(v1) * length(v2)));
+
+    float Dx = step(0.0, VecDot);   // VecDot   > 0 ? 1 : 0
+    float Cx = step(0.0, VecCross); // VecCross > 0 ? 1 : 0
+    
+    return mix(mix(-kPi - Angle, kPi - Angle, Cx), // VecDot < 0
+               Angle,                              // VecDot > 0
+               Dx);
 }
 
 vec3 KelvinToRgb(float Kelvin)
@@ -321,8 +321,8 @@ void main()
     float Fov    = tan(iFovRadians / 2.0);
 
     float Rs = 2.0 * iBlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass;
-    float z1 = 1.0 + pow(1.0 - pow(iSpin, 2), 0.333333333333333) * (pow(1.0 + pow(iSpin, 2), 0.333333333333333) + pow(1.0 - iSpin, 0.333333333333333)); // 辅助变量
-    float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpin, 2) + z1 * z1) - sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * sqrt(3.0 * pow(iSpin, 2) + z1 * z1)))) / 2.0;     // 赤道顺行最内稳定圆轨与视界半径之比
+    float Zx = 1.0 + pow(1.0 - pow(iSpin, 2), 0.333333333333333) * (pow(1.0 + pow(iSpin, 2), 0.333333333333333) + pow(1.0 - iSpin, 0.333333333333333)); // 辅助变量
+    float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpin, 2) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(iSpin, 2) + Zx * Zx)))) / 2.0;     // 赤道顺行最内稳定圆轨与视界半径之比
     float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); // 吸积放能效率，以落到最内稳定圆轨为基准
 
     float EddingtonAccRate = 6.327 * iMu / pow(kSpeedOfLight, 2) * iBlackHoleMassSol * kSolarMass / AccretionEffective;         // 爱丁顿吸积率
