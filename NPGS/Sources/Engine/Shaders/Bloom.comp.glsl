@@ -1,7 +1,7 @@
 #version 450
 #pragma shader_stage(compute)
 
-layout(local_size_x = 10, local_size_y = 10, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(push_constant) uniform PushConstant
 {

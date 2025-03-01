@@ -395,8 +395,8 @@ void FApplication::ExecuteMainRender()
 
         BlendAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
 
-        std::uint32_t WorkgroundX = (_WindowSize.width  + 9) / 10;
-        std::uint32_t WorkgroundY = (_WindowSize.height + 9) / 10;
+        std::uint32_t WorkgroundX = (_WindowSize.width  + 15) / 16;
+        std::uint32_t WorkgroundY = (_WindowSize.height + 15) / 16;
 
         // Record BlackHole rendering commands
         // -----------------------------------
