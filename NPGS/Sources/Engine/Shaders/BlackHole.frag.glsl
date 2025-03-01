@@ -408,21 +408,12 @@ void main()
         }
         else if ((DistanceToBlackHole) >= 1.0 * iOuterRadiusLy)
         {
-            RayStep *= (max(abs(dot(iBlackHoleRelativeDiskNormal, PosToBlackHole)), Rs) * (2.0 * iOuterRadiusLy - DistanceToBlackHole) +
+            RayStep *= ((Rs) * (2.0 * iOuterRadiusLy - DistanceToBlackHole) +
                         DistanceToBlackHole * (DistanceToBlackHole - iOuterRadiusLy)) / iOuterRadiusLy;
-        }
-        else if ((DistanceToBlackHole) >= iInterRadiusLy)
-        {
-            RayStep *= max(abs(dot(iBlackHoleRelativeDiskNormal, PosToBlackHole)), Rs);
-        }
-        else if ((DistanceToBlackHole) > 2.0 * Rs)
-        {
-            RayStep *= (max(abs(dot(iBlackHoleRelativeDiskNormal, PosToBlackHole)), Rs) * (DistanceToBlackHole - 2.0 * Rs) +
-                        DistanceToBlackHole * (iInterRadiusLy - DistanceToBlackHole)) / (iInterRadiusLy - 2.0 * Rs);
         }
         else
         {
-            RayStep *= DistanceToBlackHole;
+            RayStep *= min(Rs,DistanceToBlackHole);
         }
 
         RayPos    += RayDir * RayStep;
@@ -448,5 +439,4 @@ void main()
 
     vec4 PrevColor = texelFetch(iHistoryTex, ivec2(gl_FragCoord.xy), 0);
     FragColor      = (BlendWeight) * Result + (1.0 - BlendWeight) * PrevColor;
-    if(isnan(FragColor.x)||isnan(FragColor.y)||isnan(FragColor.z)||isnan(FragColor.a)){FragColor=vec4(0.0f,0.0f,0.0f,0.0f);}
 }
