@@ -49,6 +49,7 @@ public:
     void ProcessMouseScroll(double OffsetY);
     void ProcessOrbital(double OffsetX, double OffsetY);
     void ProcessTimeEvolution(double DeltaTime);
+    void ProcessModeChange();
     void SetOrientation(const glm::quat& Orientation);
     void SetCameraVector(EVectorType Type, const glm::vec3& NewVector);
     void SetCameraMode(bool bIsOrbiting);
@@ -62,6 +63,7 @@ public:
     glm::mat4x4 GetViewMatrix() const;
     glm::mat4x4 GetProjectionMatrix(float WindowAspect, float Near) const;
     float GetCameraZoom() const;
+    bool GetCameraMode() const;
 
 private:
     void ProcessRotation(float Yaw, float Pitch, float Roll);
@@ -95,6 +97,7 @@ private:
     float     _TargetOffsetY;
     float     _OffsetX;
     float     _OffsetY;
+    float     _TimeSinceModeChange;
     bool      _bIsOrbiting;
     bool      _bAllowCrossZenith;
 };

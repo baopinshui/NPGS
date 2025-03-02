@@ -901,9 +901,11 @@ void FApplication::ProcessInput()
     }
 
     if (glfwGetKey(_Window, GLFW_KEY_W) == GLFW_PRESS)
-        _FreeCamera->SetFov(glm::degrees(2 * atan(tan(0.5 * glm::radians(_FreeCamera->GetFov())) * pow(2.0f, _DeltaTime))));
+        //_FreeCamera->SetFov(glm::degrees(2 * atan(tan(0.5 * glm::radians(_FreeCamera->GetFov())) * pow(2.0f, _DeltaTime))));
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kForward, _DeltaTime);
     if (glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS)
-        _FreeCamera->SetFov(glm::degrees(2 * atan(tan(0.5 * glm::radians(_FreeCamera->GetFov())) * pow(2.0f, -_DeltaTime))));
+       // _FreeCamera->SetFov(glm::degrees(2 * atan(tan(0.5 * glm::radians(_FreeCamera->GetFov())) * pow(2.0f, -_DeltaTime))));
+        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kBack, _DeltaTime);
     if (glfwGetKey(_Window, GLFW_KEY_A) == GLFW_PRESS)
         _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kLeft, _DeltaTime);
     if (glfwGetKey(_Window, GLFW_KEY_D) == GLFW_PRESS)
@@ -916,6 +918,8 @@ void FApplication::ProcessInput()
         _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollLeft, _DeltaTime);
     if (glfwGetKey(_Window, GLFW_KEY_E) == GLFW_PRESS)
         _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollRight, _DeltaTime);
+    if (glfwGetKey(_Window, GLFW_KEY_T) == GLFW_PRESS)
+        _FreeCamera->ProcessModeChange();
 }
 
 void FApplication::FramebufferSizeCallback(GLFWwindow* Window, int Width, int Height)

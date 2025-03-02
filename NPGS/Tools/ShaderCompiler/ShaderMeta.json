@@ -2,11 +2,13 @@
   "BasicLighting.vert.spv": "4b7fdd86487e555150a2d6bcba807d27",
   "BasicLighting.frag.spv": "54c0ef347499ee9364184c4b9dff8929",
   "BasicLighting_Lamp.frag.spv": "21a0cecf1b46888b4a1f93b44fd259f2",
-  "PreBloom.frag.spv": "c68059f021923cd8ee6d995b989974a9",
-  "GaussBlur.frag.spv": "cc62863b839e312286cf13ed9b90681b",
-  "BlackHole.frag.spv": "22c26db5b25dff79222f905fde48f289",
+  "PreBloom.frag.spv": "5cc2c322f4a7efcdf950bfe78f7c6274",
+  "GaussBlur.frag.spv": "8209110eac499bec30aacc56ce066ac2",
+  "BlackHole.frag.spv": "adca6f6a550797c3c935c991b66cd174",
   "ColorBlend.frag.spv": "317378b2a6976eac7deb164dfc3ea8ab",
   "PostProcess.frag.spv": "da5b7e8b7dff0798ca1e8b11fefa8650",
   "PostProcess.vert.spv": "7d66a1afad0b1a2a122d6c835ebf20c8",
-  "ScreenQuad.vert.spv": "2d0bb3867ac40f1404bf5eb99dee818d"
+  "ScreenQuad.vert.spv": "2d0bb3867ac40f1404bf5eb99dee818d",
+  "PreBloom.comp.spv": "2d75d10028a1dc9c114c2ae998070deb",
+  "GaussBlur.comp.spv": "beeec40540c154d7f3887ff8e25f84f7"
 }

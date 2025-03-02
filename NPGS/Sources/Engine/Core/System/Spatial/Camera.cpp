@@ -29,6 +29,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _Phi(45.0f),
     _DistanceToOrbitalCenter(1.0f),
     _TargetDistanceToOrbitalCenter(0.0001f),
+    _TimeSinceModeChange(10.0),
     _bIsOrbiting(false),
     _bAllowCrossZenith(false)
 {
@@ -164,9 +165,6 @@ void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
             _Phi = 0.0f; 
         }
     }
-    glm::vec3 Up = glm::vec3(0.0f, 0.0f, -1.0f);
-    glm::vec3 Back    = glm::vec3(0.0f, 1.0f, 0.0f);
-
     glm::quat ThetaRotate = glm::angleAxis(glm::radians(_Theta), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::quat PhiRotate   = glm::angleAxis(glm::radians(_Phi), glm::vec3(1.0f, 0.0f, 0.0f));
 
@@ -198,18 +196,13 @@ void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
         }
     }
     glm::quat ToAxisRotate   = glm::angleAxis(glm::radians(ToAxisTheta), glm::normalize( ToAxisNormal));
-
-    Up      = ToAxisRotate *( ThetaRotate *(PhiRotate * Up));
-    Back    = ToAxisRotate *( ThetaRotate *(PhiRotate * Back ));
-    glm::vec3 Right = glm::cross(Up,Back);
-    _Orientation = glm::conjugate(glm::quat_cast(glm::mat3x3(Right, Up, Back)));
-    SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter + _DistanceToOrbitalCenter * Back);
+    _Orientation = glm::conjugate(ToAxisRotate * (ThetaRotate * (PhiRotate* glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f,0.0f,0.0f)))));
     UpdateVectors();
+    SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter - _DistanceToOrbitalCenter * _Front);
+
 }
 void FCamera::ProcessTimeEvolution(double DeltaTime)
 {
-    _DistanceToOrbitalCenter += (_TargetDistanceToOrbitalCenter - _DistanceToOrbitalCenter) * std::min(1.0, _OrbitDistanceRotationSmoothCoefficient*DeltaTime);
-    SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter - _DistanceToOrbitalCenter * _Front);//绕转距离平滑更新
 
     _OffsetX += (_TargetOffsetX - _OffsetX) * std::min(1.0, _RotationSmoothCoefficient * DeltaTime);
     _OffsetY += (_TargetOffsetY - _OffsetY) * std::min(1.0, _RotationSmoothCoefficient * DeltaTime);
@@ -225,12 +218,42 @@ void FCamera::ProcessTimeEvolution(double DeltaTime)
     else
     {
         ProcessOrbital(_OffsetX, _OffsetY);
+
+        _DistanceToOrbitalCenter += (_TargetDistanceToOrbitalCenter - _DistanceToOrbitalCenter) * std::min(1.0, _OrbitDistanceRotationSmoothCoefficient * DeltaTime);
+        SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter - _DistanceToOrbitalCenter * _Front);//绕转距离平滑更新
+
+        if (glm::length(_TargetAxisDir - _AxisDir) > 0 && abs(asin(glm::length((_TargetAxisDir - _AxisDir)) / 2.0f)) > 1e-10)
+        {
+            _AxisDir = glm::normalize(_AxisDir + (std::min(1.0f, _OrbitAxisChangeSmoothCoefficient * static_cast<float>(DeltaTime)) * 2.0f * asin(glm::length((_TargetAxisDir - _AxisDir)) / 2.0f) * glm::normalize(glm::cross(glm::cross(_AxisDir, (_TargetAxisDir - _AxisDir)), _AxisDir))));
+        }//绕转轴更新平滑
+        _OrbitalCenter += (_TargetOrbitalCenter - _OrbitalCenter) * std::min(1.0f, _OrbitCenterChangeSmoothCoefficient * static_cast<float>(DeltaTime));
     }//鼠标拖动平滑更新
-    if (glm::length(_TargetAxisDir - _AxisDir) > 0&& abs(asin(glm::length((_TargetAxisDir - _AxisDir)) / 2.0f))>1e-10)
+
+
+    if (_TimeSinceModeChange < 10.0)
     {
-        _AxisDir = glm::normalize(_AxisDir + (std::min(1.0f, _OrbitAxisChangeSmoothCoefficient * static_cast<float>(DeltaTime)) * 2.0f * asin(glm::length((_TargetAxisDir - _AxisDir)) / 2.0f) * glm::normalize(glm::cross(glm::cross(_AxisDir, (_TargetAxisDir - _AxisDir)), _AxisDir))));
-    }//绕转轴更新平滑
-    _OrbitalCenter+=(_TargetOrbitalCenter-_OrbitalCenter) * std::min(1.0f, _OrbitCenterChangeSmoothCoefficient * static_cast<float>(DeltaTime));
+        _TimeSinceModeChange += DeltaTime;
+    }
+}
+void FCamera::ProcessModeChange()
+{
+    if (_TimeSinceModeChange > 2.0)
+    {
+        _TimeSinceModeChange = 0.0;
+        if (_bIsOrbiting)
+        {
+            _bIsOrbiting = false;
+        }
+        else
+        {
+            _bIsOrbiting = true;
+            _OrbitalCenter = _Position + _DistanceToOrbitalCenter * _Front;
+
+
+
+
+        }
+    }
 }
 void FCamera::UpdateVectors()
 {

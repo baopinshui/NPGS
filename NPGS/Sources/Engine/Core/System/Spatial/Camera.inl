@@ -10,12 +10,8 @@ NPGS_INLINE void FCamera::ProcessMouseScroll(double OffsetY)
 {
     if (!_bIsOrbiting)
     {
-        _Speed += static_cast<float>(OffsetY * 0.1);
+        _Speed *= pow(1.2, OffsetY);
 
-        if (_Speed <= 0)
-        {
-            _Speed = 0;
-        }
     }
     else
     {
@@ -78,6 +74,11 @@ NPGS_INLINE glm::mat4x4 FCamera::GetProjectionMatrix(float WindowAspect, float N
 NPGS_INLINE float FCamera::GetCameraZoom() const
 {
     return _Zoom;
+}
+
+NPGS_INLINE bool FCamera::GetCameraMode() const
+{
+    return _bIsOrbiting;
 }
 
 _SPATIAL_END
