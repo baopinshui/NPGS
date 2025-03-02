@@ -388,7 +388,7 @@ void FApplication::ExecuteMainRender()
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
         BlackHoleArgs.WorldUpView                 = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
         BlackHoleArgs.BlackHoleRelativePos        = glm::vec3(_FreeCamera->GetViewMatrix()*glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f,1.0f));
-        BlackHoleArgs.BlackHoleRelativeDiskNormal = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0001f, 1.0f));
+        BlackHoleArgs.BlackHoleRelativeDiskNormal = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 1.0f, 1.0f));
         BlackHoleArgs.BlackHoleMassSol            = 1.49e7f;
         BlackHoleArgs.Spin                        = 0.0f;
         BlackHoleArgs.Mu                          = 1.0f;
@@ -400,11 +400,11 @@ void FApplication::ExecuteMainRender()
         if (glm::length(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)> glm::length(LastBlackHoleRelativePos)*0.01* _DeltaTime || glm::length(LastBlackHoleRelativeDiskNormal - BlackHoleArgs.BlackHoleRelativeDiskNormal)> 0.01 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
 
 
-        if (int(glfwGetTime()) % 2 == 0)
-        {
-            _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
-        }else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
-        }
+        //if (int(glfwGetTime())%2 < 1)
+        //{
+        //    _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
+        //}else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
+        //}
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);

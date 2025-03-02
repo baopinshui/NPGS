@@ -22,7 +22,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _TargetOffsetX(0.0f),
     _TargetOffsetY(0.0f),
     _AxisDir(1.0f, 1.0f, 0.2f),
-    _TargetAxisDir(0.0f, 1.0f, 0.2f),
+    _TargetAxisDir(0.0f, 1.0f, 1.0f),
     _OrbitalCenter(0.0f, 0.0f, 0.0f),
     _TargetOrbitalCenter(0.0f, 0.0f, 0.0f),
     _Theta(0.0f),
@@ -33,6 +33,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _bIsOrbiting(false),
     _bAllowCrossZenith(false)
 {
+    SetTargetOrbitAxis(glm::vec3(0., 1., 1.));
     UpdateVectors();
 }
 
@@ -100,10 +101,10 @@ void FCamera::ProcessKeyboard(EMovement Direction, double DeltaTime)
         _Position -= _Up * Velocity;
         break;
     case EMovement::kRollLeft:
-        ProcessRotation(0.0f, 0.0f, -10.0f * Velocity);
+        ProcessRotation(0.0f, 0.0f, -10.0f * 0.25f);
         break;
     case EMovement::kRollRight:
-        ProcessRotation(0.0f, 0.0f,  10.0f * Velocity);
+        ProcessRotation(0.0f, 0.0f,  10.0f * 0.25f);
         break;
     }
 
@@ -250,8 +251,41 @@ void FCamera::ProcessModeChange()
             _OrbitalCenter = _Position + _DistanceToOrbitalCenter * _Front;
 
 
+            _AxisDir = _Up;
+            glm::vec3 ToAxisNormal;
+            float ToAxisTheta;
+            if (_AxisDir.x == 0.0f && _AxisDir.z == 0.0f)
+            {
+                if (_AxisDir.y > 0.0f)
+                {
+                    ToAxisTheta = 0.0f;
+                    ToAxisNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+                }
+                else
+                {
+                    ToAxisTheta = 180.0f;
+                    ToAxisNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+                }
+            }
+            else
+            {
+                ToAxisNormal = (glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), _AxisDir));
+                if (_AxisDir.y >= 0.0f)
+                {
+                    ToAxisTheta = glm::degrees(glm::asin(glm::length(ToAxisNormal)));
+                }
+                else
+                {
+                    ToAxisTheta = 180.0f - glm::degrees(glm::asin(glm::length(ToAxisNormal)));
+                }
+            }
+            glm::quat ToAxisRotate = glm::angleAxis(glm::radians(-ToAxisTheta), glm::normalize(ToAxisNormal));
+                glm::mat3 R = glm::mat3_cast(ToAxisRotate * glm::conjugate(_Orientation) *glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
+                _Theta = glm::degrees(std::atan2(-R[0][2], R[0][0]));
+                _Phi = glm::degrees(std::atan2(-R[2][1], R[1][1]));
 
-
+                
+                ProcessOrbital(0.0, 0.0);
         }
     }
 }
