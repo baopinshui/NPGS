@@ -399,7 +399,6 @@ void FApplication::ExecuteMainRender()
         BlackHoleArgs.BlendWeight                 = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs/0.00000465)), 0.3), 0.02)));
         if (glm::length(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)> glm::length(LastBlackHoleRelativePos)*0.01* _DeltaTime || glm::length(LastBlackHoleRelativeDiskNormal - BlackHoleArgs.BlackHoleRelativeDiskNormal)> 0.01 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
 
-
         //if (int(glfwGetTime())%2 < 1)
         //{
         //    _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
@@ -955,8 +954,9 @@ void FApplication::CursorPosCallback(GLFWwindow* Window, double PosX, double Pos
     double OffsetY = App->_LastY - PosY;
     App->_LastX = PosX;
     App->_LastY = PosY;
-
     App->_FreeCamera->ProcessMouseMovement(OffsetX, OffsetY);
+
+ //   std::cout << OffsetX / App->_DeltaTime << "    " << OffsetY / App->_DeltaTime << "\n";
 }
 
 void FApplication::ScrollCallback(GLFWwindow* Window, double OffsetX, double OffsetY)

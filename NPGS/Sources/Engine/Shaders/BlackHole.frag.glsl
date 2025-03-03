@@ -134,7 +134,46 @@ vec3 KelvinToRgb(float Kelvin)
     RgbColor *= BrightnessScale;
     return RgbColor;
 }
+vec3 WavelengthToRgb(float wavelength) {
+    vec3 color = vec3(0.0);
 
+    if (wavelength < 380.0 ) {
+        return vec3(0.0,0.0,1.0);
+    }
+    if (wavelength > 750.0 ) {
+        return vec3(1.0,0.0,0.0);
+    }
+
+
+    // 根据波长计算颜色
+    if (wavelength >= 380.0 && wavelength < 440.0) {
+        color.r =0.0;
+        color.g = 0.0;
+        color.b = 1.0;
+    } else if (wavelength >= 440.0 && wavelength < 490.0) {
+        color.r = 0.0;
+        color.g = (wavelength - 440.0) / (490.0 - 440.0);
+        color.b = 1.0;
+    } else if (wavelength >= 490.0 && wavelength < 510.0) {
+        color.r = 0.0;
+        color.g = 1.0;
+        color.b = -(wavelength - 510.0) / (510.0 - 490.0);
+    } else if (wavelength >= 510.0 && wavelength < 580.0) {
+        color.r = (wavelength - 510.0) / (580.0 - 510.0);
+        color.g = 1.0;
+        color.b = 0.0;
+    } else if (wavelength >= 580.0 && wavelength < 645.0) {
+        color.r = 1.0;
+        color.g = -(wavelength - 645.0) / (645.0 - 580.0);
+        color.b = 0.0;
+    } else if (wavelength >= 645.0 && wavelength <= 750.0) {
+        color.r = 1.0;
+        color.g = 0.0;
+        color.b = 0.0;
+    }
+
+    return color;
+}
 float GetKeplerianAngularVelocity(float Radius, float Rs)
 {
     return sqrt(kSpeedOfLight / kLightYearToMeter * kSpeedOfLight * Rs / kLightYearToMeter /
@@ -337,6 +376,7 @@ void main()
     vec3  NormalizedPosToBlackHole = vec3(0.0);
     float DistanceToBlackHole      = 0.0;
     float ShiftMax                 = 1.25; // 设定一个蓝移的亮度增加上限，以免亮部太亮
+    float BackgroundBlueShift= min(1.0 / sqrt(max(1.0 - Rs / length(iBlackHoleRelativePos), 0.000001)),ShiftMax);
 
     vec3  RayDir     = FragUvToDir(FragUv + 0.5 * vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)),
                                                        RandomStep(FragUv, fract(iTime * 1.0))) / iResolution, Fov, iResolution);
@@ -364,9 +404,11 @@ void main()
         {
             bShouldContinueMarchRay = false;
             FragUv = DirToFragUv(vec3(RayDir.xy,RayDir.z), iResolution);
-
-            //Result+=0.1* texelFetch(iBackground, ivec2(textureSize(iBackground], 0)*FragUv),0)*(1.0-Result.a);
-            vec4 TexColor = texture(iBackground, vec2(FragUv.x,1.0-FragUv.y));
+            vec4 Backcolor=texture(iBackground, vec2(FragUv.x,1.0-FragUv.y));
+            vec3 Rcolor=Backcolor.r*WavelengthToRgb(680.0/BackgroundBlueShift);
+            vec3 Gcolor=Backcolor.g*WavelengthToRgb(510.0/BackgroundBlueShift);
+            vec3 Bcolor=Backcolor.b*WavelengthToRgb(440.0/BackgroundBlueShift);
+            vec4 TexColor = vec4(Rcolor+Gcolor+Bcolor,Backcolor.a);
             Result += 0.7 * TexColor * (1.0 - Result.a);
         }
         if (DistanceToBlackHole < 0.1 * Rs)

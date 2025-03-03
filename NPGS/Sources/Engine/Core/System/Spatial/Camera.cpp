@@ -11,7 +11,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _Orientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)),
     _Position(Position),
     _Sensitivity(Sensitivity),
-    _RotationSmoothCoefficient(9.6f),
+    _RotationSmoothCoefficient(90.6f),
     _OrbitDistanceRotationSmoothCoefficient(9.6),
     _OrbitAxisChangeSmoothCoefficient(3.0),
     _OrbitCenterChangeSmoothCoefficient(3.0),
@@ -26,7 +26,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _OrbitalCenter(0.0f, 0.0f, 0.0f),
     _TargetOrbitalCenter(0.0f, 0.0f, 0.0f),
     _Theta(0.0f),
-    _Phi(45.0f),
+    _Phi(135.0f),
     _DistanceToOrbitalCenter(1.0f),
     _TargetDistanceToOrbitalCenter(0.0001f),
     _TimeSinceModeChange(10.0),
@@ -79,7 +79,6 @@ const glm::vec3& FCamera::GetCameraVector(EVectorType Type) const
 void FCamera::ProcessKeyboard(EMovement Direction, double DeltaTime)
 {
     float Velocity = static_cast<float>(_Speed * DeltaTime);
-
     switch (Direction)
     {
     case EMovement::kForward:
@@ -248,10 +247,12 @@ void FCamera::ProcessModeChange()
         else
         {
             _bIsOrbiting = true;
+            //_DistanceToOrbitalCenter = glm::length(_Position - _TargetOrbitalCenter);
+           // _TargetDistanceToOrbitalCenter = _DistanceToOrbitalCenter;
             _OrbitalCenter = _Position + _DistanceToOrbitalCenter * _Front;
 
 
-            _AxisDir = _Up;
+            _AxisDir = glm::normalize(_Up + _Front);
             glm::vec3 ToAxisNormal;
             float ToAxisTheta;
             if (_AxisDir.x == 0.0f && _AxisDir.z == 0.0f)

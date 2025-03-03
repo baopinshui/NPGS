@@ -12,7 +12,7 @@ _SPATIAL_BEGIN
 
 constexpr glm::vec3 kPosition    = glm::vec3(0.0f);
 constexpr float     kSensitivity = 0.05f;
-constexpr float     kSpeed       = 2.5f;
+constexpr float     kSpeed       = 0.00000025f;
 constexpr float     kZoom        = 60.0f;
 
 class FCamera
