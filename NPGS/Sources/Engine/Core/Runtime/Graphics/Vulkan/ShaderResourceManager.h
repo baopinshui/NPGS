@@ -98,8 +98,14 @@ public:
 
     void BindShaderToBuffers(const std::string& BufferName, const std::string& ShaderName, vk::DeviceSize Range = 0);
     void BindShaderToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& ShaderName, vk::DeviceSize Range = 0);
-    void BindShadersToBuffers(const std::string& BufferName, const std::vector<std::string>& ShaderNames);
-    void BindShadersToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::vector<std::string>& ShaderNames);
+    void BindShaderListToBuffers(const std::string& BufferName, const std::vector<std::string>& ShaderNameList);
+    void BindShaderListToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::vector<std::string>& ShaderNameList);
+
+    template <typename... Args>
+    void BindShadersToBuffers(const std::string& BufferName, Args&&... ShaderNames);
+
+    template <typename... Args>
+    void BindShadersToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, Args&&... ShaderNames);
 
     const Graphics::FDeviceLocalBuffer& GetBuffer(std::uint32_t FrameIndex, const std::string& BufferName);
 

@@ -12,8 +12,8 @@ _NPGS_BEGIN
 _RUNTIME_BEGIN
 _GRAPHICS_BEGIN
 
-void FPipelineManager::CreatePipeline(const std::string& PipelineName, const std::string& ShaderName,
-                                      FGraphicsPipelineCreateInfoPack& GraphicsPipelineCreateInfoPack)
+void FPipelineManager::CreateGraphicsPipeline(const std::string& PipelineName, const std::string& ShaderName,
+                                              FGraphicsPipelineCreateInfoPack& GraphicsPipelineCreateInfoPack)
 {
     auto* VulkanContext = FVulkanContext::GetClassInstance();
     auto* AssetManager  = Asset::FAssetManager::GetInstance();
@@ -59,8 +59,8 @@ void FPipelineManager::CreatePipeline(const std::string& PipelineName, const std
     RegisterCallback(PipelineName, EPipelineType::kGraphics);
 }
 
-void FPipelineManager::CreatePipeline(const std::string& PipelineName, const std::string& ShaderName,
-                                      vk::ComputePipelineCreateInfo* ComputePipelineCreateInfo)
+void FPipelineManager::CreateComputePipeline(const std::string& PipelineName, const std::string& ShaderName,
+                                             vk::ComputePipelineCreateInfo* ComputePipelineCreateInfo)
 {
     auto* VulkanContext = FVulkanContext::GetClassInstance();
     auto* AssetManager  = Asset::FAssetManager::GetInstance();

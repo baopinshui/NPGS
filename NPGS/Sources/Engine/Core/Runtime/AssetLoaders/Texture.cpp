@@ -5,6 +5,7 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <ranges>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -51,8 +52,8 @@ namespace
 
         if (SrcBarrier.kbEnable)
         {
-            Barrier.setSrcStageMask(SrcBarrier.kPipelineStageFlagBits)
-                   .setSrcAccessMask(SrcBarrier.kAccessFlagBits)
+            Barrier.setSrcStageMask(SrcBarrier.kPipelineStageFlags)
+                   .setSrcAccessMask(SrcBarrier.kAccessFlags)
                    .setDstStageMask(vk::PipelineStageFlagBits2::eTransfer)
                    .setDstAccessMask(vk::AccessFlagBits2::eTransferWrite)
                    .setOldLayout(SrcBarrier.kImageLayout)
@@ -71,8 +72,8 @@ namespace
         {
             Barrier.setSrcStageMask(vk::PipelineStageFlagBits2::eTransfer)
                    .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
-                   .setDstStageMask(DstBarrier.kPipelineStageFlagBits)
-                   .setDstAccessMask(DstBarrier.kAccessFlagBits)
+                   .setDstStageMask(DstBarrier.kPipelineStageFlags)
+                   .setDstAccessMask(DstBarrier.kAccessFlags)
                    .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
                    .setNewLayout(DstBarrier.kImageLayout);
 
@@ -102,8 +103,8 @@ namespace
         if (SrcBarrier.kbEnable)
         {
             vk::ImageMemoryBarrier2 ConvertToTransferSrcBarrier(
-                SrcBarrier.kPipelineStageFlagBits,
-                SrcBarrier.kAccessFlagBits,
+                SrcBarrier.kPipelineStageFlags,
+                SrcBarrier.kAccessFlags,
                 vk::PipelineStageFlagBits2::eTransfer,
                 vk::AccessFlagBits2::eTransferRead,
                 SrcBarrier.kImageLayout,
@@ -114,8 +115,8 @@ namespace
                 SrcImageSubresourceRange);
 
             vk::ImageMemoryBarrier2 ConvertToTransferDstBarrier(
-                SrcBarrier.kPipelineStageFlagBits,
-                SrcBarrier.kAccessFlagBits,
+                SrcBarrier.kPipelineStageFlags,
+                SrcBarrier.kAccessFlags,
                 vk::PipelineStageFlagBits2::eTransfer,
                 vk::AccessFlagBits2::eTransferWrite,
                 SrcBarrier.kImageLayout,
@@ -142,8 +143,8 @@ namespace
             vk::ImageMemoryBarrier2 FinalBarrier(
                 vk::PipelineStageFlagBits2::eTransfer,
                 vk::AccessFlagBits2::eTransferWrite,
-                DstBarrier.kPipelineStageFlagBits,
-                DstBarrier.kAccessFlagBits,
+                DstBarrier.kPipelineStageFlags,
+                DstBarrier.kAccessFlags,
                 vk::ImageLayout::eTransferDstOptimal,
                 DstBarrier.kImageLayout,
                 vk::QueueFamilyIgnored,
@@ -275,8 +276,8 @@ namespace
             vk::ImageMemoryBarrier2 FinalTransitionBarrier(
                 vk::PipelineStageFlagBits2::eTransfer,
                 vk::AccessFlagBits2::eNone,
-                FinalBarrier.kPipelineStageFlagBits,
-                FinalBarrier.kAccessFlagBits,
+                FinalBarrier.kPipelineStageFlags,
+                FinalBarrier.kAccessFlags,
                 vk::ImageLayout::eTransferSrcOptimal,
                 FinalBarrier.kImageLayout,
                 vk::QueueFamilyIgnored,
@@ -319,15 +320,21 @@ FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t
         }
 
         std::string_view Filename(Source);
-        bool bIsKtx = Filename.ends_with(".ktx") || Filename.ends_with(".KTX");
         bool bIsDds = Filename.ends_with(".dds") || Filename.ends_with(".DDS");
+        bool bIsKmg = Filename.ends_with(".kmg") || Filename.ends_with(".KMG");
+        bool bIsKtx = Filename.ends_with(".ktx") || Filename.ends_with(".KTX");
 
-        if (bIsKtx || bIsDds)
+        if (bIsDds || bIsKmg || bIsKtx)
         {
             try
             {
-                gli::texture Texture = gli::load(Source);
-                if (!Texture.empty())
+                gli::texture Texture(gli::load(Source));
+                if (Texture.empty())
+                {
+                    NpgsCoreError("Failed to load compressed texture: \"{}\".", Source);
+                    return {};
+                }
+                else
                 {
                     gli::extent3d Extent = Texture.extent();
                     std::size_t   Size   = Texture.size(0);
@@ -342,11 +349,6 @@ FTextureBase::FImageData FTextureBase::LoadImage(const auto* Source, std::size_t
                               Data.Data.begin());
 
                     return Data;
-                }
-                else
-                {
-                    NpgsCoreError("Failed to load compressed texture: \"{}\".", Source);
-                    return {};
                 }
             }
             catch (const std::exception& e)
@@ -513,7 +515,8 @@ void FTextureBase::CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Ex
     VulkanContext->ExecuteGraphicsCommands(CommandBuffer);
 }
 
-void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, std::uint32_t MipLevels, std::uint32_t ArrayLayers, vk::Filter Filter, vk::Image DstImage)
+void FTextureBase::BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, std::uint32_t MipLevels,
+                                       std::uint32_t ArrayLayers, vk::Filter Filter, vk::Image DstImage)
 {
     static constexpr std::array kBarriers
     {
@@ -812,15 +815,8 @@ FTextureCube::FTextureCube(const std::string& Filename, vk::Format InitialFormat
                   InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
 }
 
-FTextureCube::FTextureCube(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
-                           vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
-    : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
-{
-    CreateCubemap(Filenames, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
-}
-
 FTextureCube::FTextureCube(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
-                           vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
+                           vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)           
     : Base(nullptr, nullptr), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
 {
     CreateCubemap(Sources, Extent, InitialFormat, FinalFormat, Flags, bGenerateMipmaps);
@@ -844,24 +840,28 @@ FTextureCube::FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo
                            vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
     : Base(Allocator, &AllocationCreateInfo), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
 {
-    CreateCubemap(GetAssetFullPath(EAssetType::kTexture, Filename), InitialFormat,
-                  FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
-}
+    std::string FullPath = GetAssetFullPath(EAssetType::kTexture, Filename);
+    if (std::filesystem::is_directory(FullPath))
+    {
+        std::array<std::string, 6> Filenames{ "PosX", "NegX", "PosY", "NegY", "PosZ", "NegZ" };
+        std::size_t Index = 0;
+        for (const auto& Entry : std::filesystem::directory_iterator(FullPath))
+        {
+            if (Entry.is_regular_file())
+            {
+                std::string Extension = Entry.path().extension().string();
+                Filenames[Index] = Filename + "/" + Filenames[Index] + Extension;
+            }
+            ++Index;
+        }
 
-FTextureCube::FTextureCube(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::array<std::string, 6>& Filenames,
-                           vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags,
-                           bool bGenerateMipmaps, bool bFlipVertically)
-    : FTextureCube(Graphics::FVulkanContext::GetClassInstance()->GetVmaAllocator(), AllocationCreateInfo,
-                   Filenames, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically)
-{
-}
-
-FTextureCube::FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
-                           const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
-                           vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
-    : Base(Allocator, &AllocationCreateInfo), _StagingBufferPool(Graphics::FStagingBufferPool::GetInstance())
-{
-    CreateCubemap(Filenames, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+        CreateCubemap(Filenames, InitialFormat, FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+    }
+    else
+    {
+        CreateCubemap(GetAssetFullPath(EAssetType::kTexture, Filename), InitialFormat,
+                      FinalFormat, Flags, bGenerateMipmaps, bFlipVertically);
+    }
 }
 
 FTextureCube::FTextureCube(FTextureCube&& Other) noexcept
@@ -887,21 +887,241 @@ FTextureCube& FTextureCube::operator=(FTextureCube&& Other) noexcept
 void FTextureCube::CreateCubemap(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
                                  vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
 {
+    bool bIsDds = Filename.ends_with(".dds") || Filename.ends_with(".DDS");
+    bool bIsKmg = Filename.ends_with(".kmg") || Filename.ends_with(".KMG");
+    bool bIsKtx = Filename.ends_with(".ktx") || Filename.ends_with(".KTX");
+
+    if (bIsDds || bIsKmg || bIsKtx)
+    {
+        try
+        {
+            gli::texture_cube TextureCube(gli::load(Filename));
+            if (TextureCube.empty())
+            {
+                NpgsCoreError("Failed to load compressed texture: \"{}\".", Filename);
+                return;
+            }
+            else
+            {
+                std::size_t   Size   = TextureCube.size();
+                gli::extent2d Extent = TextureCube.extent();
+                _ImageExtent = vk::Extent2D(Extent.x, Extent.y);
+
+                VmaAllocationCreateInfo StagingCreateInfo{ .usage = VMA_MEMORY_USAGE_CPU_TO_GPU };
+                VmaAllocationCreateInfo* AllocationCreateInfo = _Allocator ? &StagingCreateInfo : nullptr;
+
+                auto* StagingBuffer = _StagingBufferPool->AcquireBuffer(Size, AllocationCreateInfo);
+                StagingBuffer->SubmitBufferData(0, 0, Size, static_cast<const std::byte*>(TextureCube.data()));
+
+                vk::ImageCreateFlags CubeFlags = Flags | vk::ImageCreateFlagBits::eCubeCompatible;
+
+                CreateCubemapInternal(StagingBuffer, InitialFormat, FinalFormat, CubeFlags, bGenerateMipmaps);
+                _StagingBufferPool->ReleaseBuffer(StagingBuffer);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            NpgsCoreError("Failed to load cube image: \"{}\": {}", Filename, e.what());
+        }
+    }
 }
 
 void FTextureCube::CreateCubemap(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat,
                                  vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically)
 {
+    std::array<FImageData, 6> FaceImages;
+
+    for (int i = 0; i != 6; ++i)
+    {
+        FaceImages[i] = LoadImage(GetAssetFullPath(EAssetType::kTexture, Filenames[i]).c_str(), 0, InitialFormat, bFlipVertically);
+
+        if (i == 0)
+        {
+            _ImageExtent = vk::Extent2D(FaceImages[i].Extent.width, FaceImages[i].Extent.height);
+        }
+        else if (FaceImages[i].Extent.width != _ImageExtent.width || FaceImages[i].Extent.height != _ImageExtent.height)
+        {
+            NpgsCoreError("Cubemap faces must have same dimensions. Face {} has different size.", i);
+            return;
+        }
+    }
+
+    vk::DeviceSize FaceSize  = _ImageExtent.width * _ImageExtent.height * Graphics::GetFormatInfo(InitialFormat).PixelSize;
+    vk::DeviceSize TotalSize = FaceSize * 6;
+
+    std::vector<std::byte> CubemapData;
+    CubemapData.reserve(TotalSize);
+    for (int i = 0; i != 6; ++i)
+    {
+        CubemapData.append_range(FaceImages[i].Data | std::views::as_rvalue);
+    }
+
+    VmaAllocationCreateInfo StagingCreateInfo{ .usage = VMA_MEMORY_USAGE_CPU_TO_GPU };
+    VmaAllocationCreateInfo* AllocationCreateInfo = _Allocator ? &StagingCreateInfo : nullptr;
+
+    auto* StagingBuffer = _StagingBufferPool->AcquireBuffer(TotalSize, AllocationCreateInfo);
+    StagingBuffer->SubmitBufferData(0, 0, TotalSize, CubemapData.data());
+
+    vk::ImageCreateFlags CubeFlags = Flags | vk::ImageCreateFlagBits::eCubeCompatible;
+
+    CreateCubemapInternal(StagingBuffer, InitialFormat, FinalFormat, CubeFlags, bGenerateMipmaps);
+    _StagingBufferPool->ReleaseBuffer(StagingBuffer);
 }
 
 void FTextureCube::CreateCubemap(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
                                  vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
 {
+    _ImageExtent = Extent;
+    vk::DeviceSize FaceSize  = Extent.width * Extent.height * Graphics::GetFormatInfo(InitialFormat).PixelSize;
+    vk::DeviceSize TotalSize = FaceSize * 6;
+
+    VmaAllocationCreateInfo StagingCreateInfo{ .usage = VMA_MEMORY_USAGE_CPU_TO_GPU };
+    VmaAllocationCreateInfo* AllocationCreateInfo = _Allocator ? &StagingCreateInfo : nullptr;
+
+    auto* StagingBuffer = _StagingBufferPool->AcquireBuffer(TotalSize, AllocationCreateInfo);
+    StagingBuffer->GetMemory().SetPersistentMapping(false);
+
+    for (int i = 0; i != 6; ++i)
+    {
+        StagingBuffer->SubmitBufferData(i * FaceSize, 0, FaceSize, Sources[i]);
+    }
+
+    vk::ImageCreateFlags CubeFlags = Flags | vk::ImageCreateFlagBits::eCubeCompatible;
+
+    CreateCubemapInternal(StagingBuffer, InitialFormat, FinalFormat, CubeFlags, bGenerateMipmaps);
+    _StagingBufferPool->ReleaseBuffer(StagingBuffer);
 }
 
 void FTextureCube::CreateCubemapInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat,
                                          vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps)
 {
+    std::uint32_t MipLevels = bGenerateMipmaps ? CalculateMipLevels(_ImageExtent) : 1;
+    CreateImageMemory(vk::ImageType::e2D, InitialFormat, { _ImageExtent.width, _ImageExtent.height, 1 }, MipLevels, 6, Flags);
+    CreateImageView(vk::ImageViewType::eCube, FinalFormat, MipLevels, 6);
+
+    if (InitialFormat == FinalFormat)
+    {
+        CopyBlitGenerateTexture(*StagingBuffer->GetBuffer(), _ImageExtent, MipLevels, 6, vk::Filter::eLinear,
+                                *_ImageMemory->GetResource(), *_ImageMemory->GetResource());
+    }
+    else
+    {
+        Graphics::FVulkanImage* ConvertedImage = StagingBuffer->CreateAliasedImage(InitialFormat, FinalFormat, _ImageExtent);
+        if (ConvertedImage)
+        {
+            BlitGenerateTexture(**ConvertedImage, _ImageExtent, MipLevels, 6, vk::Filter::eLinear, *_ImageMemory->GetResource());
+        }
+        else
+        {
+            vk::ImageCreateInfo ImageCreateInfo = vk::ImageCreateInfo()
+                .setFlags(vk::ImageCreateFlagBits::eCubeCompatible)
+                .setImageType(vk::ImageType::e2D)
+                .setFormat(InitialFormat)
+                .setExtent({ _ImageExtent.width, _ImageExtent.height, 1 })
+                .setMipLevels(MipLevels)
+                .setArrayLayers(6)
+                .setSamples(vk::SampleCountFlagBits::e1)
+                .setUsage(vk::ImageUsageFlagBits::eTransferSrc |
+                          vk::ImageUsageFlagBits::eTransferDst |
+                          vk::ImageUsageFlagBits::eSampled);
+
+            std::unique_ptr<Graphics::FVulkanImageMemory> ConversionImage;
+            if (_Allocator != nullptr)
+            {
+                ConversionImage = std::make_unique<Graphics::FVulkanImageMemory>(_Allocator, *_AllocationCreateInfo, ImageCreateInfo);
+            }
+            else
+            {
+                ConversionImage = std::make_unique<Graphics::FVulkanImageMemory>(ImageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            }
+
+            CopyBlitGenerateTexture(*StagingBuffer->GetBuffer(), _ImageExtent, MipLevels, 6, vk::Filter::eLinear,
+                                    *ConversionImage->GetResource(), *ConversionImage->GetResource());
+
+            CreateImageMemory(vk::ImageType::e2D, FinalFormat, { _ImageExtent.width, _ImageExtent.height, 1 }, MipLevels, 6, Flags);
+            CreateImageView(vk::ImageViewType::eCube, FinalFormat, MipLevels, 6);
+
+            auto* VulkanContext = Graphics::FVulkanContext::GetClassInstance();
+            auto& CommandBuffer = VulkanContext->GetTransferCommandBuffer();
+            CommandBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+            for (std::uint32_t Face = 0; Face != 6; ++Face)
+            {
+                if (bGenerateMipmaps)
+                {
+                    for (std::uint32_t MipLevel = 0; MipLevel != MipLevels; ++MipLevel)
+                    {
+                        vk::Offset3D SrcExtent = MipmapExtent(_ImageExtent, MipLevel);
+
+                        vk::ImageBlit Region(
+                            vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel, Face, 1),
+                            { vk::Offset3D(0, 0, 0), SrcExtent },
+                            vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, MipLevel, Face, 1),
+                            { vk::Offset3D(0, 0, 0), SrcExtent }
+                        );
+
+                        Graphics::FImageMemoryBarrierParameterPack SrcBarrier(
+                            vk::PipelineStageFlagBits2::eTopOfPipe,
+                            vk::AccessFlagBits2::eNone,
+                            vk::ImageLayout::eUndefined);
+
+                        Graphics::FImageMemoryBarrierParameterPack DstBarrier(
+                            vk::PipelineStageFlagBits2::eTransfer,
+                            vk::AccessFlagBits2::eTransferWrite,
+                            vk::ImageLayout::eTransferDstOptimal);
+
+                        BlitImage(CommandBuffer, *ConversionImage->GetResource(), SrcBarrier, DstBarrier,
+                                  Region, vk::Filter::eLinear, *_ImageMemory->GetResource());
+                    }
+
+                    vk::ImageSubresourceRange FinalRange(vk::ImageAspectFlagBits::eColor, 0, MipLevels, 0, 6);
+
+                    vk::ImageMemoryBarrier2 FinalBarrier(
+                        vk::PipelineStageFlagBits2::eTransfer,
+                        vk::AccessFlagBits2::eTransferWrite,
+                        vk::PipelineStageFlagBits2::eFragmentShader,
+                        vk::AccessFlagBits2::eShaderRead,
+                        vk::ImageLayout::eTransferDstOptimal,
+                        vk::ImageLayout::eShaderReadOnlyOptimal,
+                        vk::QueueFamilyIgnored,
+                        vk::QueueFamilyIgnored,
+                        *_ImageMemory->GetResource(),
+                        FinalRange);
+
+                    vk::DependencyInfo FinalDependencyInfo = vk::DependencyInfo()
+                        .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                        .setImageMemoryBarriers(FinalBarrier);
+
+                    CommandBuffer->pipelineBarrier2(FinalDependencyInfo);
+                }
+                else
+                {
+                    vk::ImageBlit Region(
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, Face, 1),
+                        { vk::Offset3D(0, 0, 0), vk::Offset3D(_ImageExtent.width, _ImageExtent.height, 1) },
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, Face, 1),
+                        { vk::Offset3D(0, 0, 0), vk::Offset3D(_ImageExtent.width, _ImageExtent.height, 1) }
+                    );
+
+                    Graphics::FImageMemoryBarrierParameterPack SrcBarrier(
+                        vk::PipelineStageFlagBits2::eTopOfPipe,
+                        vk::AccessFlagBits2::eNone,
+                        vk::ImageLayout::eUndefined);
+
+                    Graphics::FImageMemoryBarrierParameterPack DstBarrier(
+                        vk::PipelineStageFlagBits2::eFragmentShader,
+                        vk::AccessFlagBits2::eShaderRead,
+                        vk::ImageLayout::eShaderReadOnlyOptimal);
+
+                    BlitImage(CommandBuffer, *ConversionImage->GetResource(), SrcBarrier, DstBarrier,
+                              Region, vk::Filter::eLinear, *_ImageMemory->GetResource());
+                }
+            }
+
+            CommandBuffer.End();
+            VulkanContext->ExecuteGraphicsCommands(CommandBuffer);
+        }
+    }
 }
 
 _ASSET_END

@@ -90,7 +90,7 @@ void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
     _PrevOffsetX = SmoothedX;
     _PrevOffsetY = SmoothedY;
 
-    glm::vec3 OrbitAxis         = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 OrbitAxis         = _Up;
     glm::vec3 PrevRight         = _Right;
     glm::vec3 DirectionToCamera = _Position - _OrbitTarget;
 

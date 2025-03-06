@@ -75,6 +75,21 @@ NPGS_INLINE vk::Extent2D FTexture2D::GetImageExtent() const
     return _ImageExtent;
 }
 
+NPGS_INLINE std::uint32_t FTextureCube::GetImageWidth() const
+{
+    return _ImageExtent.width;
+}
+
+NPGS_INLINE std::uint32_t FTextureCube::GetImageHeight() const
+{
+    return _ImageExtent.height;
+}
+
+NPGS_INLINE vk::Extent2D FTextureCube::GetImageExtent() const
+{
+    return _ImageExtent;
+}
+
 _ASSET_END
 _RUNTIME_END
 _NPGS_END

@@ -11,6 +11,11 @@ struct FVertex
     glm::vec2 TexCoord;
 };
 
+struct FSkyboxVertex
+{
+    glm::vec3 Position;
+};
+
 struct FQuadVertex
 {
     glm::vec2 Position;

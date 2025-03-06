@@ -119,24 +119,10 @@ private:
 class FTextureCube : public FTextureBase
 {
 public:
-    enum class EFace : std::uint32_t
-    {
-        kPositiveX = 0,
-        kNegativeX = 1,
-        kPositiveY = 2,
-        kNegativeY = 3,
-        kPositiveZ = 4,
-        kNegativeZ = 5
-    };
-
-public:
     using Base = FTextureBase;
     using Base::Base;
 
     FTextureCube(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
-                 vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
-
-    FTextureCube(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
                  vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
 
     FTextureCube(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
@@ -151,14 +137,6 @@ public:
     FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo, const std::string& Filename,
                  vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags = {},
                  bool bGenerateMipmaps = true, bool bFlipVertically = true);
-
-    FTextureCube(const VmaAllocationCreateInfo& AllocationCreateInfo, const std::array<std::string, 6>& Filenames,
-                 vk::Format InitialFormat, vk::Format FinalFormat, vk::ImageCreateFlags Flags = {},
-                 bool bGenerateMipmaps = true, bool bFlipVertically = true);
-
-    FTextureCube(VmaAllocator Allocator, const VmaAllocationCreateInfo& AllocationCreateInfo,
-                 const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
-                 vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
 
     FTextureCube(const FTextureCube&) = delete;
     FTextureCube(FTextureCube&& Other) noexcept;
