@@ -33,7 +33,7 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 };
 
 layout(set = 1, binding = 0) uniform texture2D iHistoryTex;
-layout(set = 1, binding = 1) uniform sampler2D iBackground;
+layout(set = 1, binding = 1) uniform sampler2D iBackground[6];
 
 const float kSigma            = 5.670373e-8;
 const float kLightYearToMeter = 9460730472580800.0;
