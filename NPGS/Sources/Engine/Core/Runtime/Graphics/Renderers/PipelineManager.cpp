@@ -129,21 +129,20 @@ void FPipelineManager::RegisterCallback(const std::string& Name, EPipelineType T
             auto& SwapchainExtent = VulkanContext->GetSwapchainCreateInfo().imageExtent;
             auto& PipelineCreateInfoPack = _GraphicsPipelineCreateInfoPacks.at(Name);
 
-            vk::Viewport Viewport{};
-            Viewport.x = 0.0f;
-            Viewport.y = static_cast<float>(SwapchainExtent.height);
-            Viewport.width  =  static_cast<float>(SwapchainExtent.width);
-            Viewport.height = -static_cast<float>(SwapchainExtent.height);
-            Viewport.minDepth = 0.0f;
-            Viewport.maxDepth = 1.0f;
-            PipelineCreateInfoPack.Viewports.clear();
-            PipelineCreateInfoPack.Viewports.push_back(Viewport);
+            if (PipelineCreateInfoPack.DynamicStates.empty())
+            {
+                vk::Viewport Viewport(0.0f, static_cast<float>(SwapchainExtent.height),
+                                      static_cast<float>(SwapchainExtent.width), -static_cast<float>(SwapchainExtent.height),
+                                      0.0f, 1.0f);
 
-            vk::Rect2D Scissor{};
-            Scissor.offset = vk::Offset2D();
-            Scissor.extent = SwapchainExtent;
-            PipelineCreateInfoPack.Scissors.clear();
-            PipelineCreateInfoPack.Scissors.push_back(Scissor);
+                PipelineCreateInfoPack.Viewports.clear();
+                PipelineCreateInfoPack.Viewports.push_back(Viewport);
+
+                vk::Rect2D Scissor(vk::Offset2D(), SwapchainExtent);
+
+                PipelineCreateInfoPack.Scissors.clear();
+                PipelineCreateInfoPack.Scissors.push_back(Scissor);
+            }
 
             PipelineCreateInfoPack.Update();
 

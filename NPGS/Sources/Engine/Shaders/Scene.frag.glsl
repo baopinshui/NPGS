@@ -34,13 +34,24 @@ layout(set = 0, binding = 1) uniform LightMaterial
 layout(set = 1, binding = 0) uniform sampler   iSampler;
 layout(set = 1, binding = 1) uniform texture2D iDiffuseTex;
 layout(set = 1, binding = 2) uniform texture2D iSpecularTex;
+layout(set = 1, binding = 3) uniform sampler2D iShadowMap;
+
+float CalcShadow(vec4 FragPosLightSpace, float Bias)
+{
+    vec3 ProjectiveCoord = FragPosLightSpace.xyz / FragPosLightSpace.w;
+    ProjectiveCoord.xy = ProjectiveCoord.xy * 0.5 + 0.5;
+
+    float ClosestDepth = texture(iShadowMap, ProjectiveCoord.xy).r;
+    float CurrentDepth = ProjectiveCoord.z;
+    float Shadow = CurrentDepth - Bias > ClosestDepth ? 1.0 : 0.0;
+
+    return Shadow;
+}
 
 void main()
 {
 #if defined(LAMP_BOX)
     FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-#elif defined(DEPTH_MAP)
-    // do nothing
 #else
     vec3 AmbientColor = iLight.Ambient * texture(sampler2D(iDiffuseTex, iSampler), InputData.TexCoord).rgb;
 
@@ -54,7 +65,9 @@ void main()
     float SpecularCoef  = pow(max(dot(ViewDir, ReflectDir), 0.0), iMaterial.Shininess);
     vec3  SpecularColor = iLight.Specular * SpecularCoef * texture(sampler2D(iSpecularTex, iSampler), InputData.TexCoord).rgb;
 
-    vec3 Result = AmbientColor + DiffuseColor + SpecularColor;
-    FragColor = vec4(Result, 1.0);
+    float Bias   = max(0.05 * (1.0 - dot(Normal, LightDir)), 0.005);
+    float Shadow = CalcShadow(InputData.FragPosLightSpace, Bias);
+    vec3  Result = (AmbientColor + (1.0 - Shadow) * (DiffuseColor + SpecularColor));
+    FragColor    = vec4(Result, 1.0);
 #endif
 }

@@ -311,5 +311,7 @@
     <None Include="Sources\Engine\Shaders\ScreenQuad.vert.glsl" />
     <None Include="Sources\Engine\Shaders\Skybox.frag.glsl" />
     <None Include="Sources\Engine\Shaders\Skybox.vert.glsl" />
+    <None Include="Sources\Engine\Shaders\ShadowMap.vert.glsl" />
+    <None Include="Sources\Engine\Shaders\ShadowMap.frag.glsl" />
   </ItemGroup>
 </Project>
