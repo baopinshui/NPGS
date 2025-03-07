@@ -55,6 +55,7 @@ struct FMatrices
 {
     glm::aligned_mat4x4 View{ glm::mat4x4(1.0f) };
     glm::aligned_mat4x4 Projection{ glm::mat4x4(1.0f) };
+    glm::aligned_mat4x4 LightSpaceMatrix{ glm::mat4x4(1.0f) };
     glm::aligned_mat3x3 NormalMatrix{ glm::mat3x3(1.0f) };
 } Matrices;
 

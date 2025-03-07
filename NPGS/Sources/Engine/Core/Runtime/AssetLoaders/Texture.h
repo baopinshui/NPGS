@@ -46,19 +46,23 @@ protected:
     FTextureBase& operator=(const FTextureBase&)     = delete;
     FTextureBase& operator=(FTextureBase&&) noexcept = default;
 
+    FImageData LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat, bool bFlipVertically);
+
+    void CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat, vk::Format FinalFormat,
+                               vk::ImageType ImageType, vk::ImageViewType ImageViewType, vk::Extent3D Extent,
+                               vk::ImageCreateFlags Flags, std::uint32_t ArrayLayers, bool bGenerateMipmaps);
+
     void CreateImageMemory(vk::ImageType ImageType, vk::Format Format, vk::Extent3D Extent, std::uint32_t MipLevels,
                            std::uint32_t ArrayLayers, vk::ImageCreateFlags Flags = {});
 
-    void CreateImageView(vk::ImageViewType ImageViewType, vk::Format Format, std::uint32_t MipmapLevelCount,
+    void CreateImageView(vk::ImageViewType ImageViewType, vk::Format Format, std::uint32_t MipLevels,
                          std::uint32_t ArrayLayers, vk::ImageViewCreateFlags Flags = {});
 
-    void CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent2D Extent, std::uint32_t MipLevels, std::uint32_t ArrayLayers,
+    void CopyBlitGenerateTexture(vk::Buffer SrcBuffer, vk::Extent3D Extent, std::uint32_t MipLevels, std::uint32_t ArrayLayers,
                                  vk::Filter Filter, vk::Image DstImageSrcBlit, vk::Image DstImageDstBlit);
 
-    void BlitGenerateTexture(vk::Image SrcImage, vk::Extent2D Extent, std::uint32_t MipLevels,
+    void BlitGenerateTexture(vk::Image SrcImage, vk::Extent3D Extent, std::uint32_t MipLevels,
                              std::uint32_t ArrayLayers, vk::Filter Filter, vk::Image DstImage);
-
-    FImageData LoadImage(const auto* Source, std::size_t Size, vk::Format ImageFormat, bool bFlipVertically);
 
 protected:
     std::unique_ptr<Graphics::FVulkanImageMemory> _ImageMemory;
@@ -108,9 +112,6 @@ private:
     void CreateTexture(const std::byte* Source, vk::Extent2D Extent, vk::Format InitialFormat,
                        vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
 
-    void CreateTextureInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat,
-                               vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
-
 private:
     Graphics::FStagingBufferPool* _StagingBufferPool;
     vk::Extent2D                  _ImageExtent;
@@ -125,7 +126,7 @@ public:
     FTextureCube(const std::string& Filename, vk::Format InitialFormat, vk::Format FinalFormat,
                  vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true, bool bFlipVertically = true);
 
-    FTextureCube(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
+    FTextureCube(const std::byte* Sources, vk::Extent2D Extent, vk::Format InitialFormat,
                  vk::Format FinalFormat, vk::ImageCreateFlags Flags = {}, bool bGenerateMipmaps = true);
 
     FTextureCube(vk::Extent2D Extent, vk::Format Format, vk::ImageCreateFlags Flags = {},
@@ -155,11 +156,8 @@ private:
     void CreateCubemap(const std::array<std::string, 6>& Filenames, vk::Format InitialFormat, vk::Format FinalFormat,
                        vk::ImageCreateFlags Flags, bool bGenerateMipmaps, bool bFlipVertically);
 
-    void CreateCubemap(const std::array<std::byte*, 6>& Sources, vk::Extent2D Extent, vk::Format InitialFormat,
+    void CreateCubemap(const std::byte* Sources, vk::Extent2D Extent, vk::Format InitialFormat,
                        vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
-
-    void CreateCubemapInternal(Graphics::FStagingBuffer* StagingBuffer, vk::Format InitialFormat,
-                               vk::Format FinalFormat, vk::ImageCreateFlags Flags, bool bGenerateMipmaps);
 
 private:
     Graphics::FStagingBufferPool* _StagingBufferPool;

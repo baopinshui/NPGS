@@ -17,6 +17,6 @@ out gl_PerVertex
 
 void main()
 {
-	TexCoord = Position;
+	TexCoord    = Position;
 	gl_Position = (iProjection * mat4x4(mat3x3(iView)) * vec4(Position, 1.0)).xyww;
 }

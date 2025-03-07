@@ -46,14 +46,14 @@ FApplication::~FApplication()
 
 void FApplication::ExecuteMainRender()
 {
-    std::unique_ptr<Runtime::Graphics::FColorAttachment>        ColorAttachment;
-    std::unique_ptr<Runtime::Graphics::FColorAttachment>        PostColorAttachment;
-    std::unique_ptr<Runtime::Graphics::FDepthStencilAttachment> DepthStencilAttachment;
+    std::unique_ptr<Grt::FColorAttachment> ColorAttachment;
+    std::unique_ptr<Grt::FColorAttachment> ResolveAttachment;
+    std::unique_ptr<Grt::FDepthStencilAttachment> DepthStencilAttachment;
 
     vk::RenderingAttachmentInfo ColorAttachmentInfo = vk::RenderingAttachmentInfo()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setResolveMode(vk::ResolveModeFlagBits::eAverage)
-        .setResolveImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        //.setResolveMode(vk::ResolveModeFlagBits::eAverage)
+        //.setResolveImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
         .setClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
@@ -64,16 +64,11 @@ void FApplication::ExecuteMainRender()
         .setStoreOp(vk::AttachmentStoreOp::eDontCare)
         .setClearValue(vk::ClearDepthStencilValue(1.0f, 0));
 
-    vk::RenderingAttachmentInfo PostColorAttachmentInfo = vk::RenderingAttachmentInfo()
+    vk::RenderingAttachmentInfo PostProcessAttachmentInfo = vk::RenderingAttachmentInfo()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
         .setClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
-
-    vk::RenderingAttachmentInfo FinalOutputAttachmentInfo = vk::RenderingAttachmentInfo()
-        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStoreOp(vk::AttachmentStoreOp::eStore);
 
     VmaAllocationCreateInfo AttachmentAllocationCreateInfo
     {
@@ -84,22 +79,19 @@ void FApplication::ExecuteMainRender()
     auto CreateFramebuffers = [&]() -> void
     {
         _VulkanContext->WaitIdle();
+        auto SwapchainImageFormat = _VulkanContext->GetSwapchainCreateInfo().imageFormat;
 
-        ColorAttachment = std::make_unique<Grt::FColorAttachment>(AttachmentAllocationCreateInfo,
-            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e8);
+        ColorAttachment = std::make_unique<Grt::FColorAttachment>(
+            AttachmentAllocationCreateInfo, SwapchainImageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e1, vk::ImageUsageFlagBits::eSampled);
 
-        PostColorAttachment = std::make_unique<Grt::FColorAttachment>(AttachmentAllocationCreateInfo,
-            _VulkanContext->GetSwapchainCreateInfo().imageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e1,
-            vk::ImageUsageFlagBits::eSampled);
+        ResolveAttachment = std::make_unique<Grt::FColorAttachment>(
+            AttachmentAllocationCreateInfo, SwapchainImageFormat, _WindowSize, 1, vk::SampleCountFlagBits::e1, vk::ImageUsageFlagBits::eSampled);
 
-        DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(AttachmentAllocationCreateInfo,
-            vk::Format::eD32SfloatS8Uint, _WindowSize, 1, vk::SampleCountFlagBits::e8);
+        DepthStencilAttachment = std::make_unique<Grt::FDepthStencilAttachment>(
+            AttachmentAllocationCreateInfo, vk::Format::eD32Sfloat, _WindowSize, 1, vk::SampleCountFlagBits::e1, vk::ImageUsageFlagBits::eSampled);
 
-        ColorAttachmentInfo.setImageView(*ColorAttachment->GetImageView())
-                           .setResolveImageView(*PostColorAttachment->GetImageView());
-
+        ColorAttachmentInfo.setImageView(*ColorAttachment->GetImageView());
         DepthStencilAttachmentInfo.setImageView(*DepthStencilAttachment->GetImageView());
-        PostColorAttachmentInfo.setImageView(*PostColorAttachment->GetImageView());
     };
 
     auto DestroyFramebuffers = [&]() -> void
@@ -149,8 +141,8 @@ void FApplication::ExecuteMainRender()
         }
     };
 
-    std::vector<std::string> BasicLightingShaderFiles({ "BasicLighting.vert.spv", "BasicLighting.frag.spv" });
-    std::vector<std::string> LampShaderFiles({ "BasicLighting.vert.spv", "BasicLighting_Lamp.frag.spv" });
+    std::vector<std::string> SceneShaderFiles({ "Scene.vert.spv", "Scene.frag.spv" });
+    std::vector<std::string> LampShaderFiles({ "Scene.vert.spv", "Scene_Lamp.frag.spv" });
     std::vector<std::string> PostShaderFiles({ "PostProcess.vert.spv", "PostProcess.frag.spv" });
     std::vector<std::string> SkyboxShaderFiles({ "Skybox.vert.spv", "Skybox.frag.spv" });
 
@@ -160,7 +152,7 @@ void FApplication::ExecuteMainRender()
         .usage = VMA_MEMORY_USAGE_GPU_ONLY
     };
 
-    AssetManager->AddAsset<Art::FShader>("BasicLightingShader", BasicLightingShaderFiles, ResourceInfo);
+    AssetManager->AddAsset<Art::FShader>("SceneShader", SceneShaderFiles, ResourceInfo);
     AssetManager->AddAsset<Art::FShader>("LampShader", LampShaderFiles, ResourceInfo);
     AssetManager->AddAsset<Art::FShader>("PostShader", PostShaderFiles, PostResourceInfo);
     AssetManager->AddAsset<Art::FShader>("SkyboxShader", SkyboxShaderFiles, SkyboxInfo);
@@ -175,20 +167,21 @@ void FApplication::ExecuteMainRender()
 
     AssetManager->AddAsset<Art::FTextureCube>(
         "Skybox", TextureAllocationCreateInfo, "Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
-        vk::ImageCreateFlagBits::eMutableFormat, false, false);
+        vk::ImageCreateFlagBits::eMutableFormat, true, false);
 
-    auto* BasicLightingShader = AssetManager->GetAsset<Art::FShader>("BasicLightingShader");
-    auto* LampShader          = AssetManager->GetAsset<Art::FShader>("LampShader");
-    auto* PostShader          = AssetManager->GetAsset<Art::FShader>("PostShader");
-    auto* SkyboxShader        = AssetManager->GetAsset<Art::FShader>("SkyboxShader");
-    auto* ContainerDiffuse    = AssetManager->GetAsset<Art::FTexture2D>("ContainerDiffuse");
-    auto* ContainerSpecular   = AssetManager->GetAsset<Art::FTexture2D>("ContainerSpecular");
-    auto* Skybox              = AssetManager->GetAsset<Art::FTextureCube>("Skybox");
+    auto* SceneShader       = AssetManager->GetAsset<Art::FShader>("SceneShader");
+    auto* LampShader        = AssetManager->GetAsset<Art::FShader>("LampShader");
+    auto* PostShader        = AssetManager->GetAsset<Art::FShader>("PostShader");
+    auto* SkyboxShader      = AssetManager->GetAsset<Art::FShader>("SkyboxShader");
+    auto* ContainerDiffuse  = AssetManager->GetAsset<Art::FTexture2D>("ContainerDiffuse");
+    auto* ContainerSpecular = AssetManager->GetAsset<Art::FTexture2D>("ContainerSpecular");
+    auto* Skybox            = AssetManager->GetAsset<Art::FTextureCube>("Skybox");
+    auto* DepthMapShader    = AssetManager->GetAsset<Art::FShader>("DepthMapShader");
 
     Grt::FShaderResourceManager::FUniformBufferCreateInfo MatricesCreateInfo
     {
         .Name    = "Matrices",
-        .Fields  = { "View", "Projection", "NormalMatrix" },
+        .Fields  = { "View", "Projection", "LightSpaceMatrix", "NormalMatrix" },
         .Set     = 0,
         .Binding = 0,
         .Usage   = vk::DescriptorType::eUniformBuffer
@@ -214,20 +207,20 @@ void FApplication::ExecuteMainRender()
     ShaderResourceManager->CreateBuffers<FMatrices>(MatricesCreateInfo, &UniformBufferAllocationCreateInfo);
     ShaderResourceManager->CreateBuffers<FLightMaterial>(LightMaterialCreateInfo, &UniformBufferAllocationCreateInfo);
 
-    // Create graphics pipeline
-    // ------------------------
+    // Bind descriptor sets
+    // --------------------
     vk::SamplerCreateInfo SamplerCreateInfo = Art::FTextureBase::CreateDefaultSamplerCreateInfo();
     Grt::FVulkanSampler Sampler(SamplerCreateInfo);
 
     vk::DescriptorImageInfo SamplerInfo(*Sampler);
-    BasicLightingShader->WriteSharedDescriptors<vk::DescriptorImageInfo>(1, 0, vk::DescriptorType::eSampler, { SamplerInfo });
+    SceneShader->WriteSharedDescriptors<vk::DescriptorImageInfo>(1, 0, vk::DescriptorType::eSampler, { SamplerInfo });
 
     std::vector<vk::DescriptorImageInfo> ImageInfos;
     ImageInfos.push_back(ContainerDiffuse->CreateDescriptorImageInfo(nullptr));
-    BasicLightingShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eSampledImage, ImageInfos);
+    SceneShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eSampledImage, ImageInfos);
     ImageInfos.clear();
     ImageInfos.push_back(ContainerSpecular->CreateDescriptorImageInfo(nullptr));
-    BasicLightingShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eSampledImage, ImageInfos);
+    SceneShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eSampledImage, ImageInfos);
 
     SamplerCreateInfo
         .setMipmapMode(vk::SamplerMipmapMode::eNearest)
@@ -251,11 +244,14 @@ void FApplication::ExecuteMainRender()
 
     auto CreatePostDescriptors = [&]() -> void
     {
-        vk::DescriptorImageInfo FramebufferImageInfo(
-            *FramebufferSampler, *PostColorAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+        vk::DescriptorImageInfo ColorImageInfo(
+            *FramebufferSampler, *ColorAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+        vk::DescriptorImageInfo DepthStencilImageInfo(
+            *FramebufferSampler, *DepthStencilAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
 
         ImageInfos.clear();
-        ImageInfos.push_back(FramebufferImageInfo);
+        ImageInfos.push_back(ColorImageInfo);
+        ImageInfos.push_back(DepthStencilImageInfo);
         PostShader->WriteSharedDescriptors(0, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
     };
 
@@ -264,26 +260,41 @@ void FApplication::ExecuteMainRender()
     _VulkanContext->RegisterAutoRemovedCallbacks(
         Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreatePostDescriptor", CreatePostDescriptors);
 
-    std::vector<std::string> BindShadersForMatrices{ "BasicLightingShader", "LampShader", "SkyboxShader" };
-    ShaderResourceManager->BindShadersToBuffers("Matrices", "BasicLightingShader", "LampShader", "SkyboxShader");
-    ShaderResourceManager->BindShaderToBuffers("LightMaterial", "BasicLightingShader");
+    ShaderResourceManager->BindShadersToBuffers("Matrices", "SceneShader", "LampShader", "SkyboxShader");
+    ShaderResourceManager->BindShaderToBuffers("LightMaterial", "SceneShader");
 
+    // Create vertex buffers
+    // ---------------------
 #include "Vertices.inc"
 
-    //VmaAllocationCreateInfo VertexBufferAllocationCreateInfo
-    //{
-    //    .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-    //    .usage = VMA_MEMORY_USAGE_GPU_ONLY,
-    //    .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    //};
+    VmaAllocationCreateInfo VertexBufferAllocationCreateInfo
+    {
+        .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    };
 
-    Grt::FDeviceLocalBuffer VertexBuffer(CubeVertices.size() * sizeof(FVertex), vk::BufferUsageFlagBits::eVertexBuffer);
-    VertexBuffer.CopyData(CubeVertices);
-    Grt::FDeviceLocalBuffer SkyboxVertexBuffer(SkyboxVertices.size() * sizeof(FSkyboxVertex), vk::BufferUsageFlagBits::eVertexBuffer);
+    vk::BufferCreateInfo VertexBufferCreateInfo = vk::BufferCreateInfo()
+        .setSize(CubeVertices.size() * sizeof(FVertex))
+        .setUsage(vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst);
+
+    Grt::FDeviceLocalBuffer CubeVertexBuffer(VertexBufferAllocationCreateInfo, VertexBufferCreateInfo);
+    CubeVertexBuffer.CopyData(CubeVertices);
+
+    VertexBufferCreateInfo.setSize(SkyboxVertices.size() * sizeof(FVertex));
+    Grt::FDeviceLocalBuffer SkyboxVertexBuffer(VertexBufferAllocationCreateInfo, VertexBufferCreateInfo);
     SkyboxVertexBuffer.CopyData(SkyboxVertices);
-    Grt::FDeviceLocalBuffer QuadVertexBuffer(QuadVertices.size() * sizeof(FQuadVertex), vk::BufferUsageFlagBits::eVertexBuffer);
+
+    VertexBufferCreateInfo.setSize(QuadVertices.size() * sizeof(FQuadVertex));
+    Grt::FDeviceLocalBuffer QuadVertexBuffer(VertexBufferAllocationCreateInfo, VertexBufferCreateInfo);
     QuadVertexBuffer.CopyData(QuadVertices);
 
+    VertexBufferCreateInfo.setSize(PlaneVertices.size() * sizeof(FVertex));
+    Grt::FDeviceLocalBuffer PlaneVertexBuffer(VertexBufferAllocationCreateInfo, VertexBufferCreateInfo);
+    PlaneVertexBuffer.CopyData(PlaneVertices);
+
+    // Create graphics pipeline
+    // ------------------------
     auto* PipelineManager = Grt::FPipelineManager::GetInstance();
 
     vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState = vk::PipelineColorBlendAttachmentState()
@@ -293,16 +304,16 @@ void FApplication::ExecuteMainRender()
     vk::PipelineRenderingCreateInfo PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
         .setColorAttachmentCount(1)
         .setColorAttachmentFormats(_VulkanContext->GetSwapchainCreateInfo().imageFormat)
-        .setDepthAttachmentFormat(vk::Format::eD32SfloatS8Uint);
+        .setDepthAttachmentFormat(vk::Format::eD32Sfloat);
 
     Grt::FGraphicsPipelineCreateInfoPack CreateInfoPack;
     CreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&PipelineRenderingCreateInfo);
     CreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
 
-    CreateInfoPack.MultisampleStateCreateInfo
-        .setRasterizationSamples(vk::SampleCountFlagBits::e8)
-        .setSampleShadingEnable(vk::True)
-        .setMinSampleShading(1.0f);
+    //CreateInfoPack.MultisampleStateCreateInfo
+    //    .setRasterizationSamples(vk::SampleCountFlagBits::e8)
+    //    .setSampleShadingEnable(vk::True)
+    //    .setMinSampleShading(1.0f);
 
     CreateInfoPack.DepthStencilStateCreateInfo
         .setDepthTestEnable(vk::True)
@@ -320,7 +331,7 @@ void FApplication::ExecuteMainRender()
 
     CreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
 
-    PipelineManager->CreateGraphicsPipeline("ContainerPipeline", "BasicLightingShader", CreateInfoPack);
+    PipelineManager->CreateGraphicsPipeline("ScenePipeline", "SceneShader", CreateInfoPack);
     PipelineManager->CreateGraphicsPipeline("LampPipeline", "LampShader", CreateInfoPack);
 
     CreateInfoPack.DepthStencilStateCreateInfo.setDepthCompareOp(vk::CompareOp::eLessOrEqual);
@@ -339,17 +350,20 @@ void FApplication::ExecuteMainRender()
 
     PipelineManager->CreateGraphicsPipeline("PostPipeline", "PostShader", CreateInfoPack);
 
-    vk::Pipeline ContainerPipeline;
+    vk::PipelineRenderingCreateInfo DepthMapRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
+        .setDepthAttachmentFormat(vk::Format::eD32Sfloat);
+
+    vk::Pipeline ScenePipeline;
     vk::Pipeline LampPipeline;
     vk::Pipeline PostPipeline;
     vk::Pipeline SkyboxPipeline;
 
     auto GetPipelines = [&]() -> void
     {
-        ContainerPipeline = PipelineManager->GetPipeline("ContainerPipeline");
-        LampPipeline      = PipelineManager->GetPipeline("LampPipeline");
-        PostPipeline      = PipelineManager->GetPipeline("PostPipeline");
-        SkyboxPipeline    = PipelineManager->GetPipeline("SkyboxPipeline");
+        ScenePipeline  = PipelineManager->GetPipeline("ScenePipeline");
+        LampPipeline   = PipelineManager->GetPipeline("LampPipeline");
+        PostPipeline   = PipelineManager->GetPipeline("PostPipeline");
+        SkyboxPipeline = PipelineManager->GetPipeline("SkyboxPipeline");
     };
 
     GetPipelines();
@@ -357,10 +371,10 @@ void FApplication::ExecuteMainRender()
     _VulkanContext->RegisterAutoRemovedCallbacks(
         Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "GetPipelines", GetPipelines);
 
-    auto ContainerPipelineLayout = PipelineManager->GetPipelineLayout("ContainerPipeline");
-    auto LampPipelineLayout      = PipelineManager->GetPipelineLayout("LampPipeline");
-    auto PostPipelineLayout      = PipelineManager->GetPipelineLayout("PostPipeline");
-    auto SkyboxPipelineLayout    = PipelineManager->GetPipelineLayout("SkyboxPipeline");
+    auto ScenePipelineLayout  = PipelineManager->GetPipelineLayout("ScenePipeline");
+    auto LampPipelineLayout   = PipelineManager->GetPipelineLayout("LampPipeline");
+    auto PostPipelineLayout   = PipelineManager->GetPipelineLayout("PostPipeline");
+    auto SkyboxPipelineLayout = PipelineManager->GetPipelineLayout("SkyboxPipeline");
 
     std::vector<Grt::FVulkanFence> InFlightFences;
     std::vector<Grt::FVulkanSemaphore> Semaphores_ImageAvailable;
@@ -380,7 +394,13 @@ void FApplication::ExecuteMainRender()
     std::uint32_t  CurrentFrame  = 0;
     glm::vec3      LightPos(1.2f, 1.0f, 2.0f);
 
-    vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+    glm::mat4x4 LightProjection  = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 7.5f);
+    glm::mat4x4 LightView        = glm::lookAt(LightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4x4 LightSpaceMatrix = LightProjection * LightView;
+
+    vk::ImageSubresourceRange ColorSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+    vk::ImageSubresourceRange DepthSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1);
+
     while (!glfwWindowShouldClose(_Window))
     {
         while (glfwGetWindowAttrib(_Window, GLFW_ICONIFIED))
@@ -393,9 +413,12 @@ void FApplication::ExecuteMainRender()
         // Uniform update
         // --------------
         glm::mat4x4 Model(1.0f);
-        Matrices.View         = _FreeCamera->GetViewMatrix();
-        Matrices.Projection   = _FreeCamera->GetProjectionMatrix(static_cast<float>(_WindowSize.width) / static_cast<float>(_WindowSize.height), 0.1f);
-        Matrices.NormalMatrix = glm::mat3x3(glm::transpose(glm::inverse(Model)));
+        float WindowAspect = static_cast<float>(_WindowSize.width) / static_cast<float>(_WindowSize.height);
+
+        Matrices.View             = _FreeCamera->GetViewMatrix();
+        Matrices.Projection       = _FreeCamera->GetProjectionMatrix(WindowAspect, 0.1f);
+        Matrices.LightSpaceMatrix = LightSpaceMatrix;
+        Matrices.NormalMatrix     = glm::mat3x3(glm::transpose(glm::inverse(Model)));
 
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "Matrices", Matrices);
 
@@ -416,29 +439,46 @@ void FApplication::ExecuteMainRender()
         auto& CurrentBuffer = CommandBuffers[CurrentFrame];
         CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
-        vk::ImageMemoryBarrier2 InitSwapchainBarrier(vk::PipelineStageFlagBits2::eTopOfPipe,
-                                                     vk::AccessFlagBits2::eNone,
-                                                     vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                                     vk::AccessFlagBits2::eColorAttachmentWrite,
-                                                     vk::ImageLayout::eUndefined,
-                                                     vk::ImageLayout::eColorAttachmentOptimal,
-                                                     vk::QueueFamilyIgnored,
-                                                     vk::QueueFamilyIgnored,
-                                                     _VulkanContext->GetSwapchainImage(ImageIndex),
-                                                     SubresourceRange);
+        vk::ImageMemoryBarrier2 InitSwapchainBarrier(
+            vk::PipelineStageFlagBits2::eTopOfPipe,
+            vk::AccessFlagBits2::eNone,
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            _VulkanContext->GetSwapchainImage(ImageIndex),
+            ColorSubresourceRange
+        );
 
-        vk::ImageMemoryBarrier2 PostRestoreBarrier(vk::PipelineStageFlagBits2::eTopOfPipe,
-                                                   vk::AccessFlagBits2::eNone,
-                                                   vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                                   vk::AccessFlagBits2::eColorAttachmentWrite,
-                                                   vk::ImageLayout::eUndefined,
-                                                   vk::ImageLayout::eColorAttachmentOptimal,
-                                                   vk::QueueFamilyIgnored,
-                                                   vk::QueueFamilyIgnored,
-                                                   *PostColorAttachment->GetImage(),
-                                                   SubresourceRange);
+        vk::ImageMemoryBarrier2 InitColorAttachmentBarrier(
+            vk::PipelineStageFlagBits2::eTopOfPipe,
+            vk::AccessFlagBits2::eNone,
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            *ColorAttachment->GetImage(),
+            ColorSubresourceRange
+        );
 
-        std::array InitBarriers{ InitSwapchainBarrier, PostRestoreBarrier };
+        vk::ImageMemoryBarrier2 InitDepthStencilAttachmentBarrier(
+            vk::PipelineStageFlagBits2::eTopOfPipe,
+            vk::AccessFlagBits2::eNone,
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderWrite,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eDepthAttachmentOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            *DepthStencilAttachment->GetImage(),
+            DepthSubresourceRange
+        );
+
+        std::array InitBarriers{ InitSwapchainBarrier, InitColorAttachmentBarrier, InitDepthStencilAttachmentBarrier };
 
         vk::DependencyInfo InitialDependencyInfo = vk::DependencyInfo()
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
@@ -453,21 +493,26 @@ void FApplication::ExecuteMainRender()
             .setPDepthAttachment(&DepthStencilAttachmentInfo);
 
         CurrentBuffer->beginRendering(RenderingInfo);
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, ContainerPipeline);
-        CurrentBuffer->bindVertexBuffers(0, *VertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->pushConstants(ContainerPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     BasicLightingShader->GetPushConstantOffset("iModel"),
+        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, ScenePipeline);
+        CurrentBuffer->bindVertexBuffers(0, *CubeVertexBuffer.GetBuffer(), Offset);
+        CurrentBuffer->pushConstants(ScenePipelineLayout, vk::ShaderStageFlagBits::eVertex,
+                                     SceneShader->GetPushConstantOffset("iModel"),
                                      sizeof(glm::mat4x4), glm::value_ptr(Model));
         
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, ContainerPipelineLayout, 0,
-                                          BasicLightingShader->GetDescriptorSets(CurrentFrame), {});
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, ScenePipelineLayout, 0,
+                                          SceneShader->GetDescriptorSets(CurrentFrame), {});
         CurrentBuffer->draw(36, 1, 0, 0);
+
+        CurrentBuffer->bindVertexBuffers(0, *PlaneVertexBuffer.GetBuffer(), Offset);
+        CurrentBuffer->draw(6, 1, 0, 0);
 
         Model = glm::scale(glm::translate(Model, LightPos), glm::vec3(0.2f));
 
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, LampPipeline);
+        CurrentBuffer->bindVertexBuffers(0, *CubeVertexBuffer.GetBuffer(), Offset);
         CurrentBuffer->pushConstants(LampPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     LampShader->GetPushConstantOffset("iModel"), sizeof(glm::mat4x4), glm::value_ptr(Model));
+                                     LampShader->GetPushConstantOffset("iModel"),
+                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
 
         CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, LampPipelineLayout, 0,
                                           LampShader->GetDescriptorSets(CurrentFrame), {});
@@ -488,29 +533,46 @@ void FApplication::ExecuteMainRender()
         ColorAttachmentInfo.setLoadOp(vk::AttachmentLoadOp::eClear);
         DepthStencilAttachmentInfo.setLoadOp(vk::AttachmentLoadOp::eClear);
 
-        vk::ImageMemoryBarrier2 RenderEndBarrier(vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                                 vk::AccessFlagBits2::eColorAttachmentWrite,
-                                                 vk::PipelineStageFlagBits2::eFragmentShader,
-                                                 vk::AccessFlagBits2::eShaderRead,
-                                                 vk::ImageLayout::eColorAttachmentOptimal,
-                                                 vk::ImageLayout::eShaderReadOnlyOptimal,
-                                                 vk::QueueFamilyIgnored,
-                                                 vk::QueueFamilyIgnored,
-                                                 *PostColorAttachment->GetImage(),
-                                                 SubresourceRange);
+        vk::ImageMemoryBarrier2 ColorRenderEndBarrier(
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderRead,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            *ColorAttachment->GetImage(),
+            ColorSubresourceRange
+        );
+
+        vk::ImageMemoryBarrier2 DepthRenderEndBarrier(
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderWrite,
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderRead,
+            vk::ImageLayout::eDepthAttachmentOptimal,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            *DepthStencilAttachment->GetImage(),
+            DepthSubresourceRange
+        );
+
+        std::array RenderEndBarriers{ ColorRenderEndBarrier, DepthRenderEndBarrier };
 
         vk::DependencyInfo RenderEndDependencyInfo = vk::DependencyInfo()
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(RenderEndBarrier);
+            .setImageMemoryBarriers(RenderEndBarriers);
 
         CurrentBuffer->pipelineBarrier2(RenderEndDependencyInfo);
 
         vk::RenderingInfo PostRenderingInfo = vk::RenderingInfo()
             .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
             .setLayerCount(1)
-            .setColorAttachments(FinalOutputAttachmentInfo);
+            .setColorAttachments(PostProcessAttachmentInfo);
 
-        FinalOutputAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
+        PostProcessAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
 
         CurrentBuffer->beginRendering(PostRenderingInfo);
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, PostPipeline);
@@ -521,16 +583,18 @@ void FApplication::ExecuteMainRender()
         CurrentBuffer->draw(6, 1, 0, 0);
         CurrentBuffer->endRendering();
 
-        vk::ImageMemoryBarrier2 PresentBarrier(vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                               vk::AccessFlagBits2::eColorAttachmentWrite,
-                                               vk::PipelineStageFlagBits2::eBottomOfPipe,
-                                               vk::AccessFlagBits2::eNone,
-                                               vk::ImageLayout::eColorAttachmentOptimal,
-                                               vk::ImageLayout::ePresentSrcKHR,
-                                               vk::QueueFamilyIgnored,
-                                               vk::QueueFamilyIgnored,
-                                               _VulkanContext->GetSwapchainImage(ImageIndex),
-                                               SubresourceRange);
+        vk::ImageMemoryBarrier2 PresentBarrier(
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::PipelineStageFlagBits2::eBottomOfPipe,
+            vk::AccessFlagBits2::eNone,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::ImageLayout::ePresentSrcKHR,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            _VulkanContext->GetSwapchainImage(ImageIndex),
+            ColorSubresourceRange
+        );
 
         vk::DependencyInfo FinalDependencyInfo = vk::DependencyInfo()
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
