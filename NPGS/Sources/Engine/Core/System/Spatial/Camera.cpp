@@ -21,8 +21,8 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _OffsetY(0.0f),
     _TargetOffsetX(0.0f),
     _TargetOffsetY(0.0f),
-    _AxisDir(1.0f, 1.0f, 0.2f),
-    _TargetAxisDir(0.0f, 1.0f, 1.0f),
+    _AxisDir(0.0f, 1.0f, 0.0f),
+    _TargetAxisDir(0.0f, 1.0f, 0.0f),
     _OrbitalCenter(0.0f, 0.0f, 0.0f),
     _TargetOrbitalCenter(0.0f, 0.0f, 0.0f),
     _Theta(0.0f),
@@ -100,10 +100,10 @@ void FCamera::ProcessKeyboard(EMovement Direction, double DeltaTime)
         _Position -= _Up * Velocity;
         break;
     case EMovement::kRollLeft:
-        ProcessRotation(0.0f, 0.0f, -10.0f * 0.25f);
+        ProcessRotation(0.0f, 0.0f, -300.0f * 0.25f * DeltaTime);
         break;
     case EMovement::kRollRight:
-        ProcessRotation(0.0f, 0.0f,  10.0f * 0.25f);
+        ProcessRotation(0.0f, 0.0f,  300.0f * 0.25f * DeltaTime);
         break;
     }
 
@@ -237,7 +237,7 @@ void FCamera::ProcessTimeEvolution(double DeltaTime)
 }
 void FCamera::ProcessModeChange()
 {
-    if (_TimeSinceModeChange > 2.0)
+    if (_TimeSinceModeChange > 0.5)
     {
         _TimeSinceModeChange = 0.0;
         if (_bIsOrbiting)

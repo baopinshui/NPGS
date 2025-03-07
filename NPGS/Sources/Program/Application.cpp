@@ -153,7 +153,7 @@ void FApplication::ExecuteMainRender()
     AssetManager->AddAsset<Art::FShader>("PreBloom",  PreBloomShaderFiles,  BloomResourceInfo);
     AssetManager->AddAsset<Art::FShader>("GaussBlur", GaussBlurShaderFiles, BloomResourceInfo);
     AssetManager->AddAsset<Art::FShader>("Blend",     BlendShaderFiles,     BlendResourceInfo);
-    AssetManager->AddAsset<Art::FTexture2D>("Background", "NPS.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
+    AssetManager->AddAsset<Art::FTexture2D>("Background", "Star.png", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true);
     auto* BlackHoleShader = AssetManager->GetAsset<Art::FShader>("BlackHole");
     auto* PreBloomShader  = AssetManager->GetAsset<Art::FShader>("PreBloom");
     auto* GaussBlurShader = AssetManager->GetAsset<Art::FShader>("GaussBlur");
@@ -171,7 +171,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name    = "BlackHoleArgs",
-        .Fields  = { "WorldUpView", "BlackHoleRelativePos", "BlackHoleRelativeDiskNormal",
+        .Fields  = { "InverseCamRot;","WorldUpView", "BlackHoleRelativePos", "BlackHoleRelativeDiskNormal",
                      "BlackHoleMassSol", "Spin", "Mu", "AccretionRate", "InterRadiusLy", "OuterRadiusLy" ,"BlendWeight"},
         .Set     = 0,
         .Binding = 1,
@@ -365,8 +365,8 @@ void FApplication::ExecuteMainRender()
     InitHistoryFrame();
 
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "InitHistoryFrame", InitHistoryFrame);
-    glm::aligned_vec3    LastBlackHoleRelativePos(0.0f, 0.0f, 0.0f);
-    glm::vec3    LastBlackHoleRelativeDiskNormal(0.0f, 0.0f, 0.0f);
+    glm::vec4    LastBlackHoleRelativePos(0.0f, 0.0f, 0.0f,1.0f);
+    glm::mat4x4 lastdir(0.0f);
     while (!glfwWindowShouldClose(_Window))
     {
         while (glfwGetWindowAttrib(_Window, GLFW_ICONIFIED))
@@ -380,15 +380,16 @@ void FApplication::ExecuteMainRender()
         // --------------
         GameArgs.Resolution = glm::vec2(_WindowSize.width, _WindowSize.height);
         GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
-        GameArgs.Time       = static_cast<float>(glfwGetTime());
-        GameArgs.TimeDelta  = static_cast<float>(_DeltaTime);
-        GameArgs.TimeRate   = 30.0f;
-        LastBlackHoleRelativePos =        BlackHoleArgs.BlackHoleRelativePos;
-        LastBlackHoleRelativeDiskNormal = BlackHoleArgs.BlackHoleRelativeDiskNormal;
+        GameArgs.Time = static_cast<float>(glfwGetTime());
+        GameArgs.TimeDelta = static_cast<float>(_DeltaTime);
+        GameArgs.TimeRate = 300.0f;
+        LastBlackHoleRelativePos = BlackHoleArgs.BlackHoleRelativePos;
+        lastdir = BlackHoleArgs.InverseCamRot;
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
-        BlackHoleArgs.WorldUpView                 = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
-        BlackHoleArgs.BlackHoleRelativePos        = glm::vec3(_FreeCamera->GetViewMatrix()*glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f,1.0f));
-        BlackHoleArgs.BlackHoleRelativeDiskNormal = glm::vec3(glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 1.0f, 1.0f));
+        BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
+        BlackHoleArgs.WorldUpView = (glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
+        BlackHoleArgs.BlackHoleRelativePos = (_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f));
+        BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.00001f, 1.0f));
         BlackHoleArgs.BlackHoleMassSol            = 1.49e7f;
         BlackHoleArgs.Spin                        = 0.0f;
         BlackHoleArgs.Mu                          = 1.0f;
@@ -397,13 +398,13 @@ void FApplication::ExecuteMainRender()
         BlackHoleArgs.OuterRadiusLy               = 5.586e-5f;
         float Rs= 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
         BlackHoleArgs.BlendWeight                 = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs/0.00000465)), 0.3), 0.02)));
-        if (glm::length(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)> glm::length(LastBlackHoleRelativePos)*0.01* _DeltaTime || glm::length(LastBlackHoleRelativeDiskNormal - BlackHoleArgs.BlackHoleRelativeDiskNormal)> 0.01 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
+        if (glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos))> glm::length(glm::vec3(LastBlackHoleRelativePos))*0.01* _DeltaTime || glm::determinant(glm::mat3x3(lastdir - BlackHoleArgs.InverseCamRot)) > 1e-14 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
 
-        //if (int(glfwGetTime())%2 < 1)
-        //{
-        //    _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
-        //}else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
-        //}
+        if (int(glfwGetTime()) < 1)
+        {
+            _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
+        }//else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
+       // }
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
         _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);

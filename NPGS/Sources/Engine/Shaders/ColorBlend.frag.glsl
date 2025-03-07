@@ -116,12 +116,12 @@ void main()
     Color = pow(Color, vec3(1.5));
     Color = Color / (1.0 + Color);
     Color = pow(Color, vec3(1.0 / 1.5));
-
+   
     Color = mix(Color, Color * Color * (3.0 - 2.0 * Color), vec3(1.0));
     Color = pow(Color, vec3(1.3, 1.20, 1.0));
-
+   
     Color = Saturate(Color * 1.01);
-
+   
     Color = pow(Color, vec3(0.7 / 2.2));
 
     FragColor = vec4(Color, 1.0);
