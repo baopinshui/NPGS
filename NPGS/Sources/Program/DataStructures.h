@@ -11,6 +11,16 @@ struct FVertex
     glm::vec2 TexCoord;
 };
 
+struct FInstanceData
+{
+    glm::mat4x4 Model{ glm::mat4x4(1.0f) };
+};
+
+struct FSkyboxVertex
+{
+    glm::vec3 Position;
+};
+
 struct FQuadVertex
 {
     glm::vec2 Position;
@@ -52,7 +62,7 @@ struct FMatrices
 {
     glm::aligned_mat4x4 View{ glm::mat4x4(1.0f) };
     glm::aligned_mat4x4 Projection{ glm::mat4x4(1.0f) };
-    glm::aligned_mat3x3 NormalMatrix{ glm::mat3x3(1.0f) };
+    glm::aligned_mat4x4 LightSpaceMatrix{ glm::mat4x4(1.0f) };
 } Matrices;
 
 struct FMaterial

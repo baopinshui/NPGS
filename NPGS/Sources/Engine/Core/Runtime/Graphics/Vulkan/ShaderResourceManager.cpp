@@ -74,7 +74,7 @@ void FShaderResourceManager::BindShaderToBuffer(std::uint32_t FrameIndex, const 
     Shader->WriteDynamicDescriptors<vk::DescriptorBufferInfo>(Set, Binding, FrameIndex, Usage, { WriteBufferInfo });
 }
 
-void FShaderResourceManager::BindShadersToBuffers(const std::string& BufferName, const std::vector<std::string>& ShaderNames)
+void FShaderResourceManager::BindShaderListToBuffers(const std::string& BufferName, const std::vector<std::string>& ShaderNameList)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -89,7 +89,7 @@ void FShaderResourceManager::BindShadersToBuffers(const std::string& BufferName,
     std::uint32_t      Binding = StoredBufferInfo.CreateInfo.Binding;
     vk::DeviceSize     Size    = StoredBufferInfo.Size;
 
-    for (const auto& ShaderName : ShaderNames)
+    for (const auto& ShaderName : ShaderNameList)
     {
         auto* Shader = Asset::FAssetManager::GetInstance()->GetAsset<Asset::FShader>(ShaderName);
         if (Shader == nullptr)
@@ -106,7 +106,7 @@ void FShaderResourceManager::BindShadersToBuffers(const std::string& BufferName,
     }
 }
 
-void FShaderResourceManager::BindShadersToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::vector<std::string>& ShaderNames)
+void FShaderResourceManager::BindShaderListToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, const std::vector<std::string>& ShaderNameList)
 {
     auto it = _UniformBuffers.find(BufferName);
     if (it == _UniformBuffers.end())
@@ -121,7 +121,7 @@ void FShaderResourceManager::BindShadersToBuffer(std::uint32_t FrameIndex, const
     std::uint32_t      Binding = StoredBufferInfo.CreateInfo.Binding;
     vk::DeviceSize     Size    = StoredBufferInfo.Size;
 
-    for (const auto& ShaderName : ShaderNames)
+    for (const auto& ShaderName : ShaderNameList)
     {
         auto* Shader = Asset::FAssetManager::GetInstance()->GetAsset<Asset::FShader>(ShaderName);
         if (Shader == nullptr)

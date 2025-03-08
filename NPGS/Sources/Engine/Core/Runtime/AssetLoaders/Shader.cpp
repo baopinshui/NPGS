@@ -137,6 +137,7 @@ namespace
 }
 
 FShader::FShader(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo)
+    : _DescriptorSetsUpdateMask(0xFFFFFFFF)
 {
     InitializeShaders(ShaderFiles, ResourceInfo);
     CreateDescriptors();
@@ -495,6 +496,11 @@ void FShader::ReflectShader(const FShaderInfo& ShaderInfo, const FResourceInfo& 
 
 void FShader::CreateDescriptors()
 {
+    if (_ReflectionInfo.DescriptorSetBindings.empty())
+    {
+        return;
+    }
+
     for (const auto& [Set, Bindings] : _ReflectionInfo.DescriptorSetBindings)
     {
         vk::DescriptorSetLayoutCreateInfo LayoutCreateInfo({}, Bindings);

@@ -24,11 +24,11 @@ private:
     };
 
 public:
-    void CreatePipeline(const std::string& PipelineName, const std::string& ShaderName,
-                        FGraphicsPipelineCreateInfoPack& GraphicsPipelineCreateInfoPack);
+    void CreateGraphicsPipeline(const std::string& PipelineName, const std::string& ShaderName,
+                                FGraphicsPipelineCreateInfoPack& GraphicsPipelineCreateInfoPack);
 
-    void CreatePipeline(const std::string& PipelineName, const std::string& ShaderName,
-                        vk::ComputePipelineCreateInfo* ComputePipelineCreateInfo = nullptr);
+    void CreateComputePipeline(const std::string& PipelineName, const std::string& ShaderName,
+                               vk::ComputePipelineCreateInfo* ComputePipelineCreateInfo = nullptr);
 
     void RemovePipeline(const std::string& Name);
     vk::PipelineLayout GetPipelineLayout(const std::string& Name) const;

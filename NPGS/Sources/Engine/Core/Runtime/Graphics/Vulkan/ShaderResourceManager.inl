@@ -110,7 +110,7 @@ inline void FShaderResourceManager::UpdateEntrieBuffer(std::uint32_t FrameIndex,
     UniformBuffers.Buffers[FrameIndex].CopyData(0, 0, UniformBuffers.Size, &Data);
 }
 
-template<typename FieldType>
+template <typename FieldType>
 NPGS_INLINE std::vector<FShaderResourceManager::TUpdater<FieldType>>
 FShaderResourceManager::GetFieldUpdaters(const std::string& BufferName, const std::string& FieldName) const
 {
@@ -124,12 +124,26 @@ FShaderResourceManager::GetFieldUpdaters(const std::string& BufferName, const st
     return Updaters;
 }
 
-template<typename FieldType>
+template <typename FieldType>
 NPGS_INLINE FShaderResourceManager::TUpdater<FieldType>
 FShaderResourceManager::GetFieldUpdater(std::uint32_t FrameIndex, const std::string& BufferName, const std::string& FieldName) const
 {
     auto& BufferInfo = _UniformBuffers.at(BufferName);
     return TUpdater<FieldType>(BufferInfo.Buffers[FrameIndex], BufferInfo.Fields.at(FieldName).Offset, BufferInfo.Fields.at(FieldName).Size);
+}
+
+template <typename... Args>
+NPGS_INLINE void FShaderResourceManager::BindShadersToBuffers(const std::string& BufferName, Args&&... ShaderNames)
+{
+    std::vector<std::string> ShaderNameList{ std::forward<Args>(ShaderNames)... };
+    BindShaderListToBuffers(BufferName, ShaderNameList);
+}
+
+template <typename... Args>
+NPGS_INLINE void FShaderResourceManager::BindShadersToBuffer(std::uint32_t FrameIndex, const std::string& BufferName, Args&&... ShaderNames)
+{
+    std::vector<std::string> ShaderNameList{ std::forward<Args>(ShaderNames)... };
+    BindShaderListToBuffer(FrameIndex, BufferName, ShaderNameList);
 }
 
 NPGS_INLINE const Graphics::FDeviceLocalBuffer& FShaderResourceManager::GetBuffer(std::uint32_t FrameIndex, const std::string& BufferName)

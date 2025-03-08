@@ -302,5 +302,22 @@
       <Filter>头文件</Filter>
     </None>
     <None Include="Sources\Program\Application.cpp.bak" />
+    <None Include="Sources\Engine\Shaders\Common\CoordConverter.glsl" />
+    <None Include="Sources\Engine\Shaders\Common\NumericConstants.glsl" />
+    <None Include="Sources\Engine\Shaders\Common\Random\Hash.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole.comp.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\Bloom.comp.glsl" />
+    <None Include="Sources\Engine\Shaders\Bloom.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\ColorBlend.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\PostProcess.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\PostProcess.vert.glsl" />
+    <None Include="Sources\Engine\Shaders\Scene.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\Scene.vert.glsl" />
+    <None Include="Sources\Engine\Shaders\ScreenQuad.vert.glsl" />
+    <None Include="Sources\Engine\Shaders\Skybox.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\Skybox.vert.glsl" />
+    <None Include="Sources\Engine\Shaders\ShadowMap.vert.glsl" />
+    <None Include="Sources\Engine\Shaders\ShadowMap.frag.glsl" />
   </ItemGroup>
 </Project>

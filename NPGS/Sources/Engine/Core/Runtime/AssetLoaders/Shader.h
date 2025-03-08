@@ -113,7 +113,7 @@ private:
     std::unordered_map<std::uint32_t, std::vector<Graphics::FVulkanDescriptorSet>> _DescriptorSetsMap;
     std::unordered_map<std::uint32_t, std::vector<vk::DescriptorSet>>              _DescriptorSets;
     std::unique_ptr<Graphics::FVulkanDescriptorPool>                               _DescriptorPool;
-    std::uint32_t                                                                  _DescriptorSetsUpdateMask{ 0xFFFFFFFF };
+    std::uint32_t                                                                  _DescriptorSetsUpdateMask;
 };
 
 _ASSET_END

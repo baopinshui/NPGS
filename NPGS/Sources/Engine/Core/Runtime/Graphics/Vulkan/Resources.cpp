@@ -402,7 +402,7 @@ FStagingBuffer& FStagingBuffer::operator=(FStagingBuffer&& Other) noexcept
     return *this;
 }
 
-FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format OriganFormat, vk::Format NewFormat, vk::Extent2D Extent)
+FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format OriganFormat, vk::Format NewFormat, vk::Extent3D Extent)
 {
     if (!IsFormatAliasingCompatible(OriganFormat, NewFormat))
     {
@@ -417,7 +417,8 @@ FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format OriganFormat, vk::Fo
         return nullptr;
     }
 
-    vk::DeviceSize ImageDataSize = static_cast<vk::DeviceSize>(Extent.width * Extent.height * GetFormatInfo(NewFormat).PixelSize);
+    vk::DeviceSize ImageDataSize =
+        static_cast<vk::DeviceSize>(Extent.width * Extent.height * Extent.depth * GetFormatInfo(NewFormat).PixelSize);
     if (ImageDataSize > _BufferMemory->GetMemory().GetAllocationSize())
     {
         return nullptr;
@@ -426,18 +427,18 @@ FVulkanImage* FStagingBuffer::CreateAliasedImage(vk::Format OriganFormat, vk::Fo
     vk::ImageFormatProperties ImageFormatProperties =
         PhysicalDevice.getImageFormatProperties(NewFormat, vk::ImageType::e2D, vk::ImageTiling::eLinear,
                                                 vk::ImageUsageFlagBits::eTransferSrc);
-    if (Extent.width  > ImageFormatProperties.maxExtent ||
-        Extent.height > ImageFormatProperties.maxExtent ||
+    if (Extent.width  > ImageFormatProperties.maxExtent.width  ||
+        Extent.height > ImageFormatProperties.maxExtent.height ||
+        Extent.depth  > ImageFormatProperties.maxExtent.depth  ||
         ImageDataSize > ImageFormatProperties.maxResourceSize)
     {
         return nullptr;
     }
 
-    vk::Extent3D Extent3D = { Extent.width, Extent.height, 1 };
-
-    vk::ImageCreateInfo ImageCreateInfo({}, vk::ImageType::e2D, NewFormat, Extent3D, 1, 1, vk::SampleCountFlagBits::e1,
+    vk::ImageCreateInfo ImageCreateInfo({}, vk::ImageType::e2D, NewFormat, Extent, 1, 1, vk::SampleCountFlagBits::e1,
                                         vk::ImageTiling::eLinear, vk::ImageUsageFlagBits::eTransferSrc,
                                         vk::SharingMode::eExclusive, 0, nullptr, vk::ImageLayout::ePreinitialized);
+
     _AliasedImage = std::make_unique<FVulkanImage>(_Device, *_PhysicalDeviceMemoryProperties, ImageCreateInfo);
 
     vk::ImageSubresource ImageSubresource(vk::ImageAspectFlagBits::eColor, 0, 0);

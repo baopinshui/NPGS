@@ -54,20 +54,12 @@ NPGS_INLINE const glm::quat& FCamera::GetOrientation() const
 
 NPGS_INLINE glm::mat4x4 FCamera::GetViewMatrix() const
 {
-    // static const glm::mat4x4 kVulkanCorrection = glm::mat4x4(
-    //     1.0f,  0.0f, 0.0f, 0.0f,
-    //     0.0f, -1.0f, 0.0f, 0.0f,
-    //     0.0f,  0.0f, 1.0f, 0.0f,
-    //     0.0f,  0.0f, 0.0f, 1.0f
-    // );
-
-    return /*kVulkanCorrection **/ glm::mat4_cast(_Orientation) * glm::translate(glm::mat4x4(1.0f), -_Position);
+    return glm::lookAt(_Position, _Position + _Front, _Up);
 }
 
 NPGS_INLINE glm::mat4x4 FCamera::GetProjectionMatrix(float WindowAspect, float Near) const
 {
     glm::mat4x4 Matrix = glm::infinitePerspective(glm::radians(_Zoom), WindowAspect, Near);
-    // Matrix[1][1] *= -1.0f;
     return Matrix;
 }
 
