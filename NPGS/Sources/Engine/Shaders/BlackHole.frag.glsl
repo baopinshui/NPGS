@@ -33,7 +33,7 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 };
 
 layout(set = 1, binding = 0) uniform texture2D iHistoryTex;
-layout(set = 1, binding = 1) uniform sampler2D iBackground[6];
+layout(set = 1, binding = 1) uniform samplerCube iBackground;
 
 const float kSigma            = 5.670373e-8;
 const float kLightYearToMeter = 9460730472580800.0;
@@ -503,8 +503,8 @@ void main()
         ++Count;
     }
     if(bWaitCalBack==true){
-            FragUv = DirToFragUv((iInverseCamRot*vec4(RayDir,1.0)).xyz, iResolution);
-            vec4 Backcolor=texture(iBackground, vec2(FragUv.x,1.0-FragUv.y));
+            //FragUv = DirToFragUv((iInverseCamRot*vec4(RayDir,1.0)).xyz, iResolution);
+            vec4 Backcolor=texture(iBackground, (iInverseCamRot*vec4(RayDir,1.0)).xyz);
             vec4 TexColor=Backcolor;
             if( length(iBlackHoleRelativePos.xyz)<200.0*Rs){
                 vec3 Rcolor=Backcolor.r*1.0*WavelengthToRgb(max(453,645.0/BackgroundBlueShift));
