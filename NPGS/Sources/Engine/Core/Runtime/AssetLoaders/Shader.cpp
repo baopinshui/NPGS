@@ -137,6 +137,7 @@ namespace
 }
 
 FShader::FShader(const std::vector<std::string>& ShaderFiles, const FResourceInfo& ResourceInfo)
+    : _DescriptorSetsUpdateMask(0xFFFFFFFF)
 {
     InitializeShaders(ShaderFiles, ResourceInfo);
     CreateDescriptors();

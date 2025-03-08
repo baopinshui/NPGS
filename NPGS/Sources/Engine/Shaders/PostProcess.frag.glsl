@@ -8,7 +8,9 @@ layout(set = 0, binding = 0) uniform sampler2D iTextures[2];
 
 void main()
 {
-    FragColor = texture(iTextures[0], TexCoordFromVert);
+    vec4 LinearColor = texture(iTextures[0], TexCoordFromVert);
+	LinearColor.rgb  = pow(LinearColor.rgb, vec3(1.0 / 2.2));
+	FragColor        = LinearColor;	
 	// float DepthValue = texture(iTextures[1], TexCoordFromVert).r;
 	// FragColor = vec4(vec3(DepthValue), 1.0);
 }

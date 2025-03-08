@@ -41,9 +41,25 @@ float CalcShadow(vec4 FragPosLightSpace, float Bias)
     vec3 ProjectiveCoord = FragPosLightSpace.xyz / FragPosLightSpace.w;
     ProjectiveCoord.xy = ProjectiveCoord.xy * 0.5 + 0.5;
 
-    float ClosestDepth = texture(iShadowMap, ProjectiveCoord.xy).r;
-    float CurrentDepth = ProjectiveCoord.z;
-    float Shadow = CurrentDepth - Bias > ClosestDepth ? 1.0 : 0.0;
+    if (ProjectiveCoord.z > 1.0)
+    {
+        return 0.0;
+    }
+
+    float Shadow = 0.0;
+    vec2 TexelSize = 1.0 / textureSize(iShadowMap, 0);
+    
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float ClosestDepth = texture(iShadowMap, ProjectiveCoord.xy + vec2(x, y) * TexelSize).r;
+            float CurrentDepth = ProjectiveCoord.z;
+            Shadow += CurrentDepth - Bias > ClosestDepth ? 1.0 : 0.0;
+        }
+    }
+
+    Shadow /= 9.0;
 
     return Shadow;
 }

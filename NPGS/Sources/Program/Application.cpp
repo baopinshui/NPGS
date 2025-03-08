@@ -18,6 +18,7 @@
 #include "Engine/Core/Runtime/Graphics/Vulkan/ShaderResourceManager.h"
 #include "Engine/Utils/Logger.h"
 #include "DataStructures.h"
+#include "Vertices.inc"
 
 _NPGS_BEGIN
 
@@ -128,29 +129,33 @@ void FApplication::ExecuteMainRender()
 
     Art::FShader::FResourceInfo SceneResourceInfo
     {
-        { { 0, sizeof(FVertex), false } },
+        {
+            { 0, sizeof(FVertex), false },
+            { 1, sizeof(FInstanceData), true }
+        },
         {
             { 0, 0, offsetof(FVertex, Position) },
             { 0, 1, offsetof(FVertex, Normal) },
-            { 0, 2, offsetof(FVertex, TexCoord) }
+            { 0, 2, offsetof(FVertex, TexCoord) },
+            { 1, 3, offsetof(FInstanceData, Model) }
         },
         {
             { 0, 0, false },
             { 0, 1, false }
-        },
-        { { vk::ShaderStageFlagBits::eVertex, { "iModel" } } }
+        }
     };
 
     Art::FShader::FResourceInfo ShadowMapResourceInfo
     {
-        { { 0, sizeof(FVertex), false } },
+        {
+            { 0, sizeof(FVertex), false },
+            { 1, sizeof(FInstanceData), true }
+        },
         {
             { 0, 0, offsetof(FVertex, Position) },
-            { 0, 1, offsetof(FVertex, Normal) },
-            { 0, 2, offsetof(FVertex, TexCoord) }
+            { 1, 1, offsetof(FInstanceData, Model) }
         },
-        {},
-        { { vk::ShaderStageFlagBits::eVertex, { "iModel", "iLightSpaceMatrix" } } }
+        { { 0, 0, false } },
     };
 
     Art::FShader::FResourceInfo SkyboxResourceInfo
@@ -189,14 +194,14 @@ void FApplication::ExecuteMainRender()
 
     AssetManager->AddAsset<Art::FTexture2D>(
         "ContainerDiffuse", TextureAllocationCreateInfo, "ContainerDiffuse.png",
-        vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true, false);
+        vk::Format::eR8G8B8A8Srgb, vk::Format::eR8G8B8A8Srgb, vk::ImageCreateFlagBits::eMutableFormat, true, false);
 
     AssetManager->AddAsset<Art::FTexture2D>(
         "ContainerSpecular", TextureAllocationCreateInfo, "ContainerSpecular.png",
-        vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlagBits::eMutableFormat, true, false);
+        vk::Format::eR8G8B8A8Srgb, vk::Format::eR8G8B8A8Srgb, vk::ImageCreateFlagBits::eMutableFormat, true, false);
 
     AssetManager->AddAsset<Art::FTextureCube>(
-        "Skybox", TextureAllocationCreateInfo, "Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        "Skybox", TextureAllocationCreateInfo, "Skybox", vk::Format::eR8G8B8A8Srgb, vk::Format::eR8G8B8A8Srgb,
         vk::ImageCreateFlagBits::eMutableFormat, true, false);
 
     auto* SceneShader     = AssetManager->GetAsset<Art::FShader>("SceneShader");
@@ -212,7 +217,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo MatricesCreateInfo
     {
         .Name    = "Matrices",
-        .Fields  = { "View", "Projection", "LightSpaceMatrix", "NormalMatrix" },
+        .Fields  = { "View", "Projection", "LightSpaceMatrix" },
         .Set     = 0,
         .Binding = 0,
         .Usage   = vk::DescriptorType::eUniformBuffer
@@ -265,13 +270,21 @@ void FApplication::ExecuteMainRender()
     ImageInfos.push_back(Skybox->CreateDescriptorImageInfo(SkyboxSampler));
     SkyboxShader->WriteSharedDescriptors(1, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
+    vk::SamplerCustomBorderColorCreateInfoEXT BorderColorCreateInfo(
+        vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f), vk::Format::eR32G32B32A32Sfloat);
+
     SamplerCreateInfo
+        .setPNext(&BorderColorCreateInfo)
         .setMagFilter(vk::Filter::eNearest)
         .setMinFilter(vk::Filter::eNearest)
+        .setMipmapMode(vk::SamplerMipmapMode::eNearest)
+        .setAddressModeU(vk::SamplerAddressMode::eClampToBorder)
+        .setAddressModeV(vk::SamplerAddressMode::eClampToBorder)
+        .setAddressModeW(vk::SamplerAddressMode::eClampToBorder)
         .setAnisotropyEnable(vk::False)
         .setMinLod(0.0f)
         .setMaxLod(0.0f)
-        .setBorderColor(vk::BorderColor::eFloatTransparentBlack);
+        .setBorderColor(vk::BorderColor::eFloatCustomEXT);
 
     Grt::FVulkanSampler FramebufferSampler(SamplerCreateInfo);
 
@@ -297,13 +310,39 @@ void FApplication::ExecuteMainRender()
     _VulkanContext->RegisterAutoRemovedCallbacks(
         Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreatePostDescriptor", CreatePostDescriptors);
 
-    ShaderResourceManager->BindShadersToBuffers("Matrices", "SceneShader", "LampShader", "SkyboxShader");
+    ShaderResourceManager->BindShadersToBuffers("Matrices", "SceneShader", "LampShader", "ShadowMapShader", "SkyboxShader");
     ShaderResourceManager->BindShaderToBuffers("LightMaterial", "SceneShader");
+
+    // Init instance data
+    // ------------------
+    std::vector<FInstanceData> InstanceData;
+    glm::mat4x4 Model(1.0f);
+    // plane
+    InstanceData.emplace_back(Model);
+
+    // cube
+    Model = glm::mat4x4(1.0f);
+    Model = glm::translate(Model, glm::vec3(0.0f, 1.5f, 0.0f));
+    InstanceData.emplace_back(Model);
+
+    Model = glm::mat4x4(1.0f);
+    Model = glm::translate(Model, glm::vec3(2.0f, 0.0f, 1.0f));
+    InstanceData.emplace_back(Model);
+
+    Model = glm::mat4x4(1.0f);
+    Model = glm::translate(Model, glm::vec3(-1.0f, 0.0f, 2.0f));
+    Model = glm::scale(Model, glm::vec3(0.5f));
+    Model = glm::rotate(Model, glm::radians(60.0f), glm::normalize(glm::vec3(1.0, 0.0, 1.0)));
+    InstanceData.emplace_back(Model);
+
+    // lamp
+    glm::vec3 LightPos(-2.0f, 4.0f, -1.0f);
+    Model = glm::mat4x4(1.0f);
+    Model = glm::scale(glm::translate(Model, LightPos), glm::vec3(0.2f));
+    InstanceData.emplace_back(Model);
 
     // Create vertex buffers
     // ---------------------
-#include "Vertices.inc"
-
     VmaAllocationCreateInfo VertexBufferAllocationCreateInfo
     {
         .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
@@ -329,6 +368,10 @@ void FApplication::ExecuteMainRender()
     VertexBufferCreateInfo.setSize(PlaneVertices.size() * sizeof(FVertex));
     Grt::FDeviceLocalBuffer PlaneVertexBuffer(VertexBufferAllocationCreateInfo, VertexBufferCreateInfo);
     PlaneVertexBuffer.CopyData(PlaneVertices);
+
+    VertexBufferCreateInfo.setSize(InstanceData.size() * sizeof(FInstanceData));
+    Grt::FDeviceLocalBuffer InstanceBuffer(VertexBufferAllocationCreateInfo, VertexBufferCreateInfo);
+    InstanceBuffer.CopyData(InstanceData);
 
     // Create graphics pipeline
     // ------------------------
@@ -432,14 +475,19 @@ void FApplication::ExecuteMainRender()
     vk::DeviceSize Offset        = 0;
     std::uint32_t  DynamicOffset = 0;
     std::uint32_t  CurrentFrame  = 0;
-    glm::vec3      LightPos(-2.0f, 4.0f, -1.0f);
 
-    glm::mat4x4 LightProjection  = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 7.5f);
+    glm::mat4x4 LightProjection  = glm::infinitePerspective(glm::radians(60.0f), 1.0f, 1.0f);
     glm::mat4x4 LightView        = glm::lookAt(LightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4x4 LightSpaceMatrix = LightProjection * LightView;
 
     vk::ImageSubresourceRange ColorSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
     vk::ImageSubresourceRange DepthSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1);
+
+    std::array PlaneVertexBuffers{ *PlaneVertexBuffer.GetBuffer(), *InstanceBuffer.GetBuffer() };
+    std::array CubeVertexBuffers{ *CubeVertexBuffer.GetBuffer(), *InstanceBuffer.GetBuffer() };
+    std::array PlaneOffsets{ Offset, Offset };
+    std::array CubeOffsets{ Offset, Offset + sizeof(glm::mat4x4) };
+    std::array LampOffsets{ Offset, Offset + 4 * sizeof(glm::mat4x4) };
 
     while (!glfwWindowShouldClose(_Window))
     {
@@ -461,13 +509,11 @@ void FApplication::ExecuteMainRender()
 
         // Uniform update
         // --------------
-        glm::mat4x4 Model(1.0f);
         float WindowAspect = static_cast<float>(_WindowSize.width) / static_cast<float>(_WindowSize.height);
 
         Matrices.View             = _FreeCamera->GetViewMatrix();
         Matrices.Projection       = _FreeCamera->GetProjectionMatrix(WindowAspect, 0.1f);
         Matrices.LightSpaceMatrix = LightSpaceMatrix;
-        Matrices.NormalMatrix     = glm::mat3x3(glm::transpose(glm::inverse(Model)));
 
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "Matrices", Matrices);
 
@@ -517,8 +563,8 @@ void FApplication::ExecuteMainRender()
         vk::ImageMemoryBarrier2 InitDepthAttachmentBarrier(
             vk::PipelineStageFlagBits2::eTopOfPipe,
             vk::AccessFlagBits2::eNone,
-            vk::PipelineStageFlagBits2::eFragmentShader,
-            vk::AccessFlagBits2::eShaderWrite,
+            vk::PipelineStageFlagBits2::eLateFragmentTests,
+            vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
             vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthAttachmentOptimal,
             vk::QueueFamilyIgnored,
@@ -545,48 +591,18 @@ void FApplication::ExecuteMainRender()
 
         CurrentBuffer->beginRendering(ShadowMapRenderingInfo);
         // Draw scene for depth mapping
-        Model = glm::mat4x4(1.0f);
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, ShadowMapPipeline);
-        CurrentBuffer->bindVertexBuffers(0, *PlaneVertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->pushConstants(ShadowMapPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     ShadowMapShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->pushConstants(ShadowMapPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     ShadowMapShader->GetPushConstantOffset("iLightSpaceMatrix"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(LightSpaceMatrix));
+        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, ShadowMapPipelineLayout, 0,
+                                          ShadowMapShader->GetDescriptorSets(CurrentFrame), {});
+        CurrentBuffer->bindVertexBuffers(0, PlaneVertexBuffers, PlaneOffsets);
         CurrentBuffer->draw(6, 1, 0, 0);
-
-        Model = glm::mat4x4(1.0f);
-        Model = glm::translate(Model, glm::vec3(0.0f, 1.5f, 0.0f));
-
-        CurrentBuffer->bindVertexBuffers(0, *CubeVertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->pushConstants(ShadowMapPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     ShadowMapShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->draw(36, 1, 0, 0);
-
-        Model = glm::mat4x4(1.0f);
-        Model = glm::translate(Model, glm::vec3(2.0f, 0.0f, 1.0f));
-
-        CurrentBuffer->pushConstants(ShadowMapPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     ShadowMapShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->draw(36, 1, 0, 0);
-
-        Model = glm::mat4x4(1.0f);
-        Model = glm::translate(Model, glm::vec3(-1.0f, 0.0f, 2.0f));
-        Model = glm::scale(Model, glm::vec3(0.5f));
-        Model = glm::rotate(Model, glm::radians(60.0f), glm::normalize(glm::vec3(1.0, 0.0, 1.0)));
-
-        CurrentBuffer->pushConstants(ShadowMapPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     ShadowMapShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->draw(36, 1, 0, 0);
+        CurrentBuffer->bindVertexBuffers(0, CubeVertexBuffers, CubeOffsets);
+        CurrentBuffer->draw(36, 3, 0, 0);
         CurrentBuffer->endRendering();
 
         vk::ImageMemoryBarrier2 DepthRenderEndBarrier(
-            vk::PipelineStageFlagBits2::eFragmentShader,
-            vk::AccessFlagBits2::eShaderWrite,
+            vk::PipelineStageFlagBits2::eLateFragmentTests,
+            vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
             vk::PipelineStageFlagBits2::eFragmentShader,
             vk::AccessFlagBits2::eShaderRead,
             vk::ImageLayout::eDepthAttachmentOptimal,
@@ -615,53 +631,19 @@ void FApplication::ExecuteMainRender()
         CurrentBuffer->beginRendering(SceneRenderingInfo);
 
         // Draw plane
-        Model = glm::mat4x4(1.0f);
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, ScenePipeline);
-        CurrentBuffer->bindVertexBuffers(0, *PlaneVertexBuffer.GetBuffer(), Offset);
+        CurrentBuffer->bindVertexBuffers(0, PlaneVertexBuffers, PlaneOffsets);
         CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, ScenePipelineLayout, 0,
                                           SceneShader->GetDescriptorSets(CurrentFrame), {});
-        CurrentBuffer->pushConstants(ScenePipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     SceneShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
         CurrentBuffer->draw(6, 1, 0, 0);
 
         // Draw cubes
-        Model = glm::mat4x4(1.0f);
-        Model = glm::translate(Model, glm::vec3(0.0f, 1.5f, 0.0f));
-
-        CurrentBuffer->bindVertexBuffers(0, *CubeVertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->pushConstants(ScenePipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     SceneShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->draw(36, 1, 0, 0);
-
-        Model = glm::mat4x4(1.0f);
-        Model = glm::translate(Model, glm::vec3(2.0f, 0.0f, 1.0f));
-
-        CurrentBuffer->pushConstants(ScenePipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     SceneShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->draw(36, 1, 0, 0);
-
-        Model = glm::mat4x4(1.0f);
-        Model = glm::translate(Model, glm::vec3(-1.0f, 0.0f, 2.0f));
-        Model = glm::scale(Model, glm::vec3(0.5f));
-        Model = glm::rotate(Model, glm::radians(60.0f), glm::normalize(glm::vec3(1.0, 0.0, 1.0)));
-
-        CurrentBuffer->pushConstants(ScenePipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     SceneShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-        CurrentBuffer->draw(36, 1, 0, 0);
+        CurrentBuffer->bindVertexBuffers(0, CubeVertexBuffers, CubeOffsets);
+        CurrentBuffer->draw(36, 3, 0, 0);
 
         // Draw lamp
-        Model = glm::mat4x4(1.0f);
-        Model = glm::scale(glm::translate(Model, LightPos), glm::vec3(0.2f));
-
         CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, LampPipeline);
-        CurrentBuffer->pushConstants(LampPipelineLayout, vk::ShaderStageFlagBits::eVertex,
-                                     LampShader->GetPushConstantOffset("iModel"),
-                                     sizeof(glm::mat4x4), glm::value_ptr(Model));
-
+        CurrentBuffer->bindVertexBuffers(0, CubeVertexBuffers, LampOffsets);
         CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, LampPipelineLayout, 0,
                                           LampShader->GetDescriptorSets(CurrentFrame), {});
         CurrentBuffer->draw(36, 1, 0, 0);
@@ -798,6 +780,7 @@ bool FApplication::InitializeWindow()
     }
 
     _VulkanContext->AddDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    _VulkanContext->AddDeviceExtension(VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
 
     vk::Result Result;
     if ((Result = _VulkanContext->CreateInstance()) != vk::Result::eSuccess)
