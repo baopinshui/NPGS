@@ -30,10 +30,10 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _DistanceToOrbitalCenter(1.0f),
     _TargetDistanceToOrbitalCenter(0.0001f),
     _TimeSinceModeChange(10.0),
-    _bIsOrbiting(false),
+    _bIsOrbiting(true),
     _bAllowCrossZenith(false)
 {
-    SetTargetOrbitAxis(glm::vec3(0., 1., 1.));
+    SetTargetOrbitAxis(glm::vec3(0., 1., 0.));
     UpdateVectors();
 }
 
@@ -199,7 +199,6 @@ void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
     _Orientation = glm::conjugate(ToAxisRotate * (ThetaRotate * (PhiRotate* glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f,0.0f,0.0f)))));
     UpdateVectors();
     SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter - _DistanceToOrbitalCenter * _Front);
-
 }
 void FCamera::ProcessTimeEvolution(double DeltaTime)
 {

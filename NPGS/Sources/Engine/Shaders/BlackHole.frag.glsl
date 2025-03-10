@@ -51,6 +51,11 @@ float CubicInterpolate(float x)
 float PerlinNoise(vec3 Position)
 {
     vec3 PosInt   = floor(Position);
+    
+    PosInt.x -= 1000 * floor(float(PosInt.x) / 1000.0);
+    PosInt.y -= 1000 * floor(float(PosInt.x) / 1000.0);
+    PosInt.z -= 1000 * floor(float(PosInt.x) / 1000.0);
+
     vec3 PosFloat = fract(Position);
     
     float Sx = CubicInterpolate(PosFloat.x);
@@ -271,17 +276,13 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
             (PosY < 0.5 * Rs * (1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0))))
         {
             float AngularVelocity  = GetKeplerianAngularVelocity(PosR, Rs);
-            float HalfPiTimeInside = kPi / GetKeplerianAngularVelocity(3.0 * Rs, Rs);
-            float EffectiveTime0   = fract(iTime * TimeRate / (HalfPiTimeInside))       * HalfPiTimeInside + 0.0 * HalfPiTimeInside;
-            float EffectiveTime1   = fract(iTime * TimeRate / (HalfPiTimeInside) + 0.5) * HalfPiTimeInside + 1.0 * HalfPiTimeInside;
-            float PhaseTimeIndex0  = trunc(iTime * TimeRate / (HalfPiTimeInside));
-            float PhaseTimeIndex1  = trunc(iTime * TimeRate / (HalfPiTimeInside) + 0.5);
-            float Phase0           = k2Pi * fract(43758.5453 * sin(PhaseTimeIndex0));
-            float Phase1           = k2Pi * fract(43758.5453 * sin(PhaseTimeIndex1));
-
-            float PosThetaWithoutTime = Vec2ToTheta(PosOnDisk.zx, vec2(1.0, 0.0));
-            float PosTheta            = fract((PosThetaWithoutTime + AngularVelocity * EffectiveTime0 + Phase0) / 2.0 / kPi) * k2Pi;
-
+            float HalfPiTimeInside = kPi / GetKeplerianAngularVelocity(2.5 * Rs, Rs);
+            float SpiralTheta=12.0*2.0/sqrt(3.0)*(atan(sqrt(0.6666666*(PosR/Rs)-1.0)));
+            float InnerTheta= kPi / HalfPiTimeInside *iTime * TimeRate ;
+            float PosThetaForInnerCloud = Vec2ToTheta(PosOnDisk.zx, vec2(cos(0.666666*InnerTheta),sin(0.666666*InnerTheta)));
+            float PosTheta            = Vec2ToTheta(PosOnDisk.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
+            float RotPosR=PosR/Rs+3.0/12.0*sqrt(3.0)*kSpeedOfLight/ kLightYearToMeter /3.0/sqrt(3.0)/Rs*TimeRate*iTime;
+            
             float DiskTemperature  = pow(DiskTemperatureArgument *  pow(max(Rs/PosR,0.10),3.0) * max(1.0 - sqrt(InterRadiusLy / PosR), 0.000001), 0.25);
             vec3  CloudVelocity    = kLightYearToMeter / kSpeedOfLight * AngularVelocity * cross(vec3(0.0, 1.0, 0.0), PosOnDisk);
             float RelativeVelocity = dot(-DirOnDisk, CloudVelocity);
@@ -294,48 +295,27 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
             float VerticalMixFactor = 0.0;
             float DustColor         = 0.0;
             vec4  Color0            = vec4(0.0);
-            vec4  Color1            = vec4(0.0);
 
             Density = Shape(EffectiveRadius, 4.0, 0.9);
             if (abs(PosY) < 0.5 * Rs * Density)
             {
-                Thick = 0.5 * Rs * Density * (0.4 + 0.6 * SoftSaturate(GenerateDiskNoise(vec3(1.5 * PosTheta, PosR / Rs, 1.0), 1, 3, 80.0)));
+                Thick = 0.5 * Rs * Density * (0.4 + 0.6 * SoftSaturate(GenerateDiskNoise(vec3(1.5 * PosTheta, RotPosR, 1.0), 1, 3, 80.0)));
                 VerticalMixFactor = max(0.0, (1.0 - abs(PosY) / Thick));
                 Density    *= 0.7 * VerticalMixFactor * Density;
-                Color0      = vec4(GenerateDiskNoise(vec3(1.0 * PosR / Rs, 1.0 * PosY / Rs, 0.5 * PosTheta), 3, 6, 80.0));
+                Color0      = vec4(GenerateDiskNoise(vec3(RotPosR, (1.0+Rs/(PosR-1.5*Rs)) * PosY / Rs, 0.5 * PosTheta), 3, 6, 80.0));
                 Color0.xyz *= Density * 1.4 * (0.2 + 0.8 * VerticalMixFactor + (0.8 - 0.8 * VerticalMixFactor) *
-                              GenerateDiskNoise(vec3(PosR / Rs, 1.5 * PosTheta, PosY / Rs), 1, 3, 80.0));
+                              GenerateDiskNoise(vec3(RotPosR, 1.5 * PosTheta, PosY / Rs), 1, 3, 80.0));
                 Color0.a   *= Density; // * (1.0 + VerticalMixFactor);
             }
             if (abs(PosY) < 0.5 * Rs * (1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0)))
             {
                 DustColor = max(1.0 - pow(PosY / (0.5 * Rs * max(1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0), 0.0001)), 2.0), 0.0) *
-                            GenerateDiskNoise(vec3(1.5 * fract((1.5 * PosThetaWithoutTime + kPi / HalfPiTimeInside * EffectiveTime0 + Phase0) / 2.0 / kPi) * k2Pi, PosR / Rs, PosY / Rs), 0, 6, 80.0);
+                            GenerateDiskNoise(vec3(1.5 * fract((PosThetaForInnerCloud ) / 2.0 / kPi) * k2Pi, PosR / Rs, PosY / Rs), 0, 6, 80.0);
                 Color0 += 0.02 * vec4(vec3(DustColor), 0.2 * DustColor) * sqrt(1.0001 - DirOnDisk.y * DirOnDisk.y) * min(1.0, Dopler * Dopler);
             }
-            Color0 *= 0.5 - 0.5 * cos(k2Pi * fract(iTime * TimeRate / (HalfPiTimeInside)));
 
-            PosTheta = fract((PosThetaWithoutTime + AngularVelocity * EffectiveTime1 + Phase1) / (k2Pi)) * k2Pi;
 
-            Density = Shape(EffectiveRadius, 4.0, 0.9);
-            if (abs(PosY) < 0.5 * Rs * Density)
-            {
-                Thick = 0.5 * Rs * Density * (0.4 + 0.6 * SoftSaturate(GenerateDiskNoise(vec3(1.5 * PosTheta, PosR / Rs, 1.0), 1, 3, 80.0)));
-                VerticalMixFactor = max(0.0, (1.0 - abs(PosY) / Thick));
-                Density    *= 0.7 * VerticalMixFactor * Density;
-                Color1      = vec4(GenerateDiskNoise(vec3(1.0 * PosR / Rs, 1.0 * PosY / Rs, 0.5 * PosTheta), 3, 6, 80.0));
-                Color1.xyz *= Density * 1.4 * (0.2 + 0.8 * VerticalMixFactor + (0.8 - 0.8 * VerticalMixFactor) * GenerateDiskNoise(vec3(PosR / Rs, 1.5 * PosTheta, PosY / Rs), 1, 3, 80.0));
-                Color1.a   *= Density; // * (1.0 + VerticalMixFactor);
-            }
-            if (abs(PosY) < 0.5 * Rs * (1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0)))
-            {
-                DustColor = max(1.0 - pow(PosY / (0.5 * Rs * max(1.0 - 5.0 * pow(2.0 * (1.0 - EffectiveRadius), 2.0), 0.0001)), 2.0), 0.0) *
-                            GenerateDiskNoise(vec3(1.5 * fract((1.5 * PosThetaWithoutTime + kPi / HalfPiTimeInside * EffectiveTime1 + Phase1) / 2.0 / kPi) * k2Pi, PosR / Rs, PosY / Rs), 0, 6, 80.0);
-                Color1 += 0.02 * vec4(vec3(DustColor), 0.2 * DustColor) * sqrt(1.0001 - DirOnDisk.y * DirOnDisk.y) * min(1.0, Dopler * Dopler);
-            }
-            Color1 *= 0.5 - 0.5 * cos(k2Pi * fract(iTime * TimeRate / (HalfPiTimeInside) + 0.5));
-
-            Color = Color1 + Color0;
+            Color = Color0;
             Color *= 1.0 + 20.0 * exp(-10.0 * (PosR - InterRadiusLy) / (OuterRadiusLy - InterRadiusLy));
 
             float BrightWithoutRedShift = 4.5 * pow(DiskTemperature, 4) / QuadraticedPeakTemperature;
@@ -379,160 +359,169 @@ void main()
 
     Rs = Rs / kLightYearToMeter;
     float SmallStepBoundary=max(iOuterRadiusLy,12.*Rs);
-    vec3  PosToBlackHole           = vec3(0.0);
-    vec3  NormalizedPosToBlackHole = vec3(0.0);
-    float DistanceToBlackHole      = 0.0;
+
     float ShiftMax                 = 1.5; // 设定一个蓝移的亮度增加上限，以免亮部太亮
     float BackgroundBlueShift= min(1.0 / sqrt(1.0 - Rs /max( length(iBlackHoleRelativePos.xyz),1.001*Rs)+0.005),2.0);
-    
+
+    vec3  RayPos     = vec3(0.0);
     vec3  RayDir     = FragUvToDir(FragUv + 0.5 * vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)),
                                                        RandomStep(FragUv, fract(iTime * 1.0))) / iResolution, Fov, iResolution);
-    vec3  RayPos     = vec3(0.0);
-    float RayStep    = 0.0;
-    vec3  LastRayPos = vec3(0.0);
-    vec3  LastRayDir = vec3(0.0);
-    float StepLength = 0.0;
 
-    float LastDistance = length(PosToBlackHole);
-    float SingularR=0.1*Rs;
-    float CosTheta     = 0.0;
-    float DeltaPhi     = 0.0;
-    float DeltaPhiRate = 0.0;
-    int   Count        = 0;
-
-
-   // float lucheng=0.0;
-
-
-    bool bShouldContinueMarchRay = true;
-    bool bShouldCalBackgroundAndReturn = false;
-    bool bWaitCalBack=false;
-    if(length(iBlackHoleRelativePos.xyz)>200.0*Rs){
-        vec3 O = RayPos;
-        vec3 D = RayDir;
-        vec3 C = iBlackHoleRelativePos.xyz;
-        float r = 499.0*Rs;
+    vec3  PosToBlackHole           = RayPos - iBlackHoleRelativePos.xyz;
+    float DistanceToBlackHole      = length(PosToBlackHole);
+    vec3  NormalizedPosToBlackHole = PosToBlackHole / DistanceToBlackHole;
+    
+    float SingularR=0.9*Rs;
+    if(length(iBlackHoleRelativePos.xyz)> SingularR){
+        if(length(iBlackHoleRelativePos.xyz)<500.0*Rs){
+           RayDir=normalize(RayDir-NormalizedPosToBlackHole*dot(NormalizedPosToBlackHole,RayDir)*(-sqrt(max(1.0-Rs*CubicInterpolate(max(min(1.0-(0.01*DistanceToBlackHole/Rs-1.0)/4.0,1.0),0.0))/DistanceToBlackHole,0.00000000000000001))+1.0));
+        }
         
-        vec3 OC = O - C;
-        float a = dot(D, D);
-        float b = 2.0 * dot(D, OC);
-        float c = dot(OC, OC) - r*r;
-        float delta = b*b - 4.0*a*c;
+        float RayStep    = 0.0;
+        vec3  LastRayPos = vec3(0.0);
+        vec3  LastRayDir = vec3(0.0);
+        float StepLength = 0.0;
         
-        if (delta < 0.0) bShouldCalBackgroundAndReturn=true; 
+        float LastDistance = length(PosToBlackHole);
+        float CosTheta     = 0.0;
+        float DeltaPhi     = 0.0;
+        float DeltaPhiRate = 0.0;
+        int   Count        = 0;
         
-        float sqrtDelta = sqrt(delta);
-        float t1 = (-b - sqrtDelta) / (2.0*a);
-        float t2 = (-b + sqrtDelta) / (2.0*a);
-        float tEnter = min(t1, t2);
-        float tExit = max(t1, t2);
+        bool bShouldContinueMarchRay = true;
+        bool bShouldCalBackgroundAndReturn = false;
+        bool bWaitCalBack=false;
+        if(length(iBlackHoleRelativePos.xyz)>500.0*Rs){
+            vec3 O = RayPos;
+            vec3 D = RayDir;
+            vec3 C = iBlackHoleRelativePos.xyz;
+            float r = 499.0*Rs;
+            
+            vec3 OC = O - C;
+            float a = dot(D, D);
+            float b = 2.0 * dot(D, OC);
+            float c = dot(OC, OC) - r*r;
+            float delta = b*b - 4.0*a*c;
+            
+            if (delta < 0.0) bShouldCalBackgroundAndReturn=true; 
+            
+            float sqrtDelta = sqrt(delta);
+            float t1 = (-b - sqrtDelta) / (2.0*a);
+            float t2 = (-b + sqrtDelta) / (2.0*a);
+            float tEnter = min(t1, t2);
+            float tExit = max(t1, t2);
+            
+            if (tExit < 0.0) bShouldCalBackgroundAndReturn=true; 
+            
+            float tStart = max(tEnter, 0.0);
+            RayPos = O + D * tStart;
+        }
+        while (bShouldContinueMarchRay)
+        {
         
-        if (tExit < 0.0) bShouldCalBackgroundAndReturn=true; 
+            PosToBlackHole           = RayPos - iBlackHoleRelativePos.xyz;
+            DistanceToBlackHole      = length(PosToBlackHole);
+            NormalizedPosToBlackHole = PosToBlackHole / DistanceToBlackHole;
         
-        float tStart = max(tEnter, 0.0);
-        RayPos = O + D * tStart;
-    }
-    while (bShouldContinueMarchRay)
-    {
-
-        PosToBlackHole           = RayPos - iBlackHoleRelativePos.xyz;
-        DistanceToBlackHole      = length(PosToBlackHole);
-        NormalizedPosToBlackHole = PosToBlackHole / DistanceToBlackHole;
-
-        if ((DistanceToBlackHole > (500.0 * Rs)  )||bShouldCalBackgroundAndReturn == true)//&& (Count > 20))
-        {
-            bShouldContinueMarchRay = false;
-            bWaitCalBack=true;
-            break;
-        }
-        if (DistanceToBlackHole < SingularR)
-        {
-            bShouldContinueMarchRay = false;
-        }
-        if (bShouldContinueMarchRay)
-        {
-            Result = DiskColor(Result, iTimeRate, StepLength, RayPos, LastRayPos, RayDir, LastRayDir,
-                               iWorldUpView.xyz, iBlackHoleRelativePos.xyz, iBlackHoleRelativeDiskNormal.xyz, Rs,
-                               iInterRadiusLy, iOuterRadiusLy, DiskArgument, QuadraticedPeakTemperature, ShiftMax); // 吸积盘颜色
-        }
-
-        if (Result.a > 0.99)
-        {
-            bShouldContinueMarchRay = false;
-        }
-
-        LastRayPos   = RayPos;
-        LastRayDir   = RayDir;
-        LastDistance = DistanceToBlackHole;
-        CosTheta     = length(cross(NormalizedPosToBlackHole, RayDir)); // 前进方向与切向夹角
-        DeltaPhiRate = -1.0 * pow(CosTheta, 3) * (1.5 * Rs / DistanceToBlackHole)*CubicInterpolate(max(min(1.0-(0.01*DistanceToBlackHole/Rs-1.0)/4.0,1.0),0.0)); // 单位长度光偏折角
-
-        if (Count == 0)
-        {
-            RayStep = RandomStep(FragUv, fract(iTime * 1.0)); // 光起步步长抖动
-        }
-        else
-        {
-            RayStep = 1.0;
-        }
-
-        RayStep *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / SmallStepBoundary- 1.0)), 1.0);
-
-        if ((DistanceToBlackHole) >= 2.0 * SmallStepBoundary)
-        {
-            RayStep *= DistanceToBlackHole;
-        }
-        else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary)
-        {
-            RayStep *= ((Rs) * (2.0 * SmallStepBoundary - DistanceToBlackHole) +
-                        DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
-        }
-        else
-        {
-            RayStep *= min(Rs,DistanceToBlackHole);
-        }
-
-        
-        DeltaPhi   = RayStep / DistanceToBlackHole * DeltaPhiRate;
-
-        RayPos    += RayDir * RayStep;
-        RayDir     = normalize(RayDir + (DeltaPhi + DeltaPhi * DeltaPhi * DeltaPhi / 3.0) *
-                     cross(cross(RayDir, NormalizedPosToBlackHole), RayDir) / CosTheta);  // 更新方向，里面的 (dthe + DeltaPhi ^ 3 / 3) 是 tan(dthe)
-        StepLength = RayStep;
-    //    lucheng+=RayStep;
-        ++Count;
-    }
-    if(bWaitCalBack==true){
-            //FragUv = DirToFragUv((iInverseCamRot*vec4(RayDir,1.0)).xyz, iResolution);
-            vec4 Backcolor=texture(iBackground, (iInverseCamRot*vec4(RayDir,1.0)).xyz);
-            vec4 TexColor=Backcolor;
-            if( length(iBlackHoleRelativePos.xyz)<200.0*Rs){
-                vec3 Rcolor=Backcolor.r*1.0*WavelengthToRgb(max(453,645.0/BackgroundBlueShift));
-                vec3 Gcolor=Backcolor.g*1.5*WavelengthToRgb(max(416,510.0/BackgroundBlueShift));
-                vec3 Bcolor=Backcolor.b*0.6*WavelengthToRgb(max(380,440.0/BackgroundBlueShift));
-                vec3 Scolor=Rcolor+Gcolor+Bcolor;
-                float BlueLimit=1.0;
-                if(Scolor.b>1){BlueLimit=Scolor.b;}
-                TexColor = vec4(Scolor/BlueLimit,Backcolor.a)*BackgroundBlueShift*BackgroundBlueShift*BackgroundBlueShift*BackgroundBlueShift;
+            if ((DistanceToBlackHole > (500.0 * Rs)  )||bShouldCalBackgroundAndReturn == true)//&& (Count > 20))
+            {
+                bShouldContinueMarchRay = false;
+                bWaitCalBack=true;
+                break;
             }
-            //if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y<0.5){
-            //TexColor=vec4(0.0,log(1+Count)/10.0,0.0,1.0);
-            //}else if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y>=0.5){TexColor=vec4(textureQueryLod(iBackground, vec2(FragUv.x,1.0-FragUv.y)).x/3.0);}
-            Result += 0.7 * TexColor * (1.0 - Result.a);
-     }
-     float RedFactor   = 3.0*Result.r / (Result.g+Result.b+Result.g);
-     float BlueFactor  = 3.0*Result.b / (Result.g+Result.b+Result.g);
-     float GreenFactor = 3.0*Result.g / (Result.g+Result.b+Result.g);
-     float BloomMax   = 12.0;
-     Result.r = min(-4.0 * log(1.0 - pow(Result.r, 2.2)), BloomMax * RedFactor);
-     Result.g = min(-4.0 * log(1.0 - pow(Result.g, 2.2)), BloomMax * GreenFactor);
-     Result.b = min(-4.0 * log(1.0 - pow(Result.b, 2.2)), BloomMax * BlueFactor);
-     Result.a = min(-4.0 * log(1.0 - pow(Result.a, 2.2)), 4.0);
+            if (DistanceToBlackHole < SingularR)
+            {
+                bShouldContinueMarchRay = false;
+                break;
+            }
+            if (bShouldContinueMarchRay)
+            {
+                Result = DiskColor(Result, iTimeRate, StepLength, RayPos, LastRayPos, RayDir, LastRayDir,
+                                   iWorldUpView.xyz, iBlackHoleRelativePos.xyz, iBlackHoleRelativeDiskNormal.xyz, Rs,
+                                   iInterRadiusLy, iOuterRadiusLy, DiskArgument, QuadraticedPeakTemperature, ShiftMax); // 吸积盘颜色
+            }
+        
+            if (Result.a > 0.99)
+            {
+                bShouldContinueMarchRay = false;
+                break;
+            }
+        
+            LastRayPos   = RayPos;
+            LastRayDir   = RayDir;
+            LastDistance = DistanceToBlackHole;
+            CosTheta     = length(cross(NormalizedPosToBlackHole, RayDir)); // 前进方向与切向夹角
+            DeltaPhiRate = -1.0 * pow(CosTheta, 3) * (1.5 * Rs / DistanceToBlackHole)*CubicInterpolate(max(min(1.0-(0.01*DistanceToBlackHole/Rs-1.0)/4.0,1.0),0.0)); // 单位长度光偏折角
+        
+            if (Count == 0)
+            {
+                RayStep = RandomStep(FragUv, fract(iTime * 1.0)); // 光起步步长抖动
+            }
+            else
+            {
+                RayStep = 1.0;
+            }
+        
+            RayStep *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / SmallStepBoundary- 1.0)), 1.0);
+        
+            if ((DistanceToBlackHole) >= 2.0 * SmallStepBoundary)
+            {
+                RayStep *= DistanceToBlackHole;
+            }
+            else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary)
+            {
+                RayStep *= ((Rs) * (2.0 * SmallStepBoundary - DistanceToBlackHole) +
+                            DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
+            }
+            else
+            {
+                RayStep *= min(Rs,DistanceToBlackHole);
+            }
+        
+            
+            DeltaPhi   = RayStep / DistanceToBlackHole * DeltaPhiRate;
+        
+            RayPos    += RayDir * RayStep;
+            RayDir     = normalize(RayDir + (DeltaPhi + DeltaPhi * DeltaPhi * DeltaPhi / 3.0) *
+                         cross(cross(RayDir, NormalizedPosToBlackHole), RayDir) / CosTheta);  // 更新方向，里面的 (dthe + DeltaPhi ^ 3 / 3) 是 tan(dthe)
+            StepLength = RayStep;
+        //    lucheng+=RayStep;
+            ++Count;
+        }
+        if(bWaitCalBack==true){
+                //FragUv = DirToFragUv((iInverseCamRot*vec4(RayDir,1.0)).xyz, iResolution);
+                vec4 Backcolor=texture(iBackground, (iInverseCamRot*vec4(RayDir,1.0)).xyz);
+                vec4 TexColor=Backcolor;
+                if( length(iBlackHoleRelativePos.xyz)<200.0*Rs){
+                    vec3 Rcolor=Backcolor.r*1.0*WavelengthToRgb(max(453,645.0/BackgroundBlueShift));
+                    vec3 Gcolor=Backcolor.g*1.5*WavelengthToRgb(max(416,510.0/BackgroundBlueShift));
+                    vec3 Bcolor=Backcolor.b*0.6*WavelengthToRgb(max(380,440.0/BackgroundBlueShift));
+                    vec3 Scolor=Rcolor+Gcolor+Bcolor;
+                    float OStrength=0.3*Backcolor.r+0.6*Backcolor.g+0.1*Backcolor.b;
+                    float RStrength=0.3*Scolor.r+0.6*Scolor.g+0.1*Scolor.b;
+                    Scolor*=OStrength/max(RStrength,0.001);
+                    TexColor = vec4(Scolor,Backcolor.a)*BackgroundBlueShift*BackgroundBlueShift*BackgroundBlueShift*BackgroundBlueShift;
+                }
+                //if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y<0.5){
+                //TexColor=vec4(0.0,log(1+Count)/10.0,0.0,1.0);
+                //}else if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y>=0.5){TexColor=vec4(textureQueryLod(iBackground, vec2(FragUv.x,1.0-FragUv.y)).x/3.0);}
+                Result += 0.7 * TexColor * (1.0 - Result.a);
+         }
+         float RedFactor   = 3.0*Result.r / (Result.g+Result.b+Result.g);
+         float BlueFactor  = 3.0*Result.b / (Result.g+Result.b+Result.g);
+         float GreenFactor = 3.0*Result.g / (Result.g+Result.b+Result.g);
+         float BloomMax   = 8.0;
+         Result.r = min(-4.0 * log(1.0 - pow(Result.r, 2.2)), BloomMax * RedFactor);
+         Result.g = min(-4.0 * log(1.0 - pow(Result.g, 2.2)), BloomMax * GreenFactor);
+         Result.b = min(-4.0 * log(1.0 - pow(Result.b, 2.2)), BloomMax * BlueFactor);
+         Result.a = min(-4.0 * log(1.0 - pow(Result.a, 2.2)), 4.0);
+        
+        // TAA
+        
 
-    // TAA
-
+    }
     float BlendWeight = iBlendWeight;//1.0 - pow(0.5, (iTimeDelta) / max(min((0.131 * 36.0 / (iTimeRate) * (GetKeplerianAngularVelocity(3.0 * 0.00000465, 0.00000465)) / (GetKeplerianAngularVelocity(3.0 * Rs, Rs))), 0.3), 0.02));
-
+    
     vec4 PrevColor = texelFetch(iHistoryTex, ivec2(gl_FragCoord.xy), 0);
     FragColor      = (BlendWeight) * Result + (1.0 - BlendWeight) * PrevColor;
 }

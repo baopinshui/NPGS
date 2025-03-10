@@ -159,7 +159,7 @@ void FApplication::ExecuteMainRender()
     AssetManager->AddAsset<Art::FShader>("GaussBlur", GaussBlurShaderFiles, BloomResourceInfo);
     AssetManager->AddAsset<Art::FShader>("Blend", BlendShaderFiles, BlendResourceInfo);
     AssetManager->AddAsset<Art::FTextureCube>(
-        "Background", TextureAllocationCreateInfo, "UNSkybox", vk::Format::eR8G8B8A8Srgb, vk::Format::eR8G8B8A8Srgb,
+        "Background", TextureAllocationCreateInfo, "UNSkybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
         vk::ImageCreateFlagBits::eMutableFormat, true, false);
     auto* BlackHoleShader = AssetManager->GetAsset<Art::FShader>("BlackHole");
     auto* PreBloomShader = AssetManager->GetAsset<Art::FShader>("PreBloom");
@@ -280,9 +280,9 @@ void FApplication::ExecuteMainRender()
     BlackHoleCreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
     BlackHoleCreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
 
-    BlackHoleCreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height),
-        static_cast<float>(_WindowSize.width), -static_cast<float>(_WindowSize.height),
-        0.0f, 1.0f);
+    BlackHoleCreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height), static_cast<float>(_WindowSize.width),
+        -static_cast<float>(_WindowSize.height), 0.0f, 1.0f);
+
     BlackHoleCreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
 
     PipelineManager->CreateGraphicsPipeline("BlackHolePipeline", "BlackHole", BlackHoleCreateInfoPack);
@@ -389,7 +389,7 @@ void FApplication::ExecuteMainRender()
         GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
         GameArgs.Time = static_cast<float>(glfwGetTime());
         GameArgs.TimeDelta = static_cast<float>(_DeltaTime);
-        GameArgs.TimeRate = 150.0f;
+        GameArgs.TimeRate = 300.0f;
         LastBlackHoleRelativePos = BlackHoleArgs.BlackHoleRelativePos;
         lastdir = BlackHoleArgs.InverseCamRot;
         ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
@@ -405,8 +405,7 @@ void FApplication::ExecuteMainRender()
         BlackHoleArgs.OuterRadiusLy = 5.586e-5f;
         float Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
         BlackHoleArgs.BlendWeight = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs / 0.00000465)), 0.3), 0.02)));
-        if (glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)) > glm::length(glm::vec3(LastBlackHoleRelativePos)) * 0.01 * _DeltaTime || glm::determinant(glm::mat3x3(lastdir - BlackHoleArgs.InverseCamRot)) > 1e-14 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
-
+        if (glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)) > (glm::length(glm::vec3(LastBlackHoleRelativePos))- Rs) * 0.01 * _DeltaTime || glm::determinant(glm::mat3x3(lastdir - BlackHoleArgs.InverseCamRot)) > 1e-14 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
         if (int(glfwGetTime()) < 1)
         {
             _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));

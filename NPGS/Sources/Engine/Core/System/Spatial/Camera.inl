@@ -54,7 +54,8 @@ NPGS_INLINE const glm::quat& FCamera::GetOrientation() const
 
 NPGS_INLINE glm::mat4x4 FCamera::GetViewMatrix() const
 {
-    return glm::lookAt(_Position, _Position + _Front, _Up);
+   // return glm::lookAt(_Position, _Position + _Front, _Up);
+    return glm::mat4_cast(_Orientation)* glm::translate(glm::mat4x4(1.0f), -_Position);
 }
 
 NPGS_INLINE glm::mat4x4 FCamera::GetProjectionMatrix(float WindowAspect, float Near) const
