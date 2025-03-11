@@ -319,7 +319,7 @@ vec4 DiskColor(vec4 BaseColor, float TimeRate, float StepLength, vec3 RayPos, ve
             Color *= 1.0 + 20.0 * exp(-10.0 * (PosR - InterRadiusLy) / (OuterRadiusLy - InterRadiusLy));
 
             float BrightWithoutRedShift = 4.5 * pow(DiskTemperature, 4) / QuadraticedPeakTemperature;
-            if (DiskTemperature > 1000.0)
+           // if (DiskTemperature > 1000.0)
             {
                 DiskTemperature = max(1000.0, DiskTemperature * RedShift * Dopler * Dopler);
             }
@@ -490,7 +490,7 @@ void main()
         }
         if(bWaitCalBack==true){
                 //FragUv = DirToFragUv((iInverseCamRot*vec4(RayDir,1.0)).xyz, iResolution);
-                vec4 Backcolor=texture(iBackground, (iInverseCamRot*vec4(RayDir,1.0)).xyz);
+                vec4 Backcolor=textureLod(iBackground, (iInverseCamRot * vec4(RayDir, 1.0)).xyz,min(1.0, textureQueryLod(iBackground, (iInverseCamRot*vec4(RayDir,1.0)).xyz).x));
                 vec4 TexColor=Backcolor;
                 if( length(iBlackHoleRelativePos.xyz)<200.0*Rs){
                     vec3 Rcolor=Backcolor.r*1.0*WavelengthToRgb(max(453,645.0/BackgroundBlueShift));
@@ -502,9 +502,10 @@ void main()
                     Scolor*=OStrength/max(RStrength,0.001);
                     TexColor = vec4(Scolor,Backcolor.a)*BackgroundBlueShift*BackgroundBlueShift*BackgroundBlueShift*BackgroundBlueShift;
                 }
-                //if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y<0.5){
-                //TexColor=vec4(0.0,log(1+Count)/10.0,0.0,1.0);
-                //}else if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y>=0.5){TexColor=vec4(textureQueryLod(iBackground, vec2(FragUv.x,1.0-FragUv.y)).x/3.0);}
+               //if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y<0.5){
+               // TexColor=vec4(0.0,log(1+Count)/10.0,0.0,1.0);
+               //}else if(gl_FragCoord.x/ iResolution.x<0.5&&gl_FragCoord.y/ iResolution.y>=0.5){
+               // TexColor=vec4(0.1*textureQueryLod(iBackground, (iInverseCamRot*vec4(RayDir,1.0)).xyz).x);}
                 Result += 0.7 * TexColor * (1.0 - Result.a);
          }
          float RedFactor   = 3.0*Result.r / (Result.g+Result.b+Result.g);

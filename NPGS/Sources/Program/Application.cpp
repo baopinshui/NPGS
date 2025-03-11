@@ -404,8 +404,8 @@ void FApplication::ExecuteMainRender()
         BlackHoleArgs.InterRadiusLy = 9.7756e-6f;
         BlackHoleArgs.OuterRadiusLy = 5.586e-5f;
         float Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
-        BlackHoleArgs.BlendWeight = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs / 0.00000465)), 0.3), 0.02)));
-        if (glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)) > (glm::length(glm::vec3(LastBlackHoleRelativePos))- Rs) * 0.01 * _DeltaTime || glm::determinant(glm::mat3x3(lastdir - BlackHoleArgs.InverseCamRot)) > 1e-14 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
+        BlackHoleArgs.BlendWeight = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs / 0.00000465)), 0.5), 0.06)));
+        if (glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)) > (glm::length(glm::vec3(LastBlackHoleRelativePos))- Rs) * 0.006 * _DeltaTime || glm::determinant(glm::mat3x3(lastdir - BlackHoleArgs.InverseCamRot)/float(_DeltaTime)) > 1e-10 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
         if (int(glfwGetTime()) < 1)
         {
             _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
