@@ -39,6 +39,7 @@ struct FGameArgs
     glm::aligned_vec2 Resolution;
     float FovRadians;
     float Time;
+    float GameTime;
     float TimeDelta;
     float TimeRate;
 } GameArgs{};
@@ -47,14 +48,28 @@ struct FBlackHoleArgs
 {
     glm::mat4x4 InverseCamRot;
     glm::vec4 WorldUpView;
-    glm::vec4 BlackHoleRelativePos;
+    glm::vec4 BlackHoleRelativePosRs;
     glm::vec4 BlackHoleRelativeDiskNormal;
+    float BlackHoleTime;
     float BlackHoleMassSol;
     float Spin;
     float Mu;
     float AccretionRate;
-    float InterRadiusLy;
-    float OuterRadiusLy;
+    float InterRadiusRs;
+    float OuterRadiusRs;
+    float ThinRs;
+    float Hopper;
+    float Brightmut;
+    float Darkmut;
+    float Reddening;
+    float Saturation;
+    float BlackbodyIntensityExponent;
+    float RedShiftColorExponent;     
+    float RedShiftIntensityExponent; 
+    float JetRedShiftIntensityExponent;
+    float JetBrightmut;              
+    float JetSaturation;             
+    float JetShiftMax;               
     float BlendWeight;
 } BlackHoleArgs{};
 

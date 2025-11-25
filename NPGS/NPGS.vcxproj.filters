@@ -114,6 +114,36 @@
     <ClCompile Include="Sources\Engine\Utils\TooolfuncForStarMap.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\VulkanUIRenderer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\ui_framework.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\neural_ui.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\InputField.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralParticleView.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralButton.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\PulsarButton.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -237,6 +267,42 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Utils\TooolfuncForStarMap.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\Runtime\Graphics\Vulkan\VulkanUIRenderer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\ui_framework.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\neural_ui.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TechSliders.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\InputField.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\NeuralParticleView.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\NeuralButton.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\PulsarButton.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\TechUtils.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

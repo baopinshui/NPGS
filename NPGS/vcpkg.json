@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "description": "Von-Neumann Probe in Galaxy Simulator",
   "dependencies": [
+    {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "opengl3-binding",
+        "vulkan-binding"
+      ]
+    },
     "assimp",
     "boost-multiprecision",
     "fast-cpp-csv-parser",
@@ -14,5 +22,5 @@
     "spdlog",
     "stb"
   ],
-  "builtin-baseline": "418da99d5a6baef99fe3f2fd69ba561f8bb1fd54"
+  "builtin-baseline": "782419385291ae2db643c928314efe626853c702"
 }

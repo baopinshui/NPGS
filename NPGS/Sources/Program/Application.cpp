@@ -25,7 +25,7 @@ _NPGS_BEGIN
 namespace Art = Runtime::Asset;
 namespace Grt = Runtime::Graphics;
 namespace SysSpa = System::Spatial;
-
+namespace UI = Npgs::System::UI;
 FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& WindowTitle,
     bool bEnableVSync, bool bEnableFullscreen)
     :
@@ -33,7 +33,11 @@ FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& Wi
     _WindowTitle(WindowTitle),
     _WindowSize(WindowSize),
     _bEnableVSync(bEnableVSync),
-    _bEnableFullscreen(bEnableFullscreen)
+    _bEnableFullscreen(bEnableFullscreen),
+    m_beam_energy("1.919 E+30"),
+    m_rkkv_mass("5.14 E+13"),
+    m_is_beam_button_active(false),
+    m_is_rkkv_button_active(false)
 {
     if (!InitializeWindow())
     {
@@ -45,7 +49,72 @@ FApplication::~FApplication()
 {}
 
 void FApplication::ExecuteMainRender()
-{
+{    // 初始化 UI 渲染器
+    _uiRenderer = std::make_unique<Grt::FVulkanUIRenderer>();
+    // =========================================================================
+    // [修改] UI 初始化逻辑
+    // =========================================================================
+
+    if (!_uiRenderer->Initialize(_Window))
+    {
+        NpgsCoreError("Failed to initialize UI renderer");
+        return;
+    }
+   // using namespace Npgs::System::UI::;
+
+    // 1. 设置自定义主题 (可以在这里或者在构造函数中完成)
+    auto& theme = UI::UIContext::Get().m_theme;
+    //theme.color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #BEBE8F
+    //theme.color_panel_bg = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+
+    // 2. 创建唯一的 UI 根
+    m_ui_root = std::make_shared<UI::UIRoot>();
+
+    // 3. 创建 NeuralMenuController
+    m_neural_menu_controller = std::make_shared<UI::NeuralMenuController>();
+
+    // 4. 将菜单的根面板添加到 UI 根中
+    m_ui_root->AddChild(m_neural_menu_controller->GetRootPanel());
+
+    // 5. 创建 PulsarButtons
+    // Button 1: Dyson Beam
+    m_beam_button = std::make_shared<UI::PulsarButton>("beam", "发送戴森光束", "☼", "ENERGY", &m_beam_energy, "J", true);
+    m_beam_button->m_rect.x = 50;
+    m_beam_button->m_rect.y = 400;
+    m_beam_button->on_click_callback = [this]()
+    {
+        m_is_beam_button_active = !m_is_beam_button_active;
+        m_beam_button->SetActive(m_is_beam_button_active);
+        if (m_is_beam_button_active && m_is_rkkv_button_active)
+        {
+            m_is_rkkv_button_active = false;
+            m_rkkv_button->SetActive(false);
+        }
+    };
+    m_beam_button->on_stat_change_callback = [](const std::string& id, const std::string& value)
+    {
+        NpgsCoreInfo("Button '{}' value changed to: {}", id, value);
+    };
+
+    // Button 2: RKKV
+    m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", "☢", "MASS", &m_rkkv_mass, "kg", true);
+    m_rkkv_button->m_rect.x = 50;
+    m_rkkv_button->m_rect.y = 460;
+    m_rkkv_button->on_click_callback = [this]()
+    {
+        m_is_rkkv_button_active = !m_is_rkkv_button_active;
+        m_rkkv_button->SetActive(m_is_rkkv_button_active);
+        if (m_is_rkkv_button_active && m_is_beam_button_active)
+        {
+            m_is_beam_button_active = false;
+            m_beam_button->SetActive(false);
+        }
+    };
+
+    // 6. 将按钮也添加到 UI 根中
+    m_ui_root->AddChild(m_beam_button);
+    m_ui_root->AddChild(m_rkkv_button);
+    // =========================================================================
     std::unique_ptr<Grt::FColorAttachment> HistoryAttachment;
     std::unique_ptr<Grt::FColorAttachment> BlackHoleAttachment;
     std::unique_ptr<Grt::FColorAttachment> PreBloomAttachment;
@@ -169,7 +238,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo GameArgsCreateInfo
     {
         .Name = "GameArgs",
-        .Fields = { "Resolution", "FovRadians", "Time", "TimeDelta", "TimeRate" },
+        .Fields = { "Resolution", "FovRadians", "Time","GameTime", "TimeDelta", "TimeRate" },
         .Set = 0,
         .Binding = 0,
         .Usage = vk::DescriptorType::eUniformBuffer
@@ -178,8 +247,9 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;","WorldUpView", "BlackHoleRelativePos", "BlackHoleRelativeDiskNormal",
-                     "BlackHoleMassSol", "Spin", "Mu", "AccretionRate", "InterRadiusLy", "OuterRadiusLy" ,"BlendWeight"},
+        .Fields = { "InverseCamRot;","WorldUpView", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal",
+                     "BlackHoleTime","BlackHoleMassSol", "Spin", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
+                     , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,
         .Binding = 1,
         .Usage = vk::DescriptorType::eUniformBuffer
@@ -340,7 +410,7 @@ void FApplication::ExecuteMainRender()
 
     vk::DeviceSize Offset = 0;
     std::uint32_t  CurrentFrame = 0;
-    glm::vec4      WorldUp(0.0f, 1.0f, 0.0f, 1.0f);
+    glm::vec4      WorldUp(0.0f, 1.0f, 0.0f, 0.0f);
 
     vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
 
@@ -374,6 +444,7 @@ void FApplication::ExecuteMainRender()
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "InitHistoryFrame", InitHistoryFrame);
     glm::vec4    LastBlackHoleRelativePos(0.0f, 0.0f, 0.0f, 1.0f);
     glm::mat4x4 lastdir(0.0f);
+    //LastFrameTime = glfwGetTime();
     while (!glfwWindowShouldClose(_Window))
     {
         while (glfwGetWindowAttrib(_Window, GLFW_ICONIFIED))
@@ -383,401 +454,482 @@ void FApplication::ExecuteMainRender()
 
         InFlightFences[CurrentFrame].WaitAndReset();
 
+        glfwPollEvents();
+        // 开始 UI 帧
+        _uiRenderer->BeginFrame();
+
+        // =========================================================================
+        // [修改] 游戏主循环中的 UI 处理
+        // =========================================================================
+        //float dt = ImGui::GetIO().DeltaTime;
+
+        m_ui_root->Update(_DeltaTime);
+        m_ui_root->Draw();
+        // =========================================================================
+
+        // Render other standard ImGui windows
+       // RenderDebugUI();
+
+        _uiRenderer->EndFrame();
         // Uniform update
         // --------------
-        GameArgs.Resolution = glm::vec2(_WindowSize.width, _WindowSize.height);
-        GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
-        GameArgs.Time = static_cast<float>(glfwGetTime());
-        GameArgs.TimeDelta = static_cast<float>(_DeltaTime);
-        GameArgs.TimeRate = 300.0f;
-        LastBlackHoleRelativePos = BlackHoleArgs.BlackHoleRelativePos;
-        lastdir = BlackHoleArgs.InverseCamRot;
-        ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
-        BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
-        BlackHoleArgs.WorldUpView = (glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
-        BlackHoleArgs.BlackHoleRelativePos = (_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f));
-        BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.00001f, 1.0f));
-        BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
-        BlackHoleArgs.Spin = 0.0f;
-        BlackHoleArgs.Mu = 1.0f;
-        BlackHoleArgs.AccretionRate = 5e15f;
-        BlackHoleArgs.InterRadiusLy = 9.7756e-6f;
-        BlackHoleArgs.OuterRadiusLy = 5.586e-5f;
-        float Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
-        BlackHoleArgs.BlendWeight = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs / 0.00000465)), 0.5), 0.06)));
-        if (glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePos)) > (glm::length(glm::vec3(LastBlackHoleRelativePos))- Rs) * 0.006 * _DeltaTime || glm::determinant(glm::mat3x3(lastdir - BlackHoleArgs.InverseCamRot)/float(_DeltaTime)) > 1e-10 * _DeltaTime) { BlackHoleArgs.BlendWeight = 1.0f; }
-        if (int(glfwGetTime()) < 1)
+
         {
-            _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
-        }//else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
-       // }
-        ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
-
-        _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
-        std::uint32_t ImageIndex = _VulkanContext->GetCurrentImageIndex();
-
-        BlendAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
-
-        std::uint32_t WorkgroundX = (_WindowSize.width + 9) / 10;
-        std::uint32_t WorkgroundY = (_WindowSize.height + 9) / 10;
-
-        // Record BlackHole rendering commands
-        // -----------------------------------
-        auto& CurrentBuffer = BlackHoleCommandBuffers[CurrentFrame];
-        CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-        vk::ImageMemoryBarrier2 InitBlackHoleBarrier(
-            vk::PipelineStageFlagBits2::eTopOfPipe,
-            vk::AccessFlagBits2::eNone,
-            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *BlackHoleAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::DependencyInfo BlackHoleInitialDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(InitBlackHoleBarrier);
-
-        CurrentBuffer->pipelineBarrier2(BlackHoleInitialDependencyInfo);
-
-        vk::RenderingInfo BlackHoleRenderingInfo = vk::RenderingInfo()
-            .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
-            .setLayerCount(1)
-            .setColorAttachments(BlackHoleAttachmentInfo);
-
-        CurrentBuffer->beginRendering(BlackHoleRenderingInfo);
-        CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlackHolePipeline);
-
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlackHolePipelineLayout, 0,
-            BlackHoleShader->GetDescriptorSets(CurrentFrame), {});
-        CurrentBuffer->draw(6, 1, 0, 0);
-        CurrentBuffer->endRendering();
-
-        vk::ImageMemoryBarrier2 PreCopySrcBarrier(
-            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferRead,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *BlackHoleAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::ImageMemoryBarrier2 PreCopyDstBarrier(
-            vk::PipelineStageFlagBits2::eFragmentShader,
-            vk::AccessFlagBits2::eShaderRead,
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferWrite,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::ImageLayout::eTransferDstOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *HistoryAttachment->GetImage(),
-            SubresourceRange);
-
-        std::array PreCopyBarriers{ PreCopySrcBarrier, PreCopyDstBarrier };
-        vk::DependencyInfo PreCopyDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(PreCopyBarriers);
-
-        vk::ImageCopy HistoryCopyRegion = vk::ImageCopy()
-            .setSrcSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
-            .setDstSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
-            .setExtent(vk::Extent3D(_WindowSize.width, _WindowSize.height, 1));
-
-        CurrentBuffer->pipelineBarrier2(PreCopyDependencyInfo);
-        CurrentBuffer->copyImage(*BlackHoleAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
-            *HistoryAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal, HistoryCopyRegion);
-
-        vk::ImageMemoryBarrier2 PostCopySrcBarrier(
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferRead,
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderRead,
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *BlackHoleAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::ImageMemoryBarrier2 PostCopyDstBarrier(
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferWrite,
-            vk::PipelineStageFlagBits2::eFragmentShader,
-            vk::AccessFlagBits2::eShaderRead,
-            vk::ImageLayout::eTransferDstOptimal,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *HistoryAttachment->GetImage(),
-            SubresourceRange);
-
-        std::array PostCopyBarriers{ PostCopySrcBarrier, PostCopyDstBarrier };
-        vk::DependencyInfo PostCopyDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(PostCopyBarriers);
-
-        CurrentBuffer->pipelineBarrier2(PostCopyDependencyInfo);
-        //CurrentBuffer.End();
-
-        //_VulkanContext->ExecuteGraphicsCommands(CurrentBuffer);
-
-        //// Record PreBloom rendering commands
-        //// ----------------------------------
-        //CurrentBuffer = PreBloomCommandBuffers[CurrentFrame];
-        //CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-        vk::ImageMemoryBarrier2 InitPreBloomBarrier(
-            vk::PipelineStageFlagBits2::eTopOfPipe,
-            vk::AccessFlagBits2::eNone,
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderWrite,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eGeneral,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *PreBloomAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::DependencyInfo PreBloomInitialDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(InitPreBloomBarrier);
-
-        CurrentBuffer->pipelineBarrier2(PreBloomInitialDependencyInfo);
-
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eCompute, PreBloomPipeline);
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, PreBloomPipelineLayout, 0,
-            PreBloomShader->GetDescriptorSets(CurrentFrame), {});
-
-        CurrentBuffer->dispatch(WorkgroundX, WorkgroundY, 1);
-
-        vk::ImageMemoryBarrier2 FirstBlurBarrier(
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderWrite,
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderRead,
-            vk::ImageLayout::eGeneral,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *PreBloomAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::DependencyInfo FirstBlurDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(FirstBlurBarrier);
-
-        CurrentBuffer->pipelineBarrier2(FirstBlurDependencyInfo);
-        //CurrentBuffer.End();
-        //_VulkanContext->ExecuteComputeCommands(CurrentBuffer);
-
-        //// Record GaussBlur rendering commands
-        //// -----------------------------------
-        //CurrentBuffer = GaussBlurCommandBuffers[CurrentFrame];
-        //CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-        vk::ImageMemoryBarrier2 InitGaussBlurBarrier(
-            vk::PipelineStageFlagBits2::eTopOfPipe,
-            vk::AccessFlagBits2::eNone,
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderWrite,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eGeneral,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *GaussBlurAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::DependencyInfo GaussBlurInitialDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(InitGaussBlurBarrier);
-
-        CurrentBuffer->pipelineBarrier2(GaussBlurInitialDependencyInfo);
-
-        vk::Bool32 bHorizontal = vk::True;
-
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eCompute, GaussBlurPipeline);
-        CurrentBuffer->pushConstants(GaussBlurPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0,
-            sizeof(vk::Bool32), &bHorizontal);
-
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, GaussBlurPipelineLayout, 0,
-            GaussBlurShader->GetDescriptorSets(CurrentFrame), {});
-
-        CurrentBuffer->dispatch(WorkgroundX, WorkgroundY, 1);
-
-        vk::ImageMemoryBarrier2 CopybackSrcBarrier(
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderWrite,
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferRead,
-            vk::ImageLayout::eGeneral,
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *GaussBlurAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::ImageMemoryBarrier2 CopybackDstBarrier(
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderRead,
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferWrite,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::ImageLayout::eTransferDstOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *PreBloomAttachment->GetImage(),
-            SubresourceRange);
-
-        std::array CopybackBarriers{ CopybackSrcBarrier, CopybackDstBarrier };
-        vk::DependencyInfo CopybackDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(CopybackBarriers);
-
-        CurrentBuffer->pipelineBarrier2(CopybackDependencyInfo);
-
-        vk::ImageCopy CopybackRegion = vk::ImageCopy()
-            .setSrcSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
-            .setDstSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
-            .setExtent(vk::Extent3D(_WindowSize.width, _WindowSize.height, 1));
-
-        CurrentBuffer->copyImage(*GaussBlurAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
-            *PreBloomAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal, CopybackRegion);
-
-        vk::ImageMemoryBarrier2 ResampleBarrier(
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferWrite,
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderRead,
-            vk::ImageLayout::eTransferDstOptimal,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *PreBloomAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::ImageMemoryBarrier2 RewriteBarrier(
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::AccessFlagBits2::eTransferRead,
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderWrite,
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::ImageLayout::eGeneral,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *GaussBlurAttachment->GetImage(),
-            SubresourceRange);
-
-        std::array RestoreBarriers{ ResampleBarrier, RewriteBarrier };
-        vk::DependencyInfo RerenderDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(RestoreBarriers);
-
-        CurrentBuffer->pipelineBarrier2(RerenderDependencyInfo);
-
-        bHorizontal = vk::False;
-
-        CurrentBuffer->pushConstants(GaussBlurPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0,
-            sizeof(vk::Bool32), &bHorizontal);
-
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, GaussBlurPipelineLayout, 0,
-            GaussBlurShader->GetDescriptorSets(CurrentFrame), {});
-
-        CurrentBuffer->dispatch(WorkgroundX, WorkgroundY, 1);
-
-        vk::ImageMemoryBarrier2 BlendSampleBarrier(
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderWrite,
-            vk::PipelineStageFlagBits2::eFragmentShader,
-            vk::AccessFlagBits2::eShaderRead,
-            vk::ImageLayout::eGeneral,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            *GaussBlurAttachment->GetImage(),
-            SubresourceRange);
-
-        vk::DependencyInfo BlendSampleDepencencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(BlendSampleBarrier);
-
-        CurrentBuffer->pipelineBarrier2(BlendSampleDepencencyInfo);
-        //CurrentBuffer.End();
-
-        //_VulkanContext->ExecuteComputeCommands(CurrentBuffer);
-
-        //// Record Blend rendering commands
-        //// ------------------------------
-        //CurrentBuffer = BlendCommandBuffers[CurrentFrame];
-        //CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-        vk::ImageMemoryBarrier2 InitSwapchainBarrier(
-            vk::PipelineStageFlagBits2::eTopOfPipe,
-            vk::AccessFlagBits2::eNone,
-            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            _VulkanContext->GetSwapchainImage(ImageIndex),
-            SubresourceRange);
-
-        vk::DependencyInfo SwapchainInitialDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(InitSwapchainBarrier);
-
-        CurrentBuffer->pipelineBarrier2(SwapchainInitialDependencyInfo);
-
-        vk::RenderingInfo BlendRenderingInfo = vk::RenderingInfo()
-            .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
-            .setLayerCount(1)
-            .setColorAttachments(BlendAttachmentInfo);
-
-        CurrentBuffer->beginRendering(BlendRenderingInfo);
-        CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
-        CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlendPipeline);
-        CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlendPipelineLayout, 0, BlendShader->GetDescriptorSets(CurrentFrame), {});
-        CurrentBuffer->draw(6, 1, 0, 0);
-        CurrentBuffer->endRendering();
-
-        vk::ImageMemoryBarrier2 PresentBarrier(
-            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::PipelineStageFlagBits2::eBottomOfPipe,
-            vk::AccessFlagBits2::eNone,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageLayout::ePresentSrcKHR,
-            vk::QueueFamilyIgnored,
-            vk::QueueFamilyIgnored,
-            _VulkanContext->GetSwapchainImage(ImageIndex),
-            SubresourceRange);
-
-        vk::DependencyInfo PresentDependencyInfo = vk::DependencyInfo()
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-            .setImageMemoryBarriers(PresentBarrier);
-
-        CurrentBuffer->pipelineBarrier2(PresentDependencyInfo);
-        CurrentBuffer.End();
-
-        _VulkanContext->SubmitCommandBufferToGraphics(
-            *CurrentBuffer, *Semaphores_ImageAvailable[CurrentFrame],
-            *Semaphores_RenderFinished[CurrentFrame], *InFlightFences[CurrentFrame]);
-        _VulkanContext->PresentImage(*Semaphores_RenderFinished[CurrentFrame]);
-
+            float Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
+            if (FrameCount == 0)
+            {
+                GameArgs.Resolution = glm::vec2(_WindowSize.width, _WindowSize.height);
+                GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
+                GameArgs.Time = RealityTime;
+                GameArgs.GameTime = GameTime;
+                GameArgs.TimeDelta = static_cast<float>(_DeltaTime);
+                GameArgs.TimeRate = TimeRate;
+                LastBlackHoleRelativePos = BlackHoleArgs.BlackHoleRelativePosRs;
+                lastdir = BlackHoleArgs.InverseCamRot;
+                ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
+                BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
+                BlackHoleArgs.WorldUpView = (glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
+                BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
+                BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.00001f, 1.0f));
+                BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
+                BlackHoleArgs.BlackHoleMassSol = 0.000000001*1.49e7f;
+                BlackHoleArgs.Spin = 0.0f;
+                BlackHoleArgs.Mu = 1.0f;
+                BlackHoleArgs.AccretionRate = (2e1);
+                BlackHoleArgs.InterRadiusRs = 2.1;
+                BlackHoleArgs.OuterRadiusRs = 3 * 35.5;
+                BlackHoleArgs.ThinRs = 3 * 1.4;
+                BlackHoleArgs.Hopper = 0.06 + 0.5;
+                BlackHoleArgs.Brightmut = 1.0;
+                BlackHoleArgs.Darkmut = 1.0;
+                BlackHoleArgs.Reddening = 0.3;
+                BlackHoleArgs.Saturation = 0.5;
+                BlackHoleArgs.BlackbodyIntensityExponent = 0.5;
+                BlackHoleArgs.RedShiftColorExponent = 3.0;
+                BlackHoleArgs.RedShiftIntensityExponent = 4.0;
+                BlackHoleArgs.JetRedShiftIntensityExponent = 2.0;
+                BlackHoleArgs.JetBrightmut = 1.0;
+                BlackHoleArgs.JetSaturation = 0.0;
+                BlackHoleArgs.JetShiftMax = 3.0;
+                m_neural_menu_controller->AddThrottle("TimeRate", &TimeRate);
+                m_neural_menu_controller->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol);
+                m_neural_menu_controller->AddThrottle("Spin", &BlackHoleArgs.Spin);
+                m_neural_menu_controller->AddThrottle("Mu", &BlackHoleArgs.Mu);
+                m_neural_menu_controller->AddThrottle("AccretionRate", &BlackHoleArgs.AccretionRate);
+                m_neural_menu_controller->AddThrottle("InterRadiusLy", &BlackHoleArgs.InterRadiusRs);
+                m_neural_menu_controller->AddThrottle("OuterRadiusLy", &BlackHoleArgs.OuterRadiusRs);
+                m_neural_menu_controller->AddThrottle("ThinLy", &BlackHoleArgs.ThinRs);
+                m_neural_menu_controller->AddThrottle("Hopper", &BlackHoleArgs.Hopper);
+                m_neural_menu_controller->AddThrottle("Brightmut", &BlackHoleArgs.Brightmut);
+                m_neural_menu_controller->AddThrottle("Darkmut", &BlackHoleArgs.Darkmut);
+                m_neural_menu_controller->AddThrottle("Reddening", &BlackHoleArgs.Reddening);
+                m_neural_menu_controller->AddThrottle("Saturation", &BlackHoleArgs.Saturation, 0.1f);
+                m_neural_menu_controller->AddThrottle("BlackbodyIntensityExponent", &BlackHoleArgs.BlackbodyIntensityExponent);
+                m_neural_menu_controller->AddThrottle("RedShiftColorExponent", &BlackHoleArgs.RedShiftColorExponent);
+                m_neural_menu_controller->AddThrottle("RedShiftIntensityExponent", &BlackHoleArgs.RedShiftIntensityExponent);
+                m_neural_menu_controller->AddThrottle("JetRedShiftIntensityExponent", &BlackHoleArgs.JetRedShiftIntensityExponent);
+                m_neural_menu_controller->AddThrottle("JetBrightmut", &BlackHoleArgs.JetBrightmut);
+                m_neural_menu_controller->AddThrottle("JetSaturation", &BlackHoleArgs.JetSaturation);
+                m_neural_menu_controller->AddThrottle("JetShiftMax", &BlackHoleArgs.JetShiftMax);
+            }
+            else
+            {
+                GameArgs.Resolution = glm::vec2(_WindowSize.width, _WindowSize.height);
+                GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
+                GameArgs.Time = RealityTime;
+                GameArgs.GameTime = GameTime;
+                GameArgs.TimeDelta = static_cast<float>(_DeltaTime);
+                GameArgs.TimeRate = TimeRate;
+                LastBlackHoleRelativePos = BlackHoleArgs.BlackHoleRelativePosRs;
+                lastdir = BlackHoleArgs.InverseCamRot;
+                ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
+                BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
+                BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
+                BlackHoleArgs.WorldUpView = (glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
+                BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
+                BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.00001f, 0.0f));
+
+            }
+
+            Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
+            BlackHoleArgs.BlendWeight = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs / 0.00000465)), 0.5), 0.06)));
+            if (!(abs(glm::quat((lastdir - BlackHoleArgs.InverseCamRot)).w - 0.5) < 0.001 * _DeltaTime || abs(glm::quat((lastdir - BlackHoleArgs.InverseCamRot)).w - 0.0) < 0.001 * _DeltaTime) ||
+                glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePosRs)) > (glm::length(glm::vec3(LastBlackHoleRelativePos)) - 1.0) * 0.006 * _DeltaTime)
+            {
+                BlackHoleArgs.BlendWeight = 1.0f;
+            }
+            if (int(glfwGetTime()) < 1)
+            {
+                _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., 1., 0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0, 0, 0));
+            }//else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
+           // }
+           // _FreeCamera->ProcessMouseMovement(10, 0);
+            ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
+
+            _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
+            std::uint32_t ImageIndex = _VulkanContext->GetCurrentImageIndex();
+
+            BlendAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
+
+            std::uint32_t WorkgroundX = (_WindowSize.width + 9) / 10;
+            std::uint32_t WorkgroundY = (_WindowSize.height + 9) / 10;
+
+            // Record BlackHole rendering commands
+            // -----------------------------------
+            auto& CurrentBuffer = BlackHoleCommandBuffers[CurrentFrame];
+            CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+            vk::ImageMemoryBarrier2 InitBlackHoleBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                vk::AccessFlagBits2::eColorAttachmentWrite,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *BlackHoleAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::DependencyInfo BlackHoleInitialDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(InitBlackHoleBarrier);
+
+            CurrentBuffer->pipelineBarrier2(BlackHoleInitialDependencyInfo);
+
+            vk::RenderingInfo BlackHoleRenderingInfo = vk::RenderingInfo()
+                .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
+                .setLayerCount(1)
+                .setColorAttachments(BlackHoleAttachmentInfo);
+
+            CurrentBuffer->beginRendering(BlackHoleRenderingInfo);
+            CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
+            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlackHolePipeline);
+
+            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlackHolePipelineLayout, 0,
+                BlackHoleShader->GetDescriptorSets(CurrentFrame), {});
+            CurrentBuffer->draw(6, 1, 0, 0);
+            CurrentBuffer->endRendering();
+
+            vk::ImageMemoryBarrier2 PreCopySrcBarrier(
+                vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                vk::AccessFlagBits2::eColorAttachmentWrite,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                vk::ImageLayout::eTransferSrcOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *BlackHoleAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::ImageMemoryBarrier2 PreCopyDstBarrier(
+                vk::PipelineStageFlagBits2::eFragmentShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferWrite,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::ImageLayout::eTransferDstOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *HistoryAttachment->GetImage(),
+                SubresourceRange);
+
+            std::array PreCopyBarriers{ PreCopySrcBarrier, PreCopyDstBarrier };
+            vk::DependencyInfo PreCopyDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(PreCopyBarriers);
+
+            vk::ImageCopy HistoryCopyRegion = vk::ImageCopy()
+                .setSrcSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
+                .setDstSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
+                .setExtent(vk::Extent3D(_WindowSize.width, _WindowSize.height, 1));
+
+            CurrentBuffer->pipelineBarrier2(PreCopyDependencyInfo);
+            CurrentBuffer->copyImage(*BlackHoleAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                *HistoryAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal, HistoryCopyRegion);
+
+            vk::ImageMemoryBarrier2 PostCopySrcBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::ImageLayout::eTransferSrcOptimal,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *BlackHoleAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::ImageMemoryBarrier2 PostCopyDstBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferWrite,
+                vk::PipelineStageFlagBits2::eFragmentShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::ImageLayout::eTransferDstOptimal,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *HistoryAttachment->GetImage(),
+                SubresourceRange);
+
+            std::array PostCopyBarriers{ PostCopySrcBarrier, PostCopyDstBarrier };
+            vk::DependencyInfo PostCopyDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(PostCopyBarriers);
+
+            CurrentBuffer->pipelineBarrier2(PostCopyDependencyInfo);
+            //CurrentBuffer.End();
+
+            //_VulkanContext->ExecuteGraphicsCommands(CurrentBuffer);
+
+            //// Record PreBloom rendering commands
+            //// ----------------------------------
+            //CurrentBuffer = PreBloomCommandBuffers[CurrentFrame];
+            //CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+            vk::ImageMemoryBarrier2 InitPreBloomBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderWrite,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eGeneral,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *PreBloomAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::DependencyInfo PreBloomInitialDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(InitPreBloomBarrier);
+
+            CurrentBuffer->pipelineBarrier2(PreBloomInitialDependencyInfo);
+
+            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eCompute, PreBloomPipeline);
+            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, PreBloomPipelineLayout, 0,
+                PreBloomShader->GetDescriptorSets(CurrentFrame), {});
+
+            CurrentBuffer->dispatch(WorkgroundX, WorkgroundY, 1);
+
+            vk::ImageMemoryBarrier2 FirstBlurBarrier(
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderWrite,
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::ImageLayout::eGeneral,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *PreBloomAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::DependencyInfo FirstBlurDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(FirstBlurBarrier);
+
+            CurrentBuffer->pipelineBarrier2(FirstBlurDependencyInfo);
+            //CurrentBuffer.End();
+            //_VulkanContext->ExecuteComputeCommands(CurrentBuffer);
+
+            //// Record GaussBlur rendering commands
+            //// -----------------------------------
+            //CurrentBuffer = GaussBlurCommandBuffers[CurrentFrame];
+            //CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+            vk::ImageMemoryBarrier2 InitGaussBlurBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderWrite,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eGeneral,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *GaussBlurAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::DependencyInfo GaussBlurInitialDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(InitGaussBlurBarrier);
+
+            CurrentBuffer->pipelineBarrier2(GaussBlurInitialDependencyInfo);
+
+            vk::Bool32 bHorizontal = vk::True;
+
+            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eCompute, GaussBlurPipeline);
+            CurrentBuffer->pushConstants(GaussBlurPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0,
+                sizeof(vk::Bool32), &bHorizontal);
+
+            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, GaussBlurPipelineLayout, 0,
+                GaussBlurShader->GetDescriptorSets(CurrentFrame), {});
+
+            CurrentBuffer->dispatch(WorkgroundX, WorkgroundY, 1);
+
+            vk::ImageMemoryBarrier2 CopybackSrcBarrier(
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderWrite,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                vk::ImageLayout::eGeneral,
+                vk::ImageLayout::eTransferSrcOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *GaussBlurAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::ImageMemoryBarrier2 CopybackDstBarrier(
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferWrite,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::ImageLayout::eTransferDstOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *PreBloomAttachment->GetImage(),
+                SubresourceRange);
+
+            std::array CopybackBarriers{ CopybackSrcBarrier, CopybackDstBarrier };
+            vk::DependencyInfo CopybackDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(CopybackBarriers);
+
+            CurrentBuffer->pipelineBarrier2(CopybackDependencyInfo);
+
+            vk::ImageCopy CopybackRegion = vk::ImageCopy()
+                .setSrcSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
+                .setDstSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
+                .setExtent(vk::Extent3D(_WindowSize.width, _WindowSize.height, 1));
+
+            CurrentBuffer->copyImage(*GaussBlurAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                *PreBloomAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal, CopybackRegion);
+
+            vk::ImageMemoryBarrier2 ResampleBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferWrite,
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::ImageLayout::eTransferDstOptimal,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *PreBloomAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::ImageMemoryBarrier2 RewriteBarrier(
+                vk::PipelineStageFlagBits2::eTransfer,
+                vk::AccessFlagBits2::eTransferRead,
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderWrite,
+                vk::ImageLayout::eTransferSrcOptimal,
+                vk::ImageLayout::eGeneral,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *GaussBlurAttachment->GetImage(),
+                SubresourceRange);
+
+            std::array RestoreBarriers{ ResampleBarrier, RewriteBarrier };
+            vk::DependencyInfo RerenderDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(RestoreBarriers);
+
+            CurrentBuffer->pipelineBarrier2(RerenderDependencyInfo);
+
+            bHorizontal = vk::False;
+
+            CurrentBuffer->pushConstants(GaussBlurPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0,
+                sizeof(vk::Bool32), &bHorizontal);
+
+            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, GaussBlurPipelineLayout, 0,
+                GaussBlurShader->GetDescriptorSets(CurrentFrame), {});
+
+            CurrentBuffer->dispatch(WorkgroundX, WorkgroundY, 1);
+
+            vk::ImageMemoryBarrier2 BlendSampleBarrier(
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderWrite,
+                vk::PipelineStageFlagBits2::eFragmentShader,
+                vk::AccessFlagBits2::eShaderRead,
+                vk::ImageLayout::eGeneral,
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *GaussBlurAttachment->GetImage(),
+                SubresourceRange);
+
+            vk::DependencyInfo BlendSampleDepencencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(BlendSampleBarrier);
+
+            CurrentBuffer->pipelineBarrier2(BlendSampleDepencencyInfo);
+            //CurrentBuffer.End();
+
+            //_VulkanContext->ExecuteComputeCommands(CurrentBuffer);
+
+            //// Record Blend rendering commands
+            //// ------------------------------
+            //CurrentBuffer = BlendCommandBuffers[CurrentFrame];
+            //CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+            vk::ImageMemoryBarrier2 InitSwapchainBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                vk::AccessFlagBits2::eColorAttachmentWrite,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                _VulkanContext->GetSwapchainImage(ImageIndex),
+                SubresourceRange);
+
+            vk::DependencyInfo SwapchainInitialDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(InitSwapchainBarrier);
+
+            CurrentBuffer->pipelineBarrier2(SwapchainInitialDependencyInfo);
+
+            vk::RenderingInfo BlendRenderingInfo = vk::RenderingInfo()
+                .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
+                .setLayerCount(1)
+                .setColorAttachments(BlendAttachmentInfo);
+
+            CurrentBuffer->beginRendering(BlendRenderingInfo);
+            CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
+            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlendPipeline);
+            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlendPipelineLayout, 0, BlendShader->GetDescriptorSets(CurrentFrame), {});
+            CurrentBuffer->draw(6, 1, 0, 0);
+            CurrentBuffer->endRendering();
+            _uiRenderer->Render(*CurrentBuffer);
+
+            vk::ImageMemoryBarrier2 PresentBarrier(
+                vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                vk::AccessFlagBits2::eColorAttachmentWrite,
+                vk::PipelineStageFlagBits2::eBottomOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                vk::ImageLayout::ePresentSrcKHR,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                _VulkanContext->GetSwapchainImage(ImageIndex),
+                SubresourceRange);
+
+            vk::DependencyInfo PresentDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(PresentBarrier);
+
+            CurrentBuffer->pipelineBarrier2(PresentDependencyInfo);
+            CurrentBuffer.End();
+
+            _VulkanContext->SubmitCommandBufferToGraphics(
+                *CurrentBuffer, *Semaphores_ImageAvailable[CurrentFrame],
+                *Semaphores_RenderFinished[CurrentFrame], *InFlightFences[CurrentFrame]);
+            _VulkanContext->PresentImage(*Semaphores_RenderFinished[CurrentFrame]);
+        }
         CurrentFrame = (CurrentFrame + 1) % Config::Graphics::kMaxFrameInFlight;
 
         ProcessInput();
-        glfwPollEvents();
-        ShowTitleFps();
         update();
     }
 
@@ -787,6 +939,11 @@ void FApplication::ExecuteMainRender()
 
 void FApplication::Terminate()
 {
+    if (_uiRenderer)
+    {
+        _uiRenderer->Shutdown();
+        _uiRenderer.reset();
+    }
     _VulkanContext->WaitIdle();
     glfwDestroyWindow(_Window);
     glfwTerminate();
@@ -854,7 +1011,7 @@ bool FApplication::InitializeWindow()
         return false;
     }
 
-    _FreeCamera = std::make_unique<SysSpa::FCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 0.05, 2.5, 60.0);
+    _FreeCamera = std::make_unique<SysSpa::FCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 0.2, 2.5, 60.0);
     _FreeCamera->SetCameraMode(true);
     return true;
 }
@@ -863,113 +1020,319 @@ void FApplication::InitializeInputCallbacks()
 {
     glfwSetWindowUserPointer(_Window, this);
     glfwSetFramebufferSizeCallback(_Window, &FApplication::FramebufferSizeCallback);
-    glfwSetScrollCallback(_Window, nullptr);
+
     glfwSetScrollCallback(_Window, &FApplication::ScrollCallback);
+    glfwSetMouseButtonCallback(_Window, &FApplication::MouseButtonCallback);
+    glfwSetCursorPosCallback(_Window, &FApplication::CursorPosCallback);
+    glfwSetKeyCallback(_Window, &FApplication::KeyCallback);
+    glfwSetCharCallback(_Window, &FApplication::CharCallback);
 }
 
-void FApplication::ShowTitleFps()
+
+void FApplication::update()
 {
-    static double CurrentTime = 0.0;
-    static double PreviousTime = glfwGetTime();
-    static double LastFrameTime = 0.0;
-    static int    FrameCount = 0;
+
+    _FreeCamera->ProcessTimeEvolution(_DeltaTime);
 
     CurrentTime = glfwGetTime();
     _DeltaTime = CurrentTime - LastFrameTime;
+    RealityTime += _DeltaTime;;
+    GameTime += TimeRate * _DeltaTime;
     LastFrameTime = CurrentTime;
-    ++FrameCount;
+    ++FramePerSec;
+    FrameCount++;
     if (CurrentTime - PreviousTime >= 1.0)
     {
-        glfwSetWindowTitle(_Window, (std::string(_WindowTitle) + " " + std::to_string(FrameCount)).c_str());
-        FrameCount = 0;
+        glfwSetWindowTitle(_Window, (std::string(_WindowTitle) + " " + std::to_string(FramePerSec)).c_str());
+        FramePerSec = 0;
         PreviousTime = CurrentTime;
     }
 }
 
 void FApplication::ProcessInput()
 {
-    if (glfwGetKey(_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    // -----------------------------------------------------------
+    // 1. 获取状态 & UI 阻挡判断
+    // -----------------------------------------------------------
+    ImGuiIO& io = ImGui::GetIO();
+    auto& ui_ctx = Npgs::System::UI::UIContext::Get();
+
+    bool bMouseBlocked = io.WantCaptureMouse;
+    bool bKeyboardBlocked = io.WantCaptureKeyboard || (ui_ctx.m_focused_element != nullptr);
+
+    // -----------------------------------------------------------
+    // 2. 处理鼠标旋转 (带冷却机制)
+    // -----------------------------------------------------------
+    double currX, currY;
+    glfwGetCursorPos(_Window, &currX, &currY);
+
+    // 检测左键状态
+    bool isLeftDown = glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    static bool wasLeftDown = false; // 上一帧状态
+
+    // [新增] 冷却计数器：防止松开鼠标后的瞬间再次误触或跳变
+    static int s_FrameCooldown = 0;
+    if (s_FrameCooldown > 0)
     {
-        glfwSetWindowShouldClose(_Window, GLFW_TRUE);
+        s_FrameCooldown--;
     }
 
-    if (glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+    // [Case A]: 刚按下左键 (Rising Edge)
+    if (isLeftDown && !wasLeftDown)
     {
-        glfwSetCursorPosCallback(_Window, &FApplication::CursorPosCallback);
-        glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        // 判定条件：
+        // 1. UI 没有捕获鼠标
+        // 2. 冷却时间已过 (s_FrameCooldown == 0)
+        if (!bMouseBlocked && s_FrameCooldown == 0)
+        {
+            _bLeftMousePressedInWorld = true;
+            _DragStartX = currX;
+            _DragStartY = currY;
+
+            _bIsRotatingCamera = true;
+            glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+            // 标记 FirstMouse，让 Case C 在下一帧重置坐标基准
+            _bFirstMouse = true;
+        }
+    }
+    // [Case B]: 刚松开左键 (Falling Edge)
+    else if (!isLeftDown && wasLeftDown)
+    {
+        if (_bLeftMousePressedInWorld)
+        {
+            _bLeftMousePressedInWorld = false;
+            _bIsRotatingCamera = false;
+
+            glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+            // 归位光标
+            glfwSetCursorPos(_Window, _DragStartX, _DragStartY);
+            io.MousePos = ImVec2((float)_DragStartX, (float)_DragStartY);
+
+            // [核心修改] 强制冷却 3 帧
+            // 这期间即便 isLeftDown 为 true (极快连点) 或数据波动，也不会进入 Case A
+            s_FrameCooldown = 3;
+        }
+    }
+    // [Case C]: 持续按住并拖动
+    // 只有在冷却完毕，且确实处于旋转模式下才执行
+    else if (_bLeftMousePressedInWorld && _bIsRotatingCamera && s_FrameCooldown == 0)
+    {
+        if (_bFirstMouse)
+        {
+            // 模式切换后的第一帧数据，仅用于重置基准，不移动
+            // 此时 currX 是 DISABLED 模式下的新坐标
+            _LastX = currX;
+            _LastY = currY;
+            _bFirstMouse = false;
+        }
+        else
+        {
+            double deltaX = currX - _LastX;
+            double deltaY = _LastY - currY;
+
+            // 立即更新基准
+            _LastX = currX;
+            _LastY = currY;
+
+            if (deltaX != 0.0 || deltaY != 0.0)
+            {
+                _FreeCamera->ProcessMouseMovement(deltaX, deltaY);
+            }
+        }
     }
 
-    if (glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE)
+    // 更新按键历史
+    wasLeftDown = isLeftDown;
+
+    // -----------------------------------------------------------
+    // 3. 处理滚轮缩放 (消费 Buffer)
+    // -----------------------------------------------------------
+    if (_buffered_scroll_y != 0.0f)
     {
-        glfwSetCursorPosCallback(_Window, nullptr);
-        glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        _bFirstMouse = true;
+        if (!bMouseBlocked)
+        {
+            _FreeCamera->ProcessMouseScroll(_buffered_scroll_y);
+        }
+        _buffered_scroll_y = 0.0f;
     }
 
-    if (glfwGetKey(_Window, GLFW_KEY_W) == GLFW_PRESS)
-        //_FreeCamera->SetFov(glm::degrees(2 * atan(tan(0.5 * glm::radians(_FreeCamera->GetFov())) * pow(2.0f, _DeltaTime))));
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kForward, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS)
-        // _FreeCamera->SetFov(glm::degrees(2 * atan(tan(0.5 * glm::radians(_FreeCamera->GetFov())) * pow(2.0f, -_DeltaTime))));
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kBack, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_A) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kLeft, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_D) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRight, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_R) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kUp, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_F) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kDown, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_Q) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollLeft, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_E) == GLFW_PRESS)
-        _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollRight, _DeltaTime);
-    if (glfwGetKey(_Window, GLFW_KEY_T) == GLFW_PRESS)
-        _FreeCamera->ProcessModeChange();
+    // -----------------------------------------------------------
+    // 4. 处理键盘移动
+    // -----------------------------------------------------------
+    if (!bKeyboardBlocked)
+    {
+        // 模式切换
+        static bool wasTDown = false;
+        bool isTDown = glfwGetKey(_Window, GLFW_KEY_T) == GLFW_PRESS;
+        if (isTDown && !wasTDown)
+        {
+            _FreeCamera->ProcessModeChange();
+        }
+        wasTDown = isTDown;
+
+
+        if (glfwGetKey(_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        {
+            glfwSetWindowShouldClose(_Window, GLFW_TRUE);
+        }
+
+        if (glfwGetKey(_Window, GLFW_KEY_W) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kForward);
+
+        if (glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kBack);
+
+        if (glfwGetKey(_Window, GLFW_KEY_A) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kLeft);
+
+        if (glfwGetKey(_Window, GLFW_KEY_D) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRight);
+
+        if (glfwGetKey(_Window, GLFW_KEY_R) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kUp);
+
+        if (glfwGetKey(_Window, GLFW_KEY_F) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kDown);
+
+        if (glfwGetKey(_Window, GLFW_KEY_Q) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollLeft);
+
+        if (glfwGetKey(_Window, GLFW_KEY_E) == GLFW_PRESS)
+            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollRight);
+    }
+}
+void FApplication::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(window));
+    if (App)
+    {
+        App->HandleMouseButton(button, action, mods);
+    }
+}
+
+void FApplication::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(window));
+    if (App)
+    {
+        App->HandleKey(key, scancode, action, mods);
+    }
+}
+
+void FApplication::CharCallback(GLFWwindow* window, unsigned int codepoint)
+{
+    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(window));
+    if (App)
+    {
+        App->HandleChar(codepoint);
+    }
 }
 
 void FApplication::FramebufferSizeCallback(GLFWwindow* Window, int Width, int Height)
 {
     auto* App = reinterpret_cast<FApplication*>(glfwGetWindowUserPointer(Window));
-
-    if (Width == 0 || Height == 0)
-    {
-        return;
-    }
-
-    App->_WindowSize.width = Width;
-    App->_WindowSize.height = Height;
-    App->_VulkanContext->WaitIdle();
-    App->_VulkanContext->RecreateSwapchain();
+    if (App) App->HandleFramebufferSize(Width, Height);
 }
-void FApplication::update()
-{
-    _FreeCamera->ProcessTimeEvolution(_DeltaTime);
-}
-void FApplication::CursorPosCallback(GLFWwindow* Window, double PosX, double PosY)
-{
-    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(Window));
 
-    if (App->_bFirstMouse)
+void FApplication::CursorPosCallback(GLFWwindow* window, double posX, double posY)
+{
+    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(window));
+    if (App)
     {
-        App->_LastX = PosX;
-        App->_LastY = PosY;
-        App->_bFirstMouse = false;
+        App->HandleCursorPos(posX, posY);
     }
-
-    double OffsetX = PosX - App->_LastX;
-    double OffsetY = App->_LastY - PosY;
-    App->_LastX = PosX;
-    App->_LastY = PosY;
-    App->_FreeCamera->ProcessMouseMovement(OffsetX, OffsetY);
-
-    //   std::cout << OffsetX / App->_DeltaTime << "    " << OffsetY / App->_DeltaTime << "\n";
 }
 
 void FApplication::ScrollCallback(GLFWwindow* Window, double OffsetX, double OffsetY)
 {
-    auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(Window));
-    App->_FreeCamera->ProcessMouseScroll(OffsetY);
+    auto* App = reinterpret_cast<FApplication*>(glfwGetWindowUserPointer(Window));
+    if (App) App->HandleScroll(OffsetX, OffsetY);
 }
 
+
+// Application.cpp
+
+void FApplication::HandleMouseButton(int button, int action, int mods)
+{
+
+}
+
+void FApplication::HandleKey(int key, int scancode, int action, int mods)
+{
+
+}
+
+void FApplication::HandleChar(unsigned int codepoint)
+{
+
+}
+
+void FApplication::HandleFramebufferSize(int Width, int Height)
+{
+    if (Width == 0 || Height == 0) return;
+
+    _WindowSize.width = Width;
+    _WindowSize.height = Height;
+    _VulkanContext->WaitIdle();
+    _VulkanContext->RecreateSwapchain();
+
+    // 可以在这里处理其他需要感知窗口大小变化的逻辑（如 UI 布局更新）
+}
+// Application.cpp
+
+void FApplication::HandleCursorPos(double posX, double posY)
+{
+
+}
+void FApplication::HandleScroll(double OffsetX, double OffsetY)
+{
+    _buffered_scroll_y += (float)OffsetY;
+}
+// 添加调试 UI 渲染函数
+void FApplication::RenderDebugUI()
+{
+    // 显示帧率信息
+    ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+
+    if (ImGui::Begin("Black Hole Renderer Info"))
+    {
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+        ImGui::Text("Window Size: %d x %d", _WindowSize.width, _WindowSize.height);
+        ImGui::Separator();
+
+        // 显示相机信息
+        auto cameraPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
+        ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
+            cameraPos.x, cameraPos.y, cameraPos.z);
+        ImGui::Text("Camera FOV: %.1f", _FreeCamera->GetCameraZoom());
+
+        ImGui::Separator();
+        // 显示黑洞参数
+        ImGui::Text("Black Hole Time: %.2e ", GameTime);
+        ImGui::Text("Black Hole Mass: %.2e Solar Masses", BlackHoleArgs.BlackHoleMassSol);
+        ImGui::Text("Accretion Rate: %.2e", BlackHoleArgs.AccretionRate);
+        ImGui::Text("Blend Weight: %.3f", BlackHoleArgs.BlendWeight);
+    }
+    ImGui::End();
+
+    // 显示控制说明
+    ImGui::SetNextWindowPos(ImVec2(20, 240), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+
+    if (ImGui::Begin("Controls"))
+    {
+        ImGui::Text("WASD: Move Camera");
+        ImGui::Text("RF: Move Up/Down");
+        ImGui::Text("QE: Roll Camera");
+        ImGui::Text("Mouse + Left Click: Rotate Camera");
+        ImGui::Text("Mouse Wheel: Zoom");
+        ImGui::Text("T: Toggle Camera Mode");
+        ImGui::Text("ESC: Exit");
+    }
+    ImGui::End();
+}
 _NPGS_END

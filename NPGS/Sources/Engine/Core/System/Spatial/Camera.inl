@@ -15,7 +15,7 @@ NPGS_INLINE void FCamera::ProcessMouseScroll(double OffsetY)
     }
     else
     {
-        _TargetDistanceToOrbitalCenter *= pow(1.2,-OffsetY);
+        _ObjectivetTargetDistanceToOrbitalCenter *= pow(1.2,-OffsetY);
        
     }
 }
@@ -27,17 +27,13 @@ NPGS_INLINE void FCamera::SetOrientation(const glm::quat& Orientation)
 NPGS_INLINE void FCamera::SetCameraMode(bool bIsOrbiting) {
     _bIsOrbiting = bIsOrbiting;
 }
-NPGS_INLINE void FCamera::SetOrbitMode(bool bAllowCrossRotZenith)
-{
-    _bAllowCrossZenith = bAllowCrossRotZenith;
-}
 NPGS_INLINE void FCamera::SetTargetOrbitCenter(glm::vec3 Center)
 {
-    _TargetOrbitalCenter = Center;
+    _ObjectivetOrbitalCenter = Center;
 }
 NPGS_INLINE void FCamera::SetTargetOrbitAxis(glm::vec3 Axis)
 {
-    _TargetAxisDir = glm::normalize(Axis);
+    _ObjectivetAxisDir = glm::normalize(Axis);
 }
 NPGS_INLINE void FCamera::SetFov(float Fov)
 {

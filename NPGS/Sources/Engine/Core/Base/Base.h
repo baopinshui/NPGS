@@ -50,6 +50,8 @@
 #define _RUNTIME_END }
 #define _SPATIAL_BEGIN namespace Spatial {
 #define _SPATIAL_END }
+#define _UI_BEGIN namespace UI {
+#define _UI_END }
 #define _SYSTEM_BEGIN namespace System {
 #define _SYSTEM_END }
 #define _THREAD_BEGIN namespace Thread {

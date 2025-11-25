@@ -44,7 +44,7 @@ public:
 
     ~FCamera() = default;
 
-    void ProcessKeyboard(EMovement Direction, double DeltaTime);
+    void ProcessKeyboard(EMovement Direction);
     void ProcessMouseMovement(double OffsetX, double OffsetY);
     void ProcessMouseScroll(double OffsetY);
     void ProcessOrbital(double OffsetX, double OffsetY);
@@ -68,6 +68,7 @@ public:
 private:
     void ProcessRotation(float Yaw, float Pitch, float Roll);
     void UpdateVectors();
+    glm::quat CalculateToAxisRotate();
 
 private:
     glm::quat _Orientation;
@@ -76,15 +77,17 @@ private:
     glm::vec3 _Up;
     glm::vec3 _Right;
     glm::vec3 _WorldUp;
+    glm::vec3 _InputTranslationVector{ 0.0f };
+    float     _InputRollValue{ 0.0f };
 
-    glm::vec3 _AxisDir;//绕转轴方向
-    glm::vec3 _TargetAxisDir;//绕转轴方向
+    glm::vec3 _AxisDir;
+    glm::vec3 _ObjectivetAxisDir;
     glm::vec3 _OrbitalCenter;
-    glm::vec3 _TargetOrbitalCenter;
+    glm::vec3 _ObjectivetOrbitalCenter;
     float     _Theta;
     float     _Phi;
     float     _DistanceToOrbitalCenter;
-    float     _TargetDistanceToOrbitalCenter;
+    float     _ObjectivetTargetDistanceToOrbitalCenter;
 
     float     _RotationSmoothCoefficient;
     float     _OrbitDistanceRotationSmoothCoefficient;
@@ -93,13 +96,12 @@ private:
     float     _Sensitivity;
     float     _Speed;
     float     _Zoom;
-    float     _TargetOffsetX;
-    float     _TargetOffsetY;
+    float     _ObjectivetOffsetX;
+    float     _ObjectivetOffsetY;
     float     _OffsetX;
     float     _OffsetY;
     float     _TimeSinceModeChange;
     bool      _bIsOrbiting;
-    bool      _bAllowCrossZenith;
 };
 
 _SPATIAL_END
