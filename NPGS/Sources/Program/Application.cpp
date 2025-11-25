@@ -64,6 +64,8 @@ void FApplication::ExecuteMainRender()
 
     // 1. 设置自定义主题 (可以在这里或者在构造函数中完成)
     auto& theme = UI::UIContext::Get().m_theme;
+
+    auto& ctx = UI::UIContext::Get();
     //theme.color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #BEBE8F
     //theme.color_panel_bg = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
 
@@ -81,6 +83,7 @@ void FApplication::ExecuteMainRender()
     m_beam_button = std::make_shared<UI::PulsarButton>("beam", "发送戴森光束", "☼", "ENERGY", &m_beam_energy, "J", true);
     m_beam_button->m_rect.x = 50;
     m_beam_button->m_rect.y = 400;
+    m_beam_button->m_font = ctx.m_font_large;
     m_beam_button->on_click_callback = [this]()
     {
         m_is_beam_button_active = !m_is_beam_button_active;
@@ -100,6 +103,7 @@ void FApplication::ExecuteMainRender()
     m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", "☢", "MASS", &m_rkkv_mass, "kg", true);
     m_rkkv_button->m_rect.x = 50;
     m_rkkv_button->m_rect.y = 460;
+    m_rkkv_button->m_font = ctx.m_font_large;
     m_rkkv_button->on_click_callback = [this]()
     {
         m_is_rkkv_button_active = !m_is_rkkv_button_active;

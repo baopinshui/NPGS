@@ -203,7 +203,7 @@ void PulsarButton::Draw(ImDrawList* draw_list)
         ImVec2 p_min = { center.x - 20 * icon_scale, center.y - 20 * icon_scale };
         ImVec2 p_max = { center.x + 20 * icon_scale, center.y + 20 * icon_scale };
 
-        draw_list->AddRectFilled(p_min, p_max, GetColorWithAlpha({ 0,0,0,0.5f }, icon_scale));
+        draw_list->AddRectFilled(p_min, p_max, GetColorWithAlpha({ 0,0,0,0.6f }, icon_scale));
 
         ImVec2 icon_size = ImGui::CalcTextSize(m_icon_char.c_str());
         draw_list->AddText(
@@ -213,7 +213,7 @@ void PulsarButton::Draw(ImDrawList* draw_list)
         );
         float corner_len = 8.0f;
         float thickness = 2.0f;
-        float half_t = -thickness * 0.5f; // 计算半宽，用于内缩偏移
+        float half_t = thickness * 0.5f; // 计算半宽，用于内缩偏移
         ImU32 border_col = GetColorWithAlpha(m_hovered && !m_is_active ? theme.color_accent : theme.color_border, icon_scale);
 
         // 左上 (Top Left) -> 向右(+), 向下(+)

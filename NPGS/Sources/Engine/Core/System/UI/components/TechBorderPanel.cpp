@@ -12,11 +12,9 @@ void TechBorderPanel::Draw(ImDrawList* dl)
     if (!m_visible || m_alpha <= 0.01f) return;
 
     const auto& theme = UIContext::Get().m_theme;
-    ImVec4 bg_color = m_bg_color.value_or(theme.color_panel_bg);
 
     // [视觉优化] 背景增加一点深度，稍微暗一点
-    ImVec4 deep_bg = bg_color;
-    deep_bg.w *= 0.8f;
+    ImVec4 deep_bg = {0.0f,0.0f,0.0f,0.6f};
 
     // 1. 绘制背景
     dl->AddRectFilled(
@@ -50,7 +48,7 @@ void TechBorderPanel::Draw(ImDrawList* dl)
 
     float corner_len = 10.0f;
     float thickness = m_thickness; // 建议设为 1.0f 或 2.0f，不要有小数如 1.5
-    float half_t = -thickness * 0.5f; // 计算半宽，用于内缩偏移
+    float half_t = thickness * 0.5f; // 计算半宽，用于内缩偏移
     ImU32 col;
     if (!visual_hover && m_rect.w < 100.0f)
         col = GetColorWithAlpha(theme.color_border, 1.0f);

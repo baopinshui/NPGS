@@ -90,7 +90,7 @@ void NeuralButton::Draw(ImDrawList* dl)
 
     // 这里的偏移量 (offset) 决定是内描边还是外描边。
     // 为了不画出边界，我们向内缩半个像素或一个像素
-    float off = +0.5* thick;
+    float off = 0.5* thick;
 
     TechUtils::DrawCorner(dl, ImVec2(p_min.x + off, p_min.y + off), corner_len, corner_len, thick, border_col);
     TechUtils::DrawCorner(dl, ImVec2(p_max.x - off, p_min.y + off), -corner_len, corner_len, thick, border_col);
