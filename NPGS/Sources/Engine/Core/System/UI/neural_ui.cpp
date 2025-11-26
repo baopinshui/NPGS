@@ -12,12 +12,14 @@ NeuralMenuController::NeuralMenuController()
 {
     // 1. Root Container (The Border Panel)
     // [视觉调整] 稍微加大初始尺寸，确保展开后看起来更宽敞
-    m_expanded_size = { 340, 300 };
+    m_expanded_size = {1920, 1000 };
 
     root_panel = std::make_shared<TechBorderPanel>();
     root_panel->m_rect = { 20, 20, m_collapsed_size.x, m_collapsed_size.y };
     // [核心修改] 增加边框厚度和角标长度，使其看起来更硬朗
     root_panel->m_thickness = 2.0f;
+
+    root_panel->m_use_glass_effect = true;
 
     // 2. Background Particles
     bg_view = std::make_shared<NeuralParticleView>(80);

@@ -10,18 +10,44 @@ TechBorderPanel::TechBorderPanel()
 void TechBorderPanel::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
-
     const auto& theme = UIContext::Get().m_theme;
+    auto& ctx = UIContext::Get(); // 获取上下文以访问纹理和屏幕尺寸
+
+    // -----------------------------------------------------------
+    // 1. 绘制背景 (集成毛玻璃逻辑)
+    // -----------------------------------------------------------
+    ImVec2 ap_min = m_absolute_pos;
+    ImVec2 ap_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
+
+    ImTextureID blur_tex = ctx.m_scene_blur_texture;
+
+    if (m_use_glass_effect && blur_tex != 0)
+    {
+        // 计算屏幕空间 UV
+        ImVec2 uv_min = ImVec2(ap_min.x / ctx.m_display_size.x, ap_min.y / ctx.m_display_size.y);
+        ImVec2 uv_max = ImVec2(ap_max.x / ctx.m_display_size.x, ap_max.y / ctx.m_display_size.y);
+
+        // 绘制模糊纹理背景
+        dl->AddImage(
+            blur_tex,
+            ap_min, ap_max,
+            uv_min, uv_max // 使用 Panel 定义的 tint
+        );
+
+    }
 
     // [视觉优化] 背景增加一点深度，稍微暗一点
-    ImVec4 deep_bg = {0.0f,0.0f,0.0f,0.6f};
+    ImVec4 deep_bg = { 0.0f,0.0f,0.0f,0.6f };
 
     // 1. 绘制背景
-    dl->AddRectFilled(
-        m_absolute_pos,
-        ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
-        GetColorWithAlpha(deep_bg, 1.0f)
-    );
+    //dl->AddRectFilled(
+    //    m_absolute_pos,
+    //    ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
+    //    GetColorWithAlpha(deep_bg, 1.0f)
+    //);
+
+
+
 
 
     // 3. 绘制子元素 (Clip Rect)

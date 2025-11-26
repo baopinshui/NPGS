@@ -228,6 +228,30 @@ void Panel::Draw(ImDrawList* draw_list)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
 
+    // 1. 获取屏幕尺寸用于计算 UV
+    ImVec2 display_sz = UIContext::Get().m_display_size;
+
+    // 2. 计算矩形范围
+    ImVec2 p_min = m_absolute_pos;
+    ImVec2 p_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
+
+    // --- [核心逻辑] 绘制毛玻璃背景 ---
+    ImTextureID blur_tex = UIContext::Get().m_scene_blur_texture;
+
+    if (m_use_glass_effect && blur_tex != 0)
+    {
+        // 计算 UV：将 UI 坐标映射到 [0,1] 范围
+        // 这样纹理就像是“贴”在屏幕后面不动，而 Panel 只是一个窗口
+        ImVec2 uv_min = ImVec2(p_min.x / display_sz.x, p_min.y / display_sz.y);
+        ImVec2 uv_max = ImVec2(p_max.x / display_sz.x, p_max.y / display_sz.y);
+        // 绘制模糊纹理
+        draw_list->AddImage(
+            blur_tex,
+            p_min, p_max,
+            uv_min, uv_max
+        );
+
+    }
     ImVec4 bg = m_bg_color.value_or(UIContext::Get().m_theme.color_panel_bg);
 
     draw_list->AddRectFilled(
@@ -238,7 +262,6 @@ void Panel::Draw(ImDrawList* draw_list)
 
     UIElement::Draw(draw_list);
 }
-
 // --- Image 实现 ---
 //void Image::Draw(ImDrawList* draw_list)
 //{

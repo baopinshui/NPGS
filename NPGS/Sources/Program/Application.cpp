@@ -19,7 +19,6 @@
 #include "Engine/Utils/Logger.h"
 #include "Engine/Utils/TooolfuncForStarMap.h"
 #include "DataStructures.h"
-
 _NPGS_BEGIN
 
 namespace Art = Runtime::Asset;
@@ -319,6 +318,25 @@ void FApplication::ExecuteMainRender()
         ImageInfos.push_back(BlackHoleImageInfo);
         ImageInfos.push_back(GaussBlurImageInfoForSample);
         BlendShader->WriteSharedDescriptors(1, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+
+        if (_uiRenderer)
+        {
+            // 1. 将 Vulkan 的 Image 和 Sampler 打包成 ImGui 可识别的 TextureID
+            ImTextureID blurTexID = _uiRenderer->AddTexture(
+                *FramebufferSampler,                    // 使用现有的采样器
+                *GaussBlurAttachment->GetImageView(),   // 获取高斯模糊后的图像视图
+                vk::ImageLayout::eShaderReadOnlyOptimal // 布局必须是 ShaderReadOnly
+            );
+
+            // 2. 更新到 UIContext 中，这样 Panel 组件就能画出来了
+            auto& ctx = Npgs::System::UI::UIContext::Get();
+            ctx.m_scene_blur_texture = blurTexID;
+
+            // 更新屏幕尺寸信息，用于计算 UV
+            ctx.m_display_size = ImVec2((float)_WindowSize.width, (float)_WindowSize.height);
+        }
+
     };
 
     CreatePostDescriptors();
@@ -461,6 +479,8 @@ void FApplication::ExecuteMainRender()
         glfwPollEvents();
         // 开始 UI 帧
         _uiRenderer->BeginFrame();
+        auto& ui_ctx = Npgs::System::UI::UIContext::Get();
+        ui_ctx.m_display_size = ImVec2((float)_WindowSize.width, (float)_WindowSize.height);
 
         // =========================================================================
         // [修改] 游戏主循环中的 UI 处理

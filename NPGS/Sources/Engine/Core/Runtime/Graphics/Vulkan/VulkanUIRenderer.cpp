@@ -263,7 +263,16 @@ void FVulkanUIRenderer::CleanupDescriptorPool()
         _descriptorPool = vk::DescriptorPool();
     }
 }
-
+ImTextureID FVulkanUIRenderer::AddTexture(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout layout)
+{
+    // ImGui_ImplVulkan_AddTexture 需要 VkSampler, VkImageView, VkImageLayout (C类型)
+    // vk::Sampler 等 C++ 包装器可以通过 static_cast 转换为对应的 C 类型句柄
+    return (ImTextureID)ImGui_ImplVulkan_AddTexture(
+        static_cast<VkSampler>(sampler),
+        static_cast<VkImageView>(imageView),
+        static_cast<VkImageLayout>(layout)
+    );
+}
 _GRAPHICS_END
 _RUNTIME_END
 _NPGS_END

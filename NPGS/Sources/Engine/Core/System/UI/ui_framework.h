@@ -52,6 +52,16 @@ public:
     ImFont* m_font_bold = nullptr;
     ImFont* m_font_large = nullptr;
     ImFont* m_font_small = nullptr;
+
+
+
+    ImTextureID m_scene_blur_texture = 0;
+
+    // [新增] 屏幕尺寸，用于计算 UV
+    ImVec2 m_display_size = { 1920, 1080 };
+
+
+
     // API
     void SetFocus(UIElement* element);
     void ClearFocus();
@@ -179,6 +189,9 @@ public:
     // 支持直接覆盖颜色，也支持使用 Theme 默认颜色
     std::optional<ImVec4> m_bg_color;
 
+    bool m_use_glass_effect = false;
+
+    //ImVec4 m_glass_tint = { 0.6f, 0.6f, 0.6f, 1.0f };
     void Draw(ImDrawList* draw_list) override;
 };
 

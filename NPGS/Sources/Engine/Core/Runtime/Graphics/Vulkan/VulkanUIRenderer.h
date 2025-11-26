@@ -27,6 +27,7 @@ public:
 
     void Resize(uint32_t width, uint32_t height);
 
+    ImTextureID AddTexture(vk::Sampler sampler, vk::ImageView imageView, vk::ImageLayout layout);
 private:
     void CreateDescriptorPool();
     void CleanupDescriptorPool();
