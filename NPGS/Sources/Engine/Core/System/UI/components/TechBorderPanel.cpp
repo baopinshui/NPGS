@@ -40,11 +40,11 @@ void TechBorderPanel::Draw(ImDrawList* dl)
     ImVec4 deep_bg = { 0.0f,0.0f,0.0f,0.6f };
 
     // 1. 绘制背景
-    //dl->AddRectFilled(
-    //    m_absolute_pos,
-    //    ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
-    //    GetColorWithAlpha(deep_bg, 1.0f)
-    //);
+    dl->AddRectFilled(
+        m_absolute_pos,
+        ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
+        GetColorWithAlpha(deep_bg, 1.0f)
+    );
 
 
 

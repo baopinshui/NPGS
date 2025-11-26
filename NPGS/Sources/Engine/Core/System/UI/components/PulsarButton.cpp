@@ -203,6 +203,29 @@ void PulsarButton::Draw(ImDrawList* draw_list)
         ImVec2 p_min = { center.x - 20 * icon_scale, center.y - 20 * icon_scale };
         ImVec2 p_max = { center.x + 20 * icon_scale, center.y + 20 * icon_scale };
 
+
+
+
+        ImVec2 display_sz = UIContext::Get().m_display_size;
+        ImTextureID blur_tex = UIContext::Get().m_scene_blur_texture;
+
+        if (m_use_glass_effect && blur_tex != 0)
+        {
+            // 计算 UV：将 UI 坐标映射到 [0,1] 范围
+            // 这样纹理就像是“贴”在屏幕后面不动，而 Panel 只是一个窗口
+            ImVec2 uv_min = ImVec2(p_min.x / display_sz.x, p_min.y / display_sz.y);
+            ImVec2 uv_max = ImVec2(p_max.x / display_sz.x, p_max.y / display_sz.y);
+            // 绘制模糊纹理
+            draw_list->AddImage(
+                blur_tex,
+                p_min, p_max,
+                uv_min, uv_max
+            );
+
+        }
+
+
+
         draw_list->AddRectFilled(p_min, p_max, GetColorWithAlpha({ 0,0,0,0.6f }, icon_scale));
 
         ImVec2 icon_size = ImGui::CalcTextSize(m_icon_char.c_str());

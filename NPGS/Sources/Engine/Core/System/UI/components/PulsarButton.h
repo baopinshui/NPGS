@@ -54,7 +54,7 @@ private:
     std::string m_stat_label;
     std::string m_stat_unit;
     bool m_is_editable;
-
+    bool m_use_glass_effect = true;
     // 子控件
     std::shared_ptr<InputField> m_input_field;
 

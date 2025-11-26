@@ -122,6 +122,10 @@ void FApplication::ExecuteMainRender()
     std::unique_ptr<Grt::FColorAttachment> BlackHoleAttachment;
     std::unique_ptr<Grt::FColorAttachment> PreBloomAttachment;
     std::unique_ptr<Grt::FColorAttachment> GaussBlurAttachment;
+    // [新增] 用于存储当前帧无UI的纯净画面 (Full Size)
+    std::unique_ptr<Grt::FColorAttachment> SceneColorAttachment;
+    // [新增] 用于 UI 背景模糊的最终图 (Half Size)
+    std::unique_ptr<Grt::FColorAttachment> UIBlurAttachment;
 
     vk::RenderingAttachmentInfo BlackHoleAttachmentInfo = vk::RenderingAttachmentInfo()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
@@ -142,12 +146,10 @@ void FApplication::ExecuteMainRender()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
-
-    vk::RenderingAttachmentInfo BlendAttachmentInfo = vk::RenderingAttachmentInfo()
+    vk::RenderingAttachmentInfo SceneColorAttachmentInfo = vk::RenderingAttachmentInfo()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
-
     auto CreateFramebuffers = [&]() -> void
     {
         _VulkanContext->WaitIdle();
@@ -171,10 +173,31 @@ void FApplication::ExecuteMainRender()
             vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage |
             vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst);
 
+
+        SceneColorAttachment = std::make_unique<Grt::FColorAttachment>(
+            vk::Format::eR8G8B8A8Unorm, _WindowSize, 1, vk::SampleCountFlagBits::e1,
+            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
+            vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
+        );
+
+        // [新增] 2. UI 模糊图 (Half Size)
+        // 只需要 TransferDst (接收Blit) 和 Sampled (被UI采样)
+        vk::Extent2D halfSize = { _WindowSize.width / 2, _WindowSize.height / 2 };
+        if (halfSize.width == 0) halfSize.width = 1;
+        if (halfSize.height == 0) halfSize.height = 1;
+
+        UIBlurAttachment = std::make_unique<Grt::FColorAttachment>(
+            vk::Format::eR8G8B8A8Unorm, halfSize, 1, vk::SampleCountFlagBits::e1,
+            vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst
+        );
+
+
         HistoryAttachmentInfo.setImageView(*HistoryAttachment->GetImageView());
         BlackHoleAttachmentInfo.setImageView(*BlackHoleAttachment->GetImageView());
         PreBloomAttachmentInfo.setImageView(*PreBloomAttachment->GetImageView());
         GaussBlurAttachmentInfo.setImageView(*GaussBlurAttachment->GetImageView());
+        // [新增] 更新 SceneColorInfo
+        SceneColorAttachmentInfo.setImageView(*SceneColorAttachment->GetImageView());
     };
 
     auto DestroyFramebuffers = [&]() -> void
@@ -320,20 +343,20 @@ void FApplication::ExecuteMainRender()
         BlendShader->WriteSharedDescriptors(1, 0, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
 
-        if (_uiRenderer)
+
+        // [新增] 将 UI 模糊纹理注册给 ImGui
+        if (_uiRenderer && UIBlurAttachment)
         {
-            // 1. 将 Vulkan 的 Image 和 Sampler 打包成 ImGui 可识别的 TextureID
+            // 1. 注册纹理
             ImTextureID blurTexID = _uiRenderer->AddTexture(
-                *FramebufferSampler,                    // 使用现有的采样器
-                *GaussBlurAttachment->GetImageView(),   // 获取高斯模糊后的图像视图
-                vk::ImageLayout::eShaderReadOnlyOptimal // 布局必须是 ShaderReadOnly
+                *FramebufferSampler, // 复用现有的线性采样器
+                *UIBlurAttachment->GetImageView(),
+                vk::ImageLayout::eShaderReadOnlyOptimal
             );
 
-            // 2. 更新到 UIContext 中，这样 Panel 组件就能画出来了
+            // 2. 更新 UIContext
             auto& ctx = Npgs::System::UI::UIContext::Get();
             ctx.m_scene_blur_texture = blurTexID;
-
-            // 更新屏幕尺寸信息，用于计算 UV
             ctx.m_display_size = ImVec2((float)_WindowSize.width, (float)_WindowSize.height);
         }
 
@@ -379,9 +402,11 @@ void FApplication::ExecuteMainRender()
 
     PipelineManager->CreateGraphicsPipeline("BlackHolePipeline", "BlackHole", BlackHoleCreateInfoPack);
 
+    std::array<vk::Format, 1> SceneColorFormat{ vk::Format::eR8G8B8A8Unorm };
+
     vk::PipelineRenderingCreateInfo BlendRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
         .setColorAttachmentCount(1)
-        .setColorAttachmentFormats(_VulkanContext->GetSwapchainCreateInfo().imageFormat);
+        .setColorAttachmentFormats(SceneColorFormat);
 
     BlackHoleCreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&BlendRenderingCreateInfo);
     PipelineManager->CreateGraphicsPipeline("BlendPipeline", "Blend", BlackHoleCreateInfoPack);
@@ -593,7 +618,7 @@ void FApplication::ExecuteMainRender()
             _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
             std::uint32_t ImageIndex = _VulkanContext->GetCurrentImageIndex();
 
-            BlendAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
+           // BlendAttachmentInfo.setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex));
 
             std::uint32_t WorkgroundX = (_WindowSize.width + 9) / 10;
             std::uint32_t WorkgroundY = (_WindowSize.height + 9) / 10;
@@ -887,46 +912,122 @@ void FApplication::ExecuteMainRender()
                 .setImageMemoryBarriers(BlendSampleBarrier);
 
             CurrentBuffer->pipelineBarrier2(BlendSampleDepencencyInfo);
-            //CurrentBuffer.End();
+            // 7. Blend Pass: 渲染到 SceneColorAttachment
+            {
+                vk::ImageMemoryBarrier2 sceneColorInitBarrier(
+                    vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
+                    vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    *SceneColorAttachment->GetImage(), SubresourceRange
+                );
+                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(sceneColorInitBarrier));
 
-            //_VulkanContext->ExecuteComputeCommands(CurrentBuffer);
+                vk::RenderingInfo sceneRenderingInfo = vk::RenderingInfo()
+                    .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
+                    .setLayerCount(1)
+                    .setColorAttachments(SceneColorAttachmentInfo);
 
-            //// Record Blend rendering commands
-            //// ------------------------------
-            //CurrentBuffer = BlendCommandBuffers[CurrentFrame];
-            //CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+                CurrentBuffer->beginRendering(sceneRenderingInfo);
+                CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
+                CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlendPipeline);
+                CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlendPipelineLayout, 0, BlendShader->GetDescriptorSets(CurrentFrame), {});
+                CurrentBuffer->draw(6, 1, 0, 0);
+                CurrentBuffer->endRendering();
+            }
 
-            vk::ImageMemoryBarrier2 InitSwapchainBarrier(
-                vk::PipelineStageFlagBits2::eTopOfPipe,
-                vk::AccessFlagBits2::eNone,
-                vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                vk::AccessFlagBits2::eColorAttachmentWrite,
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eColorAttachmentOptimal,
-                vk::QueueFamilyIgnored,
-                vk::QueueFamilyIgnored,
-                _VulkanContext->GetSwapchainImage(ImageIndex),
-                SubresourceRange);
+            // 8. UI Background Blur Pass (SceneColor -> UIBlurAttachment via Blit)
+            {
+                vk::ImageMemoryBarrier2 blitSrcBarrier(
+                    vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                    vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    *SceneColorAttachment->GetImage(), SubresourceRange
+                );
+                vk::ImageMemoryBarrier2 blitDstBarrier(
+                    vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    *UIBlurAttachment->GetImage(), SubresourceRange
+                );
+                std::array blitBarriers = { blitSrcBarrier, blitDstBarrier };
+                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(blitBarriers));
 
-            vk::DependencyInfo SwapchainInitialDependencyInfo = vk::DependencyInfo()
-                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
-                .setImageMemoryBarriers(InitSwapchainBarrier);
+                vk::ImageBlit blitRegion = {};
+                blitRegion.srcSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+                blitRegion.srcOffsets[1] = vk::Offset3D{ (int32_t)_WindowSize.width, (int32_t)_WindowSize.height, 1 };
+                blitRegion.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+                blitRegion.dstOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width / 2), (int32_t)(_WindowSize.height / 2), 1 };
 
-            CurrentBuffer->pipelineBarrier2(SwapchainInitialDependencyInfo);
+                CurrentBuffer->blitImage(
+                    *SceneColorAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                    *UIBlurAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal,
+                    blitRegion, vk::Filter::eLinear
+                );
 
-            vk::RenderingInfo BlendRenderingInfo = vk::RenderingInfo()
-                .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
-                .setLayerCount(1)
-                .setColorAttachments(BlendAttachmentInfo);
+                vk::ImageMemoryBarrier2 uiBlurReadyBarrier(
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                    vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
+                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    *UIBlurAttachment->GetImage(), SubresourceRange
+                );
+                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(uiBlurReadyBarrier));
+            }
 
-            CurrentBuffer->beginRendering(BlendRenderingInfo);
-            CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
-            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlendPipeline);
-            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlendPipelineLayout, 0, BlendShader->GetDescriptorSets(CurrentFrame), {});
-            CurrentBuffer->draw(6, 1, 0, 0);
-            CurrentBuffer->endRendering();
-            _uiRenderer->Render(*CurrentBuffer);
+            // 9. Copy Scene to Swapchain
+            {
+                vk::ImageMemoryBarrier2 swapchainCopyDstBarrier(
+                    vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    _VulkanContext->GetSwapchainImage(ImageIndex), SubresourceRange
+                );
+                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(swapchainCopyDstBarrier));
 
+                vk::ImageCopy copyRegion = {};
+                copyRegion.srcSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+                copyRegion.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+                copyRegion.extent = vk::Extent3D{ _WindowSize.width, _WindowSize.height, 1 };
+
+                CurrentBuffer->copyImage(
+                    *SceneColorAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                    _VulkanContext->GetSwapchainImage(ImageIndex), vk::ImageLayout::eTransferDstOptimal,
+                    copyRegion
+                );
+            }
+
+            // 10. UI Render Pass (on top of Swapchain)
+            {
+                vk::ImageMemoryBarrier2 swapchainUIBarrier(
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                    vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    _VulkanContext->GetSwapchainImage(ImageIndex), SubresourceRange
+                );
+                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(swapchainUIBarrier));
+
+                vk::RenderingAttachmentInfo uiAttachmentInfo = vk::RenderingAttachmentInfo()
+                    .setImageView(_VulkanContext->GetSwapchainImageView(ImageIndex))
+                    .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+                    .setLoadOp(vk::AttachmentLoadOp::eLoad)
+                    .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+                vk::RenderingInfo uiRenderingInfo = vk::RenderingInfo()
+                    .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
+                    .setLayerCount(1)
+                    .setColorAttachments(uiAttachmentInfo);
+
+                CurrentBuffer->beginRendering(uiRenderingInfo);
+                _uiRenderer->Render(*CurrentBuffer);
+                CurrentBuffer->endRendering();
+            }
+
+            // 11. Final Present Barrier
             vk::ImageMemoryBarrier2 PresentBarrier(
                 vk::PipelineStageFlagBits2::eColorAttachmentOutput,
                 vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -944,6 +1045,11 @@ void FApplication::ExecuteMainRender()
                 .setImageMemoryBarriers(PresentBarrier);
 
             CurrentBuffer->pipelineBarrier2(PresentDependencyInfo);
+
+            // =========================================================================
+            // [新代码块结束]
+            // =========================================================================
+
             CurrentBuffer.End();
 
             _VulkanContext->SubmitCommandBufferToGraphics(
