@@ -11,7 +11,6 @@ void TechBorderPanel::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
     const auto& theme = UIContext::Get().m_theme;
-    auto& ctx = UIContext::Get(); // 获取上下文以访问纹理和屏幕尺寸
 
     // -----------------------------------------------------------
     // 1. 绘制背景 (集成毛玻璃逻辑)
@@ -19,21 +18,9 @@ void TechBorderPanel::Draw(ImDrawList* dl)
     ImVec2 ap_min = m_absolute_pos;
     ImVec2 ap_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
 
-    ImTextureID blur_tex = ctx.m_scene_blur_texture;
-
-    if (m_use_glass_effect && blur_tex != 0)
+    if (m_use_glass_effect)
     {
-        // 计算屏幕空间 UV
-        ImVec2 uv_min = ImVec2(ap_min.x / ctx.m_display_size.x, ap_min.y / ctx.m_display_size.y);
-        ImVec2 uv_max = ImVec2(ap_max.x / ctx.m_display_size.x, ap_max.y / ctx.m_display_size.y);
-
-        // 绘制模糊纹理背景
-        dl->AddImage(
-            blur_tex,
-            ap_min, ap_max,
-            uv_min, uv_max // 使用 Panel 定义的 tint
-        );
-
+        DrawGlassBackground(dl, ap_min, ap_max); // 调用基类方法
     }
 
     // [视觉优化] 背景增加一点深度，稍微暗一点

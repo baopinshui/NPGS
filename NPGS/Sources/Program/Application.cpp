@@ -124,6 +124,10 @@ void FApplication::ExecuteMainRender()
     std::unique_ptr<Grt::FColorAttachment> GaussBlurAttachment;
     // [新增] 用于存储当前帧无UI的纯净画面 (Full Size)
     std::unique_ptr<Grt::FColorAttachment> SceneColorAttachment;
+    // [修改] 我们需要两个大小相同的中间纹理来进行 Ping-Pong
+// 它们的大小应该是我们模糊链中最大的尺寸，即 1/2 分辨率
+    std::unique_ptr<Grt::FColorAttachment> UIBlurPingAttachment;
+    std::unique_ptr<Grt::FColorAttachment> UIBlurPongAttachment;
     // [新增] 用于 UI 背景模糊的最终图 (Half Size)
     std::unique_ptr<Grt::FColorAttachment> UIBlurAttachment;
 
@@ -180,15 +184,23 @@ void FApplication::ExecuteMainRender()
             vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
         );
 
-        // [新增] 2. UI 模糊图 (Half Size)
-        // 只需要 TransferDst (接收Blit) 和 Sampled (被UI采样)
+        // [修改] 创建用于 Ping-Pong 的纹理 (Half Size)
         vk::Extent2D halfSize = { _WindowSize.width / 2, _WindowSize.height / 2 };
         if (halfSize.width == 0) halfSize.width = 1;
         if (halfSize.height == 0) halfSize.height = 1;
 
+        vk::ImageUsageFlags blurUsageFlags = vk::ImageUsageFlagBits::eSampled |
+            vk::ImageUsageFlagBits::eTransferSrc |
+            vk::ImageUsageFlagBits::eTransferDst;
+
+        UIBlurPingAttachment = std::make_unique<Grt::FColorAttachment>(
+            vk::Format::eR8G8B8A8Unorm, halfSize, 1, vk::SampleCountFlagBits::e1, blurUsageFlags
+        );
+        UIBlurPongAttachment = std::make_unique<Grt::FColorAttachment>(
+            vk::Format::eR8G8B8A8Unorm, halfSize, 1, vk::SampleCountFlagBits::e1, blurUsageFlags
+        );
         UIBlurAttachment = std::make_unique<Grt::FColorAttachment>(
-            vk::Format::eR8G8B8A8Unorm, halfSize, 1, vk::SampleCountFlagBits::e1,
-            vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst
+            vk::Format::eR8G8B8A8Unorm, halfSize, 1, vk::SampleCountFlagBits::e1, blurUsageFlags
         );
 
 
@@ -541,14 +553,14 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.00001f, 1.0f));
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
-                BlackHoleArgs.BlackHoleMassSol = 0.000000001*1.49e7f;
+                BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
                 BlackHoleArgs.Spin = 0.0f;
                 BlackHoleArgs.Mu = 1.0f;
-                BlackHoleArgs.AccretionRate = (2e1);
+                BlackHoleArgs.AccretionRate = (2e-6);
                 BlackHoleArgs.InterRadiusRs = 2.1;
-                BlackHoleArgs.OuterRadiusRs = 3 * 35.5;
-                BlackHoleArgs.ThinRs = 3 * 1.4;
-                BlackHoleArgs.Hopper = 0.06 + 0.5;
+                BlackHoleArgs.OuterRadiusRs = 12;
+                BlackHoleArgs.ThinRs = 0.5;
+                BlackHoleArgs.Hopper = 0.0;
                 BlackHoleArgs.Brightmut = 1.0;
                 BlackHoleArgs.Darkmut = 1.0;
                 BlackHoleArgs.Reddening = 0.3;
@@ -568,7 +580,7 @@ void FApplication::ExecuteMainRender()
                 m_neural_menu_controller->AddThrottle("InterRadiusLy", &BlackHoleArgs.InterRadiusRs);
                 m_neural_menu_controller->AddThrottle("OuterRadiusLy", &BlackHoleArgs.OuterRadiusRs);
                 m_neural_menu_controller->AddThrottle("ThinLy", &BlackHoleArgs.ThinRs);
-                m_neural_menu_controller->AddThrottle("Hopper", &BlackHoleArgs.Hopper);
+                m_neural_menu_controller->AddThrottle("Hopper", &BlackHoleArgs.Hopper,0.01f);
                 m_neural_menu_controller->AddThrottle("Brightmut", &BlackHoleArgs.Brightmut);
                 m_neural_menu_controller->AddThrottle("Darkmut", &BlackHoleArgs.Darkmut);
                 m_neural_menu_controller->AddThrottle("Reddening", &BlackHoleArgs.Reddening);
@@ -936,37 +948,144 @@ void FApplication::ExecuteMainRender()
                 CurrentBuffer->endRendering();
             }
 
-            // 8. UI Background Blur Pass (SceneColor -> UIBlurAttachment via Blit)
+            // 8. UI Background Iterative Blur Pass
+            // =========================================================================
             {
-                vk::ImageMemoryBarrier2 blitSrcBarrier(
+                // --- 定义模糊迭代次数 ---
+                // 3 次迭代会降到 1/8 分辨率再升回来，模糊效果会非常明显
+                const int blurPasses = 3;
+
+                // --- 准备 Ping-Pong 指针 ---
+                Grt::FColorAttachment* ping = UIBlurPingAttachment.get();
+                Grt::FColorAttachment* pong = UIBlurPongAttachment.get();
+
+                // --- 初始屏障 ---
+                // SceneColor: ColorAttach -> TransferSrc
+                // Ping: Undefined -> TransferDst
+                vk::ImageMemoryBarrier2 sceneToSrcBarrier(
                     vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
                     vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
                     vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                     *SceneColorAttachment->GetImage(), SubresourceRange
                 );
-                vk::ImageMemoryBarrier2 blitDstBarrier(
+                vk::ImageMemoryBarrier2 pingToDstBarrier(
+                    vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    *ping->GetImage(), SubresourceRange
+                );
+                std::array initialBarriers = { sceneToSrcBarrier, pingToDstBarrier };
+                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(initialBarriers));
+
+                // --- 第一次降采样 (Full -> Half) ---
+                vk::ImageBlit blit = {};
+                blit.srcSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+                blit.srcOffsets[1] = vk::Offset3D{ (int32_t)_WindowSize.width, (int32_t)_WindowSize.height, 1 };
+                blit.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+                blit.dstOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width / 2), (int32_t)(_WindowSize.height / 2), 1 };
+                CurrentBuffer->blitImage(
+                    *SceneColorAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                    *ping->GetImage(), vk::ImageLayout::eTransferDstOptimal,
+                    blit, vk::Filter::eLinear
+                );
+
+                // --- 循环降采样 (Ping-Pong) ---
+                for (int i = 1; i < blurPasses; ++i)
+                {
+                    // 屏障: ping(Dst->Src), pong(Undefined/PrevState->Dst)
+                    vk::ImageMemoryBarrier2 pingToSrcBarrier(
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        *ping->GetImage(), SubresourceRange
+                    );
+                    vk::ImageMemoryBarrier2 pongToDstBarrier(
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead, // Pong could have been a src before
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                        vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferDstOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        *pong->GetImage(), SubresourceRange
+                    );
+                    std::array loopBarriers = { pingToSrcBarrier, pongToDstBarrier };
+                    CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(loopBarriers));
+
+                    // Blit from ping to pong
+                    blit.srcOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width >> i), (int32_t)(_WindowSize.height >> i), 1 };
+                    blit.dstOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width >> (i + 1)), (int32_t)(_WindowSize.height >> (i + 1)), 1 };
+                    CurrentBuffer->blitImage(
+                        *ping->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                        *pong->GetImage(), vk::ImageLayout::eTransferDstOptimal,
+                        blit, vk::Filter::eLinear
+                    );
+
+                    // Swap for next iteration
+                    std::swap(ping, pong);
+                }
+
+                // --- 循环升采样 (Ping-Pong back to Half-res) ---
+                for (int i = blurPasses - 1; i > 0; --i)
+                {
+                    // 屏障: ping(Dst->Src), pong(PrevState->Dst)
+                    vk::ImageMemoryBarrier2 pingToSrcBarrier(
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        *ping->GetImage(), SubresourceRange
+                    );
+                    vk::ImageMemoryBarrier2 pongToDstBarrier(
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                        vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferDstOptimal,
+                        vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                        *pong->GetImage(), SubresourceRange
+                    );
+                    std::array loopBarriers = { pingToSrcBarrier, pongToDstBarrier };
+                    CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(loopBarriers));
+
+                    // Blit from ping to pong
+                    blit.srcOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width >> (i + 1)), (int32_t)(_WindowSize.height >> (i + 1)), 1 };
+                    blit.dstOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width >> i), (int32_t)(_WindowSize.height >> i), 1 };
+                    CurrentBuffer->blitImage(
+                        *ping->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                        *pong->GetImage(), vk::ImageLayout::eTransferDstOptimal,
+                        blit, vk::Filter::eLinear
+                    );
+
+                    // Swap for next iteration
+                    std::swap(ping, pong);
+                }
+
+                // --- 最后一次 Blit 到最终的 UIBlurAttachment ---
+                vk::ImageMemoryBarrier2 finalSrcBarrier(
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+                    *ping->GetImage(), SubresourceRange
+                );
+                vk::ImageMemoryBarrier2 finalDstBarrier(
                     vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
                     vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
                     vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
                     vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
                     *UIBlurAttachment->GetImage(), SubresourceRange
                 );
-                std::array blitBarriers = { blitSrcBarrier, blitDstBarrier };
-                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(blitBarriers));
+                std::array finalBlitBarriers = { finalSrcBarrier, finalDstBarrier };
+                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(finalBlitBarriers));
 
-                vk::ImageBlit blitRegion = {};
-                blitRegion.srcSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
-                blitRegion.srcOffsets[1] = vk::Offset3D{ (int32_t)_WindowSize.width, (int32_t)_WindowSize.height, 1 };
-                blitRegion.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
-                blitRegion.dstOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width / 2), (int32_t)(_WindowSize.height / 2), 1 };
-
+                blit.srcOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width / 2), (int32_t)(_WindowSize.height / 2), 1 };
+                blit.dstOffsets[1] = vk::Offset3D{ (int32_t)(_WindowSize.width / 2), (int32_t)(_WindowSize.height / 2), 1 };
                 CurrentBuffer->blitImage(
-                    *SceneColorAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                    *ping->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
                     *UIBlurAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal,
-                    blitRegion, vk::Filter::eLinear
+                    blit, vk::Filter::eLinear
                 );
 
+                // --- Final Barrier for UI Sampling ---
                 vk::ImageMemoryBarrier2 uiBlurReadyBarrier(
                     vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
                     vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,

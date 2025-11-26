@@ -57,7 +57,18 @@ void UIElement::To(float* property, float target, float duration, EasingType eas
         [property](const Tween& t) { return t.target == property; }), m_tweens.end());
     m_tweens.push_back({ property, *property, target, 0.0f, duration, easing, true, on_complete });
 }
+void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max)
+{
+    auto& ctx = UIContext::Get();
+    ImTextureID blur_tex = ctx.m_scene_blur_texture;
 
+    if (blur_tex != 0 && ctx.m_display_size.x > 0 && ctx.m_display_size.y > 0)
+    {
+        ImVec2 uv_min = ImVec2(p_min.x / ctx.m_display_size.x, p_min.y / ctx.m_display_size.y);
+        ImVec2 uv_max = ImVec2(p_max.x / ctx.m_display_size.x, p_max.y / ctx.m_display_size.y);
+        draw_list->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
+    }
+}
 void UIElement::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;

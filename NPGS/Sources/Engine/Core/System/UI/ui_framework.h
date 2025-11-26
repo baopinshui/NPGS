@@ -31,9 +31,9 @@ struct UITheme
     ImVec4 color_button_hover = { 0.3f, 0.3f, 0.3f, 1.0f };
     ImVec4 color_button_active = { 0.4f, 0.4f, 0.4f, 1.0f };
     ImVec4 color_border = { 0.5f, 0.5f, 0.5f, 1.0f };
-    //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
+    ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
    // ImVec4 color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #米黄色
-    ImVec4 color_accent = ImVec4(0.0f,1.0f,0.0f, 1.0f); // #米黄色
+    //ImVec4 color_accent = ImVec4(0.0f,1.0f,0.0f, 1.0f); 
 };
 
 // --- 3. UI 上下文 (单例/全局管理) ---
@@ -170,6 +170,9 @@ public:
     virtual void ResetInteraction();
 
     // 功能 API
+//protected: // 改为 protected 或新增一个
+    // 新增：绘制毛玻璃背景的辅助函数
+    void DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max);
     void To(float* property, float target, float duration, EasingType easing = EasingType::EaseOutQuad, TweenCallback on_complete = nullptr);
     ImU32 GetColorWithAlpha(const ImVec4& col, float global_alpha) const;
 
