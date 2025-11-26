@@ -152,38 +152,41 @@ public:
         }
 
         // --- 4. 绘制轨道 (Track) ---
-        float track_h = 4.0f;
+        float track_h = 1.0f; // 极细
         float track_y = y_center - track_h * 0.5f;
 
-        // 绘制完整的基础轨道
+        // 轨道背景：不再使用灰色，使用主题色但极低透明度 (15%)
+        ImVec4 track_bg_col = accent_vec4;
+        track_bg_col.w = 0.5f;
+
+        // 绘制轨道背景
         dl->AddRectFilled(
             ImVec2(track_x, track_y),
             ImVec2(track_x + track_w, track_y + track_h),
-            col_track_bg,
-            2.0f
+            GetColorWithAlpha(track_bg_col, 1.0f)
         );
 
         // --- 5. 绘制高亮填充 (Fill) ---
         float t = GetNormalizedVisualPos();       // 当前位置 0~1
-        float t_neutral = GetNeutralVisualPos();  // 中性点 (0.0 或 0.5)
-
-        // 计算填充范围 (从中心向目标延伸)
-        float t_min = std::min(t, t_neutral);
-        float t_max = std::max(t, t_neutral);
-
-        float fill_start_x = track_x + track_w * t_min;
-        float fill_end_x = track_x + track_w * t_max;
-
-        // 只有当偏离中性点时才绘制
-        if (t_max - t_min > 0.001f)
-        {
-            dl->AddRectFilled(
-                ImVec2(fill_start_x, track_y),
-                ImVec2(fill_end_x, track_y + track_h),
-                col_accent_dim,
-                2.0f
-            );
-        }
+       // float t_neutral = GetNeutralVisualPos();  // 中性点 (0.0 或 0.5)
+       //
+       // // 计算填充范围 (从中心向目标延伸)
+       // float t_min = std::min(t, t_neutral);
+       // float t_max = std::max(t, t_neutral);
+       //
+       // float fill_start_x = track_x + track_w * t_min;
+       // float fill_end_x = track_x + track_w * t_max;
+       //
+       // // 只有当偏离中性点时才绘制
+       // if (t_max - t_min > 0.001f)
+       // {
+       //     dl->AddRectFilled(
+       //         ImVec2(fill_start_x, track_y),
+       //         ImVec2(fill_end_x, track_y + track_h),
+       //         col_accent_dim,
+       //         2.0f
+       //     );
+       // }
 
         // --- 6. 绘制游标 (Grabber) ---
         float grab_x = track_x + track_w * t;

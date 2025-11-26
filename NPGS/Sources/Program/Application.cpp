@@ -88,7 +88,7 @@ void FApplication::ExecuteMainRender()
     {
         m_is_beam_button_active = !m_is_beam_button_active;
         m_beam_button->SetActive(m_is_beam_button_active);
-        if (m_is_beam_button_active && m_is_rkkv_button_active)
+        if (m_is_beam_button_active )
         {
             m_is_rkkv_button_active = false;
             m_rkkv_button->SetActive(false);
@@ -108,7 +108,7 @@ void FApplication::ExecuteMainRender()
     {
         m_is_rkkv_button_active = !m_is_rkkv_button_active;
         m_rkkv_button->SetActive(m_is_rkkv_button_active);
-        if (m_is_rkkv_button_active && m_is_beam_button_active)
+        if (m_is_rkkv_button_active )
         {
             m_is_beam_button_active = false;
             m_beam_button->SetActive(false);

@@ -182,6 +182,7 @@ void NeuralParticleView::Draw(ImDrawList* dl)
     ImVec2 offset = m_absolute_pos;
     const auto& theme = UIContext::Get().m_theme;
 
+
     // 绘制连线
     for (size_t i = 0; i < m_particles.size(); i++)
     {
@@ -203,33 +204,57 @@ void NeuralParticleView::Draw(ImDrawList* dl)
 
                 // === 透明度逻辑对齐 HTML ===
                 // JS: const alpha = 1 - dist/connectDist;
-                float alpha_factor = 1.0f - dist / max_dist;
-                if (m_is_expanded) { alpha_factor *= 0.6; }
+                float alpha_factor = (1.0f - dist / max_dist) * 0.5f;
                 // JS: const finalAlpha = (hovered && !isExpanded) ? Math.min(1, alpha + 0.2) : alpha;
                 if (is_highlight_state)
                 {
-                    alpha_factor = std::min(1.0f, alpha_factor + 0.2f);
+                    alpha_factor = std::min(1.0f, alpha_factor + 0.1f);
                 }
+                
+                if (m_is_expanded)
+                {
+                    // 叠加控件整体的淡入淡出 alpha
+                    ImU32 col = GetColorWithAlpha(theme.color_accent, 0.7 * alpha_factor * m_alpha);
 
-                // 叠加控件整体的淡入淡出 alpha
-                ImU32 col = GetColorWithAlpha(theme.color_accent, alpha_factor * m_alpha);
+                    // === 线条粗细逻辑对齐 HTML ===
+                    // JS: const lineWidth = (hovered && !isExpanded) ? 1.0 : 0.5;
+                    float thickness = is_highlight_state ? 0.7f : 0.5f;
 
-                // === 线条粗细逻辑对齐 HTML ===
-                // JS: const lineWidth = (hovered && !isExpanded) ? 1.0 : 0.5;
-                float thickness = is_highlight_state ? 1.0f : 0.5f;
+                    dl->AddLine(
+                        ImVec2(offset.x + p1.x, offset.y + p1.y),
+                        ImVec2(offset.x + p2.x, offset.y + p2.y),
+                        col,
+                        thickness + 1.0f
+                    );
+                    col = GetColorWithAlpha(theme.color_accent, 0.3 * alpha_factor * m_alpha);
+                    dl->AddLine(
+                        ImVec2(offset.x + p1.x, offset.y + p1.y),
+                        ImVec2(offset.x + p2.x, offset.y + p2.y),
+                        col,
+                        thickness + 1.5f
+                    );
+                }
+                else
+                {
+                    // 叠加控件整体的淡入淡出 alpha
+                    ImU32 col = GetColorWithAlpha(theme.color_accent,  alpha_factor * m_alpha);
 
-                dl->AddLine(
-                    ImVec2(offset.x + p1.x, offset.y + p1.y),
-                    ImVec2(offset.x + p2.x, offset.y + p2.y),
-                    col,
-                    thickness
-                );
+                    float thickness = is_highlight_state ? 0.7f : 0.5f;
+
+                    dl->AddLine(
+                        ImVec2(offset.x + p1.x, offset.y + p1.y),
+                        ImVec2(offset.x + p2.x, offset.y + p2.y),
+                        col,
+                        thickness 
+                    );
+
+                }
             }
         }
     }
 
     // 绘制粒子点
-    ImU32 particle_col = GetColorWithAlpha(theme.color_accent, m_alpha);
+    ImU32 particle_col = GetColorWithAlpha(theme.color_accent,  0.8*m_alpha);
     for (const auto& p : m_particles)
     {
         if (p.active)

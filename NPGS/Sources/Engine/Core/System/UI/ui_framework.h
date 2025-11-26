@@ -31,7 +31,9 @@ struct UITheme
     ImVec4 color_button_hover = { 0.3f, 0.3f, 0.3f, 1.0f };
     ImVec4 color_button_active = { 0.4f, 0.4f, 0.4f, 1.0f };
     ImVec4 color_border = { 0.5f, 0.5f, 0.5f, 1.0f };
-    ImVec4 color_accent = { 0.0f, 1.0f, 0.0f, 1.0f }; // 你的主题色
+    //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
+   // ImVec4 color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #米黄色
+    ImVec4 color_accent = ImVec4(0.0f,1.0f,0.0f, 1.0f); // #米黄色
 };
 
 // --- 3. UI 上下文 (单例/全局管理) ---

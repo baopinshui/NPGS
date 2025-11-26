@@ -56,10 +56,9 @@ void NeuralButton::Draw(ImDrawList* dl)
     const auto& theme = UIContext::Get().m_theme;
 
     // 背景动画逻辑保持不变
-    ImVec4 bg_start = ImVec4(0, 0, 0, 0.0f);
-    ImVec4 bg_end = theme.color_accent;
 
-    ImVec4 bg_normal = ImVec4(0, 0, 0, 0.0f);        // 正常：透明
+    ImVec4 bg_normal = theme.color_accent;       // 正常：暗主题色
+    bg_normal.w = 0.15f;;
     ImVec4 bg_hover = theme.color_accent;           // 悬停：主题色
 
     // --- 文字颜色 ---
