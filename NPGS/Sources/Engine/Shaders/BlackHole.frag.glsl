@@ -21,9 +21,9 @@ layout(location = 0) in  vec2 TexCoordFromVert;
 layout(set = 0, binding = 1) uniform BlackHoleArgs
 {
     mat4x4 iInverseCamRot;
-    vec4  iWorldUpView;                 // 相机系中世界上方向
-    vec4  iBlackHoleRelativePosRs;        // 相机系中黑洞位置
+    vec4  iBlackHoleRelativePosRs;      // 相机系中黑洞位置
     vec4  iBlackHoleRelativeDiskNormal; // 相机系中吸积盘法向
+    vec4  iBlackHoleRelativeDiskTangen; // 相机系中吸积盘切向
 
     float iBlackHoleTime;               // iGameTime*c/Rs
     float iBlackHoleMassSol;            // 黑洞质量，单位太阳质量
@@ -227,12 +227,12 @@ float GetKeplerianAngularVelocity(float Radius, float Rs)
 {
     return sqrt(Rs / (2.0 * (Radius - 1.5 * Rs) * Radius * Radius));
 }
-vec3 WorldToBlackHoleSpace(vec4 Position, vec3 BlackHolePos, vec3 DiskNormal,vec3 WorldUpView)
+vec3 WorldToBlackHoleSpace(vec4 Position, vec3 BlackHolePos, vec3 DiskNormal, vec3 DiskTangent)
 {
-
-    vec3 BlackHoleSpaceY = normalize(DiskNormal);
-    vec3 BlackHoleSpaceZ = normalize(cross(WorldUpView,     BlackHoleSpaceY));
-    vec3 BlackHoleSpaceX = normalize(cross(BlackHoleSpaceY, BlackHoleSpaceZ));
+    vec3 BlackHoleSpaceY = normalize(DiskNormal);  
+    vec3 BlackHoleSpaceX = normalize(DiskTangent);
+    BlackHoleSpaceX = normalize(BlackHoleSpaceX - dot(BlackHoleSpaceX, BlackHoleSpaceY) * BlackHoleSpaceY);
+    vec3 BlackHoleSpaceZ = normalize(cross(BlackHoleSpaceX, BlackHoleSpaceY));
 
     mat4x4 Translate = mat4x4(1.0, 0.0, 0.0, -BlackHolePos.x,
                               0.0, 1.0, 0.0, -BlackHolePos.y,
@@ -247,7 +247,6 @@ vec3 WorldToBlackHoleSpace(vec4 Position, vec3 BlackHolePos, vec3 DiskNormal,vec
     Position = transpose(Rotate) * transpose(Translate) * Position;
     return Position.xyz;
 }
-
 float Shape(float x, float Alpha, float Beta)
 {
     float k = pow(Alpha + Beta, Alpha + Beta) / (pow(Alpha, Alpha) * pow(Beta, Beta));
@@ -255,15 +254,15 @@ float Shape(float x, float Alpha, float Beta)
 }
 
 vec4 DiskColor(vec4 BaseColor,  float StepLength, vec3 RayPos, vec3 LastRayPos,
-               vec3 RayDir, vec3 LastRayDir, vec3 WorldUp, vec3 BlackHolePos, vec3 DiskNormal,
+               vec3 RayDir, vec3 LastRayDir, vec3 BlackHolePos, vec3 DiskNormal,vec3 DiskTangen,
                float InterRadius, float OuterRadius,float Thin,float Hopper , float Brightmut,float Darkmut,float Reddening,float Saturation,float DiskTemperatureArgument,
                float BlackbodyIntensityExponent,float RedShiftColorExponent,float RedShiftIntensityExponent,
                float PeakTemperature, float ShiftMax)
 {
-    vec3 CameraPos = WorldToBlackHoleSpace(vec4(0.0, 0.0, 0.0, 1.0), BlackHolePos, DiskNormal, WorldUp);
-    vec3 PosOnDisk = WorldToBlackHoleSpace(vec4(RayPos, 1.0),        BlackHolePos, DiskNormal, WorldUp);
-    vec3 LastPosOnDisk = WorldToBlackHoleSpace(vec4(LastRayPos, 1.0),        BlackHolePos, DiskNormal, WorldUp);
-    vec3 DirOnDisk = WorldToBlackHoleSpace(vec4(RayDir, 0.0),       BlackHolePos, DiskNormal, WorldUp);
+    vec3 CameraPos     = WorldToBlackHoleSpace(vec4(0.0, 0.0, 0.0, 1.0), BlackHolePos, DiskNormal, DiskTangen);
+    vec3 PosOnDisk     = WorldToBlackHoleSpace(vec4(RayPos, 1.0),        BlackHolePos, DiskNormal, DiskTangen);
+    vec3 LastPosOnDisk = WorldToBlackHoleSpace(vec4(LastRayPos, 1.0),    BlackHolePos, DiskNormal, DiskTangen);
+    vec3 DirOnDisk     = WorldToBlackHoleSpace(vec4(RayDir, 0.0),        BlackHolePos, DiskNormal, DiskTangen);
 
     float PosR = length(PosOnDisk);
     float PosY = PosOnDisk.y;
@@ -435,12 +434,12 @@ vec4 DiskColor(vec4 BaseColor,  float StepLength, vec3 RayPos, vec3 LastRayPos,
     return Result;
 }
 vec4 JetColor(vec4 BaseColor,  float StepLength, vec3 RayPos, vec3 LastRayPos,
-               vec3 RayDir, vec3 LastRayDir, vec3 WorldUp, vec3 BlackHolePos, vec3 DiskNormal,
+               vec3 RayDir, vec3 LastRayDir, vec3 BlackHolePos, vec3 DiskNormal,vec3 DiskTangen,
                float InterRadius, float OuterRadius,float JetRedShiftIntensityExponent, float JetBrightmut,float JetReddening,float JetSaturation,float AccretionRate,float JetShiftMax)
 {
-    vec3 CameraPos = WorldToBlackHoleSpace(vec4(0.0, 0.0, 0.0, 1.0), BlackHolePos, DiskNormal, WorldUp);
-    vec3 PosOnDisk = WorldToBlackHoleSpace(vec4(RayPos, 1.0),        BlackHolePos, DiskNormal, WorldUp);
-    vec3 DirOnDisk = WorldToBlackHoleSpace(vec4(RayDir, 0.0),        BlackHolePos, DiskNormal, WorldUp);
+    vec3 CameraPos = WorldToBlackHoleSpace(vec4(0.0, 0.0, 0.0, 1.0), BlackHolePos, DiskNormal, DiskTangen);
+    vec3 PosOnDisk = WorldToBlackHoleSpace(vec4(RayPos, 1.0),        BlackHolePos, DiskNormal, DiskTangen);
+    vec3 DirOnDisk = WorldToBlackHoleSpace(vec4(RayDir, 0.0),        BlackHolePos, DiskNormal, DiskTangen);
 
     float PosR = length(PosOnDisk);
     float PosY = PosOnDisk.y;
@@ -640,10 +639,10 @@ void main()
             }
             if (bShouldContinueMarchRay)
             {   Result = DiskColor(Result, StepLength, RayPos, LastRayPos, RayDir, LastRayDir,
-                                   iWorldUpView.xyz, iBlackHoleRelativePosRs.xyz, iBlackHoleRelativeDiskNormal.xyz,
+                                    iBlackHoleRelativePosRs.xyz, iBlackHoleRelativeDiskNormal.xyz,iBlackHoleRelativeDiskTangen.xyz,
                                     iInterRadiusRs, iOuterRadiusRs,iThinRs,iHopper, iBrightmut,iDarkmut,iReddening,iSaturation, DiskArgument,  iBlackbodyIntensityExponent,iRedShiftColorExponent,iRedShiftIntensityExponent, PeakTemperature, ShiftMax);  // 吸积盘颜色
                 Result = JetColor(Result, StepLength, RayPos, LastRayPos, RayDir, LastRayDir,
-                                   iWorldUpView.xyz, iBlackHoleRelativePosRs.xyz, iBlackHoleRelativeDiskNormal.xyz,
+                                   iBlackHoleRelativePosRs.xyz, iBlackHoleRelativeDiskNormal.xyz,iBlackHoleRelativeDiskTangen.xyz, 
                                     iInterRadiusRs, iOuterRadiusRs,iJetRedShiftIntensityExponent,iJetBrightmut,iReddening, iJetSaturation, iAccretionRate,iJetShiftMax);  // 喷流颜色   
 
             }

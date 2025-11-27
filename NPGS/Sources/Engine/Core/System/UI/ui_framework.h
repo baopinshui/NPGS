@@ -130,6 +130,10 @@ public:
     Alignment m_align_h = Alignment::Stretch; // 水平对齐
     Alignment m_align_v = Alignment::Stretch; // 垂直对齐 (部分容器支持)
 
+    bool m_fill_v = false; // 在 VBox 中垂直填充剩余空间
+    bool m_fill_h = false; // 在 HBox 中水平填充剩余空间
+
+
     // 交互属性
     bool m_block_input = true;   // 是否阻挡鼠标
     bool m_focusable = false;    // [新增] 是否可获得焦点
@@ -231,8 +235,10 @@ class ScrollView : public UIElement
 {
 public:
     float m_scroll_y = 0.0f;
+    float m_target_scroll_y = 0.0f;
     float m_content_height = 0.0f;
     float m_scroll_speed = 20.0f;
+    float m_smoothing_speed = 15.0f;
     bool m_show_scrollbar = true;
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;

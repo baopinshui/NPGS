@@ -48,7 +48,7 @@ private:
     // 成员变量保持不变
     std::shared_ptr<TechBorderPanel> root_panel;
     std::shared_ptr<NeuralParticleView> bg_view;
-    std::shared_ptr<UIElement> content_container;
+    std::shared_ptr<VBox> main_layout;
 
     std::shared_ptr<ScrollView> scroll_view; // 滚动窗口
     std::shared_ptr<VBox> content_vbox;      // 实际的内容堆叠容器

@@ -47,9 +47,9 @@ struct FGameArgs
 struct FBlackHoleArgs
 {
     glm::mat4x4 InverseCamRot;
-    glm::vec4 WorldUpView;
     glm::vec4 BlackHoleRelativePosRs;
     glm::vec4 BlackHoleRelativeDiskNormal;
+    glm::vec4 BlackHoleRelativeDiskTangen; 
     float BlackHoleTime;
     float BlackHoleMassSol;
     float Spin;

@@ -291,26 +291,58 @@ void Panel::Draw(ImDrawList* draw_list)
 void VBox::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
+
+    // 基础更新
     m_absolute_pos.x = parent_abs_pos.x + m_rect.x;
     m_absolute_pos.y = parent_abs_pos.y + m_rect.y;
+    UIElement::Update(dt, parent_abs_pos); // 更新 Tween 等
 
-    // 更新自身动画
-    UIElement::Update(dt, parent_abs_pos); // 这里只跑 Tween，不递归子节点，因为我们要手动布局
+    // --- Pass 1: 测量 ---
+    float fixed_height = 0.0f;
+    int fill_count = 0;
+    int visible_children = 0;
+
+    for (const auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+        visible_children++;
+        if (child->m_fill_v)
+        {
+            fill_count++;
+        }
+        else
+        {
+            fixed_height += child->m_rect.h;
+        }
+    }
+
+    // 计算所有间距占用的总高度
+    float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
+
+    // --- Pass 2: 分配与布局 ---
+    float remaining_height = m_rect.h - fixed_height - total_padding;
+    float fill_child_height = (fill_count > 0) ? std::max(0.0f, remaining_height / fill_count) : 0.0f;
 
     float current_y = 0.0f;
-    for (size_t i = 0; i < m_children.size(); i++)
+    for (size_t i = 0; i < m_children.size(); ++i)
     {
         auto& child = m_children[i];
         if (!child->m_visible) continue;
 
-        // 垂直堆叠
+        // A. 确定当前子元素的高度
+        if (child->m_fill_v)
+        {
+            child->m_rect.h = fill_child_height;
+        }
+
+        // B. 设置垂直位置
         child->m_rect.y = current_y;
 
-        // 水平处理 (保持原有的对齐逻辑)
+        // C. 处理水平对齐 (逻辑不变)
         if (child->m_align_h == Alignment::Stretch)
         {
             child->m_rect.x = 0;
-            child->m_rect.w = this->m_rect.w; // 继承 VBox 的宽度
+            child->m_rect.w = this->m_rect.w;
         }
         else if (child->m_align_h == Alignment::Center)
         {
@@ -320,45 +352,89 @@ void VBox::Update(float dt, const ImVec2& parent_abs_pos)
         {
             child->m_rect.x = this->m_rect.w - child->m_rect.w;
         }
-        else
+        else // Start
         {
             child->m_rect.x = 0;
         }
 
+        // D. 递归更新子元素
         child->Update(dt, m_absolute_pos);
 
+        // E. 移动Y坐标，为下一个元素做准备
         current_y += child->m_rect.h;
-        // 最后一个元素后面不加 padding
-        if (i < m_children.size() - 1) current_y += m_padding;
+        if (i < (size_t)visible_children - 1) // 最后一个可见元素后面不加 padding
+        {
+            current_y += m_padding;
+        }
     }
 
-    // [新增] VBox 根据内容自动计算自身高度
-    // 这对 ScrollView 非常重要
-    this->m_rect.h = current_y;
+    // --- [核心修正] Pass 3: 更新自身高度 (如果需要) ---
+    // 如果 fill_count 为 0，意味着这个VBox是内容自适应模式。
+    // 它的高度应该被其内容撑开。
+    if (fill_count == 0)
+    {
+        this->m_rect.h = current_y;
+    }
+    // 否则，如果 fill_count > 0，意味着这个VBox是尺寸分配模式。
+    // 它的高度由它的父级决定，它不应该改变自己的高度。
 }
-
 // --- HBox 实现 (新增) ---
 void HBox::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
+
+    // 基础更新
     m_absolute_pos.x = parent_abs_pos.x + m_rect.x;
     m_absolute_pos.y = parent_abs_pos.y + m_rect.y;
+    UIElement::Update(dt, parent_abs_pos);
 
-    UIElement::Update(dt, parent_abs_pos); // 跑 Tween
+    // --- Pass 1: 测量 (主轴：水平) ---
+    float fixed_width = 0.0f;
+    int fill_count = 0;
+    int visible_children = 0;
 
-    float current_x = 0.0f;
-    for (auto& child : m_children)
+    for (const auto& child : m_children)
     {
         if (!child->m_visible) continue;
+        visible_children++;
+        if (child->m_fill_h)
+        {
+            fill_count++;
+        }
+        else
+        {
+            fixed_width += child->m_rect.w;
+        }
+    }
 
-        // 水平方向：堆叠
+    float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
+
+    // --- Pass 2: 分配与布局 ---
+    float remaining_width = m_rect.w - fixed_width - total_padding;
+    float fill_child_width = (fill_count > 0) ? std::max(0.0f, remaining_width / fill_count) : 0.0f;
+
+    float current_x = 0.0f;
+    float max_child_height = 0.0f; // 用于计算HBox的自适应高度
+
+    for (size_t i = 0; i < m_children.size(); ++i)
+    {
+        auto& child = m_children[i];
+        if (!child->m_visible) continue;
+
+        // A. 确定宽度 (主轴尺寸)
+        if (child->m_fill_h)
+        {
+            child->m_rect.w = fill_child_width;
+        }
+
+        // B. 设置水平位置 (主轴定位)
         child->m_rect.x = current_x;
 
-        // 垂直方向：根据 Alignment 计算 Y 和 H
+        // C. 处理垂直对齐 (次轴定位)
         if (child->m_align_v == Alignment::Stretch)
         {
             child->m_rect.y = 0;
-            child->m_rect.h = this->m_rect.h;
+            child->m_rect.h = this->m_rect.h; // 子元素高度被拉伸到与HBox相同
         }
         else if (child->m_align_v == Alignment::Center)
         {
@@ -373,12 +449,31 @@ void HBox::Update(float dt, const ImVec2& parent_abs_pos)
             child->m_rect.y = 0;
         }
 
+        // D. 递归更新
         child->Update(dt, m_absolute_pos);
-        current_x += child->m_rect.w + m_padding;
+
+        // 在递归更新后，记录子元素最终的高度，用于HBox自身的自适应高度计算
+        if (child->m_rect.h > max_child_height)
+        {
+            max_child_height = child->m_rect.h;
+        }
+
+        // E. 移动X坐标
+        current_x += child->m_rect.w;
+        if (i < (size_t)visible_children - 1) current_x += m_padding;
+    }
+
+    // --- Pass 3: 更新自身高度 (次轴自适应) ---
+    // 如果HBox的高度没有被外部（例如父VBox或用户代码）设置一个明确的值，
+    // 那么它的高度就应该由其内部最高的子元素决定。
+    // 我们用一个很小的值来判断“高度是否未被设置”。
+    if (m_rect.h <= 0.1f)
+    {
+        m_rect.h = max_child_height;
     }
 }
 
-// --- ScrollView 实现 ---
+// --- ScrollView 实现 (修复过滚闪烁问题) ---
 void ScrollView::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
@@ -387,57 +482,80 @@ void ScrollView::Update(float dt, const ImVec2& parent_abs_pos)
     m_absolute_pos.x = parent_abs_pos.x + m_rect.x;
     m_absolute_pos.y = parent_abs_pos.y + m_rect.y;
 
+    // --- 计算滚动边界 ---
+    // 这是为了确保目标值不会超出范围
+    float max_scroll = std::max(0.0f, m_content_height - m_rect.h);
+
     // 2. 滚动输入处理
     if (m_hovered)
     {
         float wheel = ImGui::GetIO().MouseWheel;
-        if (std::abs(wheel) > 0.0f) m_scroll_y -= wheel * m_scroll_speed;
+        if (std::abs(wheel) > 0.0f)
+        {
+            // 修改目标值，而不是直接修改当前值
+            m_target_scroll_y -= wheel * m_scroll_speed;
+        }
     }
 
-    // 3. 布局子元素
-    // ScrollView 逻辑变为：强制子元素的 Y 坐标偏移，并让子元素的宽等于 ScrollView 的宽
-    float max_child_bottom = 0.0f;
-    float view_w = m_rect.w - (m_show_scrollbar ? 6.0f : 0.0f); // 预留滚动条空间
+    // --- [核心逻辑 1] 限制目标值范围 ---
+    // 无论是否有输入，都要时刻修正目标值，防止内容变少时目标值悬空
+    m_target_scroll_y = std::clamp(m_target_scroll_y, 0.0f, max_scroll);
+
+    // --- [核心逻辑 2] 平滑插值 (Smooth Damp) ---
+    // 使用这种公式可以保证帧率波动时动画速度一致: current += (target - current) * (1 - exp(-speed * dt))
+    // 或者使用简化的 Lerp 近似：current += (target - current) * speed * dt
+
+    float diff = m_target_scroll_y - m_scroll_y;
+
+    // 如果差距很小，直接吸附，避免浮点数抖动
+    if (std::abs(diff) < 0.5f)
+    {
+        m_scroll_y = m_target_scroll_y;
+    }
+    else
+    {
+        // 这里的 dt * m_smoothing_speed 决定了跟手的速度
+        m_scroll_y += diff * std::min(1.0f, m_smoothing_speed * dt);
+    }
+
+    // --- Pass 2: 布局子元素 (逻辑不变，但使用平滑后的 m_scroll_y) ---
+    float current_max_bottom = 0.0f;
+    float view_w = m_rect.w - (m_show_scrollbar ? 6.0f : 0.0f);
 
     for (auto& child : m_children)
     {
         if (!child->m_visible) continue;
 
-        // [关键] ScrollView 将自身的宽度约束传递给子容器 (比如 VBox)
-        // 子容器负责在 update 里根据这个宽度去布局它自己的子元素
-        child->m_rect.x = 0; // 默认左对齐，内容容器通常填满宽
+        // 传递宽度约束
+        if (child->m_fill_h)
+        {
+            child->m_rect.w = view_w;
+        }
+        child->m_rect.x = 0;
         child->m_rect.w = view_w;
 
-        // 应用滚动偏移
-        // 注意：这里我们其实是在修改子元素的相对坐标。
-        // 子元素的 Update 会基于这个 m_rect.y 计算 absolute_pos
-        // VBox 的 Update 会重置它子元素的 Y，所以通常 ScrollView 内部只放 *一个* VBox 是最佳实践
-        // 如果放了多个子元素，ScrollView 不会帮它们堆叠，它们会重叠在一起，除非它们自己有坐标。
-
-        // 为了兼容性，我们假设 ScrollView 内部只有一个主要的内容容器 (VBox)
-        // 或者我们依然允许 ScrollView 简单地偏移所有子元素
-
-        // 这里有一个 tricky 的点：VBox 的 Update 会把自己的 children 的 Y 重置。
-        // 所以 ScrollView 只需要控制 VBox 本身的 Y 即可。
-
-        // 也就是： VBox.y = -m_scroll_y
+        // 应用平滑后的 m_scroll_y
         child->m_rect.y = -m_scroll_y;
 
         child->Update(dt, m_absolute_pos);
 
-        // 计算内容总高度 (取子元素的最底部)
-        // VBox 会在 Update 后计算好自己的 m_rect.h (如果 VBox 实现了自动高度)
-        // 但目前的 VBox 实现并没有自动计算自身高度，我们需要让 VBox 计算自身高度。
-
-        // [补丁] 让我们去修改一下 VBox，让它能算出自己的 Height
-        if (child->m_rect.h > max_child_bottom) max_child_bottom = child->m_rect.h;
+        // 计算内容高度
+        if (child->m_rect.h > current_max_bottom)
+        {
+            current_max_bottom = child->m_rect.h;
+        }
     }
 
-    m_content_height = max_child_bottom;
+    // --- Pass 3: 更新内容高度 ---
+    m_content_height = current_max_bottom;
 
-    // 4. 限制滚动范围
-    float max_scroll = std::max(0.0f, m_content_height - m_rect.h);
-    m_scroll_y = std::clamp(m_scroll_y, 0.0f, max_scroll);
+    // 再次检查 clamp (防止这一帧内容突然变少导致 scroll_y 悬空)
+    // 注意：这里同时限制 target 和 current，确保逻辑稳健
+    float new_max_scroll = std::max(0.0f, m_content_height - m_rect.h);
+    if (m_target_scroll_y > new_max_scroll) m_target_scroll_y = new_max_scroll;
+    // 如果当前位置已经超出很多（比如列表被清空），则不需要平滑回去，直接归位，体验更好
+    // 如果只是超出一点点，则通过上面的插值慢慢回去
+    if (m_scroll_y > new_max_scroll + 50.0f) m_scroll_y = new_max_scroll;
 }
 
 

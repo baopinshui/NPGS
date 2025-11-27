@@ -79,39 +79,79 @@ void FApplication::ExecuteMainRender()
 
     // 5. 创建 PulsarButtons
     // Button 1: Dyson Beam
-    m_beam_button = std::make_shared<UI::PulsarButton>("beam", "发送戴森光束", "☼", "ENERGY", &m_beam_energy, "J", true);
-    m_beam_button->m_rect.x = 50;
-    m_beam_button->m_rect.y = 400;
-    m_beam_button->m_font = ctx.m_font_large;
-    m_beam_button->on_click_callback = [this]()
+    m_beam_button = std::make_shared<UI::PulsarButton>(
+        "beam",
+        "发射戴森光束", // 这是主按钮文字
+        "☼",
+        "ENERGY",
+        &m_beam_energy,
+        "J",
+        true
+    );
+    m_beam_button->m_rect = { 50, 400, 40, 40 };
+
+    // 1. 注册 Toggle 回调 (展开/收起逻辑)
+    m_beam_button->on_toggle_callback = [this](bool want_expand)
     {
-        m_is_beam_button_active = !m_is_beam_button_active;
-        m_beam_button->SetActive(m_is_beam_button_active);
-        if (m_is_beam_button_active )
+        // 简单的互斥逻辑：打开这个，关闭那个
+        if (want_expand)
         {
-            m_is_rkkv_button_active = false;
-            m_rkkv_button->SetActive(false);
+            m_rkkv_button->SetActive(false); // 关闭另一个
+            m_beam_button->SetActive(true);  // 打开自己
+
+            // [模拟业务逻辑] 检查是否有目标
+            // 假设 _FreeCamera 看着某个方向或者有一个 SelectedTarget 变量
+ 
+        }
+        else
+        {
+            m_beam_button->SetActive(false);
         }
     };
-    m_beam_button->on_stat_change_callback = [](const std::string& id, const std::string& value)
+
+    // 2. 注册 Execute 回调 (按下“发射”文字)
+    m_beam_button->on_execute_callback = [this](const std::string& id, const std::string& val)
     {
-        NpgsCoreInfo("Button '{}' value changed to: {}", id, value);
+        // 只有在 LOCKED 状态下才允许发射
+        // 这里需要一种方式获取当前状态，或者简单判断 status text
+        // 更好的方式是在 Application 存一个状态 enum
+
+        NpgsCoreInfo("Command Received: ID={}, Value={}", id, val);
+
+        // 示例逻辑
+        if (m_beam_button->m_current_status_text == "NO TARGET")
+        {
+            NpgsCoreWarn("Cannot fire: No target locked!");
+            // 可选：播放拒绝动画或红色闪烁
+        }
+        else
+        {
+            NpgsCoreInfo("FIRING DYSON BEAM with {} Joules!", val);
+            // 触发游戏逻辑...
+        }
     };
 
     // Button 2: RKKV
     m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", "☢", "MASS", &m_rkkv_mass, "kg", true);
-    m_rkkv_button->m_rect.x = 50;
-    m_rkkv_button->m_rect.y = 460;
-    m_rkkv_button->m_font = ctx.m_font_large;
-    m_rkkv_button->on_click_callback = [this]()
+    m_rkkv_button->m_rect = { 50, 460, 40, 40 };
+
+    m_rkkv_button->on_toggle_callback = [this](bool want_expand)
     {
-        m_is_rkkv_button_active = !m_is_rkkv_button_active;
-        m_rkkv_button->SetActive(m_is_rkkv_button_active);
-        if (m_is_rkkv_button_active )
+        if (want_expand)
         {
-            m_is_beam_button_active = false;
             m_beam_button->SetActive(false);
+            m_rkkv_button->SetActive(true);
+            m_rkkv_button->SetStatusText("TARGET LOCKED"); // RKKV 总是锁定 (示例)
         }
+        else
+        {
+            m_rkkv_button->SetActive(false);
+        }
+    };
+
+    m_rkkv_button->on_execute_callback = [this](const std::string& id, const std::string& val)
+    {
+        NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
     };
 
     // 6. 将按钮也添加到 UI 根中
@@ -285,7 +325,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;","WorldUpView", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen",
                      "BlackHoleTime","BlackHoleMassSol", "Spin", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,
@@ -549,9 +589,9 @@ void FApplication::ExecuteMainRender()
                 lastdir = BlackHoleArgs.InverseCamRot;
                 ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
                 BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
-                BlackHoleArgs.WorldUpView = (glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
-                BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.00001f, 1.0f));
+                BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+                BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
                 BlackHoleArgs.Spin = 0.0f;
@@ -606,10 +646,9 @@ void FApplication::ExecuteMainRender()
                 ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
-                BlackHoleArgs.WorldUpView = (glm::mat4_cast(_FreeCamera->GetOrientation()) * WorldUp);
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
-                BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.00001f, 0.0f));
-
+                BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+                BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
             }
 
             Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
@@ -625,6 +664,21 @@ void FApplication::ExecuteMainRender()
             }//else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
            // }
            // _FreeCamera->ProcessMouseMovement(10, 0);
+
+
+            bool has_target = (int(0.7*RealityTime) % 2 == 1); // 随机模拟
+
+            if (has_target)
+            {
+                m_beam_button->SetStatusText("TARGET LOCKED");
+            }
+            else
+            {
+                m_beam_button->SetStatusText("NO TARGET");
+            }
+
+
+
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
             _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);

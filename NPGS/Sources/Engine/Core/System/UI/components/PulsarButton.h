@@ -1,7 +1,8 @@
+// --- START OF FILE PulsarButton.h ---
 #pragma once
 #include "../ui_framework.h"
 #include <string>
-#include <variant>
+#include <functional>
 #include "HackerTextHelper.h"
 #include "InputField.h"
 
@@ -12,10 +13,17 @@ _UI_BEGIN
 class PulsarButton : public UIElement
 {
 public:
+    // --- 定义回调类型 ---
+    // 点击图标展开/收起的回调
+    using OnToggleCallback = std::function<void(bool is_expanding)>;
+    // 点击主标题（发射）的回调，返回当前的ID和输入框的值
+    using OnExecuteCallback = std::function<void(const std::string& id, const std::string& current_value)>;
+
     // --- 外部接口 ---
     std::string m_id;
-    std::function<void()> on_click_callback;
-    std::function<void(const std::string& id, const std::string& value)> on_stat_change_callback;
+
+    OnToggleCallback on_toggle_callback;   // [修改] 明确用途
+    OnExecuteCallback on_execute_callback; // [新增] 执行回调
 
     // --- 状态 ---
     enum class PulsarAnimState { Closed, Opening, Open, Closing };
@@ -25,51 +33,64 @@ public:
     // --- 构造函数 ---
     PulsarButton(
         const std::string& id,
-        const std::string& label,
+        const std::string& label, // 这将是“发射按钮”的文字
         const std::string& icon_char,
         const std::string& stat_label,
-        std::string* stat_value_ptr, // 绑定外部 string
+        std::string* stat_value_ptr,
         const std::string& stat_unit,
         bool is_editable
     );
 
     // --- 核心方法 ---
     void SetActive(bool active);
+
+    // [新增] 动态设置状态文本 (例如 "TARGET LOCKED" -> "NO TARGET")
+    void SetStatusText(const std::string& text);
+
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
     bool HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release) override;
 
-private:
+//private:
     // --- 内部数据 ---
-    // 动画
-    float m_anim_progress = 0.0f; // 0.0=closed, 1.0=open
+    float m_anim_progress = 0.0f;
     float m_rotation_angle = 0.0f;
-    HackerTextHelper m_hacker_locked;
-    HackerTextHelper m_hacker_label;
+
+    // HackerTextHelper 管理器
+    HackerTextHelper m_hacker_status; // [重命名] 原 m_hacker_locked
+    HackerTextHelper m_hacker_label;  // 主标题/发射按钮
     HackerTextHelper m_hacker_stat_value;
 
-    // 内容
     std::string m_label;
     std::string m_icon_char;
     std::string m_stat_label;
     std::string m_stat_unit;
+    std::string m_current_status_text = "SYSTEM READY"; // 默认状态文本
+
     bool m_is_editable;
     bool m_use_glass_effect = true;
+
     // 子控件
     std::shared_ptr<InputField> m_input_field;
 
-    // 脉冲星射线几何数据
-    struct RaySegment { float offset, bump_height; bool has_bump, is_gap;float thickness;  };
-    struct PulsarRay { float theta, phi, len; std::vector<RaySegment> segments;};
+    // [新增] Label（发射按钮）的点击区域检测
+    Rect m_label_hit_rect = { 0,0,0,0 };
+    bool m_label_hovered = false; // Label 是否被悬停
+
+    // 脉冲星射线几何数据 (保持不变)
+    struct RaySegment { float offset, bump_height; bool has_bump, is_gap; float thickness; };
+    struct PulsarRay { float theta, phi, len; std::vector<RaySegment> segments; };
     std::vector<PulsarRay> m_rays;
 
-    // 绘制常量
+    // 布局常量
     const float m_expanded_width = 80.0f;
     const float m_expanded_height = 80.0f;
     const ImVec2 pulsar_center_offset = { 20.0f, 20.0f };
     const float pulsar_radius = 60.0f;
-};
 
+    // 布局计算辅助
+    void UpdateLayoutRects();
+};
 
 _UI_END
 _SYSTEM_END
