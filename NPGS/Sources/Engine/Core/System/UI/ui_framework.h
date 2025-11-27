@@ -233,7 +233,6 @@ public:
     float m_scroll_y = 0.0f;
     float m_content_height = 0.0f;
     float m_scroll_speed = 20.0f;
-    float m_padding = 8.0f;
     bool m_show_scrollbar = true;
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;

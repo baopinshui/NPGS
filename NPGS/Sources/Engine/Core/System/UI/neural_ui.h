@@ -28,14 +28,14 @@ public:
     void AddLinear(const std::string& name, T* ptr, T min, T max)
     {
         auto slider = std::make_shared<LinearTechSlider<T>>(name, ptr, min, max);
-        layout_container->AddChild(slider);
+        content_vbox->AddChild(slider);
     }
 
     template<typename T>
     void AddThrottle(const std::string& name, T* ptr, T feature_a = 0)
     {
         auto slider = std::make_shared<ThrottleTechSlider<T>>(name, ptr, feature_a);
-        layout_container->AddChild(slider);
+        content_vbox->AddChild(slider);
     }
 
     // [修改] 提供一个获取根面板的接口
@@ -49,12 +49,15 @@ private:
     std::shared_ptr<TechBorderPanel> root_panel;
     std::shared_ptr<NeuralParticleView> bg_view;
     std::shared_ptr<UIElement> content_container;
+
+    std::shared_ptr<ScrollView> scroll_view; // 滚动窗口
+    std::shared_ptr<VBox> content_vbox;      // 实际的内容堆叠容器
+
     std::shared_ptr<CollapsedMainButton> collapsed_btn;
-    std::shared_ptr<ScrollView> layout_container;
 
     bool m_expanded = false;
     ImVec2 m_collapsed_size = { 80, 80 };
-    ImVec2 m_expanded_size = { 320, 256 };
+    ImVec2 m_expanded_size = { 340, 300 };
 };
 
 _UI_END

@@ -16,9 +16,7 @@ NeuralMenuController::NeuralMenuController()
 
     root_panel = std::make_shared<TechBorderPanel>();
     root_panel->m_rect = { 20, 20, m_collapsed_size.x, m_collapsed_size.y };
-    // [核心修改] 增加边框厚度和角标长度，使其看起来更硬朗
     root_panel->m_thickness = 2.0f;
-
     root_panel->m_use_glass_effect = true;
 
     // 2. Background Particles
@@ -59,19 +57,33 @@ NeuralMenuController::NeuralMenuController()
     content_container->AddChild(sep_top);
 
     // B. 中间滚动区域 (ScrollView)
-    layout_container = std::make_shared<ScrollView>();
-    // [位置调整] 顶部留出 45px (标题)，底部留出 40px (关闭按钮)
-    // 宽度两边各留 15px，显得不那么拥挤
-    layout_container->m_rect = { 20, 48, m_expanded_size.x - 40, m_expanded_size.y - 48 - 70 };
-    layout_container->m_padding = 10.0f; // 增加控件间距
-    content_container->AddChild(layout_container);
+    //     scroll_view = std::make_shared<ScrollView>();
+    // 确定 ScrollView 的绝对显示区域 (窗口大小)
+    // 依然使用绝对布局定位 ScrollView 本身
+    scroll_view = std::make_shared<ScrollView>();
+    scroll_view->m_rect = { 20, 48, m_expanded_size.x - 40, m_expanded_size.y - 48 - 70 };
+    scroll_view->m_show_scrollbar = true; // 可选
+    content_container->AddChild(scroll_view);
 
+    // [新增] 创建 VBox 负责堆叠
+    content_vbox = std::make_shared<VBox>();
+    content_vbox->m_padding = 10.0f; // 控件间距
+    content_vbox->m_align_h = Alignment::Stretch; // 让 Slider 自动填满宽度
+    scroll_view->AddChild(content_vbox);
+
+    //layout_container = std::make_shared<ScrollView>();
+    //// [位置调整] 顶部留出 45px (标题)，底部留出 40px (关闭按钮)
+    //// 宽度两边各留 15px，显得不那么拥挤
+    //layout_container->m_rect = { 20, 48, m_expanded_size.x - 40, m_expanded_size.y - 48 - 70 };
+    //layout_container->m_padding = 10.0f; // 增加控件间距
+    //content_container->AddChild(layout_container);
+    //
     // 装饰性线条 - 底部按钮上方
     auto sep_bot = std::make_shared<Panel>();
     sep_bot->m_bg_color = theme.color_accent;
     sep_bot->m_rect = { 20, m_expanded_size.y - 65, m_expanded_size.x - 40, 1 };
     content_container->AddChild(sep_bot);
-
+    
     // C. 底部关闭按钮 (Footer) - [核心修改：下移至底部居中]
     float close_btn_w = 300.0f;
     float close_btn_x = (m_expanded_size.x - close_btn_w) * 0.5f; // 居中计算
@@ -114,8 +126,8 @@ void NeuralMenuController::ToggleExpand()
 
         // [核心修改] 动态更新 Layout 尺寸以匹配新的展开尺寸
         // 保持 header(48) 和 footer(40) 的预留空间
-        layout_container->m_rect.w = m_expanded_size.x - 40;
-        layout_container->m_rect.h = m_expanded_size.y - 48 - 70;
+        scroll_view->m_rect.w = m_expanded_size.x - 40;
+        scroll_view->m_rect.h = m_expanded_size.y - 48 - 70;
     }
     else
     {
