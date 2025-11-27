@@ -222,25 +222,8 @@ void PulsarButton::Draw(ImDrawList* draw_list)
         float half_t = thickness * 0.5f; // 计算半宽，用于内缩偏移
         ImU32 border_col = GetColorWithAlpha(m_hovered && !m_is_active ? theme.color_accent : theme.color_border, icon_scale);
 
-        // 左上 (Top Left) -> 向右(+), 向下(+)
-        TechUtils::DrawCorner(draw_list,
-            ImVec2(p_min.x + half_t, p_min.y + half_t),
-            corner_len, corner_len, thickness, border_col);
-
-        // 右上 (Top Right) -> 向左(-), 向下(+)
-        TechUtils::DrawCorner(draw_list,
-            ImVec2(p_max.x - half_t, p_min.y + half_t),
-            -corner_len, corner_len, thickness, border_col);
-
-        // 左下 (Bottom Left) -> 向右(+), 向上(-)
-        TechUtils::DrawCorner(draw_list,
-            ImVec2(p_min.x + half_t, p_max.y - half_t),
-            corner_len, -corner_len, thickness, border_col);
-
-        // 右下 (Bottom Right) -> 向左(-), 向上(-)
-        TechUtils::DrawCorner(draw_list,
-            ImVec2(p_max.x - half_t, p_max.y - half_t),
-            -corner_len, -corner_len, thickness, border_col);
+        TechUtils::DrawBracketedBox(draw_list, p_min, p_max, border_col, 2.0f, 8.0f);
+    
     }
     if (base_font) ImGui::PopFont();
     // 2. 绘制展开后的 Canvas 内容
@@ -370,7 +353,7 @@ void PulsarButton::Draw(ImDrawList* draw_list)
             // 2. 主标题 (Label) - 紧贴分割线上方
             ImVec2 pos_label = { text_abs_x, line_abs_y - 0.0f };
 
-            m_hacker_label.Draw(draw_list, pos_label, GetColorWithAlpha(theme.color_accent, text_alpha), ctx.m_font_bold);
+            m_hacker_label.Draw(draw_list, pos_label, GetColorWithAlpha(theme.color_text_highlight, text_alpha), ctx.m_font_bold);
 
 
             // 3. 统计数据 / 输入框 - 位于分割线下方

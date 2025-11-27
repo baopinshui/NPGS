@@ -170,7 +170,6 @@ public:
     virtual void ResetInteraction();
 
     // 功能 API
-//protected: // 改为 protected 或新增一个
     // 新增：绘制毛玻璃背景的辅助函数
     void DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max);
     void To(float* property, float target, float duration, EasingType easing = EasingType::EaseOutQuad, TweenCallback on_complete = nullptr);

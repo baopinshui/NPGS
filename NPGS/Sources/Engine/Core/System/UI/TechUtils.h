@@ -14,10 +14,22 @@ public:
     {
         return ImVec2(std::floor(p.x) + 0.5f, std::floor(p.y) + 0.5f);
     }
+    
     static inline float Snap(float p)
     {
         return std::floor(p) + 0.5f;
     }
+    
+    static ImVec4 LerpColor(const ImVec4& a, const ImVec4& b, float t)
+    {
+        return ImVec4(
+            a.x + (b.x - a.x) * t,
+            a.y + (b.y - a.y) * t,
+            a.z + (b.z - a.z) * t,
+            a.w + (b.w - a.w) * t
+        );
+    }
+    
     static void DrawCorner(ImDrawList* dl, ImVec2 p_corner, float arm_len_x, float arm_len_y, float thickness, ImU32 col)
     {
         // 1. 临时关闭抗锯齿，获得绝对硬朗的边缘（科技感关键）
@@ -86,6 +98,7 @@ public:
         // 3. 恢复抗锯齿设置
         dl->Flags = backup_flags;
     }
+    
     static void DrawHardLine(ImDrawList* dl, ImVec2 p1, ImVec2 p2, ImU32 col, float thickness)
     {
         // 1. 临时关闭抗锯齿，获得绝对硬朗的边缘
@@ -139,6 +152,26 @@ public:
 
         // 3. 恢复抗锯齿设置
         dl->Flags = backup_flags;
+    }
+
+    static void DrawBracketedBox(ImDrawList* dl, ImVec2 p_min, ImVec2 p_max, ImU32 col, float thickness, float corner_len, float offset = 0.0f)
+    {
+        float half_t = thickness * 0.5f;
+
+        // 自动计算带偏移的坐标
+        float x1 = p_min.x + offset;
+        float y1 = p_min.y + offset;
+        float x2 = p_max.x - offset;
+        float y2 = p_max.y - offset;
+
+        // 左上
+        DrawCorner(dl, ImVec2(x1 + half_t, y1 + half_t), corner_len, corner_len, thickness, col);
+        // 右上
+        DrawCorner(dl, ImVec2(x2 - half_t, y1 + half_t), -corner_len, corner_len, thickness, col);
+        // 左下
+        DrawCorner(dl, ImVec2(x1 + half_t, y2 - half_t), corner_len, -corner_len, thickness, col);
+        // 右下
+        DrawCorner(dl, ImVec2(x2 - half_t, y2 - half_t), -corner_len, -corner_len, thickness, col);
     }
 };
 
