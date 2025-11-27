@@ -283,7 +283,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralParticleView.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\PulsarButton.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.cpp" />
-    <ClCompile Include="Sources\Engine\Core\System\UI\neural_ui.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\ui_framework.cpp" />
     <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\CelestialObject.cpp" />
     <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\Planet.cpp" />
@@ -339,6 +339,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\components\PulsarButton.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechSliders.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\TechUtils.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\neural_ui.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\ui_framework.h" />

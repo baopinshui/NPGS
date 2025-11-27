@@ -96,6 +96,10 @@ void PulsarButton::SetActive(bool active)
         }
     }
 }
+void PulsarButton::SetExecutable(bool can_execute)
+{
+    m_can_execute = can_execute;
+}
 
 // --- Overrides ---
 void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
@@ -140,13 +144,13 @@ bool PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
     }
 
     // 4. Update hover states
-    m_label_hovered = hit_label;
-    m_hovered = hit_icon || hit_label;
+    m_label_hovered = hit_label && m_can_execute;
+    m_hovered = hit_icon || m_label_hovered;
 
     // 5. Process clicks
     if (mouse_clicked && m_block_input)
     {
-        if (hit_label && m_is_active)
+        if (hit_label && m_is_active && m_can_execute)
         {
             m_clicked = true;
             if (on_execute_callback)
@@ -280,7 +284,17 @@ void PulsarButton::Draw(ImDrawList* draw_list)
 
             // Main Label / Execute Button
             ImVec2 pos_label = { text_abs_x, line_abs_y - 0.0f };
-            ImU32 label_color = GetColorWithAlpha(m_label_hovered ? theme.color_accent : theme.color_text_highlight, text_alpha);
+            ImU32 label_color;
+            if (m_can_execute)
+            {
+                // 可执行：使用悬停变色逻辑
+                label_color = GetColorWithAlpha(m_label_hovered ? theme.color_accent : theme.color_text_highlight, text_alpha);
+            }
+            else
+            {
+                // 不可执行：强制使用灰色
+                label_color = GetColorWithAlpha(theme.color_text_disabled, text_alpha);
+            }
             m_hacker_label.Draw(draw_list, pos_label, label_color, ctx.m_font_bold);
 
             // Update hit rect for next frame's input handling

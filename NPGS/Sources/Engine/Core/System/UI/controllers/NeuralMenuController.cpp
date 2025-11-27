@@ -1,11 +1,11 @@
-#include "neural_ui.h"
+#include "NeuralMenuController.h" // 必须包含自己的头文件
+
+
 #include <cmath>
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
-
-
 
 // --- NeuralMenuController Implementation ---
 NeuralMenuController::NeuralMenuController()
@@ -84,7 +84,7 @@ NeuralMenuController::NeuralMenuController()
     sep_bot->m_rect.h = 1.0f;                 // 只需定义高度
     main_layout->AddChild(sep_bot);
 
-    
+
     // C. 底部关闭按钮 (Footer)
     auto close_btn = std::make_shared<NeuralButton>(" CLOSE TERMINAL ");
     close_btn->m_rect.h = 34.0f;              // 只需定义高度

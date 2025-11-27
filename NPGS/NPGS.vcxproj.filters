@@ -120,9 +120,6 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\ui_framework.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\System\UI\neural_ui.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="Sources\Engine\Core\System\UI\components\InputField.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -142,6 +139,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Sources\Engine\Core\System\UI\components\PulsarButton.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -303,6 +303,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\TechUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

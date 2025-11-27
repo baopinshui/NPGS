@@ -106,6 +106,8 @@ void FApplication::ExecuteMainRender()
         else
         {
             m_beam_button->SetActive(false);
+
+            m_beam_button->SetExecutable(false); // <--- 关闭时总是设为不可执行
         }
     };
 
@@ -141,11 +143,15 @@ void FApplication::ExecuteMainRender()
         {
             m_beam_button->SetActive(false);
             m_rkkv_button->SetActive(true);
-            m_rkkv_button->SetStatusText("TARGET LOCKED"); // RKKV 总是锁定 (示例)
+
+            // 假设 RKKV 总是可以发射
+            m_rkkv_button->SetStatusText("READY TO LAUNCH");
+            m_rkkv_button->SetExecutable(true); // <--- 设置为可执行
         }
         else
         {
             m_rkkv_button->SetActive(false);
+            m_rkkv_button->SetExecutable(false); // <--- 关闭时重置
         }
     };
 
@@ -666,18 +672,18 @@ void FApplication::ExecuteMainRender()
            // _FreeCamera->ProcessMouseMovement(10, 0);
 
 
-            bool has_target = (int(0.7*RealityTime) % 2 == 1); // 随机模拟
+            bool has_target = (int(0.1*RealityTime) % 2 == 1); // 随机模拟
 
             if (has_target)
             {
                 m_beam_button->SetStatusText("TARGET LOCKED");
+                m_beam_button->SetExecutable(true); // <--- 设置为可执行
             }
             else
             {
                 m_beam_button->SetStatusText("NO TARGET");
+                m_beam_button->SetExecutable(false); // <--- 设置为不可执行
             }
-
-
 
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 

@@ -29,6 +29,8 @@ public:
     enum class PulsarAnimState { Closed, Opening, Open, Closing };
     PulsarAnimState m_anim_state = PulsarAnimState::Closed;
     bool m_is_active = false;
+    bool m_can_execute = false; // [新增] 是否可执行（即是否锁定目标）
+    std::string m_current_status_text = "SYSTEM READY"; // 默认状态文本
 
     // --- 构造函数 ---
     PulsarButton(
@@ -47,11 +49,14 @@ public:
     // [新增] 动态设置状态文本 (例如 "TARGET LOCKED" -> "NO TARGET")
     void SetStatusText(const std::string& text);
 
+    void SetExecutable(bool can_execute); // [新增] 设置可执行状态的接口
+
+
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
     bool HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release) override;
 
-//private:
+private:
     // --- 内部数据 ---
     float m_anim_progress = 0.0f;
     float m_rotation_angle = 0.0f;
@@ -65,7 +70,6 @@ public:
     std::string m_icon_char;
     std::string m_stat_label;
     std::string m_stat_unit;
-    std::string m_current_status_text = "SYSTEM READY"; // 默认状态文本
 
     bool m_is_editable;
     bool m_use_glass_effect = true;

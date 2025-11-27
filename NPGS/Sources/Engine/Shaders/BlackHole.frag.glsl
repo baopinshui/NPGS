@@ -56,9 +56,6 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 layout(set = 1, binding = 0) uniform texture2D iHistoryTex;
 layout(set = 1, binding = 1) uniform samplerCube iBackground;
 
-const float kSigma            = 5.670373e-8;
-const float kLightYearToMeter = 9460730472580800.0;
-
 float RandomStep(vec2 Input, float Seed)
 {
     return fract(sin(dot(Input + fract(11.4514 * sin(Seed)), vec2(12.9898, 78.233))) * 43758.5453);
