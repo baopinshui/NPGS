@@ -1,5 +1,4 @@
-#include "NeuralMenuController.h" // 必须包含自己的头文件
-
+#include "NeuralMenuController.h" 
 
 #include <cmath>
 

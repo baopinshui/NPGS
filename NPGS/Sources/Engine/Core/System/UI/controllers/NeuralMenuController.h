@@ -1,5 +1,5 @@
 #pragma once
-#include "../ui_framework.h" // 必须包含核心框架，因为它继承自UIElement的子类
+#include "../ui_framework.h" 
 #include "../components/NeuralParticleView.h"
 #include "../components/TechBorderPanel.h"
 #include "../components/CollapsedMainButton.h"

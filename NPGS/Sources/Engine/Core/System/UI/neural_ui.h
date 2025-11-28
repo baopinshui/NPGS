@@ -1,9 +1,7 @@
 #pragma once
 
-// 包含基础框架
 #include "ui_framework.h"
 
-// 包含所有拆分出去的组件
 #include "components/NeuralParticleView.h"
 #include "components/TechBorderPanel.h"
 #include "components/CollapsedMainButton.h"
