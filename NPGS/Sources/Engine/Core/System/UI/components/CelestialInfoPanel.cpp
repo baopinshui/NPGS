@@ -15,28 +15,74 @@ public:
     std::function<void()> on_click;
     VerticalTextButton(const std::string& t) : text(t) { m_block_input = true; }
 
+    // [修改] 重写 Draw 方法，实现整体顺时针旋转90度
     void Draw(ImDrawList* dl) override
     {
         if (!m_visible || m_alpha < 0.01f) return;
         const auto& theme = UIContext::Get().m_theme;
         ImU32 col = GetColorWithAlpha(m_hovered ? theme.color_accent : theme.color_text_disabled, 1.0f);
 
-        ImFont* font = UIContext::Get().m_font_small; // 使用小字体
-        if (font) ImGui::PushFont(font);
+        ImFont* font = UIElement::GetFont();
+        float angle = 3.14159f * 0.5f;
+        float c = cosf(angle);
+        float s = sinf(angle);
 
-        float font_size = ImGui::GetFontSize();
-        // 简单计算居中
-        ImVec2 text_size = ImGui::CalcTextSize("A");
-        float x_center = m_absolute_pos.x + (m_rect.w - text_size.x) * 0.5f;
-        float y_cursor = m_absolute_pos.y + 15.0f;
+        float font_size = font->FontSize;
+        ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text.c_str());
+        ImVec2 center = { m_absolute_pos.x + m_rect.w * 0.5f, m_absolute_pos.y + m_rect.h * 0.5f };
 
-        for (char c : text)
+        // 在未旋转的坐标系中，文本起点的坐标相对于中心应该是 (-w/2, -h/2)
+        ImVec2 pen_local = { -text_size.x * 0.5f, -text_size.y * 0.5f };
+        ImTextureID tex_id = font->ContainerAtlas->TexID;
+
+        for (const char* p = text.c_str(); *p; p++)
         {
-            char buf[2] = { c, 0 };
-            dl->AddText(ImVec2(x_center, y_cursor), col, buf);
-            y_cursor += font_size;
+            // 查找字形信息
+            const ImFontGlyph* glyph = font->FindGlyph(*p);
+            if (!glyph) continue;
+
+            if (glyph->Visible)
+            {
+                // 计算该字符在局部坐标系(未旋转)中的四个角
+                // ImGui 字体坐标：Y轴向下
+                float x0 = pen_local.x + glyph->X0;
+                float y0 = pen_local.y + glyph->Y0;
+                float x1 = pen_local.x + glyph->X1;
+                float y1 = pen_local.y + glyph->Y1;
+
+                // 定义四个顶点 (顺时针顺序: TL, TR, BR, BL)
+                ImVec2 p0_local = { x0, y0 };
+                ImVec2 p1_local = { x1, y0 };
+                ImVec2 p2_local = { x1, y1 };
+                ImVec2 p3_local = { x0, y1 };
+
+                // Lambda: 旋转变换函数
+                auto rotate_func = [&](ImVec2 v) -> ImVec2
+                {
+                    // 标准 2D 旋转公式 + 移回中心
+                    return ImVec2(
+                        center.x + (v.x * c - v.y * s),
+                        center.y + (v.x * s + v.y * c)
+                    );
+                };
+
+                // 变换到屏幕绝对坐标
+                ImVec2 p0 = rotate_func(p0_local);
+                ImVec2 p1 = rotate_func(p1_local);
+                ImVec2 p2 = rotate_func(p2_local);
+                ImVec2 p3 = rotate_func(p3_local);
+
+                // 使用 AddImageQuad 绘制任意四边形
+                dl->AddImageQuad(tex_id, p0, p1, p2, p3,
+                    ImVec2(glyph->U0, glyph->V0), // UV TL
+                    ImVec2(glyph->U1, glyph->V0), // UV TR
+                    ImVec2(glyph->U1, glyph->V1), // UV BR
+                    ImVec2(glyph->U0, glyph->V1), // UV BL
+                    col);
+            }
+            // 笔触后移 (在未旋转的X轴上移动)
+            pen_local.x += glyph->AdvanceX;
         }
-        if (font) ImGui::PopFont();
     }
 
     bool HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release) override
@@ -62,12 +108,14 @@ CelestialInfoPanel::CelestialInfoPanel()
     // 1. 创建竖向折叠标签 (Expanded Info)
     m_collapsed_tab = std::make_shared<TechBorderPanel>();
     m_collapsed_tab->m_rect = { 0, 0, 30, 100 }; // 位置在 Update 中设置
+    m_collapsed_tab->m_use_glass_effect = true;
     m_collapsed_tab->m_visible = false;
     m_collapsed_tab->m_alpha = 0.0f;
-    m_collapsed_tab->m_thickness = 1.0f;
+    m_collapsed_tab->m_thickness = 2.0f;
 
     auto vert_btn = std::make_shared<VerticalTextButton>("EXPAND");
     vert_btn->m_rect = { 0, 0, 30, 100 };
+    vert_btn->m_font = UIContext::Get().m_font_bold;
     vert_btn->on_click = [this]() { this->ToggleCollapse(); };
     m_collapsed_tab->AddChild(vert_btn);
     AddChild(m_collapsed_tab);
@@ -235,6 +283,10 @@ void CelestialInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
 void CelestialInfoPanel::ToggleCollapse()
 {
     m_is_collapsed = !m_is_collapsed;
+    if (m_collapsed_tab)
+    {
+        m_collapsed_tab->ResetInteraction();
+    }
 }
 
 void CelestialInfoPanel::RebuildDataList()

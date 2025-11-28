@@ -23,17 +23,6 @@ void TechBorderPanel::Draw(ImDrawList* dl)
         DrawGlassBackground(dl, p_min, p_max); // 调用基类方法
     }
 
-    // [视觉优化] 背景增加一点深度，稍微暗一点
-    ImVec4 deep_bg = { 0.0f,0.0f,0.0f,0.6f };
-
-    // 绘制透明黑
-    dl->AddRectFilled(
-        m_absolute_pos,
-        ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
-        GetColorWithAlpha(deep_bg, 1.0f)
-    );
-
-
 
 
 

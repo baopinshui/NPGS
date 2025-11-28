@@ -67,6 +67,14 @@ void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, 
         ImVec2 uv_min = ImVec2(p_min.x / ctx.m_display_size.x, p_min.y / ctx.m_display_size.y);
         ImVec2 uv_max = ImVec2(p_max.x / ctx.m_display_size.x, p_max.y / ctx.m_display_size.y);
         draw_list->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
+        ImVec4 deep_bg = { 0.0f,0.0f,0.0f,0.6f };
+
+        // 绘制透明黑
+        draw_list->AddRectFilled(
+            m_absolute_pos,
+            ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
+            GetColorWithAlpha(deep_bg, 1.0f)
+        );
     }
 }
 
