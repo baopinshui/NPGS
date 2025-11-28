@@ -227,7 +227,6 @@ void CelestialInfoPanel::ToggleCollapse()
     m_collapsed_btn->ResetInteraction();
 }
 
-// 数据列表构建：实现 [左侧竖线] + [右侧内容] 的分组布局
 void CelestialInfoPanel::RebuildDataList()
 {
     m_content_vbox->m_children.clear();
@@ -241,50 +240,70 @@ void CelestialInfoPanel::RebuildDataList()
 
     auto& theme = UIContext::Get().m_theme;
 
-    // 定义颜色
+    // 1. 获取字体并计算自适应尺寸
+    ImFont* target_font = UIContext::Get().m_font_regular;
+    if (!target_font) target_font = ImGui::GetFont();
+
+    // 自适应行高
+    float font_size = target_font->FontSize;
+    float row_height = font_size + 4.0f; // 文字高度 + 上下间隙
+    float key_width = font_size * 6.5f;  // Key列宽度跟随字号缩放
+
+    // 样式定义
     ImVec4 col_line = theme.color_accent;
-    col_line.w = 0.5f; // 半透明竖线
+    col_line.w = 0.5f;
     ImVec4 col_key = theme.color_text_disabled;
     ImVec4 col_val = theme.color_text;
     ImVec4 col_highlight = theme.color_accent;
 
     for (const auto& group : groups)
     {
-        // 1. 创建水平容器，容纳 [竖线] 和 [数据列]
-        auto group_hbox = std::make_shared<HBox>();
-        group_hbox->m_padding = 8.0f; // 竖线与文字的间距
+        // [核心修复]：预先计算该组的总高度
+        // 因为内容列的 padding 为 0，所以总高度 = 行数 * 行高
+        float total_group_height = group.size() * row_height;
 
-        // 2. 左侧竖线 (复用 Panel)
+        // 1. 创建水平容器
+        auto group_hbox = std::make_shared<HBox>();
+        group_hbox->m_padding = 8.0f;
+        // [核心修复]：显式设置高度，强制撑开空间，解决重叠问题
+        group_hbox->m_rect.h = total_group_height;
+
+        // 2. 左侧竖线
         auto line = std::make_shared<Panel>();
-        line->m_rect.w = 2.0f;       // 线宽
-        line->m_bg_color = col_line; // 颜色
-        line->m_align_v = Alignment::Stretch; // 纵向撑满
-        // 这里假设 Panel 默认没有边框/毛玻璃，或者可以配置关闭，仅作为色块使用
+        line->m_rect.w = 2.0f;
+        line->m_bg_color = col_line;
+        // [核心修复]：手动设置线高，而不依赖 Stretch (避免布局死锁)
+        line->m_align_v = Alignment::Start;
+        line->m_rect.h = total_group_height;
         group_hbox->AddChild(line);
 
-        // 3. 右侧内容列 (VBox)
+        // 3. 右侧内容列
         auto content_col = std::make_shared<VBox>();
-        content_col->m_padding = 1.0f; // 行间距极小，视觉紧凑
-        content_col->m_fill_h = true;  // 填满水平空间
+        content_col->m_padding = 0.0f;
+        // 显式设置高度，虽然 VBox 会自适应，但显式设置更稳健
+        content_col->m_rect.h = total_group_height;
+        content_col->m_fill_h = true;
 
         for (const auto& kv : group)
         {
             auto row = std::make_shared<HBox>();
-            row->m_rect.h = 14.0f; // 紧凑行高
+            row->m_rect.h = row_height; // 使用计算出的行高
 
             // Key
             auto k = std::make_shared<TechText>(kv.k + ":", col_key);
             k->m_align_h = Alignment::Start;
-            k->m_font = UIContext::Get().m_font_small;
-            k->m_rect.w = 90.0f; // 固定宽度对齐
+            k->m_align_v = Alignment::Center;
+            k->m_font = target_font;
+            k->m_rect.w = key_width;
 
             // Value
             auto v = std::make_shared<TechText>(kv.v, col_val);
             v->m_align_h = Alignment::End;
+            v->m_align_v = Alignment::Center;
             v->m_fill_h = true;
-            v->m_font = UIContext::Get().m_font_small; // 建议在 TechText 内部强制使用 Monospace 字体处理数字
+            v->m_font = target_font;
 
-            // 特定字段高亮演示
+            // 高亮逻辑
             if (kv.k == "Stage" || kv.k == "Temp")
             {
                 v->SetColor(col_highlight);
@@ -296,13 +315,11 @@ void CelestialInfoPanel::RebuildDataList()
         }
 
         group_hbox->AddChild(content_col);
-
-        // 将整组添加到主内容区
         m_content_vbox->AddChild(group_hbox);
 
-        // 组与组之间的间距 (透明 Spacer)
+        // 组间距
         auto spacer = std::make_shared<UIElement>();
-        spacer->m_rect.h = 8.0f;
+        spacer->m_rect.h = row_height * 0.5f;
         m_content_vbox->AddChild(spacer);
     }
 }
