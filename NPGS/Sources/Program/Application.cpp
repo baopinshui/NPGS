@@ -163,6 +163,14 @@ void FApplication::ExecuteMainRender()
     // 6. 将按钮也添加到 UI 根中
     m_ui_root->AddChild(m_beam_button);
     m_ui_root->AddChild(m_rkkv_button);
+
+
+
+    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>();
+    // 将其根元素添加到 UIRoot (假设 ui_root 是你的 UIRoot 实例)
+    m_ui_root->AddChild(m_celestial_info);
+
+
     // =========================================================================
     std::unique_ptr<Grt::FColorAttachment> HistoryAttachment;
     std::unique_ptr<Grt::FColorAttachment> BlackHoleAttachment;

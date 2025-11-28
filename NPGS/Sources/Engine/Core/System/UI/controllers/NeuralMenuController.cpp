@@ -87,8 +87,8 @@ NeuralMenuController::NeuralMenuController()
     // C. 底部关闭按钮 (Footer)
     auto close_btn = std::make_shared<NeuralButton>(" CLOSE TERMINAL ");
     close_btn->m_rect.h = 34.0f;              // 只需定义高度
-    close_btn->m_rect.w = 300.0f;             // 定义宽度，用于对齐
-    close_btn->m_align_h = Alignment::Center; // 水平居中对齐
+    //close_btn->m_rect.w = 300.0f;             // 定义宽度，用于对齐
+    close_btn->m_align_h = Alignment::Stretch; // 水平居中对齐
     close_btn->on_click_callback = [this]() { this->ToggleExpand(); };
     main_layout->AddChild(close_btn);
 

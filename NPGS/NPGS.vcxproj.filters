@@ -144,6 +144,9 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -306,6 +309,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TechProgressBar.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

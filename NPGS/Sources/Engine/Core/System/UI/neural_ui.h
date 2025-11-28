@@ -10,7 +10,7 @@
 #include "components/HackerTextHelper.h"
 #include "components/InputField.h"
 #include "components/PulsarButton.h"
-
+#include "components/CelestialInfoPanel.h"
 
 
 #include "controllers/NeuralMenuController.h"
