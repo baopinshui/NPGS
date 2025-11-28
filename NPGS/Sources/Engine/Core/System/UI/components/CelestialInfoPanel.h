@@ -1,7 +1,7 @@
 #pragma once
 #include "../ui_framework.h"
 #include "TechBorderPanel.h"
-#include "NeuralButton.h"
+#include "TechButton.h"
 #include "TechProgressBar.h"
 #include <vector>
 #include <string>
@@ -25,7 +25,7 @@ private:
 
     // 子组件引用 (用于在Update中操作它们)
     std::shared_ptr<TechBorderPanel> m_main_panel;
-    std::shared_ptr<TechBorderPanel> m_collapsed_tab;
+    std::shared_ptr<TechButton> m_collapsed_btn;
     std::shared_ptr<ScrollView> m_scroll_view;
     std::shared_ptr<VBox> m_content_vbox;
 

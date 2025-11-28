@@ -5,7 +5,7 @@
 #include "components/NeuralParticleView.h"
 #include "components/TechBorderPanel.h"
 #include "components/CollapsedMainButton.h"
-#include "components/NeuralButton.h"
+#include "components/TechButton.h"
 #include "components/TechSliders.h"
 #include "components/HackerTextHelper.h"
 #include "components/InputField.h"

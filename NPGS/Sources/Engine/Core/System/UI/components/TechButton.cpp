@@ -104,6 +104,10 @@ void TechButton::Draw(ImDrawList* dl)
     }
     else if (m_style == Style::Vertical)
     {
+        ImVec4 bg_idle = theme.color_border; bg_idle.w = 1.0f;
+        ImVec4 bg_hover = theme.color_accent;
+        ImU32 col_border = GetColorWithAlpha(TechUtils::LerpColor(bg_idle, bg_hover, m_hover_progress), 1.0f);
+        TechUtils::DrawBracketedBox(dl, m_absolute_pos, ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h), col_border, 2.0f, 6.0f);
         ImU32 col_text = GetColorWithAlpha(m_hovered ? theme.color_accent : theme.color_text_disabled, 1.0f);
         DrawVerticalText(dl, col_text);
     }

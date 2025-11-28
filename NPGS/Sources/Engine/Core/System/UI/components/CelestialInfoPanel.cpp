@@ -2,245 +2,191 @@
 #include "../TechUtils.h"
 #include "TechText.h"
 #include "TechDivider.h"
+#include "TechButton.h"      // 引入统一的 TechButton
+#include "TechProgressBar.h" // 引入进度条组件
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-// --- 内部辅助类：竖排文字按钮 ---
-class VerticalTextButton : public UIElement
-{
-public:
-    std::string text;
-    std::function<void()> on_click;
-    VerticalTextButton(const std::string& t) : text(t) { m_block_input = true; }
-
-    // [修改] 重写 Draw 方法，实现整体顺时针旋转90度
-    void Draw(ImDrawList* dl) override
-    {
-        if (!m_visible || m_alpha < 0.01f) return;
-        const auto& theme = UIContext::Get().m_theme;
-        ImU32 col = GetColorWithAlpha(m_hovered ? theme.color_accent : theme.color_text_disabled, 1.0f);
-
-        ImFont* font = UIElement::GetFont();
-        float angle = 3.14159f * 0.5f;
-        float c = cosf(angle);
-        float s = sinf(angle);
-
-        float font_size = font->FontSize;
-        ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text.c_str());
-        ImVec2 center = { m_absolute_pos.x + m_rect.w * 0.5f, m_absolute_pos.y + m_rect.h * 0.5f };
-
-        // 在未旋转的坐标系中，文本起点的坐标相对于中心应该是 (-w/2, -h/2)
-        ImVec2 pen_local = { -text_size.x * 0.5f, -text_size.y * 0.5f };
-        ImTextureID tex_id = font->ContainerAtlas->TexID;
-
-        for (const char* p = text.c_str(); *p; p++)
-        {
-            // 查找字形信息
-            const ImFontGlyph* glyph = font->FindGlyph(*p);
-            if (!glyph) continue;
-
-            if (glyph->Visible)
-            {
-                // 计算该字符在局部坐标系(未旋转)中的四个角
-                // ImGui 字体坐标：Y轴向下
-                float x0 = pen_local.x + glyph->X0;
-                float y0 = pen_local.y + glyph->Y0;
-                float x1 = pen_local.x + glyph->X1;
-                float y1 = pen_local.y + glyph->Y1;
-
-                // 定义四个顶点 (顺时针顺序: TL, TR, BR, BL)
-                ImVec2 p0_local = { x0, y0 };
-                ImVec2 p1_local = { x1, y0 };
-                ImVec2 p2_local = { x1, y1 };
-                ImVec2 p3_local = { x0, y1 };
-
-                // Lambda: 旋转变换函数
-                auto rotate_func = [&](ImVec2 v) -> ImVec2
-                {
-                    // 标准 2D 旋转公式 + 移回中心
-                    return ImVec2(
-                        center.x + (v.x * c - v.y * s),
-                        center.y + (v.x * s + v.y * c)
-                    );
-                };
-
-                // 变换到屏幕绝对坐标
-                ImVec2 p0 = rotate_func(p0_local);
-                ImVec2 p1 = rotate_func(p1_local);
-                ImVec2 p2 = rotate_func(p2_local);
-                ImVec2 p3 = rotate_func(p3_local);
-
-                // 使用 AddImageQuad 绘制任意四边形
-                dl->AddImageQuad(tex_id, p0, p1, p2, p3,
-                    ImVec2(glyph->U0, glyph->V0), // UV TL
-                    ImVec2(glyph->U1, glyph->V0), // UV TR
-                    ImVec2(glyph->U1, glyph->V1), // UV BR
-                    ImVec2(glyph->U0, glyph->V1), // UV BL
-                    col);
-            }
-            // 笔触后移 (在未旋转的X轴上移动)
-            pen_local.x += glyph->AdvanceX;
-        }
-    }
-
-    bool HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release) override
-    {
-        bool ret = UIElement::HandleMouseEvent(p, down, click, release);
-        if (m_clicked && click && on_click) on_click();
-        return ret;
-    }
-};
-
-// --- CelestialInfoPanel 实现 ---
-
 CelestialInfoPanel::CelestialInfoPanel()
 {
-    // 自身作为一个全屏透明容器(或者不阻挡输入的容器)，用于承载子元素
-    // 这样我们可以自由控制子元素的绝对位置
-    m_rect = { 0, 0, 0, 0 }; // 尺寸在 Update 中并不关键，因为我们手动控制子元素位置
+    // 自身作为容器，不阻挡输入，全透明
+    m_rect = { 0, 0, 0, 0 };
     m_visible = true;
-    m_block_input = false; // 允许事件穿透
+    m_block_input = false;
 
     auto& theme = UIContext::Get().m_theme;
 
-    // 1. 创建竖向折叠标签 (Expanded Info)
-    m_collapsed_tab = std::make_shared<TechBorderPanel>();
-    m_collapsed_tab->m_rect = { 0, 0, 30, 100 }; // 位置在 Update 中设置
-    m_collapsed_tab->m_use_glass_effect = true;
-    m_collapsed_tab->m_visible = false;
-    m_collapsed_tab->m_alpha = 0.0f;
-    m_collapsed_tab->m_thickness = 2.0f;
+    // =========================================================
+    // 1. 创建侧边把手 (Collapsed Tab) - 重构为 TechButton
+    // =========================================================
+    // 不再需要外层 Panel 套娃，直接使用支持 Vertical 样式和 Glass 效果的按钮
+    m_collapsed_btn = std::make_shared<TechButton>("INFO", TechButton::Style::Vertical);
+    m_collapsed_btn->m_rect = { 0, 0, 24, 100 }; // 窄条设计
+    m_collapsed_btn->SetUseGlass(true);          // 开启毛玻璃背景
+    m_collapsed_btn->on_click = [this]() { this->ToggleCollapse(); };
 
-    auto vert_btn = std::make_shared<VerticalTextButton>("EXPAND");
-    vert_btn->m_rect = { 0, 0, 30, 100 };
-    vert_btn->m_font = UIContext::Get().m_font_bold;
-    vert_btn->on_click = [this]() { this->ToggleCollapse(); };
-    m_collapsed_tab->AddChild(vert_btn);
-    AddChild(m_collapsed_tab);
+    AddChild(m_collapsed_btn);
 
-    // 2. 创建主面板
+    // =========================================================
+    // 2. 创建主面板背景
+    // =========================================================
     m_main_panel = std::make_shared<TechBorderPanel>();
     m_main_panel->m_rect = { 0, 0, PANEL_WIDTH, PANEL_HEIGHT };
     m_main_panel->m_use_glass_effect = true;
     m_main_panel->m_thickness = 2.0f;
-    // 不阻挡输入，让子元素处理
     AddChild(m_main_panel);
 
-    // --- 2.1 主面板内部布局 ---
+    // --- 主面板内部布局容器 ---
     auto main_vbox = std::make_shared<VBox>();
     main_vbox->m_rect = { 15, 15, PANEL_WIDTH - 30, PANEL_HEIGHT - 30 };
-    main_vbox->m_padding = 8.0f;
+    main_vbox->m_padding = 4.0f; // 整体布局紧凑
     m_main_panel->AddChild(main_vbox);
 
-    // --- A. Header ---
-    auto header_box = std::make_shared<HBox>();
-    header_box->m_rect.h = 24.0f;
-
-    // 标题 (大号高亮)
-    auto title = std::make_shared<TechText>("Star-001");
-    title->m_font = UIContext::Get().m_font_bold; // 使用粗体
-    title->SetColor(theme.color_accent);          // 使用主题色
-    title->m_align_v = Alignment::End;            // 底部对齐
-    title->m_rect.w = 120.0f;
-
-    // 副标题 (灰色小字)
-    auto subtitle = std::make_shared<TechText>("Red Main Seq");
-    subtitle->SetColor(theme.color_text_disabled);
-    subtitle->m_align_v = Alignment::End;
-    subtitle->m_fill_h = true; // 占满中间
-
-    // 关闭按钮 (这个保留 Button，因为它需要点击交互)
-    auto close_btn = std::make_shared<NeuralButton>(">>");
-    close_btn->m_rect.w = 30.0f;
-    close_btn->on_click_callback = [this]() { this->ToggleCollapse(); };
-
-    header_box->AddChild(title);
-    header_box->AddChild(subtitle);
-    header_box->AddChild(close_btn);
-
-    main_vbox->AddChild(header_box);
-    // --- B. Tabs Headers ---
-    auto grid_header = std::make_shared<HBox>();
-    grid_header->m_rect.h = 20.0f;
-    auto mk_tab = [](const char* t)
+    // =========================================================
+    // A. Header 区域 (标题 + 分割线)
+    // =========================================================
     {
-        auto b = std::make_shared<NeuralButton>(t);
-        b->m_fill_h = true; return b;
-    };
-    grid_header->AddChild(mk_tab("PHYSICS"));
-    grid_header->AddChild(mk_tab("ORBIT"));
-    grid_header->AddChild(mk_tab("COMP"));
-    main_vbox->AddChild(grid_header);
+        auto header_row = std::make_shared<HBox>();
+        header_row->m_rect.h = 28.0f; // 固定高度
 
-    // --- C. Scroll View (数据区) ---
+        // 1. 主标题 (左对齐，大号，高亮)
+        auto title = std::make_shared<TechText>("Star-001");
+        title->m_font = UIContext::Get().m_font_bold;
+        title->SetColor(theme.color_accent);
+        title->m_align_v = Alignment::End; // 底部对齐
+        title->m_rect.w = 120.0f;          // 预留宽度
+
+        // 2. 副标题 (右对齐，小号，灰色)
+        auto subtitle = std::make_shared<TechText>("Red Main Seq");
+        subtitle->SetColor(theme.color_text_disabled);
+        subtitle->m_font = UIContext::Get().m_font_small;
+        subtitle->m_align_v = Alignment::End; // 底部对齐
+        subtitle->m_align_h = Alignment::End; // 靠右
+        subtitle->m_fill_h = true;            // 填满剩余空间
+
+        header_row->AddChild(title);
+        header_row->AddChild(subtitle);
+
+        // [修复] 必须添加到主布局中
+        main_vbox->AddChild(header_row);
+
+        // 3. Header 下方的分割线
+        auto div = std::make_shared<TechDivider>();
+        div->m_color = theme.color_accent;
+        div->m_rect.h = 8.0f; // 分割线占位高度
+        main_vbox->AddChild(div);
+    }
+
+    // =========================================================
+    // B. Tabs 区域 (实心/透明切换风格)
+    // =========================================================
+    {
+        auto tabs_box = std::make_shared<HBox>();
+        tabs_box->m_rect.h = 20.0f;
+        tabs_box->m_padding = 4.0f; // 标签之间的间距
+
+        // 辅助 lambda：创建 Tab 按钮
+        auto mk_tab = [&](const char* txt, bool selected)
+        {
+            auto t = std::make_shared<TechButton>(txt, TechButton::Style::Tab);
+            t->SetSelected(selected);
+            t->m_fill_h = true; // 均分宽度
+            t->on_click = [t, this]()
+            {
+                // 这里只是简单的视觉演示，实际逻辑需要遍历所有 tab 重置 selected 状态
+                t->SetSelected(true);
+                // TODO: 可以在这里调用 RebuildDataList(...) 切换显示内容
+            };
+            return t;
+        };
+
+        tabs_box->AddChild(mk_tab("PHYSICS", true)); // 默认选中第一个
+        tabs_box->AddChild(mk_tab("ORBIT", false));
+        tabs_box->AddChild(mk_tab("COMP", false));
+
+        main_vbox->AddChild(tabs_box);
+    }
+
+    // 增加一点垂直间距
+    auto spacer = std::make_shared<UIElement>();
+    spacer->m_rect.h = 4.0f;
+    main_vbox->AddChild(spacer);
+
+    // =========================================================
+    // C. 数据滚动区
+    // =========================================================
     m_scroll_view = std::make_shared<ScrollView>();
-    m_scroll_view->m_fill_v = true; // 关键：填充 VBox 剩余空间
+    m_scroll_view->m_fill_v = true; // 占据中间剩余的所有垂直空间
 
     m_content_vbox = std::make_shared<VBox>();
-    m_content_vbox->m_padding = 2.0f;
+    m_content_vbox->m_padding = 8.0f; // 组与组之间的间距
     m_scroll_view->AddChild(m_content_vbox);
 
     main_vbox->AddChild(m_scroll_view);
 
-    // 填充数据
+    // 初始填充数据
     RebuildDataList();
 
-    // --- D. Footer (进度条) ---
-    auto footer_box = std::make_shared<VBox>();
-    footer_box->m_rect.h = 50.0f; // 区域固定高度
-    footer_box->m_padding = 4.0f; // 元素间距
+    // =========================================================
+    // D. Footer 区域 (进度条)
+    // =========================================================
+    {
+        auto footer_box = std::make_shared<VBox>();
+        footer_box->m_rect.h = 50.0f; // 固定 footer 高度
+        footer_box->m_padding = 2.0f;
 
-    // 1. 标题: ">>> Star Lifter Progress"
-    // 使用主题色 (Accent Color) 高亮显示
-    auto prog_label = std::make_shared<TechText>(">>> Star Lifter Progress");
-    prog_label->SetColor(theme.color_accent);
-    prog_label->m_rect.h = 18.0f; // 稍微给点高度
-    prog_label->m_align_h = Alignment::Start; // 左对齐
+        // 1. 顶部分割线 (灰色，细一点)
+        auto sep = std::make_shared<TechDivider>();
+        sep->m_color = theme.color_border;
+        sep->m_rect.h = 8.0f;
+        footer_box->AddChild(sep);
 
-    // 2. 进度条组件
-    auto progress = std::make_shared<TechProgressBar>("");
-    progress->m_rect.h = 4.0f;    // 细条风格，更精致
-    progress->m_progress = 0.45f; // 模拟 45% 进度
+        // 2. 标题
+        auto prog_label = std::make_shared<TechText>(">>> Star Lifter Progress");
+        prog_label->SetColor(theme.color_accent);
+        prog_label->m_rect.h = 16.0f;
+        prog_label->m_font = UIContext::Get().m_font_small;
 
-    // 3. 底部详情行容器 (横向布局)
-    auto prog_info = std::make_shared<HBox>();
-    prog_info->m_rect.h = 16.0f;
+        // 3. 进度条 (带背景槽的样式在 TechProgressBar 内部实现)
+        auto progress = std::make_shared<TechProgressBar>("");
+        progress->m_rect.h = 6.0f;
+        progress->m_progress = 0.45f;
 
-    // 左侧文字: "Main Coil" (灰色)
-    auto t1 = std::make_shared<TechText>("Main Coil");
-    t1->SetColor(theme.color_text_disabled);
-    t1->m_align_h = Alignment::Start;
-    t1->m_rect.w = 100.0f; // 给一个基础宽度
+        // 4. 底部详情 (Main Coil ... 45%)
+        auto prog_info = std::make_shared<HBox>();
+        prog_info->m_rect.h = 14.0f;
 
-    // 右侧数值: "45%" (亮白色)
-    auto t2 = std::make_shared<TechText>("45%");
-    t2->SetColor(theme.color_text);
-    t2->m_fill_h = true;            // [关键] 让它填满 HBox 剩余的水平空间
-    t2->m_align_h = Alignment::End; // [关键] 在填满的空间内，文字靠右对齐
+        auto t1 = std::make_shared<TechText>("Main Coil");
+        t1->SetColor(theme.color_text_disabled);
+        t1->m_font = UIContext::Get().m_font_small;
+        t1->m_rect.w = 100.0f;
 
-    prog_info->AddChild(t1);
-    prog_info->AddChild(t2);
+        auto t2 = std::make_shared<TechText>("45%");
+        t2->SetColor(theme.color_text);
+        t2->m_font = UIContext::Get().m_font_small; // 建议用等宽字体
+        t2->m_fill_h = true;
+        t2->m_align_h = Alignment::End;
 
-    footer_box->AddChild(prog_label);
-    footer_box->AddChild(progress);
-    footer_box->AddChild(prog_info);
-    main_vbox->AddChild(footer_box);
+        prog_info->AddChild(t1);
+        prog_info->AddChild(t2);
+
+        footer_box->AddChild(prog_label);
+        footer_box->AddChild(progress);
+        footer_box->AddChild(prog_info);
+
+        main_vbox->AddChild(footer_box);
+    }
 }
 
-// 关键：重写 Update 来控制动画和位置
 void CelestialInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
 {
-
-    UpdateSelf(dt, parent_abs_pos);
-
     if (!m_visible) return;
 
-    // 1. 获取屏幕信息
     ImVec2 display_sz = UIContext::Get().m_display_size;
 
-    // 2. 计算动画进度
+    // 1. 动画状态机
     float speed = 5.0f * dt;
     if (m_is_collapsed)
         m_anim_progress += speed;
@@ -248,50 +194,43 @@ void CelestialInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
         m_anim_progress -= speed;
     m_anim_progress = std::clamp(m_anim_progress, 0.0f, 1.0f);
 
-    // 3. 计算面板位置
-    // 展开时: x = 屏幕宽 - 面板宽 - 右边距
-    // 收起时: x = 屏幕宽 (完全移出)
-    float expanded_x = display_sz.x - PANEL_WIDTH - RIGHT_MARGIN;
-    float collapsed_x = display_sz.x + 10.0f; // 稍微多移出一点确保不可见
+    // 2. 计算位置 (EaseInOutQuad 插值)
 
+    // [修改] 展开时：面板右边缘紧贴屏幕右侧 (X = 屏幕宽 - 面板宽)
+    // 去掉了之前的 RIGHT_MARGIN
+    float expanded_x = display_sz.x - PANEL_WIDTH;
+
+    // [修改] 收起时：面板左边缘正好在屏幕右侧外 (X = 屏幕宽)
+    float collapsed_x = display_sz.x;
+
+    // 插值计算当前 X
     float current_x = expanded_x + (collapsed_x - expanded_x) * AnimationUtils::Ease(m_anim_progress, EasingType::EaseInOutQuad);
 
-    // 直接修改子元素的相对位置 (相对于 CelestialInfoPanel，而 Panel 本身通常在 (0,0))
-    // 注意：这里的 m_rect 是相对于父级(UIRoot)的
+    // 设置主面板位置
     m_main_panel->m_rect.x = current_x;
     m_main_panel->m_rect.y = TOP_MARGIN;
 
-    // 4. 计算收起标签位置
-    if (m_anim_progress > 0.01f)
-    {
-        m_collapsed_tab->m_visible = true;
-        m_collapsed_tab->m_alpha = m_anim_progress; // 淡入淡出
-        m_collapsed_tab->m_rect.x = display_sz.x - 30.0f; // 贴在右边
-        m_collapsed_tab->m_rect.y = TOP_MARGIN + 50.0f;
-    }
-    else
-    {
-        m_collapsed_tab->m_visible = false;
-    }
+    // 3. 设置把手位置 (始终吸附在面板左侧)
+    m_collapsed_btn->m_visible = true;
 
-    for (auto& child : m_children)
-    {
-        child->Update(dt, m_absolute_pos);
-    }
+    m_collapsed_btn->m_rect.x = current_x - m_collapsed_btn->m_rect.w - 10.0f;
+
+    m_collapsed_btn->m_rect.y = TOP_MARGIN + 40.0f; // 把手垂直偏移
+
+    // 4. 调用基类 Update
+    UIElement::Update(dt, parent_abs_pos);
 }
 
 void CelestialInfoPanel::ToggleCollapse()
 {
     m_is_collapsed = !m_is_collapsed;
-    if (m_collapsed_tab)
-    {
-        m_collapsed_tab->ResetInteraction();
-    }
+    m_collapsed_btn->ResetInteraction();
 }
 
+// 数据列表构建：实现 [左侧竖线] + [右侧内容] 的分组布局
 void CelestialInfoPanel::RebuildDataList()
 {
-    m_content_vbox->m_children.clear(); // 清空旧数据
+    m_content_vbox->m_children.clear();
 
     struct KV { std::string k, v; };
     std::vector<std::vector<KV>> groups = {
@@ -302,37 +241,50 @@ void CelestialInfoPanel::RebuildDataList()
 
     auto& theme = UIContext::Get().m_theme;
 
-    // 定义样式颜色
-    ImVec4 col_key = theme.color_text_disabled; // Key 用暗灰色
-    ImVec4 col_val = theme.color_text;          // Value 用亮色/默认色
-    ImVec4 col_highlight = theme.color_accent;  // 特殊高亮色 (可选)
+    // 定义颜色
+    ImVec4 col_line = theme.color_accent;
+    col_line.w = 0.5f; // 半透明竖线
+    ImVec4 col_key = theme.color_text_disabled;
+    ImVec4 col_val = theme.color_text;
+    ImVec4 col_highlight = theme.color_accent;
 
-    for (size_t i = 0; i < groups.size(); ++i)
+    for (const auto& group : groups)
     {
-        // 组与组之间的分割线
-        if (i > 0)
-        {
-            auto sep = std::make_shared<TechDivider>();
-            sep->m_rect.h = 8.0f; // 稍微给点垂直间距，虽然线只有1px
-            m_content_vbox->AddChild(sep);
-        }
+        // 1. 创建水平容器，容纳 [竖线] 和 [数据列]
+        auto group_hbox = std::make_shared<HBox>();
+        group_hbox->m_padding = 8.0f; // 竖线与文字的间距
 
-        for (const auto& kv : groups[i])
+        // 2. 左侧竖线 (复用 Panel)
+        auto line = std::make_shared<Panel>();
+        line->m_rect.w = 2.0f;       // 线宽
+        line->m_bg_color = col_line; // 颜色
+        line->m_align_v = Alignment::Stretch; // 纵向撑满
+        // 这里假设 Panel 默认没有边框/毛玻璃，或者可以配置关闭，仅作为色块使用
+        group_hbox->AddChild(line);
+
+        // 3. 右侧内容列 (VBox)
+        auto content_col = std::make_shared<VBox>();
+        content_col->m_padding = 1.0f; // 行间距极小，视觉紧凑
+        content_col->m_fill_h = true;  // 填满水平空间
+
+        for (const auto& kv : group)
         {
             auto row = std::make_shared<HBox>();
-            row->m_rect.h = 18.0f; // 调紧凑一点的行高
+            row->m_rect.h = 14.0f; // 紧凑行高
 
-            // --- KEY (左侧，灰色) ---
+            // Key
             auto k = std::make_shared<TechText>(kv.k + ":", col_key);
             k->m_align_h = Alignment::Start;
-            k->m_rect.w = 110.0f; // 给 Key 固定宽度，保证对齐
+            k->m_font = UIContext::Get().m_font_small;
+            k->m_rect.w = 90.0f; // 固定宽度对齐
 
-            // --- VALUE (右侧，亮色) ---
+            // Value
             auto v = std::make_shared<TechText>(kv.v, col_val);
-            v->m_align_h = Alignment::End; // 右对齐
-            v->m_fill_h = true;            // 占满剩余空间
+            v->m_align_h = Alignment::End;
+            v->m_fill_h = true;
+            v->m_font = UIContext::Get().m_font_small; // 建议在 TechText 内部强制使用 Monospace 字体处理数字
 
-            // 可选：如果是特定字段，设为高亮色
+            // 特定字段高亮演示
             if (kv.k == "Stage" || kv.k == "Temp")
             {
                 v->SetColor(col_highlight);
@@ -340,8 +292,18 @@ void CelestialInfoPanel::RebuildDataList()
 
             row->AddChild(k);
             row->AddChild(v);
-            m_content_vbox->AddChild(row);
+            content_col->AddChild(row);
         }
+
+        group_hbox->AddChild(content_col);
+
+        // 将整组添加到主内容区
+        m_content_vbox->AddChild(group_hbox);
+
+        // 组与组之间的间距 (透明 Spacer)
+        auto spacer = std::make_shared<UIElement>();
+        spacer->m_rect.h = 8.0f;
+        m_content_vbox->AddChild(spacer);
     }
 }
 

@@ -132,9 +132,6 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralButton.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -300,9 +297,6 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\System\UI\components\NeuralButton.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.h">

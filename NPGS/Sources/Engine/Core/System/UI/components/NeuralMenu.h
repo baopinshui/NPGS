@@ -3,7 +3,7 @@
 #include "NeuralParticleView.h"
 #include "TechBorderPanel.h"
 #include "CollapsedMainButton.h"
-#include "NeuralButton.h"
+#include "TechButton.h"
 #include "TechSliders.h"
 #include "TechText.h"
 #include "TechDivider.h"

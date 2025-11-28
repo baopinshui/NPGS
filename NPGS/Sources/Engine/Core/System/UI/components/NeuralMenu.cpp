@@ -76,10 +76,10 @@ NeuralMenu::NeuralMenu()
     main_layout->AddChild(sep_bot);
 
     // E. Footer Button
-    auto close_btn = std::make_shared<NeuralButton>(" CLOSE TERMINAL ");
+    auto close_btn = std::make_shared<TechButton>(" CLOSE TERMINAL ", TechButton::Style::Normal);
     close_btn->m_rect.h = 34.0f;
     close_btn->m_align_h = Alignment::Stretch;
-    close_btn->on_click_callback = [this]() { this->ToggleExpand(); };
+    close_btn->on_click = [this]() { this->ToggleExpand(); };
     main_layout->AddChild(close_btn);
 }
 
