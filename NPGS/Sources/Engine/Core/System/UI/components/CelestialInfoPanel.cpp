@@ -1,5 +1,7 @@
 #include "CelestialInfoPanel.h"
 #include "../TechUtils.h"
+#include "TechText.h"
+#include "TechDivider.h"
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
@@ -88,15 +90,20 @@ CelestialInfoPanel::CelestialInfoPanel()
     auto header_box = std::make_shared<HBox>();
     header_box->m_rect.h = 24.0f;
 
-    // 标题 (模拟点击标题也能收起)
-    auto title = std::make_shared<NeuralButton>("Star-001");
+    // 标题 (大号高亮)
+    auto title = std::make_shared<TechText>("Star-001");
+    title->m_font = UIContext::Get().m_font_bold; // 使用粗体
+    title->SetColor(theme.color_accent);          // 使用主题色
+    title->m_align_v = Alignment::End;            // 底部对齐
     title->m_rect.w = 120.0f;
-    title->on_click_callback = [this]() { this->ToggleCollapse(); };
 
-    auto subtitle = std::make_shared<NeuralButton>("Red Main Seq");
-    subtitle->m_rect.w = 100.0f;
-    subtitle->m_block_input = false; // 仅展示
+    // 副标题 (灰色小字)
+    auto subtitle = std::make_shared<TechText>("Red Main Seq");
+    subtitle->SetColor(theme.color_text_disabled);
+    subtitle->m_align_v = Alignment::End;
+    subtitle->m_fill_h = true; // 占满中间
 
+    // 关闭按钮 (这个保留 Button，因为它需要点击交互)
     auto close_btn = std::make_shared<NeuralButton>(">>");
     close_btn->m_rect.w = 30.0f;
     close_btn->on_click_callback = [this]() { this->ToggleCollapse(); };
@@ -104,14 +111,8 @@ CelestialInfoPanel::CelestialInfoPanel()
     header_box->AddChild(title);
     header_box->AddChild(subtitle);
     header_box->AddChild(close_btn);
+
     main_vbox->AddChild(header_box);
-
-    // 分割线
-    auto sep = std::make_shared<Panel>();
-    sep->m_bg_color = theme.color_accent;
-    sep->m_rect.h = 1.0f;
-    main_vbox->AddChild(sep);
-
     // --- B. Tabs Headers ---
     auto grid_header = std::make_shared<HBox>();
     grid_header->m_rect.h = 20.0f;
@@ -140,22 +141,37 @@ CelestialInfoPanel::CelestialInfoPanel()
 
     // --- D. Footer (进度条) ---
     auto footer_box = std::make_shared<VBox>();
-    footer_box->m_rect.h = 50.0f;
-    footer_box->m_padding = 4.0f;
+    footer_box->m_rect.h = 50.0f; // 区域固定高度
+    footer_box->m_padding = 4.0f; // 元素间距
 
-    auto prog_label = std::make_shared<NeuralButton>(">>> Star Lifter Progress");
-    prog_label->m_rect.h = 16.0f;
-    prog_label->m_align_h = Alignment::Start;
-    prog_label->m_block_input = false;
+    // 1. 标题: ">>> Star Lifter Progress"
+    // 使用主题色 (Accent Color) 高亮显示
+    auto prog_label = std::make_shared<TechText>(">>> Star Lifter Progress");
+    prog_label->SetColor(theme.color_accent);
+    prog_label->m_rect.h = 18.0f; // 稍微给点高度
+    prog_label->m_align_h = Alignment::Start; // 左对齐
 
+    // 2. 进度条组件
     auto progress = std::make_shared<TechProgressBar>("");
-    progress->m_rect.h = 6.0f;
-    progress->m_progress = 0.45f;
+    progress->m_rect.h = 4.0f;    // 细条风格，更精致
+    progress->m_progress = 0.45f; // 模拟 45% 进度
 
+    // 3. 底部详情行容器 (横向布局)
     auto prog_info = std::make_shared<HBox>();
     prog_info->m_rect.h = 16.0f;
-    auto t1 = std::make_shared<NeuralButton>("Main Coil"); t1->m_rect.w = 80.0f; t1->m_block_input = false;
-    auto t2 = std::make_shared<NeuralButton>("45%"); t2->m_rect.w = 40.0f; t2->m_block_input = false;
+
+    // 左侧文字: "Main Coil" (灰色)
+    auto t1 = std::make_shared<TechText>("Main Coil");
+    t1->SetColor(theme.color_text_disabled);
+    t1->m_align_h = Alignment::Start;
+    t1->m_rect.w = 100.0f; // 给一个基础宽度
+
+    // 右侧数值: "45%" (亮白色)
+    auto t2 = std::make_shared<TechText>("45%");
+    t2->SetColor(theme.color_text);
+    t2->m_fill_h = true;            // [关键] 让它填满 HBox 剩余的水平空间
+    t2->m_align_h = Alignment::End; // [关键] 在填满的空间内，文字靠右对齐
+
     prog_info->AddChild(t1);
     prog_info->AddChild(t2);
 
@@ -168,6 +184,9 @@ CelestialInfoPanel::CelestialInfoPanel()
 // 关键：重写 Update 来控制动画和位置
 void CelestialInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
 {
+
+    UpdateSelf(dt, parent_abs_pos);
+
     if (!m_visible) return;
 
     // 1. 获取屏幕信息
@@ -207,9 +226,10 @@ void CelestialInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
         m_collapsed_tab->m_visible = false;
     }
 
-    // 5. 调用基类 Update，这会递归调用 m_main_panel->Update(...)
-    // 此时 m_main_panel 的 m_rect 已经是最新计算过的了，所以绝对位置计算会正确
-    UIElement::Update(dt, parent_abs_pos);
+    for (auto& child : m_children)
+    {
+        child->Update(dt, m_absolute_pos);
+    }
 }
 
 void CelestialInfoPanel::ToggleCollapse()
@@ -219,37 +239,55 @@ void CelestialInfoPanel::ToggleCollapse()
 
 void CelestialInfoPanel::RebuildDataList()
 {
+    m_content_vbox->m_children.clear(); // 清空旧数据
+
     struct KV { std::string k, v; };
     std::vector<std::vector<KV>> groups = {
-        { {"Type", "M4.5V"}, {"[Fe/H]", "+0.12"}, {"Stage", "H-Seq"}, {"Age", "2.1E+9yr"} },
+        { {"Type", "M4.5V"}, {"[Fe/H]", "+0.12"}, {"Stage", "H-Seq"}, {"Progress", "0.2%"}, {"Age", "2.1E+9yr"}, {"Life", "2.2E+12yr"}, {"End", "Fade"}, {"Remnant", "He-WD"} },
         { {"Power", "4.7E+24W"}, {"Temp", "3354K"} },
         { {"Mass", "0.32Ms"}, {"Radius", "0.33Rs"} }
     };
 
     auto& theme = UIContext::Get().m_theme;
 
+    // 定义样式颜色
+    ImVec4 col_key = theme.color_text_disabled; // Key 用暗灰色
+    ImVec4 col_val = theme.color_text;          // Value 用亮色/默认色
+    ImVec4 col_highlight = theme.color_accent;  // 特殊高亮色 (可选)
+
     for (size_t i = 0; i < groups.size(); ++i)
     {
+        // 组与组之间的分割线
         if (i > 0)
         {
-            auto sep = std::make_shared<Panel>();
-            sep->m_bg_color = ImVec4(theme.color_border.x, theme.color_border.y, theme.color_border.z, 0.3f);
-            sep->m_rect.h = 1.0f;
+            auto sep = std::make_shared<TechDivider>();
+            sep->m_rect.h = 8.0f; // 稍微给点垂直间距，虽然线只有1px
             m_content_vbox->AddChild(sep);
         }
+
         for (const auto& kv : groups[i])
         {
             auto row = std::make_shared<HBox>();
-            row->m_rect.h = 16.0f;
+            row->m_rect.h = 18.0f; // 调紧凑一点的行高
 
-            auto k = std::make_shared<NeuralButton>(kv.k + ":");
-            k->m_align_h = Alignment::Start; k->m_rect.w = 120.0f; k->m_block_input = false;
+            // --- KEY (左侧，灰色) ---
+            auto k = std::make_shared<TechText>(kv.k + ":", col_key);
+            k->m_align_h = Alignment::Start;
+            k->m_rect.w = 110.0f; // 给 Key 固定宽度，保证对齐
 
-            auto v = std::make_shared<NeuralButton>(kv.v);
-            v->m_align_h = Alignment::End; v->m_fill_h = true; v->m_block_input = false;
-            // 可以通过自定义 NeuralButton 颜色来高亮数值
+            // --- VALUE (右侧，亮色) ---
+            auto v = std::make_shared<TechText>(kv.v, col_val);
+            v->m_align_h = Alignment::End; // 右对齐
+            v->m_fill_h = true;            // 占满剩余空间
 
-            row->AddChild(k); row->AddChild(v);
+            // 可选：如果是特定字段，设为高亮色
+            if (kv.k == "Stage" || kv.k == "Temp")
+            {
+                v->SetColor(col_highlight);
+            }
+
+            row->AddChild(k);
+            row->AddChild(v);
             m_content_vbox->AddChild(row);
         }
     }

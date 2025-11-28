@@ -1,5 +1,6 @@
 #pragma once
 #include "../ui_framework.h"
+#include "TechText.h" // 包含 TechText
 #include <string>
 #include <variant>
 
@@ -10,7 +11,6 @@ _UI_BEGIN
 class NeuralButton : public UIElement
 {
 public:
-    std::string text;
     std::function<void()> on_click_callback;
 
     // [新增] 动画进度 0.0(常态) -> 1.0(悬停)
@@ -25,6 +25,10 @@ public:
     void Draw(ImDrawList* dl) override;
 
     void ResetInteraction() override;
+
+private:
+    // [核心重构] 使用 TechText 子组件来显示标签
+    std::shared_ptr<TechText> m_label;
 };
 
 _UI_END

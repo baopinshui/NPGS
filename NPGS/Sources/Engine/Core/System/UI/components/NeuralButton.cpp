@@ -6,19 +6,27 @@ _SYSTEM_BEGIN
 _UI_BEGIN
 
 
-NeuralButton::NeuralButton(const std::string& t) : text(t)
+NeuralButton::NeuralButton(const std::string& t)
 {
-    m_rect.h = 20.0f; // 稍微调高一点，容纳角框
+    m_rect.h = 20.0f;
     m_block_input = true;
+
+    // 创建并配置 TechText 子组件
+    m_label = std::make_shared<TechText>(t);
+    m_label->m_align_h = Alignment::Center; // 水平居中
+    m_label->m_align_v = Alignment::Center; // 垂直居中
+    // 注意：m_fill_h/v 属性在这里实际上不起作用，因为父级不是布局容器，
+    // 但保留它们有助于理解意图。真正的布局在下面的 Update 中完成。
+    m_label->m_fill_h = true;
+    m_label->m_fill_v = true;
+    m_label->m_block_input = false;
+    AddChild(m_label);
 }
 
-// [新增] Update 实现动画逻辑
 void NeuralButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
-    UIElement::Update(dt, parent_abs_pos);
-
-    // 悬停动画：悬停时趋向 1.0，离开时趋向 0.0
-    float speed = 8.0f; // 动画速度
+    // 悬停动画逻辑
+    float speed = 8.0f;
     if (m_hovered)
     {
         m_hover_progress += dt * speed;
@@ -28,70 +36,66 @@ void NeuralButton::Update(float dt, const ImVec2& parent_abs_pos)
         m_hover_progress -= dt * speed;
     }
     m_hover_progress = std::clamp(m_hover_progress, 0.0f, 1.0f);
+    // 动态更新子组件的颜色
+    const auto& theme = UIContext::Get().m_theme;
+    ImVec4 txt_normal = theme.color_accent;
+    ImVec4 txt_hover = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    ImVec4 current_txt_vec4 = TechUtils::LerpColor(txt_normal, txt_hover, m_hover_progress);
+    m_label->SetColor(current_txt_vec4);
+
+    // --- [核心修复] ---
+    // 在调用基类Update之前，手动处理子元素的布局。
+    // 这确保了 TechText 组件的矩形区域与按钮本身的大小完全一致。
+    if (m_label)
+    {
+        m_label->m_rect.x = 0;
+        m_label->m_rect.y = 0;
+        m_label->m_rect.w = this->m_rect.w;
+        m_label->m_rect.h = this->m_rect.h;
+    }
+    // --- [修复结束] ---
+
+    // 现在调用基类 Update。它会使用我们刚刚为子元素设置好的正确 m_rect
+    // 来计算子节点的 absolute_pos，并继续递归更新。
+    UIElement::Update(dt, parent_abs_pos);
 }
+
 bool NeuralButton::HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release)
 {
     bool ret = UIElement::HandleMouseEvent(p, down, click, release);
     if (m_clicked && click && on_click_callback) on_click_callback();
     return ret;
 }
-// [重写] Draw 实现新的视觉风格
-// ... 前面的 include 和 LerpColor ...
 
 void NeuralButton::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
-    ImFont* font = GetFont();
-    if (font) ImGui::PushFont(font);
 
+    // Draw 方法现在只负责绘制背景和边框
     const auto& theme = UIContext::Get().m_theme;
 
-    // 背景动画逻辑保持不变
-
-    ImVec4 bg_normal = theme.color_accent;       // 正常：暗主题色
-    bg_normal.w = 0.15f;;
-    ImVec4 bg_hover = theme.color_accent;           // 悬停：主题色
-
-    // --- 文字颜色 ---
-    ImVec4 txt_normal = theme.color_accent;         // 正常：主题色
-    ImVec4 txt_hover = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); // 悬停：不透明的黑色
-    // 如果悬停高亮，文字变亮白，否则是主题色
-   
-    
+    // 计算背景颜色
+    ImVec4 bg_normal = theme.color_accent;
+    bg_normal.w = 0.15f;
+    ImVec4 bg_hover = theme.color_accent;
     ImVec4 current_bg_vec4 = TechUtils::LerpColor(bg_normal, bg_hover, m_hover_progress);
-    ImVec4 current_txt_vec4 = TechUtils::LerpColor(txt_normal, txt_hover, m_hover_progress);
     ImU32 bg_col = GetColorWithAlpha(current_bg_vec4, 1.0f);
-    ImU32 txt_col = GetColorWithAlpha(current_txt_vec4, 1.0f);
     ImU32 border_col = GetColorWithAlpha(theme.color_accent, 1.0f);
-
-    // 2. 绘制背景
 
     ImVec2 p_min = m_absolute_pos;
     ImVec2 p_max = ImVec2(p_min.x + m_rect.w, p_min.y + m_rect.h);
 
-    // 2. 绘制背景
+    // 绘制背景和边框
     dl->AddRectFilled(p_min, p_max, bg_col);
-
-    // 3. 绘制 L 型边框 (内描边)
     TechUtils::DrawBracketedBox(dl, p_min, p_max, border_col, 2.0f, 8.0f);
-    // 4. 绘制文字 (居中)
-    // [视觉优化] 确保字体对齐到像素，防止模糊
-    ImVec2 txt_sz = ImGui::CalcTextSize(text.c_str());
-    ImVec2 txt_pos = ImVec2(
-        std::floor(m_absolute_pos.x + (m_rect.w - txt_sz.x) * 0.5f),
-        std::floor(m_absolute_pos.y + (m_rect.h - txt_sz.y) * 0.5f)
-    );
 
-    dl->AddText(txt_pos, txt_col, text.c_str());
-
-    if (font) ImGui::PopFont();
+    // 绘制子元素 (即 TechText)
+    UIElement::Draw(dl);
 }
+
 void NeuralButton::ResetInteraction()
 {
-    // 1. 先调用基类方法，重置 m_hovered, m_clicked 以及递归重置子节点
     UIElement::ResetInteraction();
-
-    // 2. [关键修复] 强制将动画进度归零
     m_hover_progress = 0.0f;
 }
 

@@ -1,33 +1,82 @@
-// --- START OF FILE PulsarButton.cpp ---
 #include "PulsarButton.h"
 #include "../TechUtils.h"
+#include "TechBorderPanel.h"
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-// --- Helper Functions ---
 static void PushFont(ImFont* font) { if (font) ImGui::PushFont(font); }
 static void PopFont(ImFont* font) { if (font) ImGui::PopFont(); }
 
-// --- Constructor ---
 PulsarButton::PulsarButton(const std::string& id, const std::string& label, const std::string& icon_char, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable)
-    : m_id(id), m_label(label), m_icon_char(icon_char), m_stat_label(stat_label), m_stat_unit(stat_unit), m_is_editable(is_editable)
+    : m_id(id), m_is_editable(is_editable)
 {
     m_rect = { 0, 0, 40, 40 };
     m_block_input = true;
 
+    auto& ctx = UIContext::Get();
+    const auto& theme = UIContext::Get().m_theme;
+    //  0. 创建背景面板 
+    m_bg_panel = std::make_shared<TechBorderPanel>();
+    m_bg_panel->m_rect = { 0, 0, 40, 40 }; // 初始大小
+    m_bg_panel->m_use_glass_effect = true; // 启用毛玻璃
+    m_bg_panel->m_thickness = 2.0f;        // 边框厚度
+    m_bg_panel->m_block_input = false;     // 背景不拦截输入
+    // 背景色设为半透明黑 (原本 Draw 里写的 0.6f)
+    m_bg_panel->m_bg_color = ImVec4(0.0f, 0.0f, 0.0f, 0.6f);
+    AddChild(m_bg_panel); // 最先添加，即在最底层绘制
+    // --- 1. 图标 (Icon) ---
+    // [修复] 必须设置 rect 为 40x40，否则 Center 对齐找不到中心
+    m_text_icon = std::make_shared<TechText>(icon_char);
+    m_text_icon->m_rect = { 0, 0, 40, 40 };
+    m_text_icon->m_align_h = Alignment::Center;
+    m_text_icon->m_align_v = Alignment::Center;
+    m_text_icon->m_block_input = false; // 图标文字不阻挡父级点击
+    AddChild(m_text_icon);
+
+    // --- 2. 状态文本 (Status: SYSTEM READY) ---
+    m_text_status = std::make_shared<TechText>("SYSTEM READY", theme.color_text_highlight, true);
+    m_text_status->m_font = ctx.m_font_bold;
+    m_text_status->m_block_input = false;
+    AddChild(m_text_status);
+
+    // --- 3. 主标签 (Label: EXECUTE) ---
+    m_text_label = std::make_shared<TechText>(label, theme.color_text_highlight, true);
+    m_text_label->m_font = ctx.m_font_bold;
+    m_text_label->m_block_input = false;
+    AddChild(m_text_label);
+
+    // --- 4. 统计信息行 (Stats) ---
+    if (!stat_label.empty())
+    {
+        m_text_stat_label = std::make_shared<TechText>(stat_label + ":", theme.color_text);
+        m_text_stat_label->m_font = ctx.m_font_bold;
+        m_text_stat_label->m_block_input = false;
+        AddChild(m_text_stat_label);
+    }
+
+    if (!stat_unit.empty())
+    {
+        m_text_stat_unit = std::make_shared<TechText>(stat_unit, theme.color_text);
+        m_text_stat_unit->m_font = ctx.m_font_bold;
+        m_text_stat_unit->m_block_input = false;
+        AddChild(m_text_stat_unit);
+    }
+
     if (is_editable && stat_value_ptr)
     {
         m_input_field = std::make_shared<InputField>(stat_value_ptr);
-        m_input_field->m_visible = false;
-        m_input_field->m_block_input = false;
-        m_input_field->m_alpha = 0.0f;
-        m_input_field->m_rect = { 135, 20, 100, 20 };
-        const auto& theme = UIContext::Get().m_theme;
         m_input_field->m_text_color = theme.color_accent;
         m_input_field->m_border_color = theme.color_accent;
         AddChild(m_input_field);
+    }
+    else if (stat_value_ptr)
+    {
+        m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, theme.color_accent, true);
+        m_text_stat_value->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold;
+        m_text_stat_value->m_block_input = false;
+        AddChild(m_text_stat_value);
     }
 
     // 预生成射线数据
@@ -51,16 +100,11 @@ PulsarButton::PulsarButton(const std::string& id, const std::string& label, cons
     }
 }
 
-// --- Public Methods ---
 void PulsarButton::SetStatusText(const std::string& text)
 {
-    if (m_current_status_text == text) return;
-    m_current_status_text = text;
-
-    if (m_is_active)
-    {
-        m_hacker_status.Start(m_current_status_text, 0.0f);
-    }
+    if (!m_text_status) return;
+    if (m_text_status->m_text == text) return;
+    m_text_status->SetText(text);
 }
 
 void PulsarButton::SetActive(bool active)
@@ -75,13 +119,10 @@ void PulsarButton::SetActive(bool active)
             m_anim_state = PulsarAnimState::Opening;
             To(&m_anim_progress, 1.0f, 0.5f, EasingType::EaseOutQuad, [this]() { this->m_anim_state = PulsarAnimState::Open; });
 
-            m_hacker_status.Start(m_current_status_text, 0.0f);
-            m_hacker_label.Start(m_label, 0.2f);
-
-            if (!m_is_editable && m_input_field && m_input_field->m_target_string)
-            {
-                m_hacker_stat_value.Start(*m_input_field->m_target_string, 0.4f);
-            }
+            // 重启特效
+            m_text_status->RestartEffect();
+            m_text_label->RestartEffect();
+            if (m_text_stat_value) m_text_stat_value->RestartEffect();
         }
     }
     else
@@ -90,96 +131,222 @@ void PulsarButton::SetActive(bool active)
         {
             m_anim_state = PulsarAnimState::Closing;
             To(&m_anim_progress, 0.0f, 0.4f, EasingType::EaseInQuad, [this]() { this->m_anim_state = PulsarAnimState::Closed; });
-            m_hacker_status.Reset();
-            m_hacker_label.Reset();
-            m_hacker_stat_value.Reset();
         }
     }
 }
-void PulsarButton::SetExecutable(bool can_execute)
-{
-    m_can_execute = can_execute;
-}
+void PulsarButton::SetExecutable(bool can_execute) { m_can_execute = can_execute; }
 
-// --- Overrides ---
 void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
-    UIElement::Update(dt, parent_abs_pos);
+    // [核心修复] 在调用 UIElement::Update 之前，先计算所有子元素的位置和状态
+    // 这样确保子元素在更新自己的绝对坐标时，使用的是本帧最新的 rect
 
     m_rotation_angle += 2.0f * Npgs::Math::kPi * dt / 3.0f;
     if (m_rotation_angle > 2.0f * Npgs::Math::kPi) m_rotation_angle -= 2.0f * Npgs::Math::kPi;
 
-    m_hacker_status.Update(dt);
-    m_hacker_label.Update(dt);
-    m_hacker_stat_value.Update(dt);
+    float icon_scale = 1.0f - m_anim_progress;
+    float text_alpha = (m_anim_state == PulsarAnimState::Open) ? 1.0f : (m_anim_progress > 0.4f ? (m_anim_progress - 0.4f) / 0.6f : 0.0f);
 
-    if (m_input_field)
+    const auto& theme = UIContext::Get().m_theme;
+
+
+    if (m_bg_panel)
     {
-        float text_alpha = (m_anim_state == PulsarAnimState::Open) ? 1.0f : (m_anim_progress > 0.4f ? (m_anim_progress - 0.4f) / 0.6f : 0.0f);
-        m_input_field->m_visible = (m_anim_state != PulsarAnimState::Closed);
-        m_input_field->m_alpha = text_alpha;
-        m_input_field->m_block_input = m_is_active;
+        // 1. 控制可见性和透明度
+        m_bg_panel->m_visible = (icon_scale > 0.01f);
+        m_bg_panel->m_alpha = icon_scale; // Panel 会自动处理内部的淡出
+
+        // 2. 控制大小 (实现缩放效果)
+        // 原逻辑是：center +/- 20 * scale。即总宽高为 40 * scale
+        float current_size = 40.0f * icon_scale;
+        float offset = (40.0f - current_size) * 0.5f; // 居中偏移
+
+        m_bg_panel->m_rect.x = offset;
+        m_bg_panel->m_rect.y = offset;
+        m_bg_panel->m_rect.w = current_size;
+        m_bg_panel->m_rect.h = current_size;
+
+        // 3. 动态改变边框颜色 (悬停变色逻辑)
+        // 这里的 GetColorWithAlpha 会由 Panel 内部处理，我们只需要给基准色
+        // TechBorderPanel 默认用 theme.color_border，我们这里手动覆盖一下颜色逻辑似乎比较复杂
+        // 如果 TechBorderPanel 没有暴露设置边框颜色的接口，它默认是自动处理的。
+        // *为了还原原本的 hover 变色效果*，你可能需要去 TechBorderPanel 加个 m_border_color 成员，
+        // 或者简单点：如果只是为了样式，使用默认的主题色即可。
+        // 这里假设我们想要那个 hover 效果：
+        // (这一步取决于 TechBorderPanel 是否支持 SetBorderColor，如果没有，暂且略过，或者你可以去加一个)
     }
+
+    // 1. 图标更新
+    m_text_icon->m_alpha = icon_scale;
+    m_text_icon->m_visible = (icon_scale > 0.01f);
+    m_text_icon->SetColor(m_hovered && !m_is_active ? theme.color_accent : theme.color_text);
+
+    // 2. 布局常量 (相对坐标)
+    const float LAYOUT_TEXT_START_X = 64.0f;
+    const float LAYOUT_LINE_Y_OFFSET = -40.0f;
+
+    // 基础偏移：中心点(20,20) + 布局偏移
+    float rel_text_x = pulsar_center_offset.x + LAYOUT_TEXT_START_X;
+    float rel_line_y = pulsar_center_offset.y + LAYOUT_LINE_Y_OFFSET;
+
+    // 3. 状态文本 (SYSTEM READY)
+    m_text_status->m_rect.x = rel_text_x;
+    m_text_status->m_rect.y = rel_line_y - 18.0f;
+    m_text_status->m_alpha = text_alpha;
+    m_text_status->m_visible = (text_alpha > 0.01f);
+
+    // 4. 主标签 (EXECUTE / LABEL)
+    m_text_label->m_rect.x = rel_text_x;
+    m_text_label->m_rect.y = rel_line_y;
+    m_text_label->m_alpha = text_alpha;
+    m_text_label->m_visible = (text_alpha > 0.01f);
+    ImVec4 label_color = m_can_execute ? (m_label_hovered ? theme.color_accent : theme.color_text_highlight) : theme.color_text_disabled;
+    m_text_label->SetColor(label_color);
+
+    // 5. 统计信息行
+    if (m_text_stat_label)
+    {
+        float stat_y = rel_line_y + 26.0f;
+        m_text_stat_label->m_rect.x = rel_text_x;
+        m_text_stat_label->m_rect.y = stat_y;
+        m_text_stat_label->m_alpha = text_alpha;
+        m_text_stat_label->m_visible = (text_alpha > 0.01f);
+
+        // 获取 "Label:" 的宽度，用于排版后面的数值
+        // 注意：这里需要字体的上下文，但在 Update 里我们只能估算或通过 font 获取
+        // 为了简化，我们假设逻辑正确，TechText Draw 时会自动处理
+        // 但为了排版，我们需要知道宽度。
+        ImFont* font = UIContext::Get().m_font_bold;
+        float lbl_w = 0.0f;
+        if (font) lbl_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_stat_label->m_text.c_str()).x;
+
+        float val_x = rel_text_x + lbl_w + 5.0f;
+
+        if (m_input_field)
+        {
+            m_input_field->m_rect.x = val_x;
+            m_input_field->m_rect.y = stat_y - 2.0f; // 微调
+            m_input_field->m_rect.w = 100.0f;
+            m_input_field->m_alpha = text_alpha;
+            m_input_field->m_visible = (text_alpha > 0.01f);
+            m_input_field->m_block_input = m_is_active;
+        }
+        if (m_text_stat_value)
+        {
+            m_text_stat_value->m_rect.x = val_x;
+            m_text_stat_value->m_rect.y = stat_y - 4.0f;
+            m_text_stat_value->m_alpha = text_alpha;
+            m_text_stat_value->m_visible = (text_alpha > 0.01f);
+        }
+        if (m_text_stat_unit)
+        {
+            // 简单估算数值宽度，如果是输入框则固定宽，如果是文本则计算
+            float val_w = 0.0f;
+            if (m_is_editable) val_w = 100.0f;
+            else
+            {
+                ImFont* lg_font = UIContext::Get().m_font_large; // 假设 Value 用的大字体
+                if (lg_font) val_w = lg_font->CalcTextSizeA(lg_font->FontSize, FLT_MAX, 0.0f, m_text_stat_value->m_hacker_effect.m_display_text.c_str()).x;
+            }
+
+            m_text_stat_unit->m_rect.x = val_x + val_w + 5.0f;
+            m_text_stat_unit->m_rect.y = stat_y;
+            m_text_stat_unit->m_alpha = text_alpha;
+            m_text_stat_unit->m_visible = (text_alpha > 0.01f);
+        }
+    }
+
+    // [关键] 最后调用基类 Update，这会递归调用子元素的 Update
+    // 此时子元素的 m_rect 已经是正确的相对位置，它们会根据 parent_abs_pos 计算出正确的 m_absolute_pos
+    UIElement::Update(dt, parent_abs_pos);
 }
 
 bool PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
 {
     if (!m_visible || m_alpha <= 0.01f) return false;
 
-    // 1. Let child (InputField) handle event first
+    // 1. 优先让子元素（如 InputField）处理事件
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
-        if ((*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released)) return true;
-    }
-
-    // 2. Define hit regions
-    Rect icon_rect = { m_absolute_pos.x, m_absolute_pos.y, 40, 40 };
-
-    // 3. Check hits
-    bool hit_icon = icon_rect.Contains(mouse_pos);
-    bool hit_label = false;
-    if (m_is_active && m_anim_progress > 0.8f)
-    { // Only check label when expanded
-        hit_label = m_label_hit_rect.Contains(mouse_pos);
-    }
-
-    // 4. Update hover states
-    m_label_hovered = hit_label && m_can_execute;
-    m_hovered = hit_icon || m_label_hovered;
-
-    // 5. Process clicks
-    if (mouse_clicked && m_block_input)
-    {
-        if (hit_label && m_is_active && m_can_execute)
+        if ((*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released))
         {
-            m_clicked = true;
+            return true;
+        }
+    }
+
+    // --- [核心实现] 统一的、随动画扩散的点击判定区域 ---
+
+    // A. 定义折叠 (Closed) 和展开 (Open) 状态的尺寸
+    const float closed_w = 40.0f;
+    const float closed_h = 40.0f;
+    // 展开后的宽度应该能覆盖所有内容。从布局看，大约是 (20+64+130) = 214px
+    const float open_w = pulsar_radius;
+    const float open_h = pulsar_radius;
+
+    // B. 根据动画进度 m_anim_progress 插值计算当前尺寸
+    // Lerp: start + (end - start) * t
+    float current_w = closed_w + (open_w - closed_w) * m_anim_progress;
+    float current_h = closed_h + (open_h - closed_h) * m_anim_progress;
+
+    // C. 计算判定区域的中心点 (始终是左上角 20,20)
+    ImVec2 center = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
+
+    // D. 生成当前的点击矩形
+    Rect unified_hit_rect = {
+        center.x - current_w * 0.5f, // 左边缘 = 中心 - 半宽
+        center.y - current_h * 0.5f, // 上边缘 = 中心 - 半高
+        current_w,
+        current_h
+    };
+
+    // E. 执行判定
+    bool inside = unified_hit_rect.Contains(mouse_pos);
+
+    // 更新悬停状态 (用于视觉效果)
+    m_hovered = inside;
+
+    // [旧逻辑简化] 单独检测 Label 悬停，用于文字变色
+    if (m_is_active && m_anim_progress > 0.8f)
+    {
+        ImFont* font = UIContext::Get().m_font_bold;
+        ImVec2 txt_sz = { 100, 20 };
+        if (font) txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_text.c_str());
+        Rect label_abs_rect = { m_text_label->m_absolute_pos.x - 5, m_text_label->m_absolute_pos.y - 2, txt_sz.x + 10, txt_sz.y + 4 };
+        m_label_hovered = label_abs_rect.Contains(mouse_pos) && m_can_execute;
+    }
+    else
+    {
+        m_label_hovered = false;
+    }
+
+
+    // F. 处理点击事件
+    if (inside && mouse_clicked && m_block_input)
+    {
+        m_clicked = true;
+
+        // 如果展开了，且 Label 区域被点到，则认为是“执行”
+        if (m_is_active && m_label_hovered)
+        {
             if (on_execute_callback)
             {
                 std::string val = "";
                 if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
                 on_execute_callback(m_id, val);
             }
-            return true; // Consume event
         }
-        else if (hit_icon)
+        // 否则，认为是“切换展开/折叠”
+        else
         {
-            m_clicked = true;
-            if (on_toggle_callback)
-            {
-                on_toggle_callback(!m_is_active);
-            }
-            else
-            { // Fallback behavior
-                SetActive(!m_is_active);
-            }
-            return true; // Consume event
+            if (on_toggle_callback) on_toggle_callback(!m_is_active);
+            else SetActive(!m_is_active);
         }
+        return true; // 消费事件
     }
 
     if (mouse_released) m_clicked = false;
 
-    // Consume event if mouse is over any active part of the button
-    return m_hovered;
+    return inside; // 如果鼠标在区域内，就消费事件，防止穿透
 }
 
 void PulsarButton::Draw(ImDrawList* draw_list)
@@ -187,80 +354,53 @@ void PulsarButton::Draw(ImDrawList* draw_list)
     if (!m_visible) return;
 
     const auto& theme = UIContext::Get().m_theme;
-    auto& ctx = UIContext::Get();
+    
 
-    const ImU32 color_theme = GetColorWithAlpha(theme.color_accent, 1.0f);
-    const ImU32 color_white = GetColorWithAlpha(theme.color_text_highlight, 1.0f);
-    const ImU32 color_text_dim = GetColorWithAlpha(theme.color_text, 1.0f);
-
-    // 1. Draw the collapsed icon button (fades out as it expands)
-    float icon_scale = 1.0f - m_anim_progress;
-    if (icon_scale > 0.01f)
-    {
-        ImVec2 center = { m_absolute_pos.x + 20, m_absolute_pos.y + 20 };
-        ImVec2 p_min = { center.x - 20 * icon_scale, center.y - 20 * icon_scale };
-        ImVec2 p_max = { center.x + 20 * icon_scale, center.y + 20 * icon_scale };
-
-        draw_list->AddRectFilled(p_min, p_max, GetColorWithAlpha({ 0,0,0,0.6f }, icon_scale));
-
-        PushFont(m_font);
-        ImVec2 icon_size = ImGui::CalcTextSize(m_icon_char.c_str());
-        draw_list->AddText(
-            ImVec2(center.x - icon_size.x * 0.5f, center.y - icon_size.y * 0.5f),
-            GetColorWithAlpha(m_hovered && !m_is_active ? theme.color_accent : theme.color_text, icon_scale),
-            m_icon_char.c_str()
-        );
-        PopFont(m_font);
-
-        ImU32 border_col = GetColorWithAlpha(m_hovered && !m_is_active ? theme.color_accent : theme.color_border, icon_scale);
-        TechUtils::DrawBracketedBox(draw_list, p_min, p_max, border_col, 2.0f, 8.0f);
-    }
-
-    // 2. Draw the expanded canvas content
+    // 2. 绘制展开后的图形 (连接线、脉冲星)
+    // 所有的文字都由 UIElement::Draw -> 子元素 Draw 完成
     if (m_anim_progress > 0.01f)
     {
-        // Layout calculations
-        ImVec2 center_abs = { m_absolute_pos.x + pulsar_center_offset.x, m_absolute_pos.y + pulsar_center_offset.y };
-        const float LAYOUT_LINE_Y_OFFSET = -40.0f;
-        const float LAYOUT_TEXT_START_X = 64.0f;
-        const float LAYOUT_ELBOW_X = 60.0f;
-        const float LAYOUT_LINE_LENGTH = 130.0f;
-        float line_abs_y = center_abs.y + LAYOUT_LINE_Y_OFFSET;
-        float text_abs_x = center_abs.x + LAYOUT_TEXT_START_X;
-        float line_end_x = text_abs_x + LAYOUT_LINE_LENGTH;
-
-        // Animation progress variables
+        ImVec2 center_abs = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
         float line_prog = std::max(0.0f, (m_anim_progress - 0.5f) * 2.0f);
         float pulsar_scale = std::min(1.0f, m_anim_progress * 1.5f);
-        float text_alpha = (m_anim_state == PulsarAnimState::Open) ? 1.0f : (m_anim_progress > 0.4f ? (m_anim_progress - 0.4f) / 0.6f : 0.0f);
+        const ImU32 color_theme = GetColorWithAlpha(theme.color_accent, 1.0f);
+        const ImU32 color_white = GetColorWithAlpha(theme.color_text_highlight, 1.0f);
 
-        // [恢复] Draw Pulsar Core & Rays
+        // 脉冲星核心
         if (pulsar_scale > 0.1f)
         {
             draw_list->AddCircleFilled(center_abs, 2.0f * pulsar_scale, color_white);
         }
+        // 射线
         for (const auto& ray : m_rays)
         {
             float current_len = std::max(0.0f, pulsar_scale * ray.len);
             if (current_len <= 0.05f) continue;
             float cosT = std::cos(ray.theta + m_rotation_angle); float sinT = std::sin(ray.theta + m_rotation_angle);
             float cosP = std::cos(ray.phi); float sinP = std::sin(ray.phi);
-            float x3d = cosT * cosP * pulsar_radius; float y3d = sinP * pulsar_radius; float z3d = sinT * cosP * pulsar_radius;
+            float x3d = cosT * cosP * 60.0f; float y3d = sinP * 60.0f; float z3d = sinT * cosP * 60.0f;
             float scale = 200.0f / (200.0f + z3d);
             ImVec2 p_end = { center_abs.x + x3d * scale * current_len, center_abs.y + y3d * scale * current_len };
-            draw_list->AddLine(center_abs, p_end, color_theme); // Simplified ray drawing for brevity
+            draw_list->AddLine(center_abs, p_end, color_theme);
         }
 
-        // [恢复] Draw Decorative Connecting Line
+        // 装饰连线
         if (line_prog > 0.01f)
         {
+            float rel_text_x = 20.0f + 64.0f;
+            float rel_line_y = 20.0f - 40.0f;
+            float line_abs_y = m_absolute_pos.y + rel_line_y;
+            float text_abs_x = m_absolute_pos.x + rel_text_x;
+
             ImVec2 p1 = center_abs;
-            ImVec2 p2 = { center_abs.x + LAYOUT_ELBOW_X, line_abs_y };
-            ImVec2 p3 = { line_end_x, line_abs_y };
+            ImVec2 p2 = { center_abs.x + 60.0f, line_abs_y };
+            ImVec2 p3 = { text_abs_x + 130.0f, line_abs_y };
+
             ImVec2 d1 = { p2.x - p1.x, p2.y - p1.y }; float l1 = std::sqrt(d1.x * d1.x + d1.y * d1.y);
             ImVec2 d2 = { p3.x - p2.x, p3.y - p2.y }; float l2 = std::sqrt(d2.x * d2.x + d2.y * d2.y);
             float total_len = l1 + l2;
             float draw_len = total_len * line_prog;
+
             if (draw_len <= l1)
             {
                 ImVec2 end_p = { p1.x + d1.x * (draw_len / l1), p1.y + d1.y * (draw_len / l1) };
@@ -274,82 +414,9 @@ void PulsarButton::Draw(ImDrawList* draw_list)
                 draw_list->AddLine(p2, end_p, GetColorWithAlpha(theme.color_accent, 0.7f));
             }
         }
-
-        // Draw Text Content
-        if (text_alpha > 0.01f)
-        {
-            // Status Text (e.g., TARGET LOCKED)
-            ImVec2 pos_status = { text_abs_x, line_abs_y - 18.0f };
-            m_hacker_status.Draw(draw_list, pos_status, GetColorWithAlpha(theme.color_text_highlight, text_alpha), ctx.m_font_bold);
-
-            // Main Label / Execute Button
-            ImVec2 pos_label = { text_abs_x, line_abs_y - 0.0f };
-            ImU32 label_color;
-            if (m_can_execute)
-            {
-                // 可执行：使用悬停变色逻辑
-                label_color = GetColorWithAlpha(m_label_hovered ? theme.color_accent : theme.color_text_highlight, text_alpha);
-            }
-            else
-            {
-                // 不可执行：强制使用灰色
-                label_color = GetColorWithAlpha(theme.color_text_disabled, text_alpha);
-            }
-            m_hacker_label.Draw(draw_list, pos_label, label_color, ctx.m_font_bold);
-
-            // Update hit rect for next frame's input handling
-            PushFont(ctx.m_font_bold);
-            ImVec2 label_size = ImGui::CalcTextSize(m_label.c_str());
-            PopFont(ctx.m_font_bold);
-            m_label_hit_rect = { pos_label.x - 5, pos_label.y - 2, label_size.x + 10, label_size.y + 4 };
-
-            // [恢复] Draw Stats Label, Value/Input, and Unit
-            if (!m_stat_label.empty())
-            {
-                ImVec2 pos_stats_row = { text_abs_x, line_abs_y + 26.0f };
-
-                // (A) Label ("MASS:")
-                PushFont(ctx.m_font_bold);
-                std::string lbl_str = m_stat_label + ":";
-                draw_list->AddText(pos_stats_row, color_text_dim, lbl_str.c_str());
-                float lbl_w = ImGui::CalcTextSize(lbl_str.c_str()).x;
-                PopFont(ctx.m_font_bold);
-
-                ImVec2 pos_value = { pos_stats_row.x + lbl_w + 5.0f, pos_stats_row.y };
-
-                // (B) Set InputField position
-                if (m_input_field)
-                {
-                    m_input_field->m_rect.x = pos_value.x - m_absolute_pos.x;
-                    m_input_field->m_rect.y = pos_value.y - m_absolute_pos.y - 2.0f; // Minor Y adjustment
-                    m_input_field->m_rect.w = 100.0f;
-                }
-
-                // (C) Draw static value or unit next to input field
-                if (!m_is_editable)
-                {
-                    PushFont(ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold);
-                    m_hacker_stat_value.Draw(draw_list, { pos_value.x, pos_value.y - 4.0f }, color_theme);
-                    float val_w = ImGui::CalcTextSize(m_hacker_stat_value.m_display_text.c_str()).x;
-                    PopFont(ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold);
-
-                    ImVec2 pos_unit = { pos_value.x + val_w + 5.0f, pos_stats_row.y };
-                    PushFont(ctx.m_font_bold);
-                    draw_list->AddText(pos_unit, color_text_dim, m_stat_unit.c_str());
-                    PopFont(ctx.m_font_bold);
-                }
-                else
-                {
-                    ImVec2 pos_unit = { pos_value.x + 103.0f, pos_stats_row.y };
-                    PushFont(ctx.m_font_bold);
-                    draw_list->AddText(pos_unit, color_text_dim, m_stat_unit.c_str());
-                    PopFont(ctx.m_font_bold);
-                }
-            }
-        }
     }
 
-    // Always draw children (InputField) at the end
+    // 3. 绘制子元素
     UIElement::Draw(draw_list);
 }
 

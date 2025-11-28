@@ -71,7 +71,7 @@ private:
 
     // =========================================================================
     std::shared_ptr<System::UI::CelestialInfoPanel> m_celestial_info;
-    std::shared_ptr<System::UI::NeuralMenuController> m_neural_menu_controller;
+    std::shared_ptr<System::UI::NeuralMenu> m_neural_menu_controller;
     std::shared_ptr<System::UI::PulsarButton> m_beam_button;
     std::shared_ptr<System::UI::PulsarButton> m_rkkv_button;
     // Data for the buttons to bind to

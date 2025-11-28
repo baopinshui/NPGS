@@ -69,7 +69,8 @@ void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, 
         draw_list->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
     }
 }
-void UIElement::Update(float dt, const ImVec2& parent_abs_pos)
+
+void UIElement::UpdateSelf(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
 
@@ -96,13 +97,23 @@ void UIElement::Update(float dt, const ImVec2& parent_abs_pos)
     }
     m_tweens.erase(std::remove_if(m_tweens.begin(), m_tweens.end(),
         [](const Tween& t) { return !t.active; }), m_tweens.end());
+}
 
-    // 递归子节点
+
+void UIElement::Update(float dt, const ImVec2& parent_abs_pos)
+{
+    // 先更新自己
+    UpdateSelf(dt, parent_abs_pos);
+
+    if (!m_visible) return; 
+
+    // 再递归子节点
     for (auto& child : m_children)
     {
         child->Update(dt, m_absolute_pos);
     }
 }
+
 
 void UIElement::Draw(ImDrawList* draw_list)
 {
@@ -292,10 +303,8 @@ void VBox::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
 
-    // 基础更新
-    m_absolute_pos.x = parent_abs_pos.x + m_rect.x;
-    m_absolute_pos.y = parent_abs_pos.y + m_rect.y;
-    UIElement::Update(dt, parent_abs_pos); // 更新 Tween 等
+    // [关键修改] 只更新自身位置和动画，不调用基类 Update，避免触发默认的子节点递归
+    UpdateSelf(dt, parent_abs_pos);
 
     // --- Pass 1: 测量 ---
     float fixed_height = 0.0f;
@@ -306,17 +315,10 @@ void VBox::Update(float dt, const ImVec2& parent_abs_pos)
     {
         if (!child->m_visible) continue;
         visible_children++;
-        if (child->m_fill_v)
-        {
-            fill_count++;
-        }
-        else
-        {
-            fixed_height += child->m_rect.h;
-        }
+        if (child->m_fill_v) fill_count++;
+        else fixed_height += child->m_rect.h;
     }
 
-    // 计算所有间距占用的总高度
     float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
 
     // --- Pass 2: 分配与布局 ---
@@ -329,66 +331,38 @@ void VBox::Update(float dt, const ImVec2& parent_abs_pos)
         auto& child = m_children[i];
         if (!child->m_visible) continue;
 
-        // A. 确定当前子元素的高度
-        if (child->m_fill_v)
-        {
-            child->m_rect.h = fill_child_height;
-        }
+        // A. 确定高度
+        if (child->m_fill_v) child->m_rect.h = fill_child_height;
 
-        // B. 设置垂直位置
+        // B. 设置位置
         child->m_rect.y = current_y;
 
-        // C. 处理水平对齐 (逻辑不变)
-        if (child->m_align_h == Alignment::Stretch)
-        {
-            child->m_rect.x = 0;
-            child->m_rect.w = this->m_rect.w;
-        }
-        else if (child->m_align_h == Alignment::Center)
-        {
-            child->m_rect.x = (this->m_rect.w - child->m_rect.w) * 0.5f;
-        }
-        else if (child->m_align_h == Alignment::End)
-        {
-            child->m_rect.x = this->m_rect.w - child->m_rect.w;
-        }
-        else // Start
-        {
-            child->m_rect.x = 0;
-        }
+        // C. 水平对齐
+        if (child->m_align_h == Alignment::Stretch) { child->m_rect.x = 0; child->m_rect.w = this->m_rect.w; }
+        else if (child->m_align_h == Alignment::Center) { child->m_rect.x = (this->m_rect.w - child->m_rect.w) * 0.5f; }
+        else if (child->m_align_h == Alignment::End) { child->m_rect.x = this->m_rect.w - child->m_rect.w; }
+        else { child->m_rect.x = 0; }
 
-        // D. 递归更新子元素
+        // D. [关键] 手动调用子节点 Update，这是该子节点在这一帧唯一的一次更新
         child->Update(dt, m_absolute_pos);
 
-        // E. 移动Y坐标，为下一个元素做准备
+        // E. 移动游标
         current_y += child->m_rect.h;
-        if (i < (size_t)visible_children - 1) // 最后一个可见元素后面不加 padding
-        {
-            current_y += m_padding;
-        }
+        if (i < (size_t)visible_children - 1) current_y += m_padding;
     }
 
-    // --- [核心修正] Pass 3: 更新自身高度 (如果需要) ---
-    // 如果 fill_count 为 0，意味着这个VBox是内容自适应模式。
-    // 它的高度应该被其内容撑开。
-    if (fill_count == 0)
-    {
-        this->m_rect.h = current_y;
-    }
-    // 否则，如果 fill_count > 0，意味着这个VBox是尺寸分配模式。
-    // 它的高度由它的父级决定，它不应该改变自己的高度。
+    if (fill_count == 0) this->m_rect.h = current_y;
 }
-// --- HBox 实现 (新增) ---
+
+// --- HBox 实现 (修复多重更新) ---
 void HBox::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
 
-    // 基础更新
-    m_absolute_pos.x = parent_abs_pos.x + m_rect.x;
-    m_absolute_pos.y = parent_abs_pos.y + m_rect.y;
-    UIElement::Update(dt, parent_abs_pos);
+    // [关键修改] 只更新自身，接管子节点控制权
+    UpdateSelf(dt, parent_abs_pos);
 
-    // --- Pass 1: 测量 (主轴：水平) ---
+    // --- Pass 1: 测量 ---
     float fixed_width = 0.0f;
     int fill_count = 0;
     int visible_children = 0;
@@ -397,14 +371,8 @@ void HBox::Update(float dt, const ImVec2& parent_abs_pos)
     {
         if (!child->m_visible) continue;
         visible_children++;
-        if (child->m_fill_h)
-        {
-            fill_count++;
-        }
-        else
-        {
-            fixed_width += child->m_rect.w;
-        }
+        if (child->m_fill_h) fill_count++;
+        else fixed_width += child->m_rect.w;
     }
 
     float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
@@ -414,147 +382,80 @@ void HBox::Update(float dt, const ImVec2& parent_abs_pos)
     float fill_child_width = (fill_count > 0) ? std::max(0.0f, remaining_width / fill_count) : 0.0f;
 
     float current_x = 0.0f;
-    float max_child_height = 0.0f; // 用于计算HBox的自适应高度
+    float max_child_height = 0.0f;
 
     for (size_t i = 0; i < m_children.size(); ++i)
     {
         auto& child = m_children[i];
         if (!child->m_visible) continue;
 
-        // A. 确定宽度 (主轴尺寸)
-        if (child->m_fill_h)
-        {
-            child->m_rect.w = fill_child_width;
-        }
+        // A. 确定宽度
+        if (child->m_fill_h) child->m_rect.w = fill_child_width;
 
-        // B. 设置水平位置 (主轴定位)
+        // B. 设置位置
         child->m_rect.x = current_x;
 
-        // C. 处理垂直对齐 (次轴定位)
-        if (child->m_align_v == Alignment::Stretch)
-        {
-            child->m_rect.y = 0;
-            child->m_rect.h = this->m_rect.h; // 子元素高度被拉伸到与HBox相同
-        }
-        else if (child->m_align_v == Alignment::Center)
-        {
-            child->m_rect.y = (this->m_rect.h - child->m_rect.h) * 0.5f;
-        }
-        else if (child->m_align_v == Alignment::End)
-        {
-            child->m_rect.y = this->m_rect.h - child->m_rect.h;
-        }
-        else // Start
-        {
-            child->m_rect.y = 0;
-        }
+        // C. 垂直对齐
+        if (child->m_align_v == Alignment::Stretch) { child->m_rect.y = 0; child->m_rect.h = this->m_rect.h; }
+        else if (child->m_align_v == Alignment::Center) { child->m_rect.y = (this->m_rect.h - child->m_rect.h) * 0.5f; }
+        else if (child->m_align_v == Alignment::End) { child->m_rect.y = this->m_rect.h - child->m_rect.h; }
+        else { child->m_rect.y = 0; }
 
-        // D. 递归更新
+        // D. [关键] 手动更新子节点
         child->Update(dt, m_absolute_pos);
 
-        // 在递归更新后，记录子元素最终的高度，用于HBox自身的自适应高度计算
-        if (child->m_rect.h > max_child_height)
-        {
-            max_child_height = child->m_rect.h;
-        }
+        if (child->m_rect.h > max_child_height) max_child_height = child->m_rect.h;
 
-        // E. 移动X坐标
         current_x += child->m_rect.w;
         if (i < (size_t)visible_children - 1) current_x += m_padding;
     }
 
-    // --- Pass 3: 更新自身高度 (次轴自适应) ---
-    // 如果HBox的高度没有被外部（例如父VBox或用户代码）设置一个明确的值，
-    // 那么它的高度就应该由其内部最高的子元素决定。
-    // 我们用一个很小的值来判断“高度是否未被设置”。
-    if (m_rect.h <= 0.1f)
-    {
-        m_rect.h = max_child_height;
-    }
+    if (m_rect.h <= 0.1f) m_rect.h = max_child_height;
 }
 
-// --- ScrollView 实现 (修复过滚闪烁问题) ---
+// --- ScrollView 实现 (修复多重更新) ---
 void ScrollView::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
 
-    // 1. 基础位置更新
-    m_absolute_pos.x = parent_abs_pos.x + m_rect.x;
-    m_absolute_pos.y = parent_abs_pos.y + m_rect.y;
+    // [关键修改] 只更新自身
+    UpdateSelf(dt, parent_abs_pos);
 
-    // --- 计算滚动边界 ---
-    // 这是为了确保目标值不会超出范围
+    // 滚动逻辑 (保留原样)
     float max_scroll = std::max(0.0f, m_content_height - m_rect.h);
-
-    // 2. 滚动输入处理
     if (m_hovered)
     {
         float wheel = ImGui::GetIO().MouseWheel;
-        if (std::abs(wheel) > 0.0f)
-        {
-            // 修改目标值，而不是直接修改当前值
-            m_target_scroll_y -= wheel * m_scroll_speed;
-        }
+        if (std::abs(wheel) > 0.0f) m_target_scroll_y -= wheel * m_scroll_speed;
     }
-
-    // --- [核心逻辑 1] 限制目标值范围 ---
-    // 无论是否有输入，都要时刻修正目标值，防止内容变少时目标值悬空
     m_target_scroll_y = std::clamp(m_target_scroll_y, 0.0f, max_scroll);
-
-    // --- [核心逻辑 2] 平滑插值 (Smooth Damp) ---
-    // 使用这种公式可以保证帧率波动时动画速度一致: current += (target - current) * (1 - exp(-speed * dt))
-    // 或者使用简化的 Lerp 近似：current += (target - current) * speed * dt
-
     float diff = m_target_scroll_y - m_scroll_y;
+    if (std::abs(diff) < 0.5f) m_scroll_y = m_target_scroll_y;
+    else m_scroll_y += diff * std::min(1.0f, m_smoothing_speed * dt);
 
-    // 如果差距很小，直接吸附，避免浮点数抖动
-    if (std::abs(diff) < 0.5f)
-    {
-        m_scroll_y = m_target_scroll_y;
-    }
-    else
-    {
-        // 这里的 dt * m_smoothing_speed 决定了跟手的速度
-        m_scroll_y += diff * std::min(1.0f, m_smoothing_speed * dt);
-    }
-
-    // --- Pass 2: 布局子元素 (逻辑不变，但使用平滑后的 m_scroll_y) ---
+    // 布局子元素
     float current_max_bottom = 0.0f;
     float view_w = m_rect.w - (m_show_scrollbar ? 6.0f : 0.0f);
 
     for (auto& child : m_children)
     {
         if (!child->m_visible) continue;
-
-        // 传递宽度约束
-        if (child->m_fill_h)
-        {
-            child->m_rect.w = view_w;
-        }
+        if (child->m_fill_h) child->m_rect.w = view_w;
         child->m_rect.x = 0;
         child->m_rect.w = view_w;
-
-        // 应用平滑后的 m_scroll_y
         child->m_rect.y = -m_scroll_y;
 
+        // [关键] 手动更新子节点
         child->Update(dt, m_absolute_pos);
 
-        // 计算内容高度
-        if (child->m_rect.h > current_max_bottom)
-        {
-            current_max_bottom = child->m_rect.h;
-        }
+        if (child->m_rect.h > current_max_bottom) current_max_bottom = child->m_rect.h;
     }
 
-    // --- Pass 3: 更新内容高度 ---
     m_content_height = current_max_bottom;
 
-    // 再次检查 clamp (防止这一帧内容突然变少导致 scroll_y 悬空)
-    // 注意：这里同时限制 target 和 current，确保逻辑稳健
+    // 再次 Clamp 逻辑 (保留原样)
     float new_max_scroll = std::max(0.0f, m_content_height - m_rect.h);
     if (m_target_scroll_y > new_max_scroll) m_target_scroll_y = new_max_scroll;
-    // 如果当前位置已经超出很多（比如列表被清空），则不需要平滑回去，直接归位，体验更好
-    // 如果只是超出一点点，则通过上面的插值慢慢回去
     if (m_scroll_y > new_max_scroll + 50.0f) m_scroll_y = new_max_scroll;
 }
 

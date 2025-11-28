@@ -141,10 +141,13 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\components\PulsarButton.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.cpp">
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.cpp">
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\TechText.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralMenu.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -308,13 +311,19 @@
     <ClInclude Include="Sources\Engine\Core\System\UI\TechUtils.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\System\UI\controllers\NeuralMenuController.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechProgressBar.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TechText.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TechDivider.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\NeuralMenu.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

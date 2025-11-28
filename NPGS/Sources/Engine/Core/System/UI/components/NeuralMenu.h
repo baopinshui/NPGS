@@ -1,27 +1,26 @@
 #pragma once
 #include "../ui_framework.h" 
-#include "../components/NeuralParticleView.h"
-#include "../components/TechBorderPanel.h"
-#include "../components/CollapsedMainButton.h"
-#include "../components/NeuralButton.h"
-#include "../components/TechSliders.h"
-
+#include "NeuralParticleView.h"
+#include "TechBorderPanel.h"
+#include "CollapsedMainButton.h"
+#include "NeuralButton.h"
+#include "TechSliders.h"
+#include "TechText.h"
+#include "TechDivider.h"
 #include <memory>
 #include <string>
+
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-
-
-// 只保留 NeuralMenuController 的声明
-class NeuralMenuController
+// 从"控制器"重构为"复合组件"
+class NeuralMenu : public UIElement
 {
 public:
-    // 构造函数保持不变
-    NeuralMenuController();
+    NeuralMenu();
 
-    // AddLinear 和 AddThrottle 保持不变
+    // API 保持不变，用于动态添加滑块
     template<typename T>
     void AddLinear(const std::string& name, T* ptr, T min, T max)
     {
@@ -36,23 +35,24 @@ public:
         content_vbox->AddChild(slider);
     }
 
-    // [修改] 提供一个获取根面板的接口
-    std::shared_ptr<TechBorderPanel> GetRootPanel() const { return root_panel; }
+    // [新增] 重写 Update，确保子元素的动画被处理
+    void Update(float dt, const ImVec2& parent_abs_pos) override;
 
 private:
-    // [修改] 移除 UpdateAndDraw 方法，它的职责已移交 UIRoot
     void ToggleExpand();
 
-    // 成员变量保持不变
+    // 内部子组件引用
     std::shared_ptr<TechBorderPanel> root_panel;
     std::shared_ptr<NeuralParticleView> bg_view;
     std::shared_ptr<VBox> main_layout;
-
-    std::shared_ptr<ScrollView> scroll_view; // 滚动窗口
-    std::shared_ptr<VBox> content_vbox;      // 实际的内容堆叠容器
-
+    std::shared_ptr<ScrollView> scroll_view;
+    std::shared_ptr<VBox> content_vbox;
     std::shared_ptr<CollapsedMainButton> collapsed_btn;
+    // [新增] 标题的引用，用于在展开时触发动画
+    std::shared_ptr<TechText> header_title;
 
+
+    // 状态
     bool m_expanded = false;
     ImVec2 m_collapsed_size = { 80, 80 };
     ImVec2 m_expanded_size = { 340, 300 };

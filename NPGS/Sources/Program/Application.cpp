@@ -72,10 +72,10 @@ void FApplication::ExecuteMainRender()
     m_ui_root = std::make_shared<UI::UIRoot>();
 
     // 3. 创建 NeuralMenuController
-    m_neural_menu_controller = std::make_shared<UI::NeuralMenuController>();
+    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>();
 
     // 4. 将菜单的根面板添加到 UI 根中
-    m_ui_root->AddChild(m_neural_menu_controller->GetRootPanel());
+    m_ui_root->AddChild(m_neural_menu_controller);
 
     // 5. 创建 PulsarButtons
     // Button 1: Dyson Beam
@@ -120,11 +120,10 @@ void FApplication::ExecuteMainRender()
 
         NpgsCoreInfo("Command Received: ID={}, Value={}", id, val);
 
-        // 示例逻辑
-        if (m_beam_button->m_current_status_text == "NO TARGET")
+        if (!m_beam_button->m_can_execute)
         {
-            NpgsCoreWarn("Cannot fire: No target locked!");
-            // 可选：播放拒绝动画或红色闪烁
+            NpgsCoreWarn("Cannot fire: Logic prevents execution (No target/Cooling down).");
+            // 可选：播放拒绝音效
         }
         else
         {

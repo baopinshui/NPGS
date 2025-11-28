@@ -82,7 +82,7 @@ struct Rect
 
         // --- DEBUG START: 极简调试代码 ---
         // static bool enable_debug = true; // 如果你想随时开关，可以用这个静态变量
-        if (!true) // 强制开启调试
+        if (true) // 强制开启调试
         {
             // 1. 获取最上层画笔（画在所有窗口之上）
             ImDrawList* fg_draw = ImGui::GetForegroundDrawList();
@@ -160,9 +160,11 @@ public:
     virtual ~UIElement() = default;
 
     // 核心生命周期
+protected: 
+    virtual void UpdateSelf(float dt, const ImVec2& parent_abs_pos);
+public:
     virtual void Update(float dt, const ImVec2& parent_abs_pos);
     virtual void Draw(ImDrawList* draw_list);
-
     // 事件处理
     // 返回 true 表示事件被消费
     virtual bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released);
