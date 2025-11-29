@@ -49,6 +49,7 @@ bool FVulkanUIRenderer::Initialize(GLFWwindow* window)
         0x2300, 0x23FF, // Misc Technical (技术符号) ⌘ ⌚
         0x2460, 0x24FF, // Enclosed Alphanumerics (带圈字符) ① ⓐ
         0x2500, 0x257F, // Box Drawing (制表符) ┌ ┐ └ ┘
+
         0x2580, 0x259F, // Block Elements (方块) █ ▓ ▒ (常用于进度条)
         0x25A0, 0x25FF, // Geometric Shapes (几何图形) ◈ ◆ ● ■ (你的痛点在这里)
         0x2600, 0x26FF, // Misc Symbols (杂项) ☀ ☁ ☢ ☠ ☭ ☮ (科幻图标)
