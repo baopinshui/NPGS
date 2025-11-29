@@ -151,81 +151,67 @@ void UIElement::Draw(ImDrawList* draw_list)
 }
 
 // [核心修改] 支持鼠标捕获和焦点的事件处理
-bool UIElement::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
+// --- UIElement::HandleMouseEvent 实现 ---
+
+void UIElement::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled)
 {
     if (!m_visible || m_alpha <= 0.01f)
     {
         m_hovered = false;
         m_clicked = false;
-        return false;
+        return;
     }
 
-    UIContext& ctx = UIContext::Get();
-
-    // 1. 检查是否有全局捕获
-    // 如果当前有元素捕获了鼠标，且不是我自己，也不是我的子节点（简化处理：只看是不是我自己）
-    // 在递归模型中，我们通常只在 Root 处做捕获分发。
-    // 但为了保持兼容性，我们在 UIElement 内部判断：
-    // 如果当前处于捕获模式，且捕获者不是我，且我不是捕获者的祖先(这个判断复杂)，
-    // 这里采用了简化的逻辑：如果处于捕获模式，递归逻辑会在 Root 处被截断直接发给捕获者，
-    // 或者我们在这里通过判断。
-
-    // 为了实现简单，我们在 Root Controller 层面处理分发更好。
-    // 但既然必须在这里实现，我们假设调用此函数时，分发逻辑已经处理好了（或者是标准的冒泡）。
-    // 这里维持递归逻辑。
-
-    // 2. 递归子节点 (反向遍历)
-    // 如果处于捕获状态，只有捕获者及其子树应该响应，这里暂不深度实现子树判断。
+    // 1. 先递归处理子节点 (反向遍历：从最上层子节点开始)
+    // 关键点：即使 handled 已经是 true，我们依然遍历子节点，
+    // 这样子节点才有机会将自己的 m_hovered 设为 false。
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
-        if ((*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released))
-            return true;
+        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, external_handled);
     }
 
-    // 3. 自身处理
+    // 2. 如果事件已经被子节点（或者更上层的兄弟节点）处理了
+    if (external_handled)
+    {
+        m_hovered = false;
+        m_clicked = false;
+        return; // 我没有机会交互了，直接返回
+    }
+
+    // 3. 只有当事件未被处理时，才检测自身
     Rect abs_rect = { m_absolute_pos.x, m_absolute_pos.y, m_rect.w, m_rect.h };
     bool inside = abs_rect.Contains(mouse_pos);
 
-    // 如果我是捕获者，我强制认为 inside = true (或者是逻辑上的 inside)
-    // 这样即使鼠标移出屏幕，我也能收到事件
-    if (ctx.m_captured_element == this)
-    {
-        inside = true;
-    }
+    // 捕获逻辑
+    UIContext& ctx = UIContext::Get();
+    if (ctx.m_captured_element == this) inside = true;
 
-    // 焦点逻辑
-    if (inside && mouse_clicked && m_focusable)
+    if (inside)
     {
-        ctx.SetFocus(this);
-    }
-    // 点击空白处失去焦点逻辑通常由 Root 处理
-
-    if (m_clicked)
-    {
-        if (mouse_released)
+        // 只有在 block_input 时才算“消耗”了事件
+        if (m_block_input)
         {
-            m_clicked = false;
-            // 自动释放捕获 (如果是由点击触发的简单捕获)
-            // 但通常 SlideBar 会手动管理 ReleaseMouse
+            m_hovered = true;
+            external_handled = true; // 【关键】标记事件已被我消耗，后续遍历到的节点（底层的）将只能看不能动
+
+            if (mouse_clicked)
+            {
+                m_clicked = true;
+                if (m_focusable) ctx.SetFocus(this);
+            }
         }
-        return true;
+        else
+        {
+            // 不阻挡输入（如 Panel），虽然 inside，但不消耗 handled
+            m_hovered = true;
+        }
     }
-
-    if (inside && m_block_input)
+    else
     {
-        m_hovered = true;
-        if (mouse_clicked) m_clicked = true;
-        return true;
+        m_hovered = false;
+        // 注意：这里不要设置 m_clicked = false，因为拖拽可能移出范围
+        if (mouse_released) m_clicked = false;
     }
-
-    if (inside && !m_block_input)
-    {
-        m_hovered = true;
-        return false;
-    }
-
-    m_hovered = false;
-    return false;
 }
 
 bool UIElement::HandleKeyboardEvent()
@@ -490,34 +476,41 @@ void ScrollView::Draw(ImDrawList* draw_list)
     draw_list->PopClipRect();
 }
 
-bool ScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
+void ScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
-    if (!m_visible || m_alpha <= 0.01f) return false;
+    if (!m_visible || m_alpha <= 0.01f) return;
 
     Rect abs_rect = { m_absolute_pos.x, m_absolute_pos.y, m_rect.w, m_rect.h };
     bool inside = abs_rect.Contains(mouse_pos);
 
-    m_hovered = inside && m_block_input;
-
-    if (mouse_clicked && !inside) return false;
-    if (!inside)
+    // 1. 如果被更上层（父级/遮挡层）处理了，或者根本不在范围内
+    if (handled || !inside)
     {
-        return false;
+        m_hovered = false;
+        // 依然传递 dummy handled 给子节点以重置它们
+        bool dummy_handled = true;
+        for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+            (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, dummy_handled);
+        return;
     }
 
-    // 如果有捕获，优先捕获逻辑（在 Root 分发层处理更好，这里保留递归）
-    bool child_consumed = false;
+    // [核心修复]：只要代码走到这里，说明鼠标在 ScrollView 范围内，且没有被上层遮挡。
+    // 此时无论子节点是否消耗点击，ScrollView 都应该处于悬停状态，以便响应滚轮。
+    m_hovered = true;
+
+    // 2. 正常分发给子节点
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
-        if ((*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released))
-        {
-            child_consumed = true;
-            break;
-        }
+        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
-    if (child_consumed) return true;
-    return inside;
+    // 3. 自身点击消耗逻辑
+    // 如果子节点没有消耗点击，且 ScrollView 配置为阻挡输入，则标记 handled
+    if (!handled)
+    {
+        if (m_block_input) handled = true;
+    }
+    // 注意：不要在这里写 else { m_hovered = false; }，这会导致子节点消耗事件后滚轮失效
 }
 
 
@@ -611,44 +604,38 @@ void HorizontalScrollView::Draw(ImDrawList* draw_list)
     draw_list->PopClipRect();
 }
 
-bool HorizontalScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
+// [修改] 返回值改为 void，新增 bool& handled 参数
+void HorizontalScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
-    if (!m_visible || m_alpha <= 0.01f) return false;
+    if (!m_visible || m_alpha <= 0.01f) return;
 
-    // 1. 检查鼠标是否在滚动视图区域内
     Rect abs_rect = { m_absolute_pos.x, m_absolute_pos.y, m_rect.w, m_rect.h };
     bool inside = abs_rect.Contains(mouse_pos);
 
-    // 更新悬停状态，用于 Update 中的滚轮事件
-    m_hovered = inside;
-
-    // 如果不在区域内，不处理任何事件
-    if (!inside)
+    // 1. 遮挡/范围检测
+    if (handled || !inside)
     {
-        return false;
+        m_hovered = false;
+        bool dummy_handled = true;
+        for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+            (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, dummy_handled);
+        return;
     }
 
-    // 2. 优先让子元素处理事件
-    bool child_consumed = false;
-    // 反向遍历，让上层的元素先响应
+    // [核心修复] 标记悬停，允许滚轮工作
+    m_hovered = true;
+
+    // 2. 分发给子节点
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
-        if ((*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released))
-        {
-            child_consumed = true;
-            break;
-        }
+        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
-    // 3. 如果子元素消耗了事件（比如点击了按钮），则返回 true
-    if (child_consumed)
+    // 3. 自身消耗
+    if (!handled)
     {
-        return true;
+        if (m_block_input) handled = true; // 虽然你之前代码里这里写的是 if(m_hovered) handled=true，但逻辑是一样的
     }
-
-    // 4. 如果没有子元素消耗，但鼠标在区域内，则滚动视图自己消耗事件
-    //    这可以防止点击空白区域时“穿透”到游戏世界
-    return inside;
 }
 
 // 在文件末尾，_UI_END 之前，添加 UIRoot 的实现
@@ -671,22 +658,23 @@ void UIRoot::Update(float dt)
     UIElement* focused_element_before_events = ctx.m_focused_element;
 
     // --- 2. 鼠标事件分发 ---
-    bool ui_consumed_mouse = false;
+    // [修改] 创建 handled 标记
+    bool is_handled = false;
     UIElement* captured = ctx.m_captured_element;
 
     if (captured)
     {
-        ui_consumed_mouse = captured->HandleMouseEvent(io.MousePos, io.MouseDown[0], io.MouseClicked[0], io.MouseReleased[0]);
+        // 捕获模式下，直接传给捕获元素
+        captured->HandleMouseEvent(io.MousePos, io.MouseDown[0], io.MouseClicked[0], io.MouseReleased[0], is_handled);
     }
     else
     {
-        // 从根节点开始分发事件
-        ui_consumed_mouse = HandleMouseEvent(io.MousePos, io.MouseDown[0], io.MouseClicked[0], io.MouseReleased[0]);
+        // 从根节点开始分发事件，传入 is_handled 引用
+        HandleMouseEvent(io.MousePos, io.MouseDown[0], io.MouseClicked[0], io.MouseReleased[0], is_handled);
     }
 
- 
-
-    if (ui_consumed_mouse) io.WantCaptureMouse = true;
+    // 如果 is_handled 最终为 true，说明 UI 消耗了鼠标
+    if (is_handled) io.WantCaptureMouse = true;
 
     // --- 4. 键盘事件分发 ---
     UIElement* focused = ctx.m_focused_element;
@@ -706,32 +694,28 @@ void UIRoot::Draw() {
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     UIElement::Draw(draw_list);
 }
-bool UIRoot::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
+
+void UIRoot::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
     // 1. 先保存当前焦点状态
     UIContext& ctx = UIContext::Get();
     UIElement* focused_before = ctx.m_focused_element;
 
     // 2. 正常分发事件给子节点
-    // 如果子节点处理了（比如点到了按钮），consumed_by_child 会是 true
-    bool consumed_by_child = UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released);
+    // 调用基类 UIElement::HandleMouseEvent，它会递归调用子节点
+    // 如果某个子节点消耗了事件，handled 会变成 true
+    UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
 
     // 3. [规范的失焦逻辑]
-    // 如果发生了点击，并且没有任何子节点消耗这个点击...
-    if (mouse_clicked && !consumed_by_child)
+    // 如果发生了点击，并且没有任何子节点消耗这个点击 (!handled)...
+    if (mouse_clicked && !handled)
     {
-        // ...说明点击落在了“空地”（即游戏画面）上。
-        // 此时，如果之前有元素拥有焦点，我们需要判断是否应该清除它。
         if (focused_before)
         {
-            // 这里其实可以直接 ClearFocus()，因为我们已经确认点击没有被任何UI元素（包括焦点元素自己）消耗。
-            // 只要 HandleMouseEvent 实现正确（点击焦点元素内部会返回 true），这个逻辑就是严密的。
             ctx.ClearFocus();
         }
     }
 
-    // 4. 返回 false，允许事件穿透给游戏层
-    return consumed_by_child; ; // UIRoot 永远不阻挡输入
 }
 _UI_END
 _SYSTEM_END

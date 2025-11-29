@@ -36,7 +36,7 @@ public:
     TechButton* SetUseGlass(bool v) { m_use_glass = v; return this; }
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* dl) override;
-    bool HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release) override;
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
 
 private:
     std::string m_text_str;

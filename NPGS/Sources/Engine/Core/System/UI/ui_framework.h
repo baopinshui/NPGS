@@ -167,7 +167,7 @@ public:
     virtual void Draw(ImDrawList* draw_list);
     // 事件处理
     // 返回 true 表示事件被消费
-    virtual bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released);
+    virtual void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled);
     virtual bool HandleKeyboardEvent(); // [新增] 键盘/字符输入接口
 
     // 层级管理
@@ -245,7 +245,7 @@ public:
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
-    bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released) override;
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
 };
 class HorizontalScrollView : public UIElement
 {
@@ -259,7 +259,7 @@ public:
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
-    bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released) override;
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
 };
 // --- 根元素 (新增) ---
 // 负责管理整个UI场景的顶层元素
@@ -272,7 +272,7 @@ public:
     void Update(float dt) ;
     void Draw();
     // 重写事件处理，实现事件穿透
-    bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released) override;
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
 };
 
 _UI_END

@@ -90,20 +90,19 @@ void CollapsedMainButton::Update(float dt, const ImVec2& parent_abs_pos)
         child->m_alpha = this->m_alpha;
     }
 }
-bool CollapsedMainButton::HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release)
+void CollapsedMainButton::HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled)
 {
     // 调用基类逻辑。
     // 由于子元素 (VBox, TechText) 的 m_block_input 都是 false，
     // 它们在基类逻辑中会返回 false (不消耗事件)。
     // 最终事件会落在 CollapsedMainButton 自身上 (因为它的 m_block_input 是 true)。
-    bool ret = UIElement::HandleMouseEvent(p, down, click, release);
+     UIElement::HandleMouseEvent(p, down, click, release,  handled);
 
     // 如果没有任何子元素消耗点击，且自身被点击了
     if (m_clicked && click && on_click_callback)
     {
         on_click_callback();
     }
-    return ret;
 }
 
 void CollapsedMainButton::Draw(ImDrawList* dl)

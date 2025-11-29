@@ -31,7 +31,7 @@ public:
     InputField(std::string* target);
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
-    bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released) override;
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override;
     bool HandleKeyboardEvent() override; // 核心：处理键盘输入
     ImFont* GetFont() const override;
 };

@@ -40,8 +40,16 @@ public:
     virtual void OnDrag(float rel_x) = 0;
 
     // 通用的鼠标事件处理
-    bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released) override
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override
     {
+        // 如果已经被外部遮挡，且不在拖拽状态，直接放弃
+        // 注意：如果正在 m_is_dragging，即使外部 handled=true 我们也要继续处理（比如鼠标移出了窗口）
+        if (handled && !m_is_dragging)
+        {
+            m_hovered = false;
+            return;
+        }
+
         // 布局参数 (必须与 Draw 严格一致)
         float max_label_w = 70.0f;
         float value_box_w = 90.0f;
@@ -50,31 +58,42 @@ public:
         float slider_start_x = m_absolute_pos.x + max_label_w + padding;
         float slider_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
 
+        // 简单的布局防崩坏逻辑
         if (slider_w < 10.0f) { slider_w = 10.0f; slider_start_x = m_absolute_pos.x + m_rect.w - slider_w; }
 
+        // 判定鼠标是否在滑条的有效可点击区域内
         bool mouse_in_slider = (mouse_pos.x >= slider_start_x - 5.0f && mouse_pos.x <= slider_start_x + slider_w + 5.0f &&
             mouse_pos.y >= m_absolute_pos.y && mouse_pos.y <= m_absolute_pos.y + m_rect.h);
 
-        if (!m_is_dragging && mouse_clicked && mouse_in_slider)
+        // 1. 开始拖拽逻辑
+        // 只有当事件未被处理 (!handled) 时才允许发起新的拖拽
+        if (!m_is_dragging && !handled && mouse_clicked && mouse_in_slider)
         {
             m_is_dragging = true;
             CaptureMouse();
+            handled = true; // [关键] 标记事件被消耗，开始拖拽
         }
 
+        // 2. 结束拖拽逻辑
         if (m_is_dragging && mouse_released)
         {
             m_is_dragging = false;
             ReleaseMouse();
+            handled = true; // 释放动作本身也是一种交互，应该被标记处理
         }
 
+        // 3. 拖拽过程逻辑
         if (m_is_dragging)
         {
             float rel_x = (mouse_pos.x - slider_start_x) / slider_w;
             OnDrag(std::clamp(rel_x, 0.0f, 1.0f));
-            return true;
+            handled = true; // [关键] 拖拽过程中始终消耗事件
+            return; // 拖拽时不需要再走基类的通用悬停逻辑
         }
 
-        return UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released);
+        // 4. 如果没有发生拖拽相关的交互，调用基类处理通用悬停 (Hover)
+        // 这里的 handled 传进去，如果上面逻辑都没触发，handled 依然是 false (或外部传入的状态)
+        UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
     // [视觉升级] 重写 Draw 方法

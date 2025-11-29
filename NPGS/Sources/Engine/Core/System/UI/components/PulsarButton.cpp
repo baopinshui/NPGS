@@ -261,94 +261,114 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     UIElement::Update(dt, parent_abs_pos);
 }
 
-bool PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
+void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
-    if (!m_visible || m_alpha <= 0.01f) return false;
+    if (!m_visible || m_alpha <= 0.01f) return;
 
     // 1. 优先让子元素（如 InputField）处理事件
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
     {
-        if ((*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released))
-        {
-            return true;
-        }
+        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
-    // --- [核心实现] 统一的、随动画扩散的点击判定区域 ---
+    // 如果事件已经被子元素（比如 InputField）处理了，或者被上层元素遮挡
+    if (handled)
+    {
+        m_hovered = false;
+        m_label_hovered = false;
+        return;
+    }
 
-    // A. 定义折叠 (Closed) 和展开 (Open) 状态的尺寸
+    // --- [核心实现] 交互区域判定 ---
+
+    // A. 计算核心区域 (Pulsar Core) 的 Rect
+    //    这里的逻辑只负责左侧的圆形脉冲星
     const float closed_w = 40.0f;
     const float closed_h = 40.0f;
-    // 展开后的宽度应该能覆盖所有内容。从布局看，大约是 (20+64+130) = 214px
-    const float open_w = pulsar_radius;
+    const float open_w = pulsar_radius; // 60.0f
     const float open_h = pulsar_radius;
 
-    // B. 根据动画进度 m_anim_progress 插值计算当前尺寸
-    // Lerp: start + (end - start) * t
+    // 插值计算当前尺寸
     float current_w = closed_w + (open_w - closed_w) * m_anim_progress;
     float current_h = closed_h + (open_h - closed_h) * m_anim_progress;
 
-    // C. 计算判定区域的中心点 (始终是左上角 20,20)
     ImVec2 center = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
 
-    // D. 生成当前的点击矩形
-    Rect unified_hit_rect = {
-        center.x - current_w * 0.5f, // 左边缘 = 中心 - 半宽
-        center.y - current_h * 0.5f, // 上边缘 = 中心 - 半高
+    Rect core_hit_rect = {
+        center.x - current_w * 0.5f,
+        center.y - current_h * 0.5f,
         current_w,
         current_h
     };
 
-    // E. 执行判定
-    bool inside = unified_hit_rect.Contains(mouse_pos);
+    bool inside_core = core_hit_rect.Contains(mouse_pos);
 
-    // 更新悬停状态 (用于视觉效果)
-    m_hovered = inside;
-
-    // [旧逻辑简化] 单独检测 Label 悬停，用于文字变色
-    if (m_is_active && m_anim_progress > 0.8f)
+    // B. [关键修复] 独立计算 Label (发射按钮) 的悬停状态
+    //    Label 在核心区域之外，必须单独检测，且只在展开(Active)时有效
+    m_label_hovered = false;
+    if (m_is_active && m_anim_progress > 0.8f && m_can_execute)
     {
+        // 获取 Label 的字体尺寸来生成精确的包围盒
         ImFont* font = UIContext::Get().m_font_bold;
         ImVec2 txt_sz = { 100, 20 };
-        if (font) txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_text.c_str());
-        Rect label_abs_rect = { m_text_label->m_absolute_pos.x - 5, m_text_label->m_absolute_pos.y - 2, txt_sz.x + 10, txt_sz.y + 4 };
-        m_label_hovered = label_abs_rect.Contains(mouse_pos) && m_can_execute;
+        // 这里的 m_text_label->m_text 应该是 "EXECUTE" 或其他
+        if (font && m_text_label)
+            txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_text.c_str());
+
+        // 使用组件当前的绝对位置 (由 Update 计算)
+        if (m_text_label)
+        {
+            Rect label_abs_rect = {
+                m_text_label->m_absolute_pos.x - 10.0f, // 稍微扩大一点点击范围
+                m_text_label->m_absolute_pos.y - 5.0f,
+                txt_sz.x + 20.0f,
+                txt_sz.y + 10.0f
+            };
+
+            if (label_abs_rect.Contains(mouse_pos))
+            {
+                m_label_hovered = true;
+            }
+        }
+    }
+
+    // C. 综合判定：只要在 核心内 或 Label内，都算悬停/交互
+    bool is_interactive_area = inside_core || m_label_hovered;
+
+    if (is_interactive_area && m_block_input)
+    {
+        m_hovered = true; // 让按钮保持高亮
+        handled = true;   // [关键] 标记事件已被消耗
+
+        if (mouse_clicked)
+        {
+            m_clicked = true;
+
+            // 分支逻辑：点 Label 是执行，点核心是折叠
+            if (m_label_hovered)
+            {
+                if (on_execute_callback)
+                {
+                    std::string val = "";
+                    if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
+                    on_execute_callback(m_id, val);
+                }
+            }
+            else // 点在了 inside_core
+            {
+                if (on_toggle_callback) on_toggle_callback(!m_is_active);
+                else SetActive(!m_is_active);
+            }
+        }
     }
     else
     {
-        m_label_hovered = false;
-    }
-
-
-    // F. 处理点击事件
-    if (inside && mouse_clicked && m_block_input)
-    {
-        m_clicked = true;
-
-        // 如果展开了，且 Label 区域被点到，则认为是“执行”
-        if (m_is_active && m_label_hovered)
-        {
-            if (on_execute_callback)
-            {
-                std::string val = "";
-                if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
-                on_execute_callback(m_id, val);
-            }
-        }
-        // 否则，认为是“切换展开/折叠”
-        else
-        {
-            if (on_toggle_callback) on_toggle_callback(!m_is_active);
-            else SetActive(!m_is_active);
-        }
-        return true; // 消费事件
+        m_hovered = false;
+        // 注意：m_label_hovered 已在上面 B 步骤重置
     }
 
     if (mouse_released) m_clicked = false;
-
-    return inside; // 如果鼠标在区域内，就消费事件，防止穿透
 }
-
 void PulsarButton::Draw(ImDrawList* draw_list)
 {
     if (!m_visible) return;

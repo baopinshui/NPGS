@@ -84,7 +84,7 @@ bool FVulkanUIRenderer::Initialize(GLFWwindow* window)
             cnFontPath,
             size+1.0f, // 保持和英文一样的大小
             &config,
-            io.Fonts->GetGlyphRangesChineseSimplifiedCommon() // 常用汉字范围
+            io.Fonts->GetGlyphRangesChineseFull() // 常用汉字范围
         );
         // 3. 合并特殊符号字体
 // 符号字体通常偏小，这里特意乘以 1.1 倍，让图标在 UI 中更饱满

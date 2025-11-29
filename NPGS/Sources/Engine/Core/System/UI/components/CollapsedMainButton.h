@@ -17,7 +17,7 @@ public:
     // [修正] 确保重写了 Update，用于处理动画和 Alpha 传递
     void Update(float dt, const ImVec2& parent_abs_pos) override;
 
-    bool HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release) override;
+    void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 
     // [修正] Draw 方法现在是空的，所有绘制由子元素完成
     void Draw(ImDrawList* dl) override;

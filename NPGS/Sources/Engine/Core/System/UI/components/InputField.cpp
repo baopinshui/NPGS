@@ -98,10 +98,10 @@ void InputField::Draw(ImDrawList* draw_list)
     ImGui::PopFont(); // 必须成对出现
 }
 
-bool InputField::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
+void InputField::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
     // 调用基类处理通用逻辑（如 hover 状态）
-    bool consumed = UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released);
+     UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released,handled);
 
     if (m_clicked && mouse_clicked)
     {
@@ -159,7 +159,6 @@ bool InputField::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool
         m_cursor_blink_timer = 0.0f;
         m_show_cursor = true;
     }
-    return consumed;
 }
 bool InputField::HandleKeyboardEvent()
 {

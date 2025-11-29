@@ -43,7 +43,7 @@ public:
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
-    bool HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release) override;
+    void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 
 private:
     float m_anim_progress = 0.0f;

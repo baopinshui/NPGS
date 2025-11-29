@@ -155,11 +155,14 @@ void TechButton::DrawVerticalText(ImDrawList* dl, ImU32 col)
     if (font) ImGui::PopFont();
 }
 
-bool TechButton::HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release)
+void TechButton::HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled)
 {
-    bool ret = UIElement::HandleMouseEvent(p, down, click, release);
-    if (m_clicked && click && on_click) on_click();
-    return ret;
+    UIElement::HandleMouseEvent(p, down, click, release, handled);
+
+    if (m_clicked && click && on_click)
+    {
+        on_click();
+    }
 }
 
 _UI_END
