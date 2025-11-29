@@ -46,7 +46,64 @@ FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& Wi
 
 FApplication::~FApplication()
 {}
+void FApplication::SimulateStarSelectionAndUpdateUI()
+{
+    // --- 1. 创建 UI 面板 (如果需要) ---
+    if (!m_celestial_info)
+    {
+        m_celestial_info = std::make_shared<Npgs::System::UI::CelestialInfoPanel>();
+        // 记得添加到 UI Root
+    }
 
+    // --- 2. 创建一个数据丰富的 AStar 对象 ---
+
+    // a. 基本属性
+    Npgs::Astro::FCelestialBody::FBasicProperties basicProps;
+    basicProps.Name = "Sirius A";
+    basicProps.Radius = 1.19e9f;       // 1.7 Rs
+    basicProps.Spin = 4.8e5f;        // 5.5 days
+    basicProps.Age = 2.42e8;        // 2.42 亿年
+    basicProps.Oblateness = 0.006f;
+    basicProps.EscapeVelocity = 8.1e6f;
+    basicProps.MagneticField = 0.05f;
+
+    // b. 恒星扩展属性
+    Npgs::Astro::AStar::FExtendedProperties starProps;
+    starProps.Mass = 4.018e30;      // 2.02 Ms
+    starProps.Luminosity = 9.6e27;        // 25 Ls
+    starProps.Lifetime = 1e9;           // 10 亿年
+    starProps.EvolutionProgress = 0.24;      // 演化 24%
+    starProps.FeH = 0.5f;
+    starProps.InitialMass = 4.1e30f;
+    starProps.SurfaceH1 = 0.71f;
+    starProps.SurfaceZ = 0.02f;
+    starProps.Teff = 9940.0f;
+    starProps.CoreTemp = 2.2e7f;
+    starProps.CoreDensity = 5.0e4f;
+    starProps.StellarWindSpeed = 3.0e5f;     // 300 km/s
+    starProps.StellarWindMassLossRate = 1.0e9f;
+    starProps.MinCoilMass = 1.0e25f;
+    starProps.Phase = Astro::AStar::EEvolutionPhase::kMainSequence;
+    starProps.From = Astro::AStar::EStarFrom::kNormalFrom;
+    starProps.bIsSingleStar = false;
+    starProps.bHasPlanets = true;
+    starProps.Class = Astro::FStellarClass::Parse("A1V");
+
+    // c. 构造恒星
+    Npgs::Astro::AStar myStar(basicProps, starProps);
+
+    // --- 3. 调用数据转换器 ---
+    Npgs::System::UI::CelestialData ui_data = Npgs::System::UI::AstroDataBuilder::BuildDataForObject(&myStar);
+
+    // --- 4. 更新 UI 面板 ---
+
+    // a. 设置标题
+    std::string subtitle = Npgs::System::UI::AstroDataBuilder::StarPhaseToString(myStar.GetEvolutionPhase());
+    m_celestial_info->SetTitle(myStar.GetName(), subtitle);
+
+    // b. 设置数据
+    m_celestial_info->SetData(ui_data);
+}
 void FApplication::ExecuteMainRender()
 {    // 初始化 UI 渲染器
     _uiRenderer = std::make_unique<Grt::FVulkanUIRenderer>();
@@ -554,6 +611,11 @@ void FApplication::ExecuteMainRender()
     InitHistoryFrame();
 
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "InitHistoryFrame", InitHistoryFrame);
+
+
+    SimulateStarSelectionAndUpdateUI();
+
+
     glm::vec4    LastBlackHoleRelativePos(0.0f, 0.0f, 0.0f, 1.0f);
     glm::mat4x4 lastdir(0.0f);
     //LastFrameTime = glfwGetTime();
@@ -680,6 +742,7 @@ void FApplication::ExecuteMainRender()
 
 
             bool has_target = (int(0.1*RealityTime) % 2 == 1); // 随机模拟
+
 
             if (has_target)
             {

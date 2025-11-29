@@ -52,22 +52,23 @@ CelestialInfoPanel::CelestialInfoPanel()
         header_row->m_rect.h = 28.0f; // 固定高度
 
         // 1. 主标题 (左对齐，大号，高亮)
-        auto title = std::make_shared<TechText>("Star-001");
-        title->m_font = UIContext::Get().m_font_bold;
-        title->SetColor(theme.color_accent);
-        title->m_align_v = Alignment::End; // 底部对齐
-        title->m_rect.w = 120.0f;          // 预留宽度
+        m_title_text = std::make_shared<TechText>("No Target");
+        m_title_text->m_font = UIContext::Get().m_font_bold;
+        m_title_text->SetColor(theme.color_accent);
+        m_title_text->m_align_v = Alignment::End; // 底部对齐
+        m_title_text->m_rect.w = 120.0f;          // 预留宽度
 
         // 2. 副标题 (右对齐，小号，灰色)
-        auto subtitle = std::make_shared<TechText>("Red Main Seq");
-        subtitle->SetColor(theme.color_text_disabled);
-        subtitle->m_font = UIContext::Get().m_font_small;
-        subtitle->m_align_v = Alignment::End; // 底部对齐
-        subtitle->m_align_h = Alignment::End; // 靠右
-        subtitle->m_fill_h = true;            // 填满剩余空间
 
-        header_row->AddChild(title);
-        header_row->AddChild(subtitle);
+        m_subtitle_text = std::make_shared<TechText>("");
+        m_subtitle_text->SetColor(theme.color_text_disabled);
+        m_subtitle_text->m_font = UIContext::Get().m_font_regular;
+        m_subtitle_text->m_align_v = Alignment::End; // 底部对齐
+        m_subtitle_text->m_align_h = Alignment::End; // 靠右
+        m_subtitle_text->m_fill_h = true;            // 填满剩余空间
+
+        header_row->AddChild(m_title_text);
+        header_row->AddChild(m_subtitle_text);
 
         // [修复] 必须添加到主布局中
         main_vbox->AddChild(header_row);
@@ -83,30 +84,26 @@ CelestialInfoPanel::CelestialInfoPanel()
     // B. Tabs 区域 (实心/透明切换风格)
     // =========================================================
     {
-        auto tabs_box = std::make_shared<HBox>();
-        tabs_box->m_rect.h = 20.0f;
-        tabs_box->m_padding = 4.0f; // 标签之间的间距
+        // 1. 创建横向滚动容器
+        auto tabs_scroll_view = std::make_shared<HorizontalScrollView>();
+        tabs_scroll_view->m_rect.h = 20.0f; // 滚动区域高度
+        tabs_scroll_view->m_block_input = true;
 
-        // 辅助 lambda：创建 Tab 按钮
-        auto mk_tab = [&](const char* txt, bool selected)
-        {
-            auto t = std::make_shared<TechButton>(txt, TechButton::Style::Tab);
-            t->SetSelected(selected);
-            t->m_fill_h = true; // 均分宽度
-            t->on_click = [t, this]()
-            {
-                // 这里只是简单的视觉演示，实际逻辑需要遍历所有 tab 重置 selected 状态
-                t->SetSelected(true);
-                // TODO: 可以在这里调用 RebuildDataList(...) 切换显示内容
-            };
-            return t;
-        };
+        // 2. 创建 HBox 并保存指针
+        m_tabs_container = std::make_shared<HBox>();
+        m_tabs_container->m_padding = 4.0f;
 
-        tabs_box->AddChild(mk_tab("PHYSICS", true)); // 默认选中第一个
-        tabs_box->AddChild(mk_tab("ORBIT", false));
-        tabs_box->AddChild(mk_tab("COMP", false));
+        // [关键] 
+        // HBox 不再 m_fill_h。它会根据内容自适应宽度。
+        m_tabs_container->m_fill_h = false;
+        // 高度设置为父容器高度
+        m_tabs_container->m_rect.h = 20.0f;
 
-        main_vbox->AddChild(tabs_box);
+        // 3. 将 HBox 作为子元素添加到滚动视图中
+        tabs_scroll_view->AddChild(m_tabs_container);
+
+        // 4. 将滚动视图添加到主布局
+        main_vbox->AddChild(tabs_scroll_view);
     }
 
     // 增加一点垂直间距
@@ -117,17 +114,15 @@ CelestialInfoPanel::CelestialInfoPanel()
     // =========================================================
     // C. 数据滚动区
     // =========================================================
-    m_scroll_view = std::make_shared<ScrollView>();
-    m_scroll_view->m_fill_v = true; // 占据中间剩余的所有垂直空间
+    auto scroll_view = std::make_shared<ScrollView>();
+    scroll_view->m_fill_v = true;
 
+    // 创建内容容器并保存指针
     m_content_vbox = std::make_shared<VBox>();
-    m_content_vbox->m_padding = 8.0f; // 组与组之间的间距
-    m_scroll_view->AddChild(m_content_vbox);
+    m_content_vbox->m_padding = 8.0f;
 
-    main_vbox->AddChild(m_scroll_view);
-
-    // 初始填充数据
-    RebuildDataList();
+    scroll_view->AddChild(m_content_vbox);
+    main_vbox->AddChild(scroll_view);
 
     // =========================================================
     // D. Footer 区域 (进度条)
@@ -179,7 +174,47 @@ CelestialInfoPanel::CelestialInfoPanel()
         main_vbox->AddChild(footer_box);
     }
 }
+void CelestialInfoPanel::SetData(const CelestialData& data)
+{
+    // 1. 更新数据模型
+    m_current_data = data;
 
+    // 重置 Tab 索引 (防止越界，如果新数据为空则设为 -1 或 0)
+    m_current_tab_index = 0;
+    if (m_current_data.empty()) m_current_tab_index = -1;
+
+    // 2. 重建 Tab 按钮
+    if (m_tabs_container)
+    {
+        m_tabs_container->m_children.clear();
+
+        for (int i = 0; i < m_current_data.size(); ++i)
+        {
+            const auto& page = m_current_data[i];
+
+            auto btn = std::make_shared<TechButton>(page.name, TechButton::Style::Tab);
+
+            // [关键] 按钮不再 fill，而是使用固定宽度
+            // 这样 HBox 的总宽度才能正确计算
+            btn->m_fill_h = false;
+            btn->m_rect.w = 90.0f; // 给每个 Tab 一个固定宽度
+
+            btn->on_click = [this, i]()
+            {
+                this->SelectTab(i);
+            };
+            m_tabs_container->AddChild(btn);
+        }
+    }
+
+    // 3. 刷新选中状态和内容
+    SelectTab(m_current_tab_index);
+}
+void CelestialInfoPanel::SetTitle(const std::string& title, const std::string& subtitle)
+{
+    if (m_title_text) m_title_text->SetText(title);
+    if (m_subtitle_text) m_subtitle_text->SetText(subtitle);
+}
 void CelestialInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
@@ -226,88 +261,99 @@ void CelestialInfoPanel::ToggleCollapse()
     m_is_collapsed = !m_is_collapsed;
     m_collapsed_btn->ResetInteraction();
 }
-
-void CelestialInfoPanel::RebuildDataList()
+// 切换 Tab 的逻辑
+void CelestialInfoPanel::SelectTab(int index)
 {
-    m_content_vbox->m_children.clear();
+    if (index < 0 || index >= m_current_data.size()) return;
 
-    struct KV { std::string k, v; };
-    std::vector<std::vector<KV>> groups = {
-        { {"Type", "M4.5V"}, {"[Fe/H]", "+0.12"}, {"Stage", "H-Seq"}, {"Progress", "0.2%"}, {"Age", "2.1E+9yr"}, {"Life", "2.2E+12yr"}, {"End", "Fade"}, {"Remnant", "He-WD"} },
-        { {"Power", "4.7E+24W"}, {"Temp", "3354K"} },
-        { {"Mass", "0.32Ms"}, {"Radius", "0.33Rs"} }
-    };
+    m_current_tab_index = index;
 
-    auto& theme = UIContext::Get().m_theme;
+    // 1. 更新 Tab 按钮的视觉选中状态
+    if (m_tabs_container)
+    {
+        for (int i = 0; i < m_tabs_container->m_children.size(); ++i)
+        {
+            auto btn = std::dynamic_pointer_cast<TechButton>(m_tabs_container->m_children[i]);
+            if (btn)
+            {
+                btn->SetSelected(i == m_current_tab_index);
+            }
+        }
+    }
 
-    // 1. 获取字体并计算自适应尺寸
+    // 2. 刷新下方内容区
+    RefreshContent();
+}
+
+// 根据当前选中的 Page 生成列表
+void CelestialInfoPanel::RefreshContent()
+{
+    if (!m_content_vbox) return;
+    m_content_vbox->m_children.clear(); // 清空旧内容
+
+    if (m_current_tab_index < 0 || m_current_tab_index >= m_current_data.size()) return;
+
+    // 获取当前页的数据
+    const auto& current_page = m_current_data[m_current_tab_index];
+    const auto& theme = UIContext::Get().m_theme;
+
+    // 样式准备
     ImFont* target_font = UIContext::Get().m_font_regular;
     if (!target_font) target_font = ImGui::GetFont();
-
-    // 自适应行高
     float font_size = target_font->FontSize;
-    float row_height = font_size + 4.0f; // 文字高度 + 上下间隙
-    float key_width = font_size * 6.5f;  // Key列宽度跟随字号缩放
+    float row_height = font_size + 4.0f;
+    float key_width = font_size * 6.5f;
 
-    // 样式定义
-    ImVec4 col_line = theme.color_accent;
-    col_line.w = 0.5f;
+    ImVec4 col_line = theme.color_accent; col_line.w = 0.5f;
     ImVec4 col_key = theme.color_text_disabled;
     ImVec4 col_val = theme.color_text;
     ImVec4 col_highlight = theme.color_accent;
 
-    for (const auto& group : groups)
+    // 遍历该页的所有组
+    for (const auto& group : current_page.groups)
     {
-        // [核心修复]：预先计算该组的总高度
-        // 因为内容列的 padding 为 0，所以总高度 = 行数 * 行高
-        float total_group_height = group.size() * row_height;
+        float total_group_height = group.items.size() * row_height;
 
-        // 1. 创建水平容器
+        // 1. 组容器
         auto group_hbox = std::make_shared<HBox>();
         group_hbox->m_padding = 8.0f;
-        // [核心修复]：显式设置高度，强制撑开空间，解决重叠问题
         group_hbox->m_rect.h = total_group_height;
 
         // 2. 左侧竖线
         auto line = std::make_shared<Panel>();
         line->m_rect.w = 2.0f;
         line->m_bg_color = col_line;
-        // [核心修复]：手动设置线高，而不依赖 Stretch (避免布局死锁)
         line->m_align_v = Alignment::Start;
         line->m_rect.h = total_group_height;
         group_hbox->AddChild(line);
 
-        // 3. 右侧内容列
+        // 3. 内容列
         auto content_col = std::make_shared<VBox>();
         content_col->m_padding = 0.0f;
-        // 显式设置高度，虽然 VBox 会自适应，但显式设置更稳健
         content_col->m_rect.h = total_group_height;
         content_col->m_fill_h = true;
 
-        for (const auto& kv : group)
+        for (const auto& item : group.items)
         {
             auto row = std::make_shared<HBox>();
-            row->m_rect.h = row_height; // 使用计算出的行高
+            row->m_rect.h = row_height;
 
             // Key
-            auto k = std::make_shared<TechText>(kv.k + ":", col_key);
+            auto k = std::make_shared<TechText>(item.key + ":", col_key);
             k->m_align_h = Alignment::Start;
             k->m_align_v = Alignment::Center;
             k->m_font = target_font;
             k->m_rect.w = key_width;
 
             // Value
-            auto v = std::make_shared<TechText>(kv.v, col_val);
+            auto v = std::make_shared<TechText>(item.value, col_val);
             v->m_align_h = Alignment::End;
             v->m_align_v = Alignment::Center;
             v->m_fill_h = true;
             v->m_font = target_font;
 
-            // 高亮逻辑
-            if (kv.k == "Stage" || kv.k == "Temp")
-            {
-                v->SetColor(col_highlight);
-            }
+            // 处理高亮
+            if (item.highlight) v->SetColor(col_highlight);
 
             row->AddChild(k);
             row->AddChild(v);
@@ -323,6 +369,7 @@ void CelestialInfoPanel::RebuildDataList()
         m_content_vbox->AddChild(spacer);
     }
 }
+
 
 _UI_END
 _SYSTEM_END

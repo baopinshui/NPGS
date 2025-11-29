@@ -419,6 +419,7 @@ void HBox::Update(float dt, const ImVec2& parent_abs_pos)
     }
 
     if (m_rect.h <= 0.1f) m_rect.h = max_child_height;
+    if (fill_count == 0) this->m_rect.w = current_x;
 }
 
 // --- ScrollView 实现 (修复多重更新) ---
