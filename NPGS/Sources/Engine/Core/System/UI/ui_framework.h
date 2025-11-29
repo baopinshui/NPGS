@@ -31,8 +31,8 @@ struct UITheme
     ImVec4 color_button_hover = { 0.3f, 0.3f, 0.3f, 1.0f };
     ImVec4 color_button_active = { 0.4f, 0.4f, 0.4f, 1.0f };
     ImVec4 color_border = { 0.5f, 0.5f, 0.5f, 1.0f };
-    ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
-   // ImVec4 color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #米黄色
+    //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
+    ImVec4 color_accent = ImVec4(0.845f, 0.845f, 0.561f, 1.0f); // #米黄色
     //ImVec4 color_accent = ImVec4(0.0f,1.0f,0.0f, 1.0f); 
 };
 
@@ -247,7 +247,20 @@ public:
     void Draw(ImDrawList* draw_list) override;
     bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released) override;
 };
+class HorizontalScrollView : public UIElement
+{
+public:
+    float m_scroll_x = 0.0f;
+    float m_target_scroll_x = 0.0f;
+    float m_content_width = 0.0f;
+    float m_scroll_speed = 20.0f;
+    float m_smoothing_speed = 15.0f;
+    bool m_show_scrollbar = false;
 
+    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    void Draw(ImDrawList* draw_list) override;
+    bool HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released) override;
+};
 // --- 根元素 (新增) ---
 // 负责管理整个UI场景的顶层元素
 class UIRoot : public UIElement

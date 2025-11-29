@@ -321,7 +321,7 @@ vec4 DiskColor(vec4 BaseColor,  float StepLength, vec3 RayPos, vec3 LastRayPos,
             
             
             //厚度，后面的项在薄盘时制造起伏，但不会大于1
-            float Thick             = Thin * Density* (0.4+0.6*clamp(Thin-0.5,0.0,2.5)/2.5 + (1.0-(0.4+0.6*clamp(Thin-0.5,0.0,2.5)/2.5))* SoftSaturate(GenerateAccretionDiskNoise(vec3(1.5 * PosTheta,RotPosR, 1.0), -0.7+NoiseLevel, 1.3+NoiseLevel, 80.0))); // 盘厚
+            float Thick             = Thin * Density* (0.4+0.6*clamp(Thin-0.5,0.0,2.5)/2.5 + (1.0-(0.4+0.6*clamp(Thin-0.5,0.0,2.5)/2.5))* SoftSaturate(GenerateAccretionDiskNoise(vec3(1.5 * PosTheta,RotPosR, 0.0), -0.7+NoiseLevel, 1.3+NoiseLevel, 80.0))); // 盘厚
             float ThickM = Thin * Density;
             float VerticalMixFactor = 0.0;
             float DustColor         = 0.0;

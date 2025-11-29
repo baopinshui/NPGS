@@ -518,6 +518,138 @@ bool ScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool
     if (child_consumed) return true;
     return inside;
 }
+
+
+void HorizontalScrollView::Update(float dt, const ImVec2& parent_abs_pos)
+{
+    if (!m_visible) return;
+
+    // 1. 基础位置更新
+    UpdateSelf(dt, parent_abs_pos); // 使用修正后的 UpdateSelf
+
+    // 2. 计算滚动边界
+    float max_scroll = std::max(0.0f, m_content_width - m_rect.w);
+
+    // 3. 滚动输入处理
+    if (m_hovered)
+    {
+        // 鼠标滚轮同时控制水平滚动
+        float wheel_x = ImGui::GetIO().MouseWheelH; // 水平滚轮 (通常是 Shift + 滚轮)
+        float wheel_y = ImGui::GetIO().MouseWheel;  // 垂直滚轮
+
+        if (std::abs(wheel_y) > std::abs(wheel_x))
+        {
+            m_target_scroll_x -= wheel_y * m_scroll_speed;
+        }
+        else
+        {
+            m_target_scroll_x -= wheel_x * m_scroll_speed;
+        }
+    }
+
+    // 4. 限制目标值并平滑插值
+    m_target_scroll_x = std::clamp(m_target_scroll_x, 0.0f, max_scroll);
+    float diff = m_target_scroll_x - m_scroll_x;
+    if (std::abs(diff) < 0.5f) m_scroll_x = m_target_scroll_x;
+    else m_scroll_x += diff * std::min(1.0f, m_smoothing_speed * dt);
+
+    float view_h = m_rect.h - (m_show_scrollbar ? 6.0f : 0.0f);
+    // 5. 布局子元素
+    float total_child_width = 0.0f;
+    for (auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+        if (child->m_fill_v) child->m_rect.h = view_h;
+        child->m_rect.x = -m_scroll_x;
+
+        // 子元素垂直方向上可以居中或拉伸
+        child->m_align_v = Alignment::Stretch;
+
+        // 手动更新子节点
+        child->Update(dt, m_absolute_pos);
+
+        // 测量内容总宽度
+        total_child_width = child->m_rect.x + child->m_rect.w; // HBox 只有一个
+    }
+
+    // 6. 更新内容总宽度
+    m_content_width = total_child_width + m_scroll_x;
+
+    // 再次 clamp 防止内容变少时悬空
+    float new_max_scroll = std::max(0.0f, m_content_width - m_rect.w);
+    if (m_target_scroll_x > new_max_scroll) m_target_scroll_x = new_max_scroll;
+    if (m_scroll_x > new_max_scroll) m_scroll_x = new_max_scroll;
+}
+
+
+void HorizontalScrollView::Draw(ImDrawList* draw_list)
+{
+    if (!m_visible || m_alpha <= 0.01f) return;
+
+    // 1. 设置裁剪矩形
+    ImVec2 clip_min = m_absolute_pos;
+    ImVec2 clip_max = ImVec2(clip_min.x + m_rect.w, clip_min.y + m_rect.h);
+    draw_list->PushClipRect(clip_min, clip_max, true);
+
+    // 2. 遍历并剔除不可见的子元素
+    for (auto& child : m_children)
+    {
+        // 计算子元素的绝对X坐标和宽度
+        float child_abs_x = child->m_absolute_pos.x;
+        float child_w = child->m_rect.w;
+
+        // 如果子元素完全在可视区域的左侧或右侧，则跳过绘制
+        if (child_abs_x + child_w < clip_min.x || child_abs_x > clip_max.x)
+        {
+            continue;
+        }
+
+        child->Draw(draw_list);
+    }
+
+    draw_list->PopClipRect();
+}
+
+bool HorizontalScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released)
+{
+    if (!m_visible || m_alpha <= 0.01f) return false;
+
+    // 1. 检查鼠标是否在滚动视图区域内
+    Rect abs_rect = { m_absolute_pos.x, m_absolute_pos.y, m_rect.w, m_rect.h };
+    bool inside = abs_rect.Contains(mouse_pos);
+
+    // 更新悬停状态，用于 Update 中的滚轮事件
+    m_hovered = inside;
+
+    // 如果不在区域内，不处理任何事件
+    if (!inside)
+    {
+        return false;
+    }
+
+    // 2. 优先让子元素处理事件
+    bool child_consumed = false;
+    // 反向遍历，让上层的元素先响应
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    {
+        if ((*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released))
+        {
+            child_consumed = true;
+            break;
+        }
+    }
+
+    // 3. 如果子元素消耗了事件（比如点击了按钮），则返回 true
+    if (child_consumed)
+    {
+        return true;
+    }
+
+    // 4. 如果没有子元素消耗，但鼠标在区域内，则滚动视图自己消耗事件
+    //    这可以防止点击空白区域时“穿透”到游戏世界
+    return inside;
+}
+
 // 在文件末尾，_UI_END 之前，添加 UIRoot 的实现
 
 // --- UIRoot 实现 ---
