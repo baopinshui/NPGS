@@ -17,10 +17,9 @@
 #include "Engine/Core/System/UI/neural_ui.h" 
 
 
-#include "Engine/Core/System/UI/components/CelestialInfoPanel.h" // 我们的面板
-#include "Engine/Core/System/UI/UITool/AstroDataBuilder.h"             // 我们的数据转换器
 #include "Engine/Core/Types/Entries/Astro/Star.h"
 
+#include <Engine/Core/System/Generators/StellarGenerator.h>
 _NPGS_BEGIN
 
 class FApplication

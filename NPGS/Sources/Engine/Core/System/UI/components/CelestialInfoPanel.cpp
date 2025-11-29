@@ -346,7 +346,7 @@ void CelestialInfoPanel::RefreshContent()
             k->m_rect.w = key_width;
 
             // Value
-            auto v = std::make_shared<TechText>(item.value, col_val);
+            auto v = std::make_shared<TechText>(item.value, col_val, true);
             v->m_align_h = Alignment::End;
             v->m_align_v = Alignment::Center;
             v->m_fill_h = true;

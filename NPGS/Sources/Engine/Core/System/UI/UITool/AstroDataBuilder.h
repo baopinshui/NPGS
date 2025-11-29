@@ -26,7 +26,10 @@ public:
     static std::string FormatScientific(double value, const char* unit);
     // 将 enum 转换为可读字符串
     static std::string StarPhaseToString(Astro::AStar::EEvolutionPhase phase);
-    static std::string StarRemnantToString(Astro::AStar::EStarFrom from); // 根据形成方式推断残骸
+    static std::string StarFromToString(Astro::AStar::EStarFrom from); // 形成方式
+    static std::string PredictOutcomeToString(const Astro::AStar* star); // 推断预期结局
+    static std::string PredictRemnantToString(const Astro::AStar* star); // 推断预期残骸
+    static std::string PlanetTypeToString(Astro::APlanet::EPlanetType type);
 };
 
 _UI_END

@@ -127,8 +127,8 @@ public:
         float h = m_rect.h;
         float y_center = m_absolute_pos.y + h * 0.5f;
 
-        float max_label_w = 70.0f;
-        float value_box_w = 90.0f; // 宽度增加以适应 1.2345e+02
+        float max_label_w = 100.0f;
+        float value_box_w = 70.0f; // 宽度增加以适应 1.2345e+02
         float padding = 8.0f;
 
         float track_x = m_absolute_pos.x + max_label_w + padding;
@@ -245,7 +245,7 @@ public:
         // --- 7. 绘制数值 (科学计数法) ---
         char buf[64];
         // 强制转换为 float 使用 %.4e (保留4位小数的科学计数法)
-        snprintf(buf, 64, "%.4e", (float)*m_target_value);
+        snprintf(buf, 64, "%.2e", (float)*m_target_value);
 
         ImVec2 val_size = ImGui::CalcTextSize(buf);
         // 右对齐

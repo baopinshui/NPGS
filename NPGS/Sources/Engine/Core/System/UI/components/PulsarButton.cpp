@@ -396,12 +396,47 @@ void PulsarButton::Draw(ImDrawList* draw_list)
         {
             float current_len = std::max(0.0f, pulsar_scale * ray.len);
             if (current_len <= 0.05f) continue;
-            float cosT = std::cos(ray.theta + m_rotation_angle); float sinT = std::sin(ray.theta + m_rotation_angle);
-            float cosP = std::cos(ray.phi); float sinP = std::sin(ray.phi);
-            float x3d = cosT * cosP * 60.0f; float y3d = sinP * 60.0f; float z3d = sinT * cosP * 60.0f;
+
+            float cosT = std::cos(ray.theta + m_rotation_angle);
+            float sinT = std::sin(ray.theta + m_rotation_angle);
+            float cosP = std::cos(ray.phi);
+            float sinP = std::sin(ray.phi);
+
+            float x3d = cosT * cosP * pulsar_radius;
+            float y3d = sinP * pulsar_radius;
+            float z3d = sinT * cosP * pulsar_radius;
+
             float scale = 200.0f / (200.0f + z3d);
             ImVec2 p_end = { center_abs.x + x3d * scale * current_len, center_abs.y + y3d * scale * current_len };
-            draw_list->AddLine(center_abs, p_end, color_theme);
+
+            ImVec2 delta = { p_end.x - center_abs.x, p_end.y - center_abs.y };
+            float total_dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+            if (total_dist < 0.1f) continue;
+            ImVec2 unit_v = { delta.x / total_dist, delta.y / total_dist };
+            ImVec2 perp_v = { -unit_v.y, unit_v.x };
+
+            ImVec2 current_pos = center_abs;
+            for (const auto& seg : ray.segments)
+            {
+                if (seg.offset > current_len / ray.len) break;
+                ImVec2 next_pos = { center_abs.x + delta.x * (seg.offset / (current_len / ray.len)), center_abs.y + delta.y * (seg.offset / (current_len / ray.len)) };
+                draw_list->AddLine(current_pos, next_pos, color_theme);
+                if (seg.has_bump)
+                {
+                    ImVec2 bump_pos = { next_pos.x + perp_v.x * seg.bump_height, next_pos.y + perp_v.y * seg.bump_height };
+                    ImVec2 bump_end = { next_pos.x + unit_v.x * 0.5f + perp_v.x * seg.bump_height, next_pos.y + unit_v.y * 0.5f + perp_v.y * seg.bump_height };
+                    ImVec2 back_pos = { next_pos.x + unit_v.x * 0.5f, next_pos.y + unit_v.y * 0.5f };
+                    draw_list->AddLine(next_pos, bump_pos, color_theme);
+                    draw_list->AddLine(bump_pos, bump_end, color_theme);
+                    draw_list->AddLine(bump_end, back_pos, color_theme);
+                    current_pos = back_pos;
+                }
+                else
+                {
+                    current_pos = next_pos;
+                }
+            }
+            draw_list->AddLine(current_pos, p_end, color_theme);
         }
 
         // 装饰连线
