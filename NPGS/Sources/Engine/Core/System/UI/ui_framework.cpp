@@ -653,8 +653,10 @@ void UIRoot::Update(float dt)
 {
     // --- 1. 全局事件与状态管理 ---
     ImGuiIO& io = ImGui::GetIO();
+
     UIContext& ctx = UIContext::Get();
 
+    m_rect = { 0, 0, ctx.m_display_size.x, ctx.m_display_size.y };
     UIElement* focused_element_before_events = ctx.m_focused_element;
 
     // --- 2. 鼠标事件分发 ---

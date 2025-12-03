@@ -277,6 +277,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\Generators\StellarGenerator.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\Spatial\Camera.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\CinematicInfoPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\InputField.cpp" />
@@ -335,6 +336,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\Spatial\Camera.h" />
     <ClInclude Include="Sources\Engine\Core\System\Spatial\Octree.hpp" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\CinematicInfoPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\InputField.h" />

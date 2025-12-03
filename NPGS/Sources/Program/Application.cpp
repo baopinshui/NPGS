@@ -50,7 +50,7 @@ FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& Wi
 FApplication::~FApplication()
 {}
 std::seed_seq seed{ std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() };
-Npgs::System::Generator::FStellarGenerator Gen(seed);
+Npgs::System::Generator::FStellarGenerator Gen(seed,Npgs::System::Generator::FStellarGenerator::EStellarTypeGenerationOption::kDeathStar);
 
 void FApplication::SimulateStarSelectionAndUpdateUI()
 {
@@ -195,6 +195,14 @@ void FApplication::ExecuteMainRender()
     m_celestial_info = std::make_shared<UI::CelestialInfoPanel>();
     // 将其根元素添加到 UIRoot (假设 ui_root 是你的 UIRoot 实例)
     m_ui_root->AddChild(m_celestial_info);
+
+
+    m_top_Info    = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Top);
+    m_bottom_Info = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Bottom);
+
+     m_ui_root->AddChild(m_top_Info);
+     m_ui_root->AddChild(m_bottom_Info);
+
 
 
     // =========================================================================
@@ -723,6 +731,54 @@ void FApplication::ExecuteMainRender()
             {
                 m_beam_button->SetStatusText("NO TARGET");
                 m_beam_button->SetExecutable(false); // <--- 设置为不可执行
+            }
+
+            // 模拟逻辑：每 15 秒一个大循环，分三个阶段，每个阶段 5 秒
+// RealityTime 假设为当前的累计运行时间(秒)
+            int info_phase = int(RealityTime / 2.50f+1.0) % 3;
+
+            // 在 Update 循环中
+
+            // 阶段 0: 隐藏
+            if (info_phase == 0)
+            {
+                // 传空字符串隐藏
+                m_top_Info->SetCivilizationData("", "", "", "");
+                m_bottom_Info->SetCelestialData("", "", "", "");
+            }
+            // 阶段 1: 奇点
+            else if (info_phase == 1)
+            {
+                m_top_Info->SetCivilizationData(
+                    "TRANSCENDENT RINGULARITY",
+                    "已支配质量: 2.4e30 kg",
+                    "恒星系统: 14,201",
+                    "REWARD: 1.875e+21"
+                );
+
+                m_bottom_Info->SetCelestialData(
+                    "191981",
+                    "BH",
+                    "1.91E+36kg",
+                    "8.10E+30 W"
+                );
+            }
+            // 阶段 2: 文明
+            else if (info_phase == 2)
+            {
+                m_top_Info->SetCivilizationData(
+                    "TYPE-II CIVILIZATION",
+                    "输出: 3.8e26 W",
+                    "建造进度: 84.2%",
+                    "状态: 警告"
+                );
+
+                m_bottom_Info->SetCelestialData(
+                    "000001",
+                    "Red Giant",
+                    "6.4E+29kg",
+                    "4.7E+24W"
+                );
             }
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 

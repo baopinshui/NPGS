@@ -153,6 +153,9 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\CinematicInfoPanel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -330,6 +333,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\CinematicInfoPanel.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

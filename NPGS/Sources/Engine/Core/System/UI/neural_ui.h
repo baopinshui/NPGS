@@ -14,5 +14,6 @@
 #include "components/TechText.h"
 #include "components/TechDivider.h"
 #include "components/NeuralMenu.h"
+#include "components/CinematicInfoPanel.h"
 
-#include "UITool/AstroDataBuilder.h"             // 我们的数据转换器
+#include "UITool/AstroDataBuilder.h"            

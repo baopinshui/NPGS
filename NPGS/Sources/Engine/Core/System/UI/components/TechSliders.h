@@ -20,7 +20,9 @@ public:
     T* m_target_value;
     bool m_is_dragging = false;
     bool m_is_rgb = false;
-
+    float max_label_w = 100.0f;
+    float value_box_w = 70.0f;
+    float padding = 8.0f;
     BaseTechSlider(const std::string& label, T* binding)
         : m_label(label), m_target_value(binding)
     {
@@ -50,10 +52,8 @@ public:
             return;
         }
 
-        // 布局参数 (必须与 Draw 严格一致)
-        float max_label_w = 70.0f;
-        float value_box_w = 90.0f;
-        float padding = 8.0f;
+        
+        
 
         float slider_start_x = m_absolute_pos.x + max_label_w + padding;
         float slider_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
@@ -127,9 +127,6 @@ public:
         float h = m_rect.h;
         float y_center = m_absolute_pos.y + h * 0.5f;
 
-        float max_label_w = 100.0f;
-        float value_box_w = 70.0f; // 宽度增加以适应 1.2345e+02
-        float padding = 8.0f;
 
         float track_x = m_absolute_pos.x + max_label_w + padding;
         float track_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
