@@ -33,7 +33,7 @@ public:
             float center_x = m_absolute_pos.x + m_rect.w * 0.5f;
             float y = m_absolute_pos.y;
             // 确保高度至少有一点，否则画不出矩形
-            float h = std::max(m_rect.h, 2.0f);
+            float h = std::max(m_rect.h, 1.0f);
 
             // 左半段 (左透明 -> 右实色)
             dl->AddRectFilledMultiColor(

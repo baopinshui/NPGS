@@ -8,7 +8,8 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
 {
     m_block_input = false;
     m_visible = false;
-    m_alpha = 0.0f;
+    // [Change] 面板自身Alpha设为1，具体可见性由子元素Alpha控制
+    m_alpha = 1.0f;
 
     auto& ctx = UIContext::Get();
     auto& theme = ctx.m_theme;
@@ -16,7 +17,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     // [Adjustment] Different max widths for top vs bottom to match the visual reference
     // Top is wide (spanning the screen width mostly), Bottom is compact (centered on the BH text)
     if (m_position == Position::Top) m_max_width = 800.0f;
-    else m_max_width = 450.0f;
+    else m_max_width = 300.0f;
 
     // 1. Main VBox
     m_layout_vbox = std::make_shared<VBox>();
@@ -35,16 +36,22 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     m_title_text->m_align_h = Alignment::Center;
     m_title_text->m_fill_h = true;
     m_title_text->m_rect.h = 24.0f; // Sufficient height for large font
+    m_title_text->m_align_v = Alignment::Center; // Ensure alignment
 
     // Divider (Shared configuration)
     m_divider = std::make_shared<TechDivider>();
-    m_divider->m_use_gradient = true;
-    m_divider->m_rect.h = 2.0f;
+    m_divider->m_rect.h = 1.0f;
     m_divider->m_align_h = Alignment::Center;
 
     // [Adjustment] Bottom divider is whiteish/grey, Top is colored accent
-    if (m_position == Position::Top) m_divider->m_color = theme.color_accent;
-    else m_divider->m_color = ImVec4(0.8f, 0.8f, 0.8f, 0.5f);
+    
+    if (m_position == Position::Top)
+    {
+        m_divider->m_color = theme.color_accent;
+
+        m_divider->m_use_gradient = true;
+    }
+    else m_divider->m_color = theme.color_text_disabled;
 
     // --- Layout Construction ---
 
@@ -59,6 +66,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_top_stats_box->m_align_h = Alignment::Center;
         m_top_stats_box->m_block_input = false;
         m_top_stats_box->m_rect.h = 0.0f;
+
         auto create_top_stat = [&](std::shared_ptr<TechText>& ptr, const ImVec4& color)
         {
             ptr = std::make_shared<TechText>("", color, true);
@@ -162,28 +170,45 @@ void CinematicInfoPanel::CheckStateTransition(bool has_content)
 {
     if (has_content)
     {
+        // --- 出现逻辑 ---
         if (m_state == State::Hidden || m_state == State::Contracting)
         {
             m_state = State::Expanding;
             m_visible = true;
-            To(&m_anim_progress, 1.0f, 0.8f, EasingType::EaseOutBack, [this]() { m_state = State::Visible; });
-            To(&m_alpha, 1.0f, 0.5f, EasingType::EaseOutQuad);
+
+            // 初始化状态：横线为0，文字全透明
+            m_anim_progress = 0.0f;
+            m_text_alpha = 0.0f;
+            m_text_anim_triggered = false;
+
+            // 1. 启动横线伸长动画 (0.6s 弹性出现)
+            // 2. 文字的出现将在 Update 中监控 m_anim_progress 触发
+            To(&m_anim_progress, 1.0f, 0.3f, EasingType::EaseOutQuad);
         }
     }
     else
     {
+        // --- 消失逻辑 ---
         if (m_state == State::Visible || m_state == State::Expanding)
         {
             m_state = State::Contracting;
-            To(&m_anim_progress, 0.0f, 0.4f, EasingType::EaseInQuad, [this]() { m_state = State::Hidden; m_visible = false; });
-            To(&m_alpha, 0.0f, 0.3f, EasingType::EaseInQuad);
+
+            // 1. 先让文字消失 (0.2s 快速淡出)
+            To(&m_text_alpha, 0.0f, 0.2f, EasingType::EaseInQuad);
+                // 2. 文字消失回调：启动横线收缩 (0.4s 收回)
+            To(&m_anim_progress, 0.0f, 0.3f, EasingType::EaseInQuad, [this]()
+            {
+                m_state = State::Hidden;
+                m_visible = false;
+            });
+
         }
     }
 }
 
 void CinematicInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
 {
-    if (!m_visible && m_alpha <= 0.01f) return;
+    if (!m_visible) return; // 移除 alpha 判断，因为 m_alpha 始终为 1
 
     auto& ctx = UIContext::Get();
     ImVec2 display_sz = ctx.m_display_size;
@@ -201,26 +226,43 @@ void CinematicInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
     else
     {
         m_rect.h = 90.0f;
-
-        m_rect.y = display_sz.y - m_rect.h-10.0f; // Higher from bottom
+        m_rect.y = display_sz.y - m_rect.h - 10.0f; // Higher from bottom
     }
 
     // 3. Sync VBox layout
     m_layout_vbox->m_rect.w = m_rect.w;
-    //m_layout_vbox->m_rect.h = m_rect.h;
+    //m_layout_vbox->m_rect.h = m_rect.h; // Keep commented as per original
+
+    // --- 动画逻辑：文字浮现 ---
+    // 如果处于伸展阶段，且横线几乎完全展开 (>0.9)，则触发文字浮现
+    if (m_state == State::Expanding && !m_text_anim_triggered && m_anim_progress > 0.9f)
+    {
+        m_text_anim_triggered = true;
+        To(&m_text_alpha, 1.0f, 0.4f, EasingType::EaseOutQuad, [this]()
+        {
+            m_state = State::Visible;
+        });
+    }
 
     // 4. Animate Divider Width
-    // Bottom panel divider width is constrained by m_max_width (450), 
-    // Top panel divider is constrained by 1200.
     float current_line_w = m_max_width * m_anim_progress;
     m_divider->m_rect.w = current_line_w;
 
-    // 5. Alpha Sync
-    m_layout_vbox->m_alpha = this->m_alpha;
+    // 5. Alpha Sync (分离逻辑)
+
+    // 横线：只要面板可见，Alpha 始终为 1 (不随 fade in/out 变暗，只变长度)
+    m_divider->m_alpha = 1.0f;
+
+    // 文字/其他组件：跟随 m_text_alpha
     for (auto& child : m_layout_vbox->m_children)
     {
-        child->m_alpha = this->m_alpha;
-        for (auto& sub : child->m_children) sub->m_alpha = this->m_alpha;
+        // 排除 Divider，防止被覆盖
+        if (child == m_divider) continue;
+
+        child->m_alpha = m_text_alpha;
+
+        // 递归处理子容器 (HBox) 内的元素
+        for (auto& sub : child->m_children) sub->m_alpha = m_text_alpha;
     }
 
     UIElement::Update(dt, parent_abs_pos);

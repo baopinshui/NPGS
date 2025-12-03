@@ -34,7 +34,10 @@ private:
     enum class State { Hidden, Expanding, Visible, Contracting };
     State m_state = State::Hidden;
 
-    float m_anim_progress = 0.0f;
+    float m_anim_progress = 0.0f; // 控制横线长度 0.0 -> 1.0
+    float m_text_alpha = 0.0f;    // 独立控制文字透明度
+    bool m_text_anim_triggered = false; // 标记文字动画是否已触发
+
     float m_max_width = 800.0f; // 面板总宽
 
     // 容器与组件
