@@ -242,7 +242,7 @@ void FApplication::ExecuteMainRender()
         vk::ImageCreateFlagBits::eMutableFormat, true, false);
 
 	AssetManager->AddAsset<Art::FTexture2D>(
-		"DysonLaser", TextureAllocationCreateInfo, "ButtonMap/laser2.png", vk::Format::eR8G8B8A8Unorm,
+		"RKKV", TextureAllocationCreateInfo, "ButtonMap/rkkv0.png", vk::Format::eR8G8B8A8Unorm,
 		vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
 
 
@@ -252,7 +252,7 @@ void FApplication::ExecuteMainRender()
     auto* GaussBlurShader = AssetManager->GetAsset<Art::FShader>("GaussBlur");
     auto* BlendShader = AssetManager->GetAsset<Art::FShader>("Blend");
     auto* Background = AssetManager->GetAsset<Art::FTextureCube>("Background");
-    auto* DysonLaser = AssetManager->GetAsset<Art::FTexture2D>("DysonLaser");
+    auto* RKKV = AssetManager->GetAsset<Art::FTexture2D>("RKKV");
     Grt::FShaderResourceManager::FUniformBufferCreateInfo GameArgsCreateInfo
     {
         .Name = "GameArgs",
@@ -367,9 +367,9 @@ void FApplication::ExecuteMainRender()
 
 
 
-    ImTextureID DysonLaserID = _uiRenderer->AddTexture(
+    ImTextureID RKKVID = _uiRenderer->AddTexture(
         *FramebufferSampler,
-        *DysonLaser->GetImageView(),
+        *RKKV->GetImageView(),
         vk::ImageLayout::eShaderReadOnlyOptimal
     );
 
@@ -519,6 +519,7 @@ void FApplication::ExecuteMainRender()
         "J",
         true
     );
+
     m_beam_button->m_rect = { 50, 400, 40, 40 };
 
     // 1. 注册 Toggle 回调 (展开/收起逻辑)
@@ -557,7 +558,7 @@ void FApplication::ExecuteMainRender()
     };
 
     // Button 2: RKKV
-    m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", "☢", "MASS", &m_rkkv_mass, "kg", true);
+    m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", RKKVID, "MASS", &m_rkkv_mass, "kg", true);
     m_rkkv_button->m_rect = { 50, 460, 40, 40 };
 
     m_rkkv_button->on_toggle_callback = [this](bool want_expand)

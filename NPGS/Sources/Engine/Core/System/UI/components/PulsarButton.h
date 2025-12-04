@@ -1,4 +1,3 @@
-// --- START OF FILE PulsarButton.h ---
 #pragma once
 #include "../ui_framework.h"
 #include <string>
@@ -27,10 +26,22 @@ public:
     bool m_is_active = false;
     bool m_can_execute = false;
 
+    // [旧构造函数] 使用字符图标
     PulsarButton(
         const std::string& id,
         const std::string& label,
         const std::string& icon_char,
+        const std::string& stat_label,
+        std::string* stat_value_ptr,
+        const std::string& stat_unit,
+        bool is_editable
+    );
+
+    // [新构造函数] 使用图片(ImTextureID)图标
+    PulsarButton(
+        const std::string& id,
+        const std::string& label,
+        ImTextureID icon_texture,
         const std::string& stat_label,
         std::string* stat_value_ptr,
         const std::string& stat_unit,
@@ -46,9 +57,13 @@ public:
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 
 private:
+    // [新增] 内部通用初始化逻辑，减少代码重复
+    void InitCommon(const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit);
+    // [新增] 统一设置图标颜色的辅助函数
+    void SetIconColor(const ImVec4& color);
 
-    bool m_core_hovered = false;       // 当前帧鼠标是否悬停在核心
-    float m_core_hover_progress = 0.0f; // 0.0 (无悬停) -> 1.0 (悬停稳定)，用于平滑插值
+    bool m_core_hovered = false;
+    float m_core_hover_progress = 0.0f;
 
     float m_anim_progress = 0.0f;
     float m_rotation_angle = 0.0f;
@@ -56,12 +71,16 @@ private:
     bool m_has_pending_status = false;
     float m_current_line_len = 130.0f;
     float m_target_line_len = 130.0f;
-    std::shared_ptr<TechText> m_text_status;//锁定
-    std::shared_ptr<TechText> m_text_label;//发射
-    std::shared_ptr<TechText> m_text_stat_label;//value前说明
-    std::shared_ptr<TechText> m_text_stat_value;//没有输入框就用这个
-    std::shared_ptr<TechText> m_text_stat_unit;//单位
+
+    std::shared_ptr<TechText> m_text_status;
+    std::shared_ptr<TechText> m_text_label;
+    std::shared_ptr<TechText> m_text_stat_label;
+    std::shared_ptr<TechText> m_text_stat_value;
+    std::shared_ptr<TechText> m_text_stat_unit;
+
+    // 图标现在可能是文字，也可能是图片
     std::shared_ptr<TechText> m_text_icon;
+    std::shared_ptr<Image>    m_image_icon; // [新增]
 
     bool m_is_editable;
     std::shared_ptr<InputField> m_input_field;

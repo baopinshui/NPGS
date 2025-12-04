@@ -8,46 +8,49 @@ _UI_BEGIN
 
 static void PushFont(ImFont* font) { if (font) ImGui::PushFont(font); }
 static void PopFont(ImFont* font) { if (font) ImGui::PopFont(); }
-
-PulsarButton::PulsarButton(const std::string& id, const std::string& label, const std::string& icon_char, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable)
-    : m_id(id), m_is_editable(is_editable)
+void PulsarButton::SetIconColor(const ImVec4& color)
+{
+    if (m_text_icon)
+    {
+        m_text_icon->SetColor(color);
+    }
+    if (m_image_icon)
+    {
+        m_image_icon->m_tint_col = color;
+    }
+}
+void PulsarButton::InitCommon(const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit)
 {
     m_rect = { 0, 0, 40, 40 };
     m_block_input = true;
 
     auto& ctx = UIContext::Get();
     const auto& theme = UIContext::Get().m_theme;
-    //  0. 创建背景面板 
-    m_bg_panel = std::make_shared<TechBorderPanel>();
-    m_bg_panel->m_rect = { 0, 0, 40, 40 }; // 初始大小
-    m_bg_panel->m_use_glass_effect = true; // 启用毛玻璃
-    m_bg_panel->m_thickness = 2.0f;        // 边框厚度
-    m_bg_panel->m_block_input = false;     // 背景不拦截输入
-    // 背景色设为半透明黑 (原本 Draw 里写的 0.6f)
-    m_bg_panel->m_bg_color = ImVec4(0.0f, 0.0f, 0.0f, 0.6f);
-    AddChild(m_bg_panel); // 最先添加，即在最底层绘制
-    // --- 1. 图标 (Icon) ---
-    // [修复] 必须设置 rect 为 40x40，否则 Center 对齐找不到中心
-    m_text_icon = std::make_shared<TechText>(icon_char);
-    m_text_icon->m_rect = { 0, 0, 40, 40 };
-    m_text_icon->m_align_h = Alignment::Center;
-    m_text_icon->m_align_v = Alignment::Center;
-    m_text_icon->m_block_input = false; // 图标文字不阻挡父级点击
-    AddChild(m_text_icon);
 
-    // --- 2. 状态文本 (Status: SYSTEM READY) ---
+    // 0. 创建背景面板 
+    m_bg_panel = std::make_shared<TechBorderPanel>();
+    m_bg_panel->m_rect = { 0, 0, 40, 40 };
+    m_bg_panel->m_use_glass_effect = true;
+    m_bg_panel->m_thickness = 2.0f;
+    m_bg_panel->m_block_input = false;
+    m_bg_panel->m_bg_color = ImVec4(0.0f, 0.0f, 0.0f, 0.6f);
+    AddChild(m_bg_panel); // 最底层
+
+    // 注意：图标(Icon)的创建留给具体的构造函数，必须在 AddChild(m_bg_panel) 之后，其他 Label 之前添加，以保证层级正确
+
+    // --- 2. 状态文本 ---
     m_text_status = std::make_shared<TechText>("SYSTEM READY", theme.color_text_highlight, true);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
 
-    // --- 3. 主标签 (Label: EXECUTE) ---
+    // --- 3. 主标签 ---
     m_text_label = std::make_shared<TechText>(label, theme.color_text_highlight, true);
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
     AddChild(m_text_label);
 
-    // --- 4. 统计信息行 (Stats) ---
+    // --- 4. 统计信息行 ---
     if (!stat_label.empty())
     {
         m_text_stat_label = std::make_shared<TechText>(stat_label + ":", theme.color_text);
@@ -64,7 +67,7 @@ PulsarButton::PulsarButton(const std::string& id, const std::string& label, cons
         AddChild(m_text_stat_unit);
     }
 
-    if (is_editable && stat_value_ptr)
+    if (m_is_editable && stat_value_ptr)
     {
         m_input_field = std::make_shared<InputField>(stat_value_ptr);
         m_input_field->m_text_color = theme.color_accent;
@@ -99,6 +102,44 @@ PulsarButton::PulsarButton(const std::string& id, const std::string& label, cons
         }
         std::sort(ray.segments.begin(), ray.segments.end(), [](const auto& a, const auto& b) { return a.offset < b.offset; });
     }
+}
+
+// [旧构造函数] 文字图标
+PulsarButton::PulsarButton(const std::string& id, const std::string& label, const std::string& icon_char, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable)
+    : m_id(id), m_is_editable(is_editable)
+{
+    InitCommon(label, stat_label, stat_value_ptr, stat_unit);
+
+    // --- 创建文字图标 ---
+    m_text_icon = std::make_shared<TechText>(icon_char);
+    m_text_icon->m_rect = { 0, 0, 40, 40 };
+    m_text_icon->m_align_h = Alignment::Center;
+    m_text_icon->m_align_v = Alignment::Center;
+    m_text_icon->m_block_input = false;
+
+    // 确保插入顺序正确，实际上 AddChild 会放在最后，
+    // InitCommon 里已经添加了 bg 和 label，为了确保图标在 Label 下面但在 BG 上面，
+    // 我们应该在 InitCommon 之前添加？不，InitCommon 负责了大部分逻辑。
+    // UIElement::Draw 是按顺序画的。
+    // 简单起见，我们直接 AddChild，它会画在最上层覆盖 BG，但可能遮挡 Label (如果重叠的话)。
+    // 由于图标只显示在核心区域，而 Label 显示在右侧，互不重叠，所以直接 Add 即可。
+    AddChild(m_text_icon);
+}
+
+// [新构造函数] 图片图标
+PulsarButton::PulsarButton(const std::string& id, const std::string& label, ImTextureID icon_texture, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable)
+    : m_id(id), m_is_editable(is_editable)
+{
+    InitCommon(label, stat_label, stat_value_ptr, stat_unit);
+
+    // --- 创建图片图标 ---
+    m_image_icon = std::make_shared<Image>(icon_texture);
+    m_image_icon->m_rect = { 0, 0, 40, 40 }; // 默认填满核心区
+    // 如果图片需要缩进一点，可以调整 Rect 或 UV，这里假设贴图就是正方形icon
+    m_image_icon->m_block_input = false;
+    m_image_icon->m_tint_col = UIContext::Get().m_theme.color_text; // 初始颜色
+
+    AddChild(m_image_icon);
 }
 
 void PulsarButton::SetStatusText(const std::string& text)
@@ -307,25 +348,44 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
 
     // --- 7. 更新图标 ---
+    Rect icon_rect = m_bg_panel->m_rect;
+
+    // 如果是文字图标
     if (m_text_icon)
     {
-        m_text_icon->m_rect = m_bg_panel->m_rect;
+        m_text_icon->m_rect = icon_rect;
         m_text_icon->m_alpha = 1.0f;
         m_text_icon->m_visible = true;
 
-        // [修改] 颜色逻辑
         if (m_is_active)
         {
-            // 展开状态：图标颜色与标签同步（绑定 Execute 状态，支持置灰和高亮）
             m_text_icon->SetColor(final_action_color);
             if (m_label_hovered) m_bg_panel->m_hovered = true;
         }
         else
         {
-            // 收起状态：图标仅作为开关，悬停整个按钮主体时高亮
             m_text_icon->SetColor(m_hovered ? theme.color_accent : theme.color_text);
         }
     }
+
+    // [新增] 如果是图片图标
+    if (m_image_icon)
+    {
+        m_image_icon->m_rect = icon_rect;
+        m_image_icon->m_alpha = 1.0f;
+        m_image_icon->m_visible = true;
+
+        if (m_is_active)
+        {
+            m_image_icon->m_tint_col = final_action_color;
+            if (m_label_hovered) m_bg_panel->m_hovered = true;
+        }
+        else
+        {
+            m_image_icon->m_tint_col = m_hovered ? theme.color_accent : theme.color_text;
+        }
+    }
+
 
     // --- 8. 下方文本位置更新 ---
     const float LAYOUT_TEXT_START_X = 64.0f;
