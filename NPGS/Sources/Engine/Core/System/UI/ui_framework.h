@@ -34,7 +34,8 @@ struct UITheme
     //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
     //ImVec4 color_accent = ImVec4(0.845f, 0.845f, 0.561f, 1.0f); // #米黄色
     //ImVec4 color_accent = ImVec4(1.0f,0.25f,0.0f, 1.0f); 
-    ImVec4 color_accent = ImVec4(0.98f,0.14f,0.24f, 1.0f); 
+    //ImVec4 color_accent = ImVec4(0.98f,0.14f,0.24f, 1.0f); 
+    ImVec4 color_accent = ImVec4(0.0f, 1.0f,1.0f, 1.0f);
 };
 
 // --- 3. UI 上下文 (单例/全局管理) ---
@@ -178,7 +179,7 @@ public:
 
     // 功能 API
     // 新增：绘制毛玻璃背景的辅助函数
-    void DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max);
+    void DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max, const ImVec4& BackCol= ImVec4(0.0,0.0,0.0,0.6));
     void To(float* property, float target, float duration, EasingType easing = EasingType::EaseOutQuad, TweenCallback on_complete = nullptr);
     ImU32 GetColorWithAlpha(const ImVec4& col, float global_alpha) const;
 

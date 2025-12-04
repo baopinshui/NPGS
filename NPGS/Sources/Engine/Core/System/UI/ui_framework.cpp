@@ -34,11 +34,12 @@ void UIElement::AddChild(Ptr child)
 
 void UIElement::RemoveChild(Ptr child)
 {
-    auto it = std::remove(m_children.begin(), m_children.end(), child);
+    if (!child) return;
+    auto it = std::find(m_children.begin(), m_children.end(), child);
     if (it != m_children.end())
     {
-        (*it)->m_parent = nullptr;
-        m_children.erase(it, m_children.end());
+        (*it)->m_parent = nullptr; // 解绑
+        m_children.erase(it);      // 安全移除
     }
 }
 void UIElement::ResetInteraction()
@@ -57,7 +58,7 @@ void UIElement::To(float* property, float target, float duration, EasingType eas
         [property](const Tween& t) { return t.target == property; }), m_tweens.end());
     m_tweens.push_back({ property, *property, target, 0.0f, duration, easing, true, on_complete });
 }
-void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max)
+void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max, const ImVec4& BackCol)
 {
     auto& ctx = UIContext::Get();
     ImTextureID blur_tex = ctx.m_scene_blur_texture;
@@ -67,13 +68,11 @@ void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, 
         ImVec2 uv_min = ImVec2(p_min.x / ctx.m_display_size.x, p_min.y / ctx.m_display_size.y);
         ImVec2 uv_max = ImVec2(p_max.x / ctx.m_display_size.x, p_max.y / ctx.m_display_size.y);
         draw_list->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
-        ImVec4 deep_bg = { 0.0f,0.0f,0.0f,0.6f };
 
-        // 绘制透明黑
         draw_list->AddRectFilled(
-            m_absolute_pos,
-            ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
-            GetColorWithAlpha(deep_bg, 1.0f)
+            p_min,
+            p_max,
+            GetColorWithAlpha(BackCol, 1.0f)
         );
     }
 }

@@ -28,6 +28,33 @@ namespace Art = Runtime::Asset;
 namespace Grt = Runtime::Graphics;
 namespace SysSpa = System::Spatial;
 namespace UI = Npgs::System::UI;
+std::string FormatTime(double total_seconds)
+{
+    const long SECONDS_PER_DAY = 86400;
+    const long DAYS_PER_MONTH = 30;
+    const long MONTHS_PER_YEAR = 12;
+    const long DAYS_PER_YEAR = DAYS_PER_MONTH * MONTHS_PER_YEAR;
+
+    long long t = static_cast<long long>(total_seconds);
+
+    long long years = t / (DAYS_PER_YEAR * SECONDS_PER_DAY);
+    long long rem_seconds = t % (DAYS_PER_YEAR * SECONDS_PER_DAY);
+    long long months = rem_seconds / (DAYS_PER_MONTH * SECONDS_PER_DAY);
+    rem_seconds %= (DAYS_PER_MONTH * SECONDS_PER_DAY);
+    long long days = rem_seconds / SECONDS_PER_DAY;
+    rem_seconds %= SECONDS_PER_DAY;
+    long long hours = rem_seconds / 3600;
+    rem_seconds %= 3600;
+    long long minutes = rem_seconds / 60;
+    long long seconds = rem_seconds % 60;
+
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "T+%04lld.%02lld.%02lld %02lld:%02lld:%02lld",
+        years, months + 1, days + 1, hours, minutes, seconds);
+
+    return std::string(buf);
+}
+
 FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& WindowTitle,
     bool bEnableVSync, bool bEnableFullscreen)
     :
@@ -582,6 +609,9 @@ void FApplication::ExecuteMainRender()
     m_rkkv_button->on_execute_callback = [this](const std::string& id, const std::string& val)
     {
         SimulateStarSelectionAndUpdateUI();
+        m_log_panel->AddLog(System::UI::LogType::Info, ">> SCAN_RESULT", "Test test 测试");
+        m_log_panel->AddLog(System::UI::LogType::Alert, ">> [CRITICAL]", "我的我要爆了！！！");
+        m_log_panel->SetAutoSaveTime(FormatTime(GameTime));
         NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
     };
 
@@ -604,6 +634,13 @@ void FApplication::ExecuteMainRender()
 
     m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(&GameTime, &TimeRate);
     m_ui_root->AddChild(m_time_control_panel);
+
+    m_log_panel = std::make_shared<System::UI::LogPanel>();
+
+    m_ui_root->AddChild(m_log_panel);
+
+
+
 
     SimulateStarSelectionAndUpdateUI();
 

@@ -281,6 +281,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\InputField.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\LogPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralMenu.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralParticleView.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\PulsarButton.cpp" />
@@ -341,6 +342,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\InputField.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\LogPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\NeuralMenu.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\NeuralParticleView.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\PulsarButton.h" />

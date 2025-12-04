@@ -16,5 +16,6 @@
 #include "components/NeuralMenu.h"
 #include "components/CinematicInfoPanel.h"
 #include "components/TimeControlPanel.h"
+#include "components/LogPanel.h"
 
 #include "UITool/AstroDataBuilder.h"            

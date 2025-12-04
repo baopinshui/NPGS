@@ -159,6 +159,9 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TimeControlPanel.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\LogPanel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -342,6 +345,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TimeControlPanel.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\LogPanel.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
