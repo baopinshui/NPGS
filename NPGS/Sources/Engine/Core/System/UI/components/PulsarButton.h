@@ -48,7 +48,10 @@ public:
 private:
     float m_anim_progress = 0.0f;
     float m_rotation_angle = 0.0f;
-
+    std::string m_pending_status_text;
+    bool m_has_pending_status = false;
+    float m_current_line_len = 130.0f;
+    float m_target_line_len = 130.0f;
     std::shared_ptr<TechText> m_text_status;//锁定
     std::shared_ptr<TechText> m_text_label;//发射
     std::shared_ptr<TechText> m_text_stat_label;//value前说明

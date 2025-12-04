@@ -103,10 +103,37 @@ PulsarButton::PulsarButton(const std::string& id, const std::string& label, cons
 void PulsarButton::SetStatusText(const std::string& text)
 {
     if (!m_text_status) return;
-    if (m_text_status->m_text == text) return;
-    m_text_status->SetText(text);
-}
+    if (m_text_status->m_text == text && !m_has_pending_status) return;
 
+    // 1. 获取字体进行测量
+    ImFont* font = m_text_status->GetFont();
+    if (!font) font = UIContext::Get().m_font_bold; // 兜底
+
+    float new_text_w = 0.0f;
+    if (font)
+    {
+        new_text_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text.c_str()).x;
+    }
+
+    float required_len = new_text_w + 30.0f; // 文字宽 + 缓冲
+
+    // 2. 核心判断：当前线长是否足够？
+    // 如果当前视觉长度 (m_current_line_len) 小于 新文字所需长度
+    // 说明是“突然变长”，需要先缓冲
+    if (m_current_line_len < required_len)
+    {
+        m_pending_status_text = text;
+        m_has_pending_status = true;
+        // 注意：这里不调用 m_text_status->SetText(text)，保持旧文字显示
+    }
+    else
+    {
+        // 如果是变短，或者当前本来就很长，直接更新
+        m_text_status->SetText(text);
+        m_has_pending_status = false;
+        m_pending_status_text.clear();
+    }
+}
 void PulsarButton::SetActive(bool active)
 {
     if (m_is_active == active) return;
@@ -117,7 +144,7 @@ void PulsarButton::SetActive(bool active)
         if (m_anim_state == PulsarAnimState::Closed || m_anim_state == PulsarAnimState::Closing)
         {
             m_anim_state = PulsarAnimState::Opening;
-            To(&m_anim_progress, 1.0f, 0.5f, EasingType::EaseOutQuad, [this]() { this->m_anim_state = PulsarAnimState::Open; });
+            To(&m_anim_progress, 1.0f, 0.5f, EasingType::EaseInOutQuad, [this]() { this->m_anim_state = PulsarAnimState::Open; });
 
             // 重启特效
             m_text_status->RestartEffect();
@@ -130,7 +157,7 @@ void PulsarButton::SetActive(bool active)
         if (m_anim_state == PulsarAnimState::Open || m_anim_state == PulsarAnimState::Opening)
         {
             m_anim_state = PulsarAnimState::Closing;
-            To(&m_anim_progress, 0.0f, 0.4f, EasingType::EaseInQuad, [this]() { this->m_anim_state = PulsarAnimState::Closed; });
+            To(&m_anim_progress, 0.0f, 0.4f, EasingType::EaseInOutQuad, [this]() { this->m_anim_state = PulsarAnimState::Closed; });
         }
     }
 }
@@ -138,64 +165,137 @@ void PulsarButton::SetExecutable(bool can_execute) { m_can_execute = can_execute
 
 void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
-    // [核心修复] 在调用 UIElement::Update 之前，先计算所有子元素的位置和状态
-    // 这样确保子元素在更新自己的绝对坐标时，使用的是本帧最新的 rect
-
+    // 基础旋转动画
     m_rotation_angle += 2.0f * Npgs::Math::kPi * dt / 3.0f;
     if (m_rotation_angle > 2.0f * Npgs::Math::kPi) m_rotation_angle -= 2.0f * Npgs::Math::kPi;
 
-    float icon_scale = 1.0f - m_anim_progress;
-    float text_alpha = (m_anim_state == PulsarAnimState::Open) ? 1.0f : (m_anim_progress > 0.4f ? (m_anim_progress - 0.4f) / 0.6f : 0.0f);
+    // --- 1. 计算折线生长进度 ---
+    float line_prog = std::max(0.0f, (m_anim_progress - 0.5f) * 2.0f);
+
+    // --- 2. 优化文字显现时机 ---
+    float text_fade_start = 0.75f;
+    float text_alpha = 0.0f;
+    if (m_anim_state == PulsarAnimState::Open) text_alpha = 1.0f;
+    else text_alpha = std::clamp((line_prog - text_fade_start) / (1.0f - text_fade_start), 0.0f, 1.0f);
 
     const auto& theme = UIContext::Get().m_theme;
 
+    // --- 3. [核心修改] 动态测量与平滑过渡逻辑 ---
 
-    if (m_bg_panel)
+    float max_text_w = 0.0f;
+
+    // A. 计算 Label 宽度
+    if (m_text_label)
     {
-        // 1. 控制可见性和透明度
-        m_bg_panel->m_visible = (icon_scale > 0.01f);
-        m_bg_panel->m_alpha = icon_scale; // Panel 会自动处理内部的淡出
-
-        // 2. 控制大小 (实现缩放效果)
-        // 原逻辑是：center +/- 20 * scale。即总宽高为 40 * scale
-        float current_size = 40.0f * icon_scale;
-        float offset = (40.0f - current_size) * 0.5f; // 居中偏移
-
-        m_bg_panel->m_rect.x = offset;
-        m_bg_panel->m_rect.y = offset;
-        m_bg_panel->m_rect.w = current_size;
-        m_bg_panel->m_rect.h = current_size;
-
-        // 3. 动态改变边框颜色 (悬停变色逻辑)
-        // 这里的 GetColorWithAlpha 会由 Panel 内部处理，我们只需要给基准色
-        // TechBorderPanel 默认用 theme.color_border，我们这里手动覆盖一下颜色逻辑似乎比较复杂
-        // 如果 TechBorderPanel 没有暴露设置边框颜色的接口，它默认是自动处理的。
-        // *为了还原原本的 hover 变色效果*，你可能需要去 TechBorderPanel 加个 m_border_color 成员，
-        // 或者简单点：如果只是为了样式，使用默认的主题色即可。
-        // 这里假设我们想要那个 hover 效果：
-        // (这一步取决于 TechBorderPanel 是否支持 SetBorderColor，如果没有，暂且略过，或者你可以去加一个)
+        ImFont* font = m_text_label->GetFont();
+        if (font)
+        {
+            float w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_text.c_str()).x;
+            if (w > max_text_w) max_text_w = w;
+        }
     }
 
-    // 1. 图标更新
-    m_text_icon->m_alpha = icon_scale;
-    m_text_icon->m_visible = (icon_scale > 0.01f);
-    m_text_icon->SetColor(m_hovered && !m_is_active ? theme.color_accent : theme.color_text);
+    // B. 计算 Status 宽度 (关键逻辑)
+    // 如果有暂存的（更长的）文本，我们用暂存文本来计算目标长度，以便让线先伸长
+    std::string status_str_for_calc;
+    if (m_has_pending_status) status_str_for_calc = m_pending_status_text;
+    else if (m_text_status) status_str_for_calc = m_text_status->m_text;
 
-    // 2. 布局常量 (相对坐标)
+    if (!status_str_for_calc.empty() && m_text_status)
+    {
+        ImFont* font = m_text_status->GetFont();
+        if (font)
+        {
+            float w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, status_str_for_calc.c_str()).x;
+            if (w > max_text_w) max_text_w = w;
+        }
+    }
+
+    // C. 计算目标长度并触发动画
+    float calculated_target_len = std::max(130.0f, max_text_w + 30.0f);
+
+    if (std::abs(calculated_target_len - m_target_line_len) > 1.0f)
+    {
+        m_target_line_len = calculated_target_len;
+        // 触发伸缩动画
+        To(&m_current_line_len, m_target_line_len, 0.3f, EasingType::EaseOutQuad);
+    }
+
+    // D. [新增] 检查并提交暂存文本
+    // 如果有待更新的文本，且当前视觉线长 (m_current_line_len) 已经接近目标长度
+    // 则说明线已经伸长到位了，可以安全地替换文字了
+    if (m_has_pending_status && m_text_status)
+    {
+        // 允许 2.0px 的误差，或者你可以判断 m_current_line_len >= calculated_target_len - 2.0f
+        if (std::abs(m_current_line_len - m_target_line_len) < 5.0f || m_current_line_len >= calculated_target_len)
+        {
+            m_text_status->SetText(m_pending_status_text);
+            m_has_pending_status = false;
+            m_pending_status_text.clear();
+        }
+    }
+
+    // --- 4. 动态计算布局与路径 (逻辑不变，使用 m_current_line_len) ---
+
+    ImVec2 p_start = { 20.0f, 20.0f };
+    float rel_line_y = 20.0f - 40.0f;
+
+    ImVec2 p_elbow = { 20.0f + 60.0f, rel_line_y };
+    ImVec2 p_end = { 20.0f + 64.0f + m_current_line_len, rel_line_y };
+
+    float dist_1 = std::sqrt(std::pow(p_elbow.x - p_start.x, 2) + std::pow(p_elbow.y - p_start.y, 2));
+    float dist_2 = std::sqrt(std::pow(p_end.x - p_elbow.x, 2) + std::pow(p_end.y - p_elbow.y, 2));
+    float total_dist = dist_1 + dist_2;
+
+    // --- 5. 图标位置 ---
+    float current_dist_on_path = total_dist * line_prog;
+    ImVec2 icon_current_center = p_start;
+
+    if (current_dist_on_path <= dist_1)
+    {
+        float t = (dist_1 > 0.001f) ? (current_dist_on_path / dist_1) : 0.0f;
+        icon_current_center.x = p_start.x + (p_elbow.x - p_start.x) * t;
+        icon_current_center.y = p_start.y + (p_elbow.y - p_start.y) * t;
+    }
+    else
+    {
+        float t = (dist_2 > 0.001f) ? ((current_dist_on_path - dist_1) / dist_2) : 0.0f;
+        icon_current_center.x = p_elbow.x + (p_end.x - p_elbow.x) * t;
+        icon_current_center.y = p_elbow.y + (p_end.y - p_elbow.y) * t;
+    }
+    icon_current_center = TechUtils::Snap(icon_current_center);
+    // --- 6. 更新背景面板 ---
+    if (m_bg_panel)
+    {
+        float box_size = 40.0f;
+        m_bg_panel->m_rect.x = icon_current_center.x - box_size * 0.5f;
+        m_bg_panel->m_rect.y = icon_current_center.y - box_size * 0.5f;
+        m_bg_panel->m_rect.w = box_size;
+        m_bg_panel->m_rect.h = box_size;
+        m_bg_panel->m_visible = true;
+        m_bg_panel->m_alpha = 1.0f;
+    }
+
+    // --- 7. 更新图标 ---
+    if (m_text_icon)
+    {
+        m_text_icon->m_rect = m_bg_panel->m_rect;
+        m_text_icon->m_alpha = 1.0f;
+        m_text_icon->m_visible = true;
+        m_text_icon->SetColor((m_hovered || m_is_active) ? theme.color_accent : theme.color_text);
+    }
+
+    // --- 8. 下方文本位置更新 ---
     const float LAYOUT_TEXT_START_X = 64.0f;
-    const float LAYOUT_LINE_Y_OFFSET = -40.0f;
-
-    // 基础偏移：中心点(20,20) + 布局偏移
     float rel_text_x = pulsar_center_offset.x + LAYOUT_TEXT_START_X;
-    float rel_line_y = pulsar_center_offset.y + LAYOUT_LINE_Y_OFFSET;
 
-    // 3. 状态文本 (SYSTEM READY)
+    // 状态文本
     m_text_status->m_rect.x = rel_text_x;
     m_text_status->m_rect.y = rel_line_y - 18.0f;
     m_text_status->m_alpha = text_alpha;
     m_text_status->m_visible = (text_alpha > 0.01f);
 
-    // 4. 主标签 (EXECUTE / LABEL)
+    // 主标签
     m_text_label->m_rect.x = rel_text_x;
     m_text_label->m_rect.y = rel_line_y;
     m_text_label->m_alpha = text_alpha;
@@ -203,7 +303,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     ImVec4 label_color = m_can_execute ? (m_label_hovered ? theme.color_accent : theme.color_text_highlight) : theme.color_text_disabled;
     m_text_label->SetColor(label_color);
 
-    // 5. 统计信息行
+    // 统计信息行
     if (m_text_stat_label)
     {
         float stat_y = rel_line_y + 26.0f;
@@ -212,11 +312,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         m_text_stat_label->m_alpha = text_alpha;
         m_text_stat_label->m_visible = (text_alpha > 0.01f);
 
-        // 获取 "Label:" 的宽度，用于排版后面的数值
-        // 注意：这里需要字体的上下文，但在 Update 里我们只能估算或通过 font 获取
-        // 为了简化，我们假设逻辑正确，TechText Draw 时会自动处理
-        // 但为了排版，我们需要知道宽度。
-        ImFont* font = UIContext::Get().m_font_bold;
+        ImFont* font = m_text_stat_label->GetFont();
         float lbl_w = 0.0f;
         if (font) lbl_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_stat_label->m_text.c_str()).x;
 
@@ -225,7 +321,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         if (m_input_field)
         {
             m_input_field->m_rect.x = val_x;
-            m_input_field->m_rect.y = stat_y - 2.0f; // 微调
+            m_input_field->m_rect.y = stat_y - 2.0f;
             m_input_field->m_rect.w = 100.0f;
             m_input_field->m_alpha = text_alpha;
             m_input_field->m_visible = (text_alpha > 0.01f);
@@ -240,13 +336,12 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         }
         if (m_text_stat_unit)
         {
-            // 简单估算数值宽度，如果是输入框则固定宽，如果是文本则计算
             float val_w = 0.0f;
             if (m_is_editable) val_w = 100.0f;
             else
             {
-                ImFont* lg_font = UIContext::Get().m_font_large; // 假设 Value 用的大字体
-                if (lg_font) val_w = lg_font->CalcTextSizeA(lg_font->FontSize, FLT_MAX, 0.0f, m_text_stat_value->m_hacker_effect.m_display_text.c_str()).x;
+                ImFont* lg_font = UIContext::Get().m_font_large;
+                if (lg_font && m_text_stat_value) val_w = lg_font->CalcTextSizeA(lg_font->FontSize, FLT_MAX, 0.0f, m_text_stat_value->m_hacker_effect.m_display_text.c_str()).x;
             }
 
             m_text_stat_unit->m_rect.x = val_x + val_w + 5.0f;
@@ -256,8 +351,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         }
     }
 
-    // [关键] 最后调用基类 Update，这会递归调用子元素的 Update
-    // 此时子元素的 m_rect 已经是正确的相对位置，它们会根据 parent_abs_pos 计算出正确的 m_absolute_pos
     UIElement::Update(dt, parent_abs_pos);
 }
 
@@ -448,8 +541,8 @@ void PulsarButton::Draw(ImDrawList* draw_list)
             float text_abs_x = m_absolute_pos.x + rel_text_x;
 
             ImVec2 p1 = center_abs;
-            ImVec2 p2 = { center_abs.x + 60.0f, line_abs_y };
-            ImVec2 p3 = { text_abs_x + 130.0f, line_abs_y };
+            ImVec2 p2 = { center_abs.x + 60.0f, line_abs_y };// 修改后：使用当前动态长度
+            ImVec2 p3 = { text_abs_x + m_current_line_len, line_abs_y };
 
             ImVec2 d1 = { p2.x - p1.x, p2.y - p1.y }; float l1 = std::sqrt(d1.x * d1.x + d1.y * d1.y);
             ImVec2 d2 = { p3.x - p2.x, p3.y - p2.y }; float l2 = std::sqrt(d2.x * d2.x + d2.y * d2.y);
