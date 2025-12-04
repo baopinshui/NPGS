@@ -15,5 +15,6 @@
 #include "components/TechDivider.h"
 #include "components/NeuralMenu.h"
 #include "components/CinematicInfoPanel.h"
+#include "components/TimeControlPanel.h"
 
 #include "UITool/AstroDataBuilder.h"            

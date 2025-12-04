@@ -20,6 +20,40 @@ TechButton::TechButton(const std::string& label, Style style)
         AddChild(m_label_component);
     }
 }
+void TechButton::SetLabel(const std::string& text, bool with_effect)
+{
+    // 1. 更新内部字符串副本 (Vertical 模式直接使用这个变量绘制)
+    m_text_str = text;
+
+    // 2. 如果存在子文本组件 (Normal / Tab 模式)
+    if (m_label_component)
+    {
+        // 如果调用者希望有特效，强制开启组件的特效开关
+        if (with_effect)
+        {
+            m_label_component->m_use_effect = true;
+        }
+
+        // 设置新文本
+        // 注意：TechText::SetText 内部逻辑是：如果 m_use_effect 为 true，它会自动调用 Start()
+        m_label_component->SetText(text);
+
+
+    }
+}
+
+TechButton* TechButton::SetFont(ImFont* font)
+{
+    // 仅对 Normal 和 Tab 样式有效，因为只有它们使用 m_label_component
+    if (m_label_component)
+    {
+        m_label_component->m_font = font;
+    }
+    // 注意：这里我们没有修改 Vertical 样式的字体，因为它被设计为固定使用小字体。
+    // 如果需要，也可以在这里加一个成员变量来存储 Vertical 模式的字体。
+
+    return this; // 返回 this 以支持链式调用
+}
 
 void TechButton::Update(float dt, const ImVec2& parent_abs_pos)
 {

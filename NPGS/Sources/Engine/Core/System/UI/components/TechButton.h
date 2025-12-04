@@ -30,6 +30,8 @@ public:
     // 构造
     TechButton(const std::string& label, Style style = Style::Normal);
 
+    void SetLabel(const std::string& text, bool with_effect = false);
+    TechButton* SetFont(ImFont* font);
     // 链式配置
     TechButton* SetSelected(bool v) { m_selected = v; return this; }
     TechButton* SetSpeed(float v) { m_anim_speed = v; return this; }

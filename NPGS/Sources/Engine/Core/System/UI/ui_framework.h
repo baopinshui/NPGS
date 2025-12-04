@@ -53,7 +53,7 @@ public:
     ImFont* m_font_bold = nullptr;
     ImFont* m_font_large = nullptr;
     ImFont* m_font_small = nullptr;
-
+    ImFont* m_font_subtitle = nullptr;
 
 
     ImTextureID m_scene_blur_texture = 0;

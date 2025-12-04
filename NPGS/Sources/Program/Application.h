@@ -84,7 +84,7 @@ private:
     std::shared_ptr<System::UI::PulsarButton> m_rkkv_button;
     std::shared_ptr<System::UI::CinematicInfoPanel> m_top_Info;
     std::shared_ptr<System::UI::CinematicInfoPanel> m_bottom_Info;
-
+	std::shared_ptr<System::UI::TimeControlPanel> m_time_control_panel;
     // Data for the buttons to bind to
     std::string m_beam_energy;
     std::string m_rkkv_mass;

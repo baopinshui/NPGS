@@ -276,32 +276,58 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         m_bg_panel->m_alpha = 1.0f;
     }
 
+    // [新增] 预先计算统一的功能区颜色 (Action Color)
+    // 逻辑：不可用时变灰；可用且悬停时高亮；可用未悬停时亮白
+    // 注意：m_label_hovered 需要在 HandleMouseEvent 中包含图标区域的检测
+    ImVec4 final_action_color;
+    if (m_can_execute)
+    {
+        final_action_color = m_label_hovered ? theme.color_accent : theme.color_text_highlight;
+    }
+    else
+    {
+        final_action_color = theme.color_text_disabled;
+    }
+
     // --- 7. 更新图标 ---
     if (m_text_icon)
     {
         m_text_icon->m_rect = m_bg_panel->m_rect;
         m_text_icon->m_alpha = 1.0f;
         m_text_icon->m_visible = true;
-        m_text_icon->SetColor((m_hovered || m_is_active) ? theme.color_accent : theme.color_text);
+
+        // [修改] 颜色逻辑
+        if (m_is_active)
+        {
+            // 展开状态：图标颜色与标签同步（绑定 Execute 状态，支持置灰和高亮）
+            m_text_icon->SetColor(final_action_color);
+            if (m_label_hovered) m_bg_panel->m_hovered = true;
+        }
+        else
+        {
+            // 收起状态：图标仅作为开关，悬停整个按钮主体时高亮
+            m_text_icon->SetColor(m_hovered ? theme.color_accent : theme.color_text);
+        }
     }
 
     // --- 8. 下方文本位置更新 ---
     const float LAYOUT_TEXT_START_X = 64.0f;
     float rel_text_x = pulsar_center_offset.x + LAYOUT_TEXT_START_X;
 
-    // 状态文本
+    // 状态文本 (SYSTEM READY 等)
     m_text_status->m_rect.x = rel_text_x;
     m_text_status->m_rect.y = rel_line_y - 18.0f;
     m_text_status->m_alpha = text_alpha;
     m_text_status->m_visible = (text_alpha > 0.01f);
 
-    // 主标签
+    // 主标签 (EXECUTE)
     m_text_label->m_rect.x = rel_text_x;
     m_text_label->m_rect.y = rel_line_y;
     m_text_label->m_alpha = text_alpha;
     m_text_label->m_visible = (text_alpha > 0.01f);
-    ImVec4 label_color = m_can_execute ? (m_label_hovered ? theme.color_accent : theme.color_text_highlight) : theme.color_text_disabled;
-    m_text_label->SetColor(label_color);
+
+    // [修改] 应用统一计算的颜色
+    m_text_label->SetColor(final_action_color);
 
     // 统计信息行
     if (m_text_stat_label)
@@ -352,7 +378,16 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
 
     UIElement::Update(dt, parent_abs_pos);
+
+
+    if (!m_can_execute && m_anim_progress>0.5)
+    {
+        // 不可用状态：强制灰色/禁用色 (修复了悬停变色的 Bug)
+        m_bg_panel->m_hovered = false;
+    }
+
 }
+
 
 void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
@@ -364,7 +399,6 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
         (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
-    // 如果事件已经被子元素（比如 InputField）处理了，或者被上层元素遮挡
     if (handled)
     {
         m_hovered = false;
@@ -374,19 +408,18 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
 
     // --- [核心实现] 交互区域判定 ---
 
-    // A. 计算核心区域 (Pulsar Core) 的 Rect
-    //    这里的逻辑只负责左侧的圆形脉冲星
+    // A. 计算左侧核心区域 (Core / Toggle) 的 Rect
+    //    这是折叠/展开的开关
     const float closed_w = 40.0f;
     const float closed_h = 40.0f;
-    const float open_w = pulsar_radius; // 60.0f
+    const float open_w = pulsar_radius;
     const float open_h = pulsar_radius;
 
-    // 插值计算当前尺寸
     float current_w = closed_w + (open_w - closed_w) * m_anim_progress;
     float current_h = closed_h + (open_h - closed_h) * m_anim_progress;
 
+    // 核心始终相对于起始位置
     ImVec2 center = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
-
     Rect core_hit_rect = {
         center.x - current_w * 0.5f,
         center.y - current_h * 0.5f,
@@ -394,74 +427,99 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
         current_h
     };
 
-    bool inside_core = core_hit_rect.Contains(mouse_pos);
+    // B. [关键修改] 计算右侧功能区 (Action Group: Icon + Label)
+    //    只有在展开且稳定后才生效
+    m_label_hovered = false; // 复用此变量表示“功能区悬停”
+    bool is_action_area = false;
 
-    // B. [关键修复] 独立计算 Label (发射按钮) 的悬停状态
-    //    Label 在核心区域之外，必须单独检测，且只在展开(Active)时有效
-    m_label_hovered = false;
-    if (m_is_active && m_anim_progress > 0.8f && m_can_execute)
+    if (m_is_active && m_anim_progress > 0.8f)
     {
-        // 获取 Label 的字体尺寸来生成精确的包围盒
-        ImFont* font = UIContext::Get().m_font_bold;
-        ImVec2 txt_sz = { 100, 20 };
-        // 这里的 m_text_label->m_text 应该是 "EXECUTE" 或其他
-        if (font && m_text_label)
-            txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_text.c_str());
+        // 1. 获取移动后的图标区域 (直接使用 bg_panel 的绝对位置)
+        //    bg_panel 在 Update 中已经跟随动画更新了位置
+        Rect icon_abs_rect = { 0,0,0,0 };
+        if (m_bg_panel)
+        {
+            icon_abs_rect = {
+                m_bg_panel->m_absolute_pos.x,
+                m_bg_panel->m_absolute_pos.y,
+                m_bg_panel->m_rect.w,
+                m_bg_panel->m_rect.h
+            };
+        }
 
-        // 使用组件当前的绝对位置 (由 Update 计算)
+        // 2. 获取标签文本区域
+        Rect label_abs_rect = { 0,0,0,0 };
         if (m_text_label)
         {
-            Rect label_abs_rect = {
-                m_text_label->m_absolute_pos.x - 10.0f, // 稍微扩大一点点击范围
+            ImFont* font = UIContext::Get().m_font_bold;
+            ImVec2 txt_sz = { 100, 20 };
+            if (font) txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_text.c_str());
+
+            label_abs_rect = {
+                m_text_label->m_absolute_pos.x - 10.0f,
                 m_text_label->m_absolute_pos.y - 5.0f,
                 txt_sz.x + 20.0f,
                 txt_sz.y + 10.0f
             };
+        }
 
-            if (label_abs_rect.Contains(mouse_pos))
-            {
-                m_label_hovered = true;
-            }
+        // 3. 只要鼠标在 图标 或 标签 上，都视为功能区悬停
+        if (icon_abs_rect.Contains(mouse_pos) || label_abs_rect.Contains(mouse_pos))
+        {
+            is_action_area = true;
         }
     }
 
-    // C. 综合判定：只要在 核心内 或 Label内，都算悬停/交互
-    bool is_interactive_area = inside_core || m_label_hovered;
+    // C. 综合交互逻辑
+    bool inside_core = core_hit_rect.Contains(mouse_pos);
 
-    if (is_interactive_area && m_block_input)
+    // 如果在功能区 (Icon/Label)
+    if (is_action_area && m_block_input)
     {
-        m_hovered = true; // 让按钮保持高亮
-        handled = true;   // [关键] 标记事件已被消耗
+        m_hovered = true;
+        handled = true;
+
+        // 只有可执行时，才标记为“悬停高亮状态”
+        // 如果不可执行 (!m_can_execute)，虽然拦截了点击，但不显示高亮
+        if (m_can_execute)
+        {
+            m_label_hovered = true;
+        }
 
         if (mouse_clicked)
         {
             m_clicked = true;
+            // 点击了功能区，尝试执行
+            if (m_can_execute && on_execute_callback)
+            {
+                std::string val = "";
+                if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
+                on_execute_callback(m_id, val);
+            }
+        }
+    }
+    // 如果不在功能区，但在核心区 (且功能区未激活或未覆盖核心区)
+    else if (inside_core && m_block_input)
+    {
+        m_hovered = true;
+        handled = true;
 
-            // 分支逻辑：点 Label 是执行，点核心是折叠
-            if (m_label_hovered)
-            {
-                if (on_execute_callback)
-                {
-                    std::string val = "";
-                    if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
-                    on_execute_callback(m_id, val);
-                }
-            }
-            else // 点在了 inside_core
-            {
-                if (on_toggle_callback) on_toggle_callback(!m_is_active);
-                else SetActive(!m_is_active);
-            }
+        if (mouse_clicked)
+        {
+            m_clicked = true;
+            // 点击核心 -> 切换开关
+            if (on_toggle_callback) on_toggle_callback(!m_is_active);
+            else SetActive(!m_is_active);
         }
     }
     else
     {
         m_hovered = false;
-        // 注意：m_label_hovered 已在上面 B 步骤重置
     }
 
     if (mouse_released) m_clicked = false;
 }
+
 void PulsarButton::Draw(ImDrawList* draw_list)
 {
     if (!m_visible) return;

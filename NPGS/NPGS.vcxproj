@@ -287,6 +287,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechButton.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechText.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\TimeControlPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\ui_framework.cpp" />
     <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\CelestialObject.cpp" />
@@ -349,6 +350,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechSliders.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechText.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechDivider.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TimeControlPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\TechUtils.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\neural_ui.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.h" />

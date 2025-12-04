@@ -108,12 +108,12 @@ bool FVulkanUIRenderer::Initialize(GLFWwindow* window)
     // 获取 UI 上下文引用
     UIContext& ctx = UIContext::Get();
 
-    // --- 加载四种层级的字体 ---
+    // --- 加载5种层级的字体 ---
 
     // 1. Regular (正文/标准): 16px
     ctx.m_font_regular = LoadFontWithChinese(16.0f, "Regular");
 
-    // 2. Bold (标题/强调): 16px 
+    // 2. Bold (标题/强调): 18px 
     // 注意：如果没有专门的 Bold 字体文件，可以用同一个文件，后续如果有 bold.ttf 可以替换路径
     ctx.m_font_bold = LoadFontWithChinese(18.0f, "Bold");
 
@@ -123,6 +123,8 @@ bool FVulkanUIRenderer::Initialize(GLFWwindow* window)
     // 4. Small (单位/辅助信息): 12px
     ctx.m_font_small = LoadFontWithChinese(12.0f, "Small");
 
+
+    ctx.m_font_subtitle = LoadFontWithChinese(21.0f, "Subtitle");
     // 设置默认字体为 Regular
     io.FontDefault = ctx.m_font_regular;
 

@@ -140,18 +140,11 @@ void FApplication::ExecuteMainRender()
     // 2. 注册 Execute 回调 (按下“发射”文字)
     m_beam_button->on_execute_callback = [this](const std::string& id, const std::string& val)
     {
-        // 只有在 LOCKED 状态下才允许发射
-        // 这里需要一种方式获取当前状态，或者简单判断 status text
-        // 更好的方式是在 Application 存一个状态 enum
+
 
         NpgsCoreInfo("Command Received: ID={}, Value={}", id, val);
 
-        if (!m_beam_button->m_can_execute)
-        {
-            NpgsCoreWarn("Cannot fire: Logic prevents execution (No target/Cooling down).");
-            // 可选：播放拒绝音效
-        }
-        else
+
         {
             NpgsCoreInfo("FIRING DYSON BEAM with {} Joules!", val);
             // 触发游戏逻辑...
@@ -203,7 +196,8 @@ void FApplication::ExecuteMainRender()
      m_ui_root->AddChild(m_top_Info);
      m_ui_root->AddChild(m_bottom_Info);
 
-
+	 m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(&GameTime, &TimeRate);
+	 m_ui_root->AddChild(m_time_control_panel);
 
     // =========================================================================
     std::unique_ptr<Grt::FColorAttachment> HistoryAttachment;
@@ -719,7 +713,7 @@ void FApplication::ExecuteMainRender()
            // _FreeCamera->ProcessMouseMovement(10, 0);
 
 
-            bool has_target = (int(0.1*RealityTime) % 2 == 1); // 随机模拟
+            bool has_target = (int(0.33*RealityTime) % 2 == 1); // 随机模拟
 
 
             if (has_target)
