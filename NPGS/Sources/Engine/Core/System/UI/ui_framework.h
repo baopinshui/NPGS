@@ -34,7 +34,7 @@ struct UITheme
     //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
     //ImVec4 color_accent = ImVec4(0.845f, 0.845f, 0.561f, 1.0f); // #米黄色
     //ImVec4 color_accent = ImVec4(1.0f,0.25f,0.0f, 1.0f); 
-    ImVec4 color_accent = ImVec4(0.0f,1.0f,1.0f, 1.0f); 
+    ImVec4 color_accent = ImVec4(0.98f,0.14f,0.24f, 1.0f); 
 };
 
 // --- 3. UI 上下文 (单例/全局管理) ---

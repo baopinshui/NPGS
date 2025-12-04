@@ -1,4 +1,5 @@
 #include "NeuralParticleView.h"
+#include "../TechUtils.h"
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
@@ -87,6 +88,20 @@ void NeuralParticleView::Update(float dt, const ImVec2& parent_abs_pos)
     float physics_w = (m_is_expanded || m_is_animating) ? m_expanded_size.x : m_collapsed_size.x;
     float physics_h = (m_is_expanded || m_is_animating) ? m_expanded_size.y : m_collapsed_size.y;
 
+
+   // ImVec2 mouse_abs = ImGui::GetIO().MousePos;
+   // // 2. 转换为相对于当前控件(NeuralParticleView)的坐标
+   // float local_mouse_x = mouse_abs.x - m_absolute_pos.x;
+   // float local_mouse_y = mouse_abs.y - m_absolute_pos.y;
+   //
+   // // 3. 定义排斥参数 (可以根据需要调整)
+   // float REPEL_RADIUS = 0.0f;      // 排斥范围半径
+   // if (!m_is_expanded) REPEL_RADIUS = 0.0f;
+   // float REPEL_STRENGTH = 1.0f;     // 排斥力度 (值越大推得越猛)
+   // float REPEL_RADIUS_SQ = REPEL_RADIUS * REPEL_RADIUS;
+
+
+
     for (int i = 0; i < total_particles; i++)
     {
         auto& p = m_particles[i];
@@ -135,9 +150,34 @@ void NeuralParticleView::Update(float dt, const ImVec2& parent_abs_pos)
 
         if (!p.active) continue;
 
+       // float dx = p.x - local_mouse_x;
+       // float dy = p.y - local_mouse_y;
+       // float dist_sq = dx * dx + dy * dy;
+       //
+       // // 如果在排斥半径内
+       // if (dist_sq < REPEL_RADIUS_SQ && dist_sq > 0.001f)
+       // {
+       //     float dist = std::sqrt(dist_sq);
+       //
+       //     // 计算单位方向向量
+       //     float dir_x = dx / dist;
+       //     float dir_y = dy / dist;
+       //
+       //     // 计算推力因子：距离越近，力度越大 (0.0 ~ 1.0)
+       //     float force_factor = (REPEL_RADIUS - dist) / REPEL_RADIUS;
+       //
+       //     // 修改粒子速度 (推离鼠标)
+       //     // 使用 dt * 60.0f 保持与其他物理逻辑的时间步长一致
+       //     p.x += dir_x * force_factor * REPEL_STRENGTH * dt * 60.0f;
+       //     p.y += dir_y * force_factor * REPEL_STRENGTH * dt * 60.0f;
+       // }
+        // =======================================================
+
+        // [原有的位置更新代码]
         p.x += p.vx * speed_multiplier * dt * 60.0f;
         p.y += p.vy * speed_multiplier * dt * 60.0f;
 
+        // [原有的边界反弹/重置逻辑]
         if (p.x < 0) { p.x = 0; p.vx = std::abs(p.vx); }
         if (p.x > physics_w) { p.x = physics_w; p.vx = -std::abs(p.vx); }
         if (p.y < 0) { p.y = 0; p.vy = std::abs(p.vy); }
@@ -182,7 +222,7 @@ void NeuralParticleView::Draw(ImDrawList* dl)
     ImVec2 offset = m_absolute_pos;
     const auto& theme = UIContext::Get().m_theme;
 
-
+    ImVec4 particle_and_line_col = TechUtils::LerpColor(theme.color_accent,ImVec4(1.0,1.0,1.0,1.0),.0);
     // 绘制连线
     for (size_t i = 0; i < m_particles.size(); i++)
     {
@@ -214,7 +254,7 @@ void NeuralParticleView::Draw(ImDrawList* dl)
                 if (m_is_expanded)
                 {
                     // 叠加控件整体的淡入淡出 alpha
-                    ImU32 col = GetColorWithAlpha(theme.color_accent, 0.7 * alpha_factor * m_alpha);
+                    ImU32 col = GetColorWithAlpha(particle_and_line_col, 0.7 * alpha_factor * m_alpha);
 
                     // === 线条粗细逻辑对齐 HTML ===
                     // JS: const lineWidth = (hovered && !isExpanded) ? 1.0 : 0.5;
@@ -226,7 +266,7 @@ void NeuralParticleView::Draw(ImDrawList* dl)
                         col,
                         thickness + 1.0f
                     );
-                    col = GetColorWithAlpha(theme.color_accent, 0.3 * alpha_factor * m_alpha);
+                    col = GetColorWithAlpha(particle_and_line_col, 0.3 * alpha_factor * m_alpha);
                     dl->AddLine(
                         ImVec2(offset.x + p1.x, offset.y + p1.y),
                         ImVec2(offset.x + p2.x, offset.y + p2.y),
@@ -237,7 +277,7 @@ void NeuralParticleView::Draw(ImDrawList* dl)
                 else
                 {
                     // 叠加控件整体的淡入淡出 alpha
-                    ImU32 col = GetColorWithAlpha(theme.color_accent,  alpha_factor * m_alpha);
+                    ImU32 col = GetColorWithAlpha(particle_and_line_col,  alpha_factor * m_alpha);
 
                     float thickness = is_highlight_state ? 0.7f : 0.5f;
 
@@ -254,7 +294,7 @@ void NeuralParticleView::Draw(ImDrawList* dl)
     }
 
     // 绘制粒子点
-    ImU32 particle_col = GetColorWithAlpha(theme.color_accent,  0.8*m_alpha);
+    ImU32 particle_col = GetColorWithAlpha(particle_and_line_col,  0.8*m_alpha);
     for (const auto& p : m_particles)
     {
         if (p.active)
