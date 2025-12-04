@@ -205,17 +205,17 @@ public:
 };
 
 // --- [新增] 图片控件 ---
-//class Image : public UIElement
-//{
-//public:
-//    ImTextureID m_texture_id = nullptr;
-//    ImVec2 m_uv0 = { 0, 0 };
-//    ImVec2 m_uv1 = { 1, 1 };
-//    ImVec4 m_tint_col = { 1, 1, 1, 1 };
-//
-//    Image(ImTextureID tex_id) : m_texture_id(tex_id) { m_block_input = false; }
-//    void Draw(ImDrawList* draw_list) override;
-//};
+class Image : public UIElement
+{
+public:
+    ImTextureID m_texture_id = 0;
+    ImVec2 m_uv0 = { 0, 0 };
+    ImVec2 m_uv1 = { 1, 1 };
+    ImVec4 m_tint_col = { 1, 1, 1, 1 };
+
+    Image(ImTextureID tex_id) : m_texture_id(tex_id) { m_block_input = false; }
+    void Draw(ImDrawList* draw_list) override;
+};
 
 // --- 垂直布局容器 ---
 class VBox : public UIElement

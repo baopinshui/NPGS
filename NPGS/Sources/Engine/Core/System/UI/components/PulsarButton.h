@@ -46,6 +46,10 @@ public:
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 
 private:
+
+    bool m_core_hovered = false;       // 当前帧鼠标是否悬停在核心
+    float m_core_hover_progress = 0.0f; // 0.0 (无悬停) -> 1.0 (悬停稳定)，用于平滑插值
+
     float m_anim_progress = 0.0f;
     float m_rotation_angle = 0.0f;
     std::string m_pending_status_text;
@@ -66,7 +70,12 @@ private:
     bool m_label_hovered = false;
 
     struct RaySegment { float offset, bump_height; bool has_bump, is_gap; float thickness; };
-    struct PulsarRay { float theta, phi, len; std::vector<RaySegment> segments; };
+    struct PulsarRay
+    {
+        float theta, phi, len;
+        float shrink_factor;
+        std::vector<RaySegment> segments;
+    };
     std::vector<PulsarRay> m_rays;
 
     const ImVec2 pulsar_center_offset = { 20.0f, 20.0f };

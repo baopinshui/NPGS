@@ -86,6 +86,7 @@ PulsarButton::PulsarButton(const std::string& id, const std::string& label, cons
         ray.theta = (float(rand()) / RAND_MAX) * 2.0f * Npgs::Math::kPi;
         ray.phi = ((float(rand()) / RAND_MAX) * Npgs::Math::kPi) - Npgs::Math::kPi / 2.0f;
         ray.len = 0.4f + (float(rand()) / RAND_MAX) * 0.6f;
+        ray.shrink_factor = 0.3f;
         int seg_count = 5 + rand() % 5;
         for (int i = 0; i < seg_count; ++i)
         {
@@ -166,7 +167,23 @@ void PulsarButton::SetExecutable(bool can_execute) { m_can_execute = can_execute
 void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
     // 基础旋转动画
-    m_rotation_angle += 2.0f * Npgs::Math::kPi * dt / 3.0f;
+    float target_core_hover = (m_is_active && m_core_hovered) ? 1.0f : 0.0f;
+
+    // 使用简单的线性插值或阻尼逼近
+    float speed = 6.0f * dt;
+    if (m_core_hover_progress < target_core_hover)
+        m_core_hover_progress = std::min(m_core_hover_progress + speed, target_core_hover);
+    else
+        m_core_hover_progress = std::max(m_core_hover_progress - speed, target_core_hover);
+
+
+    const float normal_speed = 2.0f * Npgs::Math::kPi / 3.0f;
+    const float fast_speed = 6.0*normal_speed;
+
+    // 根据 progress 在两者之间插值
+    float current_rot_speed = normal_speed + (fast_speed - normal_speed) * std::sin(Npgs::Math::kPi* m_core_hover_progress);
+
+    m_rotation_angle += current_rot_speed * dt;
     if (m_rotation_angle > 2.0f * Npgs::Math::kPi) m_rotation_angle -= 2.0f * Npgs::Math::kPi;
 
     // --- 1. 计算折线生长进度 ---
@@ -379,6 +396,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
     UIElement::Update(dt, parent_abs_pos);
 
+    m_core_hovered = false;
 
     if (!m_can_execute && m_anim_progress>0.5)
     {
@@ -472,7 +490,10 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
 
     // C. 综合交互逻辑
     bool inside_core = core_hit_rect.Contains(mouse_pos);
-
+    if (!handled && inside_core)
+    {
+        m_core_hovered = true;
+    }
     // 如果在功能区 (Icon/Label)
     if (is_action_area && m_block_input)
     {
@@ -545,7 +566,10 @@ void PulsarButton::Draw(ImDrawList* draw_list)
         // 射线
         for (const auto& ray : m_rays)
         {
-            float current_len = std::max(0.0f, pulsar_scale * ray.len);
+            float hover_shrink_mult = 1.0f - (m_core_hover_progress * ray.shrink_factor);
+
+            float current_len = std::max(0.0f, pulsar_scale * ray.len * hover_shrink_mult);
+
             if (current_len <= 0.05f) continue;
 
             float cosT = std::cos(ray.theta + m_rotation_angle);

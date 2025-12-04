@@ -279,18 +279,18 @@ void Panel::Draw(ImDrawList* draw_list)
     UIElement::Draw(draw_list);
 }
 // --- Image 实现 ---
-//void Image::Draw(ImDrawList* draw_list)
-//{
-//    if (!m_visible || m_alpha <= 0.01f) return;
-//
-//    draw_list->AddImage(
-//        m_texture_id,
-//        m_absolute_pos,
-//        ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
-//        m_uv0, m_uv1,
-//        GetColorWithAlpha(m_tint_col, 1.0f)
-//    );
-//}
+void Image::Draw(ImDrawList* draw_list)
+{
+    if (!m_visible || m_alpha <= 0.01f) return;
+
+    draw_list->AddImage(
+        m_texture_id,
+        m_absolute_pos,
+        ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
+        m_uv0, m_uv1,
+        GetColorWithAlpha(m_tint_col, 1.0f)
+    );
+}
 
 // --- VBox 实现 (带 Alignment) ---
 void VBox::Update(float dt, const ImVec2& parent_abs_pos)

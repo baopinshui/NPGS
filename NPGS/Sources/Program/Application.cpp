@@ -87,117 +87,7 @@ void FApplication::ExecuteMainRender()
     }
    // using namespace Npgs::System::UI::;
 
-    // 1. 设置自定义主题 (可以在这里或者在构造函数中完成)
-    auto& theme = UI::UIContext::Get().m_theme;
-
-    auto& ctx = UI::UIContext::Get();
-    //theme.color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #BEBE8F
-    //theme.color_panel_bg = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-
-    // 2. 创建唯一的 UI 根
-    m_ui_root = std::make_shared<UI::UIRoot>();
-
-    // 3. 创建 NeuralMenuController
-    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>();
-
-    // 4. 将菜单的根面板添加到 UI 根中
-    m_ui_root->AddChild(m_neural_menu_controller);
-
-    // 5. 创建 PulsarButtons
-    // Button 1: Dyson Beam
-    m_beam_button = std::make_shared<UI::PulsarButton>(
-        "beam",
-        "发射戴森光束", // 这是主按钮文字
-        "☼",
-        "ENERGY",
-        &m_beam_energy,
-        "J",
-        true
-    );
-    m_beam_button->m_rect = { 50, 400, 40, 40 };
-
-    // 1. 注册 Toggle 回调 (展开/收起逻辑)
-    m_beam_button->on_toggle_callback = [this](bool want_expand)
-    {
-        // 简单的互斥逻辑：打开这个，关闭那个
-        if (want_expand)
-        {
-            m_rkkv_button->SetActive(false); // 关闭另一个
-            m_beam_button->SetActive(true);  // 打开自己
-
-            // [模拟业务逻辑] 检查是否有目标
-            // 假设 _FreeCamera 看着某个方向或者有一个 SelectedTarget 变量
- 
-        }
-        else
-        {
-            m_beam_button->SetActive(false);
-
-            m_beam_button->SetExecutable(false); // <--- 关闭时总是设为不可执行
-        }
-    };
-
-    // 2. 注册 Execute 回调 (按下“发射”文字)
-    m_beam_button->on_execute_callback = [this](const std::string& id, const std::string& val)
-    {
-
-
-        NpgsCoreInfo("Command Received: ID={}, Value={}", id, val);
-
-
-        {
-            NpgsCoreInfo("FIRING DYSON BEAM with {} Joules!", val);
-            // 触发游戏逻辑...
-        }
-    };
-
-    // Button 2: RKKV
-    m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", "☢", "MASS", &m_rkkv_mass, "kg", true);
-    m_rkkv_button->m_rect = { 50, 460, 40, 40 };
-
-    m_rkkv_button->on_toggle_callback = [this](bool want_expand)
-    {
-        if (want_expand)
-        {
-            m_beam_button->SetActive(false);
-            m_rkkv_button->SetActive(true);
-
-            // 假设 RKKV 总是可以发射
-            m_rkkv_button->SetStatusText("READY TO LAUNCH");
-            m_rkkv_button->SetExecutable(true); // <--- 设置为可执行
-        }
-        else
-        {
-            m_rkkv_button->SetActive(false);
-            m_rkkv_button->SetExecutable(false); // <--- 关闭时重置
-        }
-    };
-
-    m_rkkv_button->on_execute_callback = [this](const std::string& id, const std::string& val)
-    {
-        SimulateStarSelectionAndUpdateUI();
-        NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
-    };
-
-    // 6. 将按钮也添加到 UI 根中
-    m_ui_root->AddChild(m_beam_button);
-    m_ui_root->AddChild(m_rkkv_button);
-
-
-
-    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>();
-    // 将其根元素添加到 UIRoot (假设 ui_root 是你的 UIRoot 实例)
-    m_ui_root->AddChild(m_celestial_info);
-
-
-    m_top_Info    = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Top);
-    m_bottom_Info = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Bottom);
-
-     m_ui_root->AddChild(m_top_Info);
-     m_ui_root->AddChild(m_bottom_Info);
-
-	 m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(&GameTime, &TimeRate);
-	 m_ui_root->AddChild(m_time_control_panel);
+   
 
     // =========================================================================
     std::unique_ptr<Grt::FColorAttachment> HistoryAttachment;
@@ -350,11 +240,19 @@ void FApplication::ExecuteMainRender()
     AssetManager->AddAsset<Art::FTextureCube>(
         "Background", TextureAllocationCreateInfo, "UNSkybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
         vk::ImageCreateFlagBits::eMutableFormat, true, false);
+
+	AssetManager->AddAsset<Art::FTexture2D>(
+		"DysonLaser", TextureAllocationCreateInfo, "ButtonMap/laser2.png", vk::Format::eR8G8B8A8Unorm,
+		vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
+
+
+
     auto* BlackHoleShader = AssetManager->GetAsset<Art::FShader>("BlackHole");
     auto* PreBloomShader = AssetManager->GetAsset<Art::FShader>("PreBloom");
     auto* GaussBlurShader = AssetManager->GetAsset<Art::FShader>("GaussBlur");
     auto* BlendShader = AssetManager->GetAsset<Art::FShader>("Blend");
     auto* Background = AssetManager->GetAsset<Art::FTextureCube>("Background");
+    auto* DysonLaser = AssetManager->GetAsset<Art::FTexture2D>("DysonLaser");
     Grt::FShaderResourceManager::FUniformBufferCreateInfo GameArgsCreateInfo
     {
         .Name = "GameArgs",
@@ -464,6 +362,16 @@ void FApplication::ExecuteMainRender()
 
     ShaderResourceManager->BindShadersToBuffers("GameArgs", BindShaders);
     ShaderResourceManager->BindShaderToBuffers("BlackHoleArgs", "BlackHole");
+
+
+
+
+
+    ImTextureID DysonLaserID = _uiRenderer->AddTexture(
+        *FramebufferSampler,
+        *DysonLaser->GetImageView(),
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );
 
 #include "Vertices.inc"
 
@@ -584,6 +492,117 @@ void FApplication::ExecuteMainRender()
 
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "InitHistoryFrame", InitHistoryFrame);
 
+    // 1. 设置自定义主题 (可以在这里或者在构造函数中完成)
+    auto& theme = UI::UIContext::Get().m_theme;
+
+    auto& ctx = UI::UIContext::Get();
+    //theme.color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #BEBE8F
+    //theme.color_panel_bg = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+
+    // 2. 创建唯一的 UI 根
+    m_ui_root = std::make_shared<UI::UIRoot>();
+
+    // 3. 创建 NeuralMenuController
+    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>();
+
+    // 4. 将菜单的根面板添加到 UI 根中
+    m_ui_root->AddChild(m_neural_menu_controller);
+
+    // 5. 创建 PulsarButtons
+    // Button 1: Dyson Beam
+    m_beam_button = std::make_shared<UI::PulsarButton>(
+        "beam",
+        "发射戴森光束", // 这是主按钮文字
+        "☼",
+        "ENERGY",
+        &m_beam_energy,
+        "J",
+        true
+    );
+    m_beam_button->m_rect = { 50, 400, 40, 40 };
+
+    // 1. 注册 Toggle 回调 (展开/收起逻辑)
+    m_beam_button->on_toggle_callback = [this](bool want_expand)
+    {
+        // 简单的互斥逻辑：打开这个，关闭那个
+        if (want_expand)
+        {
+            m_rkkv_button->SetActive(false); // 关闭另一个
+            m_beam_button->SetActive(true);  // 打开自己
+
+            // [模拟业务逻辑] 检查是否有目标
+            // 假设 _FreeCamera 看着某个方向或者有一个 SelectedTarget 变量
+
+        }
+        else
+        {
+            m_beam_button->SetActive(false);
+
+            m_beam_button->SetExecutable(false); // <--- 关闭时总是设为不可执行
+        }
+    };
+
+    // 2. 注册 Execute 回调 (按下“发射”文字)
+    m_beam_button->on_execute_callback = [this](const std::string& id, const std::string& val)
+    {
+
+
+        NpgsCoreInfo("Command Received: ID={}, Value={}", id, val);
+
+
+        {
+            NpgsCoreInfo("FIRING DYSON BEAM with {} Joules!", val);
+            // 触发游戏逻辑...
+        }
+    };
+
+    // Button 2: RKKV
+    m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", "☢", "MASS", &m_rkkv_mass, "kg", true);
+    m_rkkv_button->m_rect = { 50, 460, 40, 40 };
+
+    m_rkkv_button->on_toggle_callback = [this](bool want_expand)
+    {
+        if (want_expand)
+        {
+            m_beam_button->SetActive(false);
+            m_rkkv_button->SetActive(true);
+
+            // 假设 RKKV 总是可以发射
+            m_rkkv_button->SetStatusText("READY TO LAUNCH");
+            m_rkkv_button->SetExecutable(true); // <--- 设置为可执行
+        }
+        else
+        {
+            m_rkkv_button->SetActive(false);
+            m_rkkv_button->SetExecutable(false); // <--- 关闭时重置
+        }
+    };
+
+    m_rkkv_button->on_execute_callback = [this](const std::string& id, const std::string& val)
+    {
+        SimulateStarSelectionAndUpdateUI();
+        NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
+    };
+
+    // 6. 将按钮也添加到 UI 根中
+    m_ui_root->AddChild(m_beam_button);
+    m_ui_root->AddChild(m_rkkv_button);
+
+
+
+    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>();
+    // 将其根元素添加到 UIRoot (假设 ui_root 是你的 UIRoot 实例)
+    m_ui_root->AddChild(m_celestial_info);
+
+
+    m_top_Info = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Top);
+    m_bottom_Info = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Bottom);
+
+    m_ui_root->AddChild(m_top_Info);
+    m_ui_root->AddChild(m_bottom_Info);
+
+    m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(&GameTime, &TimeRate);
+    m_ui_root->AddChild(m_time_control_panel);
 
     SimulateStarSelectionAndUpdateUI();
 
