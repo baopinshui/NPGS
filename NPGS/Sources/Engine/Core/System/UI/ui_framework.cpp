@@ -184,7 +184,10 @@ void UIElement::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool 
     // 捕获逻辑
     UIContext& ctx = UIContext::Get();
     if (ctx.m_captured_element == this) inside = true;
-
+    if (mouse_released)
+    {
+        m_clicked = false;
+    }
     if (inside)
     {
         // 只有在 block_input 时才算“消耗”了事件
