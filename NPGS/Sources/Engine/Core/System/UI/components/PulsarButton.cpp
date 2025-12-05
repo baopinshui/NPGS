@@ -89,7 +89,7 @@ void PulsarButton::InitCommon(const std::string& label, const std::string& stat_
         ray.theta = (float(rand()) / RAND_MAX) * 2.0f * Npgs::Math::kPi;
         ray.phi = ((float(rand()) / RAND_MAX) * Npgs::Math::kPi) - Npgs::Math::kPi / 2.0f;
         ray.len = 0.4f + (float(rand()) / RAND_MAX) * 0.6f;
-        ray.shrink_factor = 0.3f;
+        ray.shrink_factor = -0.2f;
         int seg_count = 5 + rand() % 5;
         for (int i = 0; i < seg_count; ++i)
         {
@@ -186,7 +186,7 @@ void PulsarButton::SetActive(bool active)
         if (m_anim_state == PulsarAnimState::Closed || m_anim_state == PulsarAnimState::Closing)
         {
             m_anim_state = PulsarAnimState::Opening;
-            To(&m_anim_progress, 1.0f, 0.5f, EasingType::EaseInOutQuad, [this]() { this->m_anim_state = PulsarAnimState::Open; });
+            To(&m_anim_progress, 1.0f, 0.8f, EasingType::Linear, [this]() { this->m_anim_state = PulsarAnimState::Open; });
 
             // 重启特效
             m_text_status->RestartEffect();
@@ -199,7 +199,7 @@ void PulsarButton::SetActive(bool active)
         if (m_anim_state == PulsarAnimState::Open || m_anim_state == PulsarAnimState::Opening)
         {
             m_anim_state = PulsarAnimState::Closing;
-            To(&m_anim_progress, 0.0f, 0.4f, EasingType::EaseInOutQuad, [this]() { this->m_anim_state = PulsarAnimState::Closed; });
+            To(&m_anim_progress, 0.0f, 0.6f, EasingType::Linear, [this]() { this->m_anim_state = PulsarAnimState::Closed; });
         }
     }
 }
@@ -228,7 +228,8 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     if (m_rotation_angle > 2.0f * Npgs::Math::kPi) m_rotation_angle -= 2.0f * Npgs::Math::kPi;
 
     // --- 1. 计算折线生长进度 ---
-    float line_prog = std::max(0.0f, (m_anim_progress - 0.5f) * 2.0f);
+    float t = std::clamp((m_anim_progress - 0.25f) * 2.0f, 0.0f, 1.0f);
+    float line_prog = t * t * (3.0f - 2.0f * t);
 
     // --- 2. 优化文字显现时机 ---
     float text_fade_start = 0.75f;
@@ -325,14 +326,49 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     // --- 6. 更新背景面板 ---
     if (m_bg_panel)
     {
-        float box_size = 40.0f;
-        m_bg_panel->m_rect.x = icon_current_center.x - box_size * 0.5f;
-        m_bg_panel->m_rect.y = icon_current_center.y - box_size * 0.5f;
-        m_bg_panel->m_rect.w = box_size;
-        m_bg_panel->m_rect.h = box_size;
+        float base_size = 40.0f;
+        float current_scale = 0.0f;
+
+        // [动画阶段划分]
+        // 阶段 A: 0.0 - 0.2 -> 初始浮现 (0.0 -> 1.0)
+        // 阶段 B: 0.2 - 0.5 -> 原地收缩 (1.0 -> 0.6) - 此时 line_prog 为 0，图标尚未开始移动
+        // 阶段 C: 0.5 - 0.85 -> 保持收缩状态并移动 (0.6)
+        // 阶段 D: 0.85 - 1.0 -> 到达终点并放大恢复 (0.6 -> 1.0)
+
+        if (m_anim_progress < 0.2f)
+        {
+            // B. 原地收缩准备出发
+            float t_sub = (m_anim_progress ) / 0.2f;
+            // 线性插值 1.0 -> 0.6
+            current_scale = 1.0f - (0.4f * AnimationUtils::Ease(t_sub, EasingType::EaseInOutQuad));
+        }
+        else if (m_anim_progress < 0.8f)
+        {
+            // C. 移动中，保持小体积
+            current_scale = 0.6f;
+        }
+        else
+        {
+            // D. 即将到达，弹性放大恢复
+            float t_sub = (m_anim_progress - 0.8f) / 0.2f;
+            // 插值 0.6 -> 1.0，使用 BackOut 制造轻微的“落地回弹”感
+            current_scale = 0.6f + (0.4f * AnimationUtils::Ease(t_sub, EasingType::EaseInOutQuad));
+        }
+
+        // 应用缩放
+        float current_box_size = base_size * current_scale;
+
+        // 居中设置 Rect
+        m_bg_panel->m_rect.x = icon_current_center.x - current_box_size * 0.5f;
+        m_bg_panel->m_rect.y = icon_current_center.y - current_box_size * 0.5f;
+        m_bg_panel->m_rect.w = current_box_size;
+        m_bg_panel->m_rect.h = current_box_size;
+
+        // 确保可见性
         m_bg_panel->m_visible = true;
         m_bg_panel->m_alpha = 1.0f;
     }
+
 
     // [新增] 预先计算统一的功能区颜色 (Action Color)
     // 逻辑：不可用时变灰；可用且悬停时高亮；可用未悬停时亮白
