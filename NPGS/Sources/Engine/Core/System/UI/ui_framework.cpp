@@ -281,6 +281,18 @@ void Panel::Draw(ImDrawList* draw_list)
     UIElement::Draw(draw_list);
 }
 // --- Image 实现 ---
+void Image::Update(float dt, const ImVec2& parent_abs_pos)
+{
+    // [核心逻辑] 如果开启了自动高度，且宽高比有效
+    if (m_auto_height && m_aspect_ratio > 0.001f)
+    {
+        // 高度 = 当前宽度 / 宽高比
+        m_rect.h = m_rect.w / m_aspect_ratio;
+    }
+
+    // 调用基类更新位置和动画
+    UIElement::Update(dt, parent_abs_pos);
+}
 void Image::Draw(ImDrawList* draw_list)
 {
     if (!m_visible || m_alpha <= 0.01f) return;

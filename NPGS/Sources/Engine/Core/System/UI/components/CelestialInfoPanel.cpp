@@ -79,6 +79,30 @@ CelestialInfoPanel::CelestialInfoPanel()
         div->m_rect.h = 8.0f; // 分割线占位高度
         main_vbox->AddChild(div);
     }
+    // =========================================================
+    // [新增] Image 预览区域
+    // =========================================================
+    {
+        // 创建 Image 组件，初始纹理为 0
+        m_preview_image = std::make_shared<Image>(0);
+
+        // [关键设置]
+        m_preview_image->m_fill_h = true;      // 让 VBox 把它的宽度拉伸到填满容器
+        m_preview_image->m_auto_height = true; // 告诉 Image 根据拉伸后的宽度自动算高度
+
+        // 默认先给个比例，防止除以0 (例如 16:9)
+        m_preview_image->m_aspect_ratio = 16.0f / 9.0f;
+
+        // 初始隐藏
+        m_preview_image->m_visible = false;
+
+        main_vbox->AddChild(m_preview_image);
+
+        // 加一点间距
+        auto spacer = std::make_shared<UIElement>();
+        spacer->m_rect.h = 8.0f;
+        main_vbox->AddChild(spacer);
+    }
 
     // =========================================================
     // B. Tabs 区域 (实心/透明切换风格)
@@ -210,6 +234,24 @@ void CelestialInfoPanel::SetData(const CelestialData& data)
     // 3. 刷新选中状态和内容
     SelectTab(m_current_tab_index);
 }
+
+void CelestialInfoPanel::SetObjectImage(ImTextureID texture_id, float img_w, float img_h,ImVec4 Col)
+{
+    if (m_preview_image)
+    {
+        m_preview_image->m_texture_id = texture_id;
+		m_preview_image->m_tint_col = Col;
+        // 如果传入了有效的宽高，更新比例
+        if (img_w > 0.0f && img_h > 0.0f)
+        {
+            m_preview_image->SetOriginalSize(img_w, img_h);
+        }
+        
+        // 有图片才显示
+        m_preview_image->m_visible = (texture_id != 0);
+    }
+}
+
 void CelestialInfoPanel::SetTitle(const std::string& title, const std::string& subtitle)
 {
     if (m_title_text) m_title_text->SetText(title);

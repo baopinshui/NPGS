@@ -214,7 +214,16 @@ public:
     ImVec2 m_uv1 = { 1, 1 };
     ImVec4 m_tint_col = { 1, 1, 1, 1 };
 
+    float m_aspect_ratio = 1.0f; // 宽度 / 高度
+    bool m_auto_height = false;  // 是否根据宽度自动计算高度
+
     Image(ImTextureID tex_id) : m_texture_id(tex_id) { m_block_input = false; }
+    void SetOriginalSize(float w, float h)
+    {
+        if (h > 0.0f) m_aspect_ratio = w / h;
+    }
+
+    void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
 };
 

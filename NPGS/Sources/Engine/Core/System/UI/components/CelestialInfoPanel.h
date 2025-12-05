@@ -39,8 +39,16 @@ public:
     CelestialInfoPanel();
 
     void SetData(const CelestialData& data);
+
+    void SetObjectImage(ImTextureID texture_id, float img_w = 0.0f, float img_h = 0.0f, ImVec4 Col= {1.0f,1.0f,1.0f,1.0f});
+
     void SetTitle(const std::string& title, const std::string& subtitle = "");
     void Update(float dt, const ImVec2& parent_abs_pos) override;
+    // 布局常量
+    float PANEL_WIDTH = 320.0f;
+    float PANEL_HEIGHT = 650.0f;
+    float TOP_MARGIN = 150.0f;
+    float RIGHT_MARGIN = 20.0f;
 
 private:
     void ToggleCollapse();
@@ -51,6 +59,10 @@ private:
 
     std::shared_ptr<TechText> m_title_text; // 新增：保存标题组件指针
     std::shared_ptr<TechText> m_subtitle_text; // 新增：保存副标题组件指针
+
+
+    std::shared_ptr<Image> m_preview_image;
+
     // 子组件引用 (用于在Update中操作它们)
     std::shared_ptr<TechBorderPanel> m_main_panel;
     std::shared_ptr<TechButton> m_collapsed_btn;
@@ -67,11 +79,7 @@ private:
     bool m_is_collapsed = false;
     float m_anim_progress = 0.0f; // 0.0 (展开) -> 1.0 (收起)
 
-    // 布局常量
-    const float PANEL_WIDTH = 320.0f;
-    const float PANEL_HEIGHT = 450.0f;
-    const float TOP_MARGIN = 150.0f;
-    const float RIGHT_MARGIN = 20.0f;
+
 };
 
 _UI_END

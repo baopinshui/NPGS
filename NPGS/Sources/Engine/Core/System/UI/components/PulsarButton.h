@@ -68,6 +68,8 @@ private:
     float m_anim_progress = 0.0f;
     float m_rotation_angle = 0.0f;
     std::string m_pending_status_text;
+
+    std::string* m_stat_value_ptr = nullptr;
     bool m_has_pending_status = false;
     float m_current_line_len = 130.0f;
     float m_target_line_len = 130.0f;

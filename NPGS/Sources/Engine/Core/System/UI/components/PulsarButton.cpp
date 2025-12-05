@@ -67,6 +67,7 @@ void PulsarButton::InitCommon(const std::string& label, const std::string& stat_
         AddChild(m_text_stat_unit);
     }
 
+    m_stat_value_ptr = stat_value_ptr;
     if (m_is_editable && stat_value_ptr)
     {
         m_input_field = std::make_shared<InputField>(stat_value_ptr);
@@ -76,6 +77,7 @@ void PulsarButton::InitCommon(const std::string& label, const std::string& stat_
     }
     else if (stat_value_ptr)
     {
+        // TechText 只是拷贝了当前值
         m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, theme.color_accent, true);
         m_text_stat_value->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold;
         m_text_stat_value->m_block_input = false;
@@ -226,6 +228,23 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
     m_rotation_angle += current_rot_speed * dt;
     if (m_rotation_angle > 2.0f * Npgs::Math::kPi) m_rotation_angle -= 2.0f * Npgs::Math::kPi;
+
+
+
+    if (!m_is_editable && m_stat_value_ptr && m_text_stat_value)
+    {
+        // 检查当前显示的文本是否与外部数据一致
+        // 注意：TechText::SetText 内部会自动处理 HackerTextHelper 的重启逻辑
+        // 如果数据频繁变化（每帧都变），HackerEffect 可能导致一直乱码。
+        // 如果你不希望数值变化时触发乱码动画，需要修改 TechText::SetText 或在此处做特殊处理。
+        // 这里我们假设 SetText 的行为符合预期（数值改变时刷新显示）。
+        if (m_text_stat_value->m_text != *m_stat_value_ptr)
+        {
+            m_text_stat_value->SetText(*m_stat_value_ptr);
+        }
+    }
+
+
 
     // --- 1. 计算折线生长进度 ---
     float t = std::clamp((m_anim_progress - 0.25f) * 2.0f, 0.0f, 1.0f);

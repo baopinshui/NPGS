@@ -82,6 +82,8 @@ private:
     std::shared_ptr<System::UI::NeuralMenu> m_neural_menu_controller;
     std::shared_ptr<System::UI::PulsarButton> m_beam_button;
     std::shared_ptr<System::UI::PulsarButton> m_rkkv_button;
+    std::shared_ptr<System::UI::PulsarButton> m_VN_button;
+    std::shared_ptr<System::UI::PulsarButton> m_message_button;
     std::shared_ptr<System::UI::CinematicInfoPanel> m_top_Info;
     std::shared_ptr<System::UI::CinematicInfoPanel> m_bottom_Info;
 	std::shared_ptr<System::UI::TimeControlPanel> m_time_control_panel;
@@ -89,6 +91,12 @@ private:
     // Data for the buttons to bind to
     std::string m_beam_energy;
     std::string m_rkkv_mass;
+    std::string m_VN_mass;
+    ImTextureID stage0ID;
+    ImTextureID stage1ID;
+    ImTextureID stage2ID;
+    ImTextureID stage3ID;
+    ImTextureID stage4ID;
 
     // State trackers for the buttons
     bool m_is_beam_button_active;

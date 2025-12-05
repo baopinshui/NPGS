@@ -77,7 +77,7 @@ FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& Wi
 FApplication::~FApplication()
 {}
 std::seed_seq seed{ std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() };
-Npgs::System::Generator::FStellarGenerator Gen(seed,Npgs::System::Generator::FStellarGenerator::EStellarTypeGenerationOption::kDeathStar);
+Npgs::System::Generator::FStellarGenerator Gen(seed,Npgs::System::Generator::FStellarGenerator::EStellarTypeGenerationOption::kRandom);
 
 void FApplication::SimulateStarSelectionAndUpdateUI()
 {
@@ -96,7 +96,7 @@ void FApplication::SimulateStarSelectionAndUpdateUI()
     // a. 设置标题
     std::string subtitle = Npgs::System::UI::AstroDataBuilder::StarPhaseToString(myStar.GetEvolutionPhase());
     m_celestial_info->SetTitle(myStar.GetName(), subtitle);
-
+    m_celestial_info->SetObjectImage(stage4ID, 1200, 800, {kelvin_to_rgb(myStar.GetTeff()).r ,kelvin_to_rgb(myStar.GetTeff()).g ,kelvin_to_rgb(myStar.GetTeff()).b ,1.0});
     // b. 设置数据
     m_celestial_info->SetData(ui_data);
 }
@@ -271,7 +271,22 @@ void FApplication::ExecuteMainRender()
 	AssetManager->AddAsset<Art::FTexture2D>(
 		"RKKV", TextureAllocationCreateInfo, "ButtonMap/rkkv0.png", vk::Format::eR8G8B8A8Unorm,
 		vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
+    AssetManager->AddAsset<Art::FTexture2D>(
+        "stage0", TextureAllocationCreateInfo, "stage0.png", vk::Format::eR8G8B8A8Unorm,
+        vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
+    AssetManager->AddAsset<Art::FTexture2D>(
+        "stage1", TextureAllocationCreateInfo, "stage1.png", vk::Format::eR8G8B8A8Unorm,
+        vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
+    AssetManager->AddAsset<Art::FTexture2D>(
+        "stage2", TextureAllocationCreateInfo, "stage2.png", vk::Format::eR8G8B8A8Unorm,
+        vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
+    AssetManager->AddAsset<Art::FTexture2D>(
+        "stage3", TextureAllocationCreateInfo, "stage3.png", vk::Format::eR8G8B8A8Unorm,
+        vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
+    AssetManager->AddAsset<Art::FTexture2D>(
+        "stage4", TextureAllocationCreateInfo, "stage4.png", vk::Format::eR8G8B8A8Unorm,
 
+        vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
 
 
     auto* BlackHoleShader = AssetManager->GetAsset<Art::FShader>("BlackHole");
@@ -280,6 +295,11 @@ void FApplication::ExecuteMainRender()
     auto* BlendShader = AssetManager->GetAsset<Art::FShader>("Blend");
     auto* Background = AssetManager->GetAsset<Art::FTextureCube>("Background");
     auto* RKKV = AssetManager->GetAsset<Art::FTexture2D>("RKKV");
+    auto* stage0 = AssetManager->GetAsset<Art::FTexture2D>("stage0");
+    auto* stage1 = AssetManager->GetAsset<Art::FTexture2D>("stage1");
+    auto* stage2 = AssetManager->GetAsset<Art::FTexture2D>("stage2");
+    auto* stage3 = AssetManager->GetAsset<Art::FTexture2D>("stage3");
+    auto* stage4 = AssetManager->GetAsset<Art::FTexture2D>("stage4");
     Grt::FShaderResourceManager::FUniformBufferCreateInfo GameArgsCreateInfo
     {
         .Name = "GameArgs",
@@ -399,7 +419,31 @@ void FApplication::ExecuteMainRender()
         *RKKV->GetImageView(),
         vk::ImageLayout::eShaderReadOnlyOptimal
     );
-
+    stage0ID = _uiRenderer->AddTexture(
+        *FramebufferSampler,
+        *stage0->GetImageView(),
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );
+    stage1ID = _uiRenderer->AddTexture(
+        *FramebufferSampler,
+        *stage1->GetImageView(),
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );    
+    stage2ID = _uiRenderer->AddTexture(
+        *FramebufferSampler,
+        *stage2->GetImageView(),
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );    
+    stage3ID = _uiRenderer->AddTexture(
+        *FramebufferSampler,
+        *stage3->GetImageView(),
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );    
+    stage4ID = _uiRenderer->AddTexture(
+        *FramebufferSampler,
+        *stage4->GetImageView(),
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );
 #include "Vertices.inc"
 
     Grt::FDeviceLocalBuffer QuadOnlyVertexBuffer(QuadOnlyVertices.size() * sizeof(FQuadOnlyVertex), vk::BufferUsageFlagBits::eVertexBuffer);
@@ -547,16 +591,50 @@ void FApplication::ExecuteMainRender()
         true
     );
 
-    m_beam_button->m_rect = { 50, 400, 40, 40 };
+    m_rkkv_button = std::make_shared<UI::PulsarButton>(
+        "rkkv", 
+        "发射RKKV",
+        RKKVID,
+        "MASS",
+        &m_rkkv_mass, 
+        "kg",
+        true
+    );
+	m_VN_button = std::make_shared<UI::PulsarButton>(
+		"vn",
+		"发送冯诺依曼探测器",
+		"⌘",
+        "MASS",
+        &m_VN_mass,
+        "kg",
+		true
+	);
+	m_message_button = std::make_shared<UI::PulsarButton>(
+		"message",
+		"发送信息",
+		"i",
+		"发送权重，用时",
+        &m_VN_mass,
+		"年·",
+		false
+	);
+    m_beam_button->m_rect = { 50, 360, 40, 40 };
 
+    m_rkkv_button->m_rect = { 50, 440, 40, 40 };
+
+	m_VN_button->m_rect = { 50, 520, 40, 40 };
+
+	m_message_button->m_rect = { 50, 600, 40, 40 };
     // 1. 注册 Toggle 回调 (展开/收起逻辑)
     m_beam_button->on_toggle_callback = [this](bool want_expand)
     {
         // 简单的互斥逻辑：打开这个，关闭那个
         if (want_expand)
         {
-            m_rkkv_button->SetActive(false); // 关闭另一个
+            m_rkkv_button->SetActive(false);
             m_beam_button->SetActive(true);  // 打开自己
+			m_VN_button->SetActive(false);
+			m_message_button->SetActive(false);
 
             // [模拟业务逻辑] 检查是否有目标
             // 假设 _FreeCamera 看着某个方向或者有一个 SelectedTarget 变量
@@ -584,16 +662,15 @@ void FApplication::ExecuteMainRender()
         }
     };
 
-    // Button 2: RKKV
-    m_rkkv_button = std::make_shared<UI::PulsarButton>("rkkv", "发射RKKV", RKKVID, "MASS", &m_rkkv_mass, "kg", true);
-    m_rkkv_button->m_rect = { 50, 460, 40, 40 };
 
     m_rkkv_button->on_toggle_callback = [this](bool want_expand)
     {
         if (want_expand)
         {
-            m_beam_button->SetActive(false);
             m_rkkv_button->SetActive(true);
+            m_beam_button->SetActive(false);  // 打开自己
+            m_VN_button->SetActive(false);
+            m_message_button->SetActive(false);
 
             // 假设 RKKV 总是可以发射
             m_rkkv_button->SetStatusText("READY TO LAUNCH");
@@ -615,10 +692,60 @@ void FApplication::ExecuteMainRender()
         NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
     };
 
+	m_VN_button->on_toggle_callback = [this](bool want_expand)
+	{
+		if (want_expand)
+		{
+			m_VN_button->SetActive(true);
+			m_beam_button->SetActive(false); 
+			m_rkkv_button->SetActive(false);
+			m_message_button->SetActive(false);
+			// 假设 VN 总是可以发射
+			m_VN_button->SetStatusText("READY TO LAUNCH");
+			m_VN_button->SetExecutable(true); // <--- 设置为可执行
+		}
+		else
+		{
+			m_VN_button->SetActive(false);
+			m_VN_button->SetExecutable(false); // <--- 关闭时重置
+		}
+	};
+    m_VN_button->on_execute_callback = [this](const std::string& id, const std::string& val)
+    {
+
+        NpgsCoreInfo("LAUNCHING 冯诺依曼探测器. Mass: {}", val);
+    };
+
+	m_message_button->on_toggle_callback = [this](bool want_expand)
+	{
+		if (want_expand)
+		{
+			m_message_button->SetActive(true);
+			m_beam_button->SetActive(false);
+			m_rkkv_button->SetActive(false);
+            m_VN_button->SetActive(false);
+            // 假设 VN 总是可以发射
+            m_message_button->SetStatusText("READY TO SEND");
+            m_message_button->SetExecutable(true); // <--- 设置为可执行
+        }
+        else
+        {
+            m_message_button->SetActive(false);
+            m_message_button->SetExecutable(false); // <--- 关闭时重置
+        }
+    };
+    m_message_button->on_execute_callback = [this](const std::string& id, const std::string& val)
+    {
+
+        NpgsCoreInfo("传输意识至目标，用时: {}", val);
+    };
+
+
     // 6. 将按钮也添加到 UI 根中
     m_ui_root->AddChild(m_beam_button);
     m_ui_root->AddChild(m_rkkv_button);
-
+	m_ui_root->AddChild(m_VN_button);
+	m_ui_root->AddChild(m_message_button);
 
 
     m_celestial_info = std::make_shared<UI::CelestialInfoPanel>();
