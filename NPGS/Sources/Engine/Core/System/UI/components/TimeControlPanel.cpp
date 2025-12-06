@@ -17,8 +17,8 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
 
     // 2. 创建垂直布局容器 (VBox)
     auto main_vbox = std::make_shared<VBox>();
-    main_vbox->m_padding = 4.0f;
-    main_vbox->m_align_h = Alignment::End;
+    main_vbox->m_padding = 10.0f;
+    main_vbox->m_align_h = Alignment::Start;
     main_vbox->m_fill_h = true;
     AddChild(main_vbox);
 
@@ -28,7 +28,7 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
     // ---------------------------------------------------------
     // 第一行：时间显示
     // ---------------------------------------------------------
-    m_text_display = std::make_shared<TechText>("T+0000.00.00 00:00:00");
+    m_text_display = std::make_shared<TechText>("T+00000000.00.00 00:00:00");
     m_text_display->m_font = ctx.m_font_subtitle;
     m_text_display->SetColor(theme.color_text_highlight);
     m_text_display->m_align_h = Alignment::End;
@@ -61,19 +61,31 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
             else *this->m_scale_ptr = m_visual_target_scale;
         }
     };
-    controls_hbox->AddChild(m_pause_btn);
 
     // [B] 油门滑条
     // [关键修改]：滑条绑定到 m_visual_target_scale (成员变量)，而不是 m_scale_ptr (外部指针)
     // 这样无论外部游戏是否暂停，滑条都控制这个“视觉/目标”数值
     m_speed_slider = std::make_shared<ThrottleTechSlider<double>>("", &m_visual_target_scale);
-    m_speed_slider->m_rect.w = 200.0f;
+    m_speed_slider->m_rect.w = 220.0f;
     m_speed_slider->m_rect.h = 30.0f;
     m_speed_slider->max_label_w = 0.0f;
     m_speed_slider->value_box_w = 70.0f;
 
-    controls_hbox->AddChild(m_speed_slider);
+    m_1x_btn = std::make_shared<TechButton>(" x1 ", TechButton::Style::Normal);
+    m_1x_btn->m_rect.w = 30.0f;
+    m_1x_btn->m_rect.h = 30.0f;
+      
+    m_1x_btn->on_click = [this]()
+    {
+        m_visual_target_scale = 1.0;
 
+    };
+
+
+
+    controls_hbox->AddChild(m_pause_btn);
+    controls_hbox->AddChild(m_speed_slider);
+    controls_hbox->AddChild(m_1x_btn);
     main_vbox->AddChild(controls_hbox);
 }
 
@@ -99,7 +111,7 @@ std::string TimeControlPanel::FormatTime(double total_seconds)
     long long seconds = rem_seconds % 60;
 
     char buf[64];
-    std::snprintf(buf, sizeof(buf), "T+%04lld.%02lld.%02lld %02lld:%02lld:%02lld",
+    std::snprintf(buf, sizeof(buf), "T+%08lld.%02lld.%02lld %02lld:%02lld:%02lld",
         years, months + 1, days + 1, hours, minutes, seconds);
 
     return std::string(buf);
@@ -110,7 +122,7 @@ void TimeControlPanel::Update(float dt, const ImVec2& parent_abs_pos)
     // 1. 位置更新
     ImVec2 display_sz = UIContext::Get().m_display_size;
     float margin_right = 20.0f;
-    float margin_top = 20.0f;
+    float margin_top = 10.0f;
     m_rect.x = display_sz.x - m_rect.w - margin_right;
     m_rect.y = margin_top;
 

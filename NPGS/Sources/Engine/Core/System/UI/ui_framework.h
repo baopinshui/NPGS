@@ -125,7 +125,7 @@ public:
     ImVec2 m_absolute_pos = { 0, 0 };
     bool m_visible = true;
     float m_alpha = 1.0f;
-
+    std::string m_id;
 
 
     // 布局属性 [新增]

@@ -32,45 +32,98 @@ void TechBorderPanel::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down,
         }
     }
 }
+
+void TechBorderPanel::Update(float dt, const ImVec2& parent_abs_pos)
+{
+    if (m_visible && m_show_flow_border)
+    {
+        // 1. 外层进度 (周期 = T)
+        if (m_flow_period > 0.001f)
+        {
+            m_progress_outer += dt / m_flow_period;
+            if (m_progress_outer > 1.0f) m_progress_outer -= 1.0f;
+
+            // 2. 内层进度 (周期 = T / sqrt(2))
+            // 速度 = 1 / 周期 = sqrt(2) / T
+            float inner_speed_mult = 1.41421356f;
+            m_progress_inner += (dt * inner_speed_mult) / m_flow_period;
+            if (m_progress_inner > 1.0f) m_progress_inner -= 1.0f;
+        }
+    }
+
+    Panel::Update(dt, parent_abs_pos);
+}
+
 void TechBorderPanel::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
     const auto& theme = UIContext::Get().m_theme;
 
-    // -----------------------------------------------------------
-    // 1. 绘制背景 (集成毛玻璃逻辑)
-    // -----------------------------------------------------------
+    // 1. 绘制背景
     ImVec2 p_min = m_absolute_pos;
     ImVec2 p_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
 
     if (m_use_glass_effect)
     {
-        DrawGlassBackground(dl, p_min, p_max); // 调用基类方法
+        DrawGlassBackground(dl, p_min, p_max);
     }
 
-    // 2.绘制子元素 (Clip Rect)
-    // 这里的 Clip Rect 逻辑保持不变
+    // 2. 绘制子元素
     ImVec2 clip_min = m_absolute_pos;
     ImVec2 clip_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
     dl->PushClipRect(clip_min, clip_max, true);
     UIElement::Draw(dl);
     dl->PopClipRect();
 
-    // 3. [重构] 绘制科技边框角
-    // 不再使用 ImGui::IsMouseHoveringRect，直接使用由 HandleMouseEvent 计算出的 m_hovered
-    // 这样能正确响应 UI 遮挡关系
+    // 3. 颜色逻辑
     ImU32 border_col;
-
-    // 逻辑：如果没有悬停，且宽度很窄（<100），则显示暗淡的边框色；
-    // 否则（悬停中 或 面板很宽），显示高亮的主题色。
-    if (!m_hovered && m_rect.w < 100.0f)
-        border_col = GetColorWithAlpha(theme.color_border, 1.0f);
-    else
+    if (m_force_accent_color)
+    {
         border_col = GetColorWithAlpha(theme.color_accent, 1.0f);
+    }
+    else
+    {
+        if (!m_hovered && m_rect.w < 100.0f)
+            border_col = GetColorWithAlpha(theme.color_border, 1.0f);
+        else
+            border_col = GetColorWithAlpha(theme.color_accent, 1.0f);
+    }
 
-    // 直接调用工具函数
-    TechUtils::DrawBracketedBox(dl, p_min, p_max, border_col, m_thickness, 10.0f);
+    // 4. 双层流光绘制
+    if (m_show_flow_border)
+    {
+        // 层1：内层
+        // 宽 1px，贴着最外边缘
+        // 层1：外层 (offset = 0.0, 贴着最外边缘)
+        TechUtils::DrawGradientFlow(dl,
+            p_min, p_max, // 基础矩形
+            -2.0f,         // 偏移量
+            1.0f,         // 固定宽 1px
+            border_col,
+            m_progress_outer,
+            m_flow_length_ratio,
+            m_flow_use_gradient,
+            false // 顺时针
+        );
+
+        // 层2：内层 (offset = 2.0, 向内偏移 2px)
+        TechUtils::DrawGradientFlow(dl,
+            p_min, p_max, // 基础矩形
+            0.0f,         // 偏移量
+            1.0f,         // 固定宽 1px
+            border_col,
+            m_progress_inner,
+            m_flow_length_ratio,
+            m_flow_use_gradient,
+            true // 逆时针
+        );
+    }
+    else
+    {
+        TechUtils::DrawBracketedBox(dl, p_min, p_max, border_col, m_thickness, 10.0f);
+    }
 }
+
 _UI_END
 _SYSTEM_END
 _NPGS_END

@@ -14,12 +14,12 @@ public:
     {
         return ImVec2(std::floor(p.x) + 0.5f, std::floor(p.y) + 0.5f);
     }
-    
+
     static inline float Snap(float p)
     {
         return std::floor(p) + 0.5f;
     }
-    
+
     static ImVec4 LerpColor(const ImVec4& a, const ImVec4& b, float t)
     {
         return ImVec4(
@@ -29,7 +29,7 @@ public:
             a.w + (b.w - a.w) * t
         );
     }
-    
+
     static void DrawCorner(ImDrawList* dl, ImVec2 p_corner, float arm_len_x, float arm_len_y, float thickness, ImU32 col)
     {
         // 1. 临时关闭抗锯齿，获得绝对硬朗的边缘（科技感关键）
@@ -98,7 +98,7 @@ public:
         // 3. 恢复抗锯齿设置
         dl->Flags = backup_flags;
     }
-    
+
     static void DrawHardLine(ImDrawList* dl, ImVec2 p1, ImVec2 p2, ImU32 col, float thickness)
     {
         // 1. 临时关闭抗锯齿，获得绝对硬朗的边缘
@@ -174,6 +174,234 @@ public:
         DrawCorner(dl, ImVec2(x2 - half_t, y2 - half_t), -corner_len, -corner_len, thickness, col);
     }
 
+    // 辅助：绘制渐变线段 (修复了对齐逻辑)
+    static void DrawGradientLineSegment(ImDrawList* dl, ImVec2 p1, ImVec2 p2, float thickness, ImU32 col_start, ImU32 col_end)
+    {
+        float half_t = thickness * 0.5f;
+        ImVec2 rect_min, rect_max;
+
+        // 判断是水平还是垂直
+        if (std::abs(p1.y - p2.y) < 0.01f) // 水平
+        {
+            float x_min = std::min(p1.x, p2.x);
+            float x_max = std::max(p1.x, p2.x);
+
+            // 垂直方向扩展厚度
+            rect_min = ImVec2(x_min, p1.y - half_t);
+            rect_max = ImVec2(x_max, p1.y + half_t);
+
+            // 像素对齐
+            rect_min = Snap(rect_min);
+            rect_max = Snap(rect_max);
+
+            if (p1.x < p2.x) // 左 -> 右
+                dl->AddRectFilledMultiColor(rect_min, rect_max, col_start, col_end, col_end, col_start);
+            else // 右 -> 左
+                dl->AddRectFilledMultiColor(rect_min, rect_max, col_end, col_start, col_start, col_end);
+        }
+        else // 垂直
+        {
+            float y_min = std::min(p1.y, p2.y);
+            float y_max = std::max(p1.y, p2.y);
+
+            // 水平方向扩展厚度
+            rect_min = ImVec2(p1.x - half_t, y_min);
+            rect_max = ImVec2(p1.x + half_t, y_max);
+
+            // 像素对齐
+            rect_min = Snap(rect_min);
+            rect_max = Snap(rect_max);
+
+            if (p1.y < p2.y) // 上 -> 下
+                dl->AddRectFilledMultiColor(rect_min, rect_max, col_start, col_start, col_end, col_end);
+            else // 下 -> 上
+                dl->AddRectFilledMultiColor(rect_min, rect_max, col_end, col_end, col_start, col_start);
+        }
+    }
+
+    // [修复版] 绘制流光边框
+    // 逻辑修正：
+    // 1. p_min/p_max 修正为线条的"中心路径"坐标，确保角落完美重合
+    // 2. 移除 Side 1 和 Side 3 的 clamp 裁剪，消除角落断层
+    static void DrawGradientFlow(ImDrawList* dl, ImVec2 base_p_min, ImVec2 base_p_max, float offset, float thickness, ImU32 col, float progress, float len_ratio, bool is_gradient, bool is_ccw)
+    {
+        float half_t = thickness * 0.5f;
+
+        // 1. 计算路径中心 (Path Center)
+        // 我们希望 offset 是指线条外边缘距离 base 的距离
+        // 所以中心点需要再向内缩 half_t
+        ImVec2 p_min = ImVec2(base_p_min.x + offset + half_t, base_p_min.y + offset + half_t);
+        ImVec2 p_max = ImVec2(base_p_max.x - offset - half_t, base_p_max.y - offset - half_t);
+
+        // 确保不出现负尺寸
+        if (p_max.x <= p_min.x || p_max.y <= p_min.y) return;
+
+        float w = p_max.x - p_min.x;
+        float h = p_max.y - p_min.y;
+
+        // 逻辑周长 (基于中心线)
+        float lens[4] = { w, h, w, h };
+        float perimeter = 2.0f * (w + h);
+        if (perimeter <= 0.001f) return;
+
+        // 2. 动画进度计算 (Head/Tail)
+        float trail_px = len_ratio * perimeter;
+        float pos_head, pos_tail;
+
+        if (!is_ccw) // CW (顺时针)
+        {
+            pos_head = progress * perimeter;
+            pos_tail = pos_head - trail_px;
+        }
+        else // CCW (逆时针)
+        {
+            pos_head = (1.0f - progress) * perimeter;
+            pos_tail = pos_head + trail_px;
+        }
+
+        // 3. 生成绘制区间
+        struct DrawRange { float start; float end; };
+        DrawRange ranges[2];
+        int range_count = 0;
+
+        if (!is_ccw) // CW
+        {
+            if (pos_tail < 0.0f)
+            {
+                ranges[range_count++] = { perimeter + pos_tail, perimeter };
+                ranges[range_count++] = { 0.0f, pos_head };
+            }
+            else
+            {
+                ranges[range_count++] = { pos_tail, pos_head };
+            }
+        }
+        else // CCW
+        {
+            if (pos_tail > perimeter)
+            {
+                ranges[range_count++] = { pos_head, perimeter };
+                ranges[range_count++] = { 0.0f, pos_tail - perimeter };
+            }
+            else
+            {
+                ranges[range_count++] = { pos_head, pos_tail };
+            }
+        }
+
+        ImVec4 base_col = ImGui::ColorConvertU32ToFloat4(col);
+        float side_start_accum = 0.0f;
+
+        // 4. 遍历四条边
+        for (int i = 0; i < 4; ++i)
+        {
+            float side_len = lens[i];
+            float side_end_accum = side_start_accum + side_len;
+
+            for (int r = 0; r < range_count; ++r)
+            {
+                // 计算此区间在这条边上的重叠部分
+                float overlap_start = std::max(ranges[r].start, side_start_accum);
+                float overlap_end = std::min(ranges[r].end, side_end_accum);
+
+                if (overlap_start < overlap_end)
+                {
+
+                    // A. Alpha 计算 (保持原有逻辑)
+                    float alpha_s = 1.0f, alpha_e = 1.0f;
+                    if (is_gradient)
+                    {
+                        float dist_s, dist_e;
+                        if (!is_ccw)
+                        {
+                            float eff_head = (pos_tail < 0.0f && overlap_start > pos_head) ? (pos_head + perimeter) : pos_head;
+                            dist_s = eff_head - overlap_start;
+                            dist_e = eff_head - overlap_end;
+                        }
+                        else
+                        {
+                            dist_s = overlap_start - pos_head;
+                            if (dist_s < 0) dist_s += perimeter;
+                            dist_e = overlap_end - pos_head;
+                            if (dist_e < 0) dist_e += perimeter;
+                        }
+                        // 保护除零
+                        if (trail_px > 0.001f)
+                        {
+                            alpha_s = std::clamp(1.0f - (dist_s / trail_px), 0.0f, 1.0f);
+                            alpha_e = std::clamp(1.0f - (dist_e / trail_px), 0.0f, 1.0f);
+                        }
+                    }
+                    // B. 坐标计算
+                    float local_s = overlap_start - side_start_accum;
+                    float local_e = overlap_end - side_start_accum;
+
+                    ImVec2 p1, p2;
+
+                    // 定义角落保护逻辑：水平线负责填充角落，垂直线避开角落
+                    // 防止 Butt-Joint 造成的缺角，同时也防止重叠造成的 Alpha 叠加
+                    bool touches_start = (local_s <= 0.01f);
+                    bool touches_end = (local_e >= side_len - 0.01f);
+
+                    if (i == 0) // Top: Left -> Right
+                    {
+                        p1 = ImVec2(p_min.x + local_s, p_min.y);
+                        p2 = ImVec2(p_min.x + local_e, p_min.y);
+
+                        // Extend horizontal to cover corners
+                        if (touches_start) p1.x -= half_t;
+                        if (touches_end)   p2.x += half_t;
+                    }
+                    else if (i == 1) // Right: Top -> Bottom
+                    {
+                        p1 = ImVec2(p_max.x, p_min.y + local_s);
+                        p2 = ImVec2(p_max.x, p_min.y + local_e);
+
+                        // Clamp vertical to avoid overlap
+                        float y_limit_min = p_min.y + half_t;
+                        float y_limit_max = p_max.y - half_t;
+
+                        if (p1.y < y_limit_min) p1.y = y_limit_min;
+                        if (p2.y > y_limit_max) p2.y = y_limit_max;
+
+                        // Check if segment is fully clipped
+                        if (p1.y >= p2.y) continue;
+                    }
+                    else if (i == 2) // Bottom: Right -> Left
+                    {
+                        p1 = ImVec2(p_max.x - local_s, p_max.y);
+                        p2 = ImVec2(p_max.x - local_e, p_max.y);
+
+                        // Extend horizontal
+                        if (touches_start) p1.x += half_t;
+                        if (touches_end)   p2.x -= half_t;
+                    }
+                    else // Left: Bottom -> Top
+                    {
+                        p1 = ImVec2(p_min.x, p_max.y - local_s);
+                        p2 = ImVec2(p_min.x, p_max.y - local_e);
+
+                        // Clamp vertical
+                        float y_limit_min = p_min.y + half_t;
+                        float y_limit_max = p_max.y - half_t;
+
+                        if (p1.y > y_limit_max) p1.y = y_limit_max;
+                        if (p2.y < y_limit_min) p2.y = y_limit_min;
+
+                        // Check if segment is fully clipped (Note: p2 < p1 in this direction)
+                        if (p2.y >= p1.y) continue;
+                    }
+
+                    // C. 绘制
+                    ImU32 col_s = ImGui::ColorConvertFloat4ToU32(ImVec4(base_col.x, base_col.y, base_col.z, base_col.w * alpha_s));
+                    ImU32 col_e = ImGui::ColorConvertFloat4ToU32(ImVec4(base_col.x, base_col.y, base_col.z, base_col.w * alpha_e));
+
+                    DrawGradientLineSegment(dl, p1, p2, thickness, col_s, col_e);
+                }
+            }
+            side_start_accum += side_len;
+        }
+    }
 };
 
 _UI_END

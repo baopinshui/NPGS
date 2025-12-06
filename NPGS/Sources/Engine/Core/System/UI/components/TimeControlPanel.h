@@ -28,6 +28,7 @@ private:
 
     std::shared_ptr<TechText> m_text_display;
     std::shared_ptr<TechButton> m_pause_btn;
+    std::shared_ptr<TechButton> m_1x_btn;
     // 滑条绑定的是 double 类型
     std::shared_ptr<ThrottleTechSlider<double>> m_speed_slider;
 

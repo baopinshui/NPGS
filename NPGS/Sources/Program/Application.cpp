@@ -95,7 +95,7 @@ void FApplication::SimulateStarSelectionAndUpdateUI()
 
     // a. 设置标题
     std::string subtitle = Npgs::System::UI::AstroDataBuilder::StarPhaseToString(myStar.GetEvolutionPhase());
-    m_celestial_info->SetTitle(myStar.GetName(), subtitle);
+    m_celestial_info->SetTitle(subtitle+"-114514", subtitle);
     m_celestial_info->SetObjectImage(stage4ID, 1200, 800, {kelvin_to_rgb(myStar.GetTeff()).r ,kelvin_to_rgb(myStar.GetTeff()).g ,kelvin_to_rgb(myStar.GetTeff()).b ,1.0});
     // b. 设置数据
     m_celestial_info->SetData(ui_data);
@@ -574,7 +574,7 @@ void FApplication::ExecuteMainRender()
     m_ui_root = std::make_shared<UI::UIRoot>();
 
     // 3. 创建 NeuralMenuController
-    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>();
+    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("设置项","你の百毒","〉 设置","关闭终端");
 
     // 4. 将菜单的根面板添加到 UI 根中
     m_ui_root->AddChild(m_neural_menu_controller);
@@ -582,35 +582,38 @@ void FApplication::ExecuteMainRender()
     // 5. 创建 PulsarButtons
     // Button 1: Dyson Beam
     m_beam_button = std::make_shared<UI::PulsarButton>(
-        "beam",
+        "可以起飞",
         "发射戴森光束", // 这是主按钮文字
         "☼",
         "ENERGY",
         &m_beam_energy,
         "J",
-        true
+        true,
+        "beam"
     );
 
     m_rkkv_button = std::make_shared<UI::PulsarButton>(
-        "rkkv", 
+        "君のUI本当上手",
         "发射RKKV",
         RKKVID,
         "MASS",
         &m_rkkv_mass, 
         "kg",
         true
+        , "rkkv"
     );
 	m_VN_button = std::make_shared<UI::PulsarButton>(
-		"vn",
+		"cxk",
 		"发送冯诺依曼探测器",
 		"⌘",
         "MASS",
         &m_VN_mass,
         "kg",
-		true
+		true,
+        "vn"
 	);
 	m_message_button = std::make_shared<UI::PulsarButton>(
-		"message",
+        "",
 		"发送信息",
 		"i",
 		"发送权重，用时",
@@ -688,7 +691,7 @@ void FApplication::ExecuteMainRender()
         SimulateStarSelectionAndUpdateUI();
         m_log_panel->AddLog(System::UI::LogType::Info, ">> SCAN_RESULT", "Test test 测试");
         m_log_panel->AddLog(System::UI::LogType::Alert, ">> [CRITICAL]", "我的我要爆了！！！");
-        m_log_panel->SetAutoSaveTime(FormatTime(GameTime));
+        m_log_panel->SetAutoSaveTime("> Auto-Save: "+FormatTime(GameTime));
         NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
     };
 
@@ -937,8 +940,8 @@ void FApplication::ExecuteMainRender()
                 m_bottom_Info->SetCelestialData(
                     "191981",
                     "BH",
-                    "1.91E+36kg",
-                    "8.10E+30 W"
+                    "质量:1.91E+36kg",
+                    "光度:8.10E+30 W"
                 );
             }
             // 阶段 2: 文明
@@ -954,8 +957,8 @@ void FApplication::ExecuteMainRender()
                 m_bottom_Info->SetCelestialData(
                     "000001",
                     "Red Giant",
-                    "6.4E+29kg",
-                    "4.7E+24W"
+                    "M = 6.4E+29kg",
+                    "L = 4.7E+24W"
                 );
             }
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);

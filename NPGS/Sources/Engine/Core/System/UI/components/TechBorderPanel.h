@@ -1,7 +1,6 @@
 #pragma once
 #include "../ui_framework.h"
 #include <string>
-#include <variant>
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
@@ -11,12 +10,27 @@ class TechBorderPanel : public Panel
 {
 public:
     float m_thickness = 2.0f;
+    bool m_force_accent_color = false;
+
+    // [New Features: Dual Orbit Flow]
+    bool m_show_flow_border = false;
+
+    // 参数控制
+    float m_flow_period = 2.0f;       // 外层周期 (秒)
+    float m_flow_length_ratio = 0.2f; // 长度占比
+    bool m_flow_use_gradient = 0;  // 是否渐变
+
     TechBorderPanel();
 
-    // [新增] 重写事件处理，确保视觉上的 Hover 状态正确
     void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override;
 
+    void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
+
+private:
+    // 两个轨道的独立进度
+    float m_progress_outer = 0.0f;
+    float m_progress_inner = 0.0f;
 };
 
 _UI_END

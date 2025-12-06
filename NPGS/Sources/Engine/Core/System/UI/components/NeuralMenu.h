@@ -18,7 +18,7 @@ _UI_BEGIN
 class NeuralMenu : public UIElement
 {
 public:
-    NeuralMenu();
+    NeuralMenu(const std::string& mainbuttonstr1 = "MANAGE", const std::string& mainbuttonstr2 = "NETWORK", const std::string& settingstr = "> SETTINGS", const std::string & = " CLOSE TERMINAL ");
 
     // API 保持不变，用于动态添加滑块
     template<typename T>

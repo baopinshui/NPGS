@@ -9,7 +9,7 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-CelestialInfoPanel::CelestialInfoPanel()
+CelestialInfoPanel::CelestialInfoPanel(const std::string& foldtext)
 {
     // 自身作为容器，不阻挡输入，全透明
     m_rect = { 0, 0, 0, 0 };
@@ -22,7 +22,7 @@ CelestialInfoPanel::CelestialInfoPanel()
     // 1. 创建侧边把手 (Collapsed Tab) - 重构为 TechButton
     // =========================================================
     // 不再需要外层 Panel 套娃，直接使用支持 Vertical 样式和 Glass 效果的按钮
-    m_collapsed_btn = std::make_shared<TechButton>("INFO", TechButton::Style::Vertical);
+    m_collapsed_btn = std::make_shared<TechButton>(foldtext, TechButton::Style::Vertical);
     m_collapsed_btn->m_rect = { 0, 0, 24, 100 }; // 窄条设计
     m_collapsed_btn->SetUseGlass(true);          // 开启毛玻璃背景
     m_collapsed_btn->on_click = [this]() { this->ToggleCollapse(); };

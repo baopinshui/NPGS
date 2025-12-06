@@ -36,7 +36,7 @@ using CelestialData = std::vector<InfoPage>;
 class CelestialInfoPanel : public UIElement
 {
 public:
-    CelestialInfoPanel();
+    CelestialInfoPanel(const std::string& foldtext="INFO");
 
     void SetData(const CelestialData& data);
 

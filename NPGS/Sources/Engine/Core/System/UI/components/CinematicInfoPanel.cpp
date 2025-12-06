@@ -150,21 +150,19 @@ void CinematicInfoPanel::SetCivilizationData(const std::string& name, const std:
     }
 }
 
-void CinematicInfoPanel::SetCelestialData(const std::string& id, const std::string& type, const std::string& mass, const std::string& lum)
+void CinematicInfoPanel::SetCelestialData(const std::string& id, const std::string& type, const std::string& stat1, const std::string& stat2)
 {
     if (m_position != Position::Bottom) return;
     bool has_content = !id.empty();
     CheckStateTransition(has_content);
     if (has_content)
     {
-        // Format: "BH - 191981"
-        bool is_bh = (type.find("BH") != std::string::npos || type.find("Black Hole") != std::string::npos);
-        m_title_text->SetText(is_bh ? ("BH - " + id) : ("STAR - " + id));
+        m_title_text->SetText(type + "-" + id);
 
         m_bot_type_text->SetText(type);
 
-        UpdateTextWidth(m_bot_stat_1, "M = " + mass);
-        UpdateTextWidth(m_bot_stat_2, "L = " + lum);
+        UpdateTextWidth(m_bot_stat_1, stat1);
+        UpdateTextWidth(m_bot_stat_2, stat2);
     }
 }
 

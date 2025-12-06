@@ -19,7 +19,7 @@ void PulsarButton::SetIconColor(const ImVec4& color)
         m_image_icon->m_tint_col = color;
     }
 }
-void PulsarButton::InitCommon(const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit)
+void PulsarButton::InitCommon(const std::string& status, const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit)
 {
     m_rect = { 0, 0, 40, 40 };
     m_block_input = true;
@@ -39,7 +39,7 @@ void PulsarButton::InitCommon(const std::string& label, const std::string& stat_
     // 注意：图标(Icon)的创建留给具体的构造函数，必须在 AddChild(m_bg_panel) 之后，其他 Label 之前添加，以保证层级正确
 
     // --- 2. 状态文本 ---
-    m_text_status = std::make_shared<TechText>("SYSTEM READY", theme.color_text_highlight, true);
+    m_text_status = std::make_shared<TechText>(status, theme.color_text_highlight, true);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
@@ -107,12 +107,13 @@ void PulsarButton::InitCommon(const std::string& label, const std::string& stat_
 }
 
 // [旧构造函数] 文字图标
-PulsarButton::PulsarButton(const std::string& id, const std::string& label, const std::string& icon_char, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable)
-    : m_id(id), m_is_editable(is_editable)
+PulsarButton::PulsarButton(const std::string& status, const std::string& label, const std::string& icon_char, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable, const std::string& id)
+    : m_is_editable(is_editable)
 {
-    InitCommon(label, stat_label, stat_value_ptr, stat_unit);
+    InitCommon(status,label, stat_label, stat_value_ptr, stat_unit);
 
     // --- 创建文字图标 ---
+    m_id = id;
     m_text_icon = std::make_shared<TechText>(icon_char);
     m_text_icon->m_rect = { 0, 0, 40, 40 };
     m_text_icon->m_align_h = Alignment::Center;
@@ -129,11 +130,11 @@ PulsarButton::PulsarButton(const std::string& id, const std::string& label, cons
 }
 
 // [新构造函数] 图片图标
-PulsarButton::PulsarButton(const std::string& id, const std::string& label, ImTextureID icon_texture, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable)
-    : m_id(id), m_is_editable(is_editable)
+PulsarButton::PulsarButton(const std::string& status, const std::string& label, ImTextureID icon_texture, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable, const std::string& id)
+    :  m_is_editable(is_editable)
 {
-    InitCommon(label, stat_label, stat_value_ptr, stat_unit);
-
+    InitCommon(status,label, stat_label, stat_value_ptr, stat_unit);
+    m_id = id;
     // --- 创建图片图标 ---
     m_image_icon = std::make_shared<Image>(icon_texture);
     m_image_icon->m_rect = { 0, 0, 40, 40 }; // 默认填满核心区
@@ -248,7 +249,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
     // --- 1. 计算折线生长进度 ---
     float t = std::clamp((m_anim_progress - 0.25f) * 2.0f, 0.0f, 1.0f);
-    float line_prog = t * t * (3.0f - 2.0f * t);
+    line_prog = t * t * (3.0f - 2.0f * t);
 
     // --- 2. 优化文字显现时机 ---
     float text_fade_start = 0.75f;
@@ -401,6 +402,74 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     {
         final_action_color = theme.color_text_disabled;
     }
+    // ... (前文代码不变)
+
+// ... (前文代码不变)
+
+    if (m_bg_panel)
+    {
+        // 1. 基础状态
+        m_bg_panel->m_force_accent_color = (m_anim_progress > 0.6f);
+        m_bg_panel->m_show_flow_border = (m_anim_progress > 0.6f);
+
+        // 2. 目标状态判断
+        bool is_high_energy = m_can_execute && m_label_hovered;
+
+        // 3. 更新归一化能量进度 (0.0 ~ 1.0)
+        // 总时长固定为 0.5秒
+        const float total_duration = 0.5f;
+        const float speed = 1.0f / total_duration;
+
+        if (is_high_energy)
+        {
+            m_hover_energy_progress += speed * dt;
+            if (m_hover_energy_progress > 1.0f) m_hover_energy_progress = 1.0f;
+        }
+        else
+        {
+            m_hover_energy_progress -= speed * dt;
+            if (m_hover_energy_progress < 0.0f) m_hover_energy_progress = 0.0f;
+        }
+
+        // --- 4. 属性映射 (Mapping) ---
+
+        // A. 频率映射 (关键逻辑)
+        // 要求：充能时 0.3s 达峰；冷却时延迟 0.2s 开始下降 (总时0.5s)
+        // 这意味着频率只在进度 0.0 到 0.6 之间变化 (0.6 / 1.0 * 0.5s = 0.3s)
+        // 当进度 > 0.6 时，频率保持最大值。
+        // 冷却时从 1.0 降到 0.6 (耗时0.2s) 期间，频率一直保持最大，满足“延迟降低”的需求。
+
+        float freq_t = std::clamp(m_hover_energy_progress / 0.6f, 0.0f, 1.0f);
+
+        // 使用 Lerp 计算当前频率
+        const float min_freq = 0.5f;
+        const float max_freq = 10.0f;
+        float current_freq = min_freq + (max_freq - min_freq) * freq_t; // 线性插值频率
+
+        m_bg_panel->m_flow_period = 1.0f / std::max(0.01f, current_freq); // 转为周期
+
+
+        // B. 线长映射
+        // 要求：全程 0.5s 变化
+        // 直接使用 m_hover_energy_progress (0.0 ~ 1.0)
+
+        float len_t = m_hover_energy_progress;
+        // 如果想要线长变化带一点缓动，可以用 AnimationUtils::Ease(len_t, ...)
+        // 这里按要求保持线性
+
+        const float min_len = 0.2f;
+        const float max_len = 1.0f;
+        m_bg_panel->m_flow_length_ratio = min_len + (max_len - min_len) * len_t;
+
+    }
+
+    // --- 7. 更新图标 ---
+// ... (后续代码不变)
+
+    // --- 7. 更新图标 ---
+// ... (后续代码不变)
+
+
 
     // --- 7. 更新图标 ---
     Rect icon_rect = m_bg_panel->m_rect;
@@ -668,7 +737,7 @@ void PulsarButton::Draw(ImDrawList* draw_list)
     if (m_anim_progress > 0.01f)
     {
         ImVec2 center_abs = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
-        float line_prog = std::max(0.0f, (m_anim_progress - 0.5f) * 2.0f);
+        //float line_prog = std::max(0.0f, (m_anim_progress - 0.5f) * 2.0f);
         float pulsar_scale = std::min(1.0f, m_anim_progress * 1.5f);
         const ImU32 color_theme = GetColorWithAlpha(theme.color_accent, 1.0f);
         const ImU32 color_white = GetColorWithAlpha(theme.color_text_highlight, 1.0f);
@@ -761,7 +830,8 @@ void PulsarButton::Draw(ImDrawList* draw_list)
         }
     }
 
-    // 3. 绘制子元素
+    
+     
     UIElement::Draw(draw_list);
 }
 

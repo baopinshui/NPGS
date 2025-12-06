@@ -124,7 +124,7 @@ bool FVulkanUIRenderer::Initialize(GLFWwindow* window)
     ctx.m_font_small = LoadFontWithChinese(12.0f, "Small");
 
 
-    ctx.m_font_subtitle = LoadFontWithChinese(21.0f, "Subtitle");
+    ctx.m_font_subtitle = LoadFontWithChinese(22.0f, "Subtitle");
     // 设置默认字体为 Regular
     io.FontDefault = ctx.m_font_regular;
 

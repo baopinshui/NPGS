@@ -17,7 +17,6 @@ public:
     using OnToggleCallback = std::function<void(bool is_expanding)>;
     using OnExecuteCallback = std::function<void(const std::string& id, const std::string& current_value)>;
 
-    std::string m_id;
     OnToggleCallback on_toggle_callback;
     OnExecuteCallback on_execute_callback;
 
@@ -28,24 +27,26 @@ public:
 
     // [旧构造函数] 使用字符图标
     PulsarButton(
-        const std::string& id,
+        const std::string& status,
         const std::string& label,
         const std::string& icon_char,
         const std::string& stat_label,
         std::string* stat_value_ptr,
         const std::string& stat_unit,
-        bool is_editable
+        bool is_editable,
+        const std::string& id=""
     );
 
     // [新构造函数] 使用图片(ImTextureID)图标
     PulsarButton(
-        const std::string& id,
+        const std::string& status,
         const std::string& label,
         ImTextureID icon_texture,
         const std::string& stat_label,
         std::string* stat_value_ptr,
         const std::string& stat_unit,
-        bool is_editable
+        bool is_editable,
+        const std::string& id=""
     );
 
     void SetActive(bool active);
@@ -58,14 +59,16 @@ public:
 
 private:
     // [新增] 内部通用初始化逻辑，减少代码重复
-    void InitCommon(const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit);
+    void InitCommon(const std::string& status,const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit);
     // [新增] 统一设置图标颜色的辅助函数
     void SetIconColor(const ImVec4& color);
 
     bool m_core_hovered = false;
     float m_core_hover_progress = 0.0f;
+    float m_hover_energy_progress = 0.0f;
 
     float m_anim_progress = 0.0f;
+    float line_prog = 0.0f;
     float m_rotation_angle = 0.0f;
     std::string m_pending_status_text;
 

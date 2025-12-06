@@ -23,7 +23,7 @@ public:
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* dl) override;
 
-    static constexpr float CARD_HEIGHT = 48.0f;
+    static constexpr float CARD_HEIGHT = 58.0f;
 
 private:
     LogType m_type;
@@ -35,7 +35,7 @@ private:
 class LogPanel : public UIElement
 {
 public:
-    LogPanel();
+    LogPanel(const std::string& sysstr= "> System Scan Complete.", const std::string& savestr="> Auto-Save: T+114514.01.01");
 
     void AddLog(LogType type, const std::string& title, const std::string& message);
     void SetSystemStatus(const std::string& text);
