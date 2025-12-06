@@ -92,30 +92,35 @@ void TechBorderPanel::Draw(ImDrawList* dl)
     // 4. 双层流光绘制
     if (m_show_flow_border)
     {
-        // 层1：内层
-        // 宽 1px，贴着最外边缘
-        // 层1：外层 (offset = 0.0, 贴着最外边缘)
+        // 确保分段数至少为1
+        int seg_count = std::max(1, m_flow_segment_count);
+
+        // 层1：外层
         TechUtils::DrawGradientFlow(dl,
-            p_min, p_max, // 基础矩形
-            -2.0f,         // 偏移量
-            1.0f,         // 固定宽 1px
+            p_min, p_max,
+            -2.0f,
+            1.0f,
             border_col,
             m_progress_outer,
             m_flow_length_ratio,
             m_flow_use_gradient,
-            false // 顺时针
+            false, // 顺时针
+            seg_count,
+            m_flow_randomness 
         );
 
-        // 层2：内层 (offset = 2.0, 向内偏移 2px)
+        // 层2：内层
         TechUtils::DrawGradientFlow(dl,
-            p_min, p_max, // 基础矩形
-            0.0f,         // 偏移量
-            1.0f,         // 固定宽 1px
+            p_min, p_max,
+            0.0f,
+            1.0f,
             border_col,
             m_progress_inner,
             m_flow_length_ratio,
             m_flow_use_gradient,
-            true // 逆时针
+            true, // 逆时针
+            seg_count,
+            m_flow_randomness 
         );
     }
     else

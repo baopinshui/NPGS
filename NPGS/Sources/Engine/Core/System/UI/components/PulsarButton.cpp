@@ -457,7 +457,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         // 如果想要线长变化带一点缓动，可以用 AnimationUtils::Ease(len_t, ...)
         // 这里按要求保持线性
 
-        const float min_len = 0.2f;
+        const float min_len = 0.3f;
         const float max_len = 1.0f;
         m_bg_panel->m_flow_length_ratio = min_len + (max_len - min_len) * len_t;
 

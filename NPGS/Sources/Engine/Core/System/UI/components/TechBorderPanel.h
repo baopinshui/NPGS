@@ -16,9 +16,11 @@ public:
     bool m_show_flow_border = false;
 
     // 参数控制
-    float m_flow_period = 2.0f;       // 外层周期 (秒)
-    float m_flow_length_ratio = 0.2f; // 长度占比
-    bool m_flow_use_gradient = 0;  // 是否渐变
+    float m_flow_period = 2.0f;       // 外层周期
+    float m_flow_length_ratio = 0.2f; // 总长度占比
+    int m_flow_segment_count = 1;     // 分段数量
+    float m_flow_randomness = 0.0f;   // 随机性强度
+    bool m_flow_use_gradient = 0;     // 渐变
 
     TechBorderPanel();
 
@@ -28,7 +30,6 @@ public:
     void Draw(ImDrawList* draw_list) override;
 
 private:
-    // 两个轨道的独立进度
     float m_progress_outer = 0.0f;
     float m_progress_inner = 0.0f;
 };

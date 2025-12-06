@@ -223,183 +223,210 @@ public:
     // 逻辑修正：
     // 1. p_min/p_max 修正为线条的"中心路径"坐标，确保角落完美重合
     // 2. 移除 Side 1 和 Side 3 的 clamp 裁剪，消除角落断层
-    static void DrawGradientFlow(ImDrawList* dl, ImVec2 base_p_min, ImVec2 base_p_max, float offset, float thickness, ImU32 col, float progress, float len_ratio, bool is_gradient, bool is_ccw)
+    static void DrawGradientFlow(ImDrawList* dl, ImVec2 base_p_min, ImVec2 base_p_max, float offset, float thickness, ImU32 col, float progress, float total_len_ratio, bool is_gradient, bool is_ccw, int segment_count = 1, float randomness = 0.0f)
     {
-        float half_t = thickness * 0.5f;
+        if (segment_count < 1) segment_count = 1;
 
-        // 1. 计算路径中心 (Path Center)
-        // 我们希望 offset 是指线条外边缘距离 base 的距离
-        // 所以中心点需要再向内缩 half_t
+        // 基础几何计算
+        float half_t = thickness * 0.5f;
         ImVec2 p_min = ImVec2(base_p_min.x + offset + half_t, base_p_min.y + offset + half_t);
         ImVec2 p_max = ImVec2(base_p_max.x - offset - half_t, base_p_max.y - offset - half_t);
 
-        // 确保不出现负尺寸
         if (p_max.x <= p_min.x || p_max.y <= p_min.y) return;
 
         float w = p_max.x - p_min.x;
         float h = p_max.y - p_min.y;
-
-        // 逻辑周长 (基于中心线)
         float lens[4] = { w, h, w, h };
         float perimeter = 2.0f * (w + h);
         if (perimeter <= 0.001f) return;
 
-        // 2. 动画进度计算 (Head/Tail)
-        float trail_px = len_ratio * perimeter;
-        float pos_head, pos_tail;
-
-        if (!is_ccw) // CW (顺时针)
-        {
-            pos_head = progress * perimeter;
-            pos_tail = pos_head - trail_px;
-        }
-        else // CCW (逆时针)
-        {
-            pos_head = (1.0f - progress) * perimeter;
-            pos_tail = pos_head + trail_px;
-        }
-
-        // 3. 生成绘制区间
-        struct DrawRange { float start; float end; };
-        DrawRange ranges[2];
-        int range_count = 0;
-
-        if (!is_ccw) // CW
-        {
-            if (pos_tail < 0.0f)
-            {
-                ranges[range_count++] = { perimeter + pos_tail, perimeter };
-                ranges[range_count++] = { 0.0f, pos_head };
-            }
-            else
-            {
-                ranges[range_count++] = { pos_tail, pos_head };
-            }
-        }
-        else // CCW
-        {
-            if (pos_tail > perimeter)
-            {
-                ranges[range_count++] = { pos_head, perimeter };
-                ranges[range_count++] = { 0.0f, pos_tail - perimeter };
-            }
-            else
-            {
-                ranges[range_count++] = { pos_head, pos_tail };
-            }
-        }
-
         ImVec4 base_col = ImGui::ColorConvertU32ToFloat4(col);
-        float side_start_accum = 0.0f;
 
-        // 4. 遍历四条边
-        for (int i = 0; i < 4; ++i)
+        // --- Step 1: 动态计算每一段的长度权重 ---
+
+        // 使用局部静态buffer避免每帧new，或者直接用std::vector
+        std::vector<float> segment_lengths;
+        segment_lengths.resize(segment_count);
+
+        float total_weight = 0.0f;
+        float PI_2 = 6.2831853f;
+
+        for (int k = 0; k < segment_count; ++k)
         {
-            float side_len = lens[i];
-            float side_end_accum = side_start_accum + side_len;
-
-            for (int r = 0; r < range_count; ++r)
+            float weight = 1.0f;
+            if (randomness > 0.01f)
             {
-                // 计算此区间在这条边上的重叠部分
-                float overlap_start = std::max(ranges[r].start, side_start_accum);
-                float overlap_end = std::min(ranges[r].end, side_end_accum);
+                // 伪随机连续函数：
+                // 使用 progress 作为时间轴，保证随时间平滑变化
+                // 使用 k 作为相位偏移，保证不同段的变化不同步
+                // 乘数 2.0f 决定了变化的快慢频率
+                float phase = progress * PI_2 * 2.0f + (float)k * (PI_2 / 1.618f); // 1.618 黄金分割防止谐波同步
 
-                if (overlap_start < overlap_end)
+                // sin 的结果是 -1~1，weight 结果范围 [1-randomness, 1+randomness]
+                weight = 1.0f + randomness * std::sin(phase);
+
+                // 防止负长度或过短
+                if (weight < 0.1f) weight = 0.1f;
+            }
+            segment_lengths[k] = weight;
+            total_weight += weight;
+        }
+
+        // --- Step 2: 归一化并计算布局 ---
+
+        // 计算这一帧所有段加起来的总间隙 (0~1 空间)
+        float total_gap_ratio = std::max(0.0f, 1.0f - total_len_ratio);
+        // 单个间隙大小 (均匀分配间隙)
+        float single_gap_ratio = (segment_count > 0) ? (total_gap_ratio / (float)segment_count) : 0.0f;
+
+        // 游标：记录当前这一段的"头部"位置 (0~1空间)
+        // 初始位置就是传入的 progress
+        float current_head_cursor = progress;
+
+        // --- Step 3: 循环绘制 ---
+        for (int k = 0; k < segment_count; ++k)
+        {
+            // A. 计算当前段的实际长度占比
+            // (权重 / 总权重) * 总长度占比
+            float current_len_ratio = (segment_lengths[k] / total_weight) * total_len_ratio;
+            float trail_px = current_len_ratio * perimeter;
+
+            // B. 计算头尾坐标 (0~1空间)
+            // 归一化游标到 0~1 范围用于计算坐标
+            float eff_head_ratio = current_head_cursor - std::floor(current_head_cursor);
+            if (eff_head_ratio < 0) eff_head_ratio += 1.0f;
+
+            float pos_head, pos_tail;
+
+            if (!is_ccw) // CW (顺时针)
+            {
+                pos_head = eff_head_ratio * perimeter;
+                pos_tail = pos_head - trail_px;
+            }
+            else // CCW (逆时针)
+            {
+                // CCW 时，progress 增加代表逆时针转。
+                // 我们的游标 current_head_cursor 依然按照 0->1 逻辑处理相对位置
+                // 但映射到物理坐标时取反
+                pos_head = (1.0f - eff_head_ratio) * perimeter;
+                pos_tail = pos_head + trail_px;
+            }
+
+            // C. 生成绘制区间 (处理跨越 0/1 边界的情况)
+            struct DrawRange { float start; float end; };
+            DrawRange ranges[2];
+            int range_count = 0;
+
+            if (!is_ccw) // CW
+            {
+                if (pos_tail < 0.0f)
                 {
-
-                    // A. Alpha 计算 (保持原有逻辑)
-                    float alpha_s = 1.0f, alpha_e = 1.0f;
-                    if (is_gradient)
-                    {
-                        float dist_s, dist_e;
-                        if (!is_ccw)
-                        {
-                            float eff_head = (pos_tail < 0.0f && overlap_start > pos_head) ? (pos_head + perimeter) : pos_head;
-                            dist_s = eff_head - overlap_start;
-                            dist_e = eff_head - overlap_end;
-                        }
-                        else
-                        {
-                            dist_s = overlap_start - pos_head;
-                            if (dist_s < 0) dist_s += perimeter;
-                            dist_e = overlap_end - pos_head;
-                            if (dist_e < 0) dist_e += perimeter;
-                        }
-                        // 保护除零
-                        if (trail_px > 0.001f)
-                        {
-                            alpha_s = std::clamp(1.0f - (dist_s / trail_px), 0.0f, 1.0f);
-                            alpha_e = std::clamp(1.0f - (dist_e / trail_px), 0.0f, 1.0f);
-                        }
-                    }
-                    // B. 坐标计算
-                    float local_s = overlap_start - side_start_accum;
-                    float local_e = overlap_end - side_start_accum;
-
-                    ImVec2 p1, p2;
-
-                    // 定义角落保护逻辑：水平线负责填充角落，垂直线避开角落
-                    // 防止 Butt-Joint 造成的缺角，同时也防止重叠造成的 Alpha 叠加
-                    bool touches_start = (local_s <= 0.01f);
-                    bool touches_end = (local_e >= side_len - 0.01f);
-
-                    if (i == 0) // Top: Left -> Right
-                    {
-                        p1 = ImVec2(p_min.x + local_s, p_min.y);
-                        p2 = ImVec2(p_min.x + local_e, p_min.y);
-
-                        // Extend horizontal to cover corners
-                        if (touches_start) p1.x -= half_t;
-                        if (touches_end)   p2.x += half_t;
-                    }
-                    else if (i == 1) // Right: Top -> Bottom
-                    {
-                        p1 = ImVec2(p_max.x, p_min.y + local_s);
-                        p2 = ImVec2(p_max.x, p_min.y + local_e);
-
-                        // Clamp vertical to avoid overlap
-                        float y_limit_min = p_min.y + half_t;
-                        float y_limit_max = p_max.y - half_t;
-
-                        if (p1.y < y_limit_min) p1.y = y_limit_min;
-                        if (p2.y > y_limit_max) p2.y = y_limit_max;
-
-                        // Check if segment is fully clipped
-                        if (p1.y >= p2.y) continue;
-                    }
-                    else if (i == 2) // Bottom: Right -> Left
-                    {
-                        p1 = ImVec2(p_max.x - local_s, p_max.y);
-                        p2 = ImVec2(p_max.x - local_e, p_max.y);
-
-                        // Extend horizontal
-                        if (touches_start) p1.x += half_t;
-                        if (touches_end)   p2.x -= half_t;
-                    }
-                    else // Left: Bottom -> Top
-                    {
-                        p1 = ImVec2(p_min.x, p_max.y - local_s);
-                        p2 = ImVec2(p_min.x, p_max.y - local_e);
-
-                        // Clamp vertical
-                        float y_limit_min = p_min.y + half_t;
-                        float y_limit_max = p_max.y - half_t;
-
-                        if (p1.y > y_limit_max) p1.y = y_limit_max;
-                        if (p2.y < y_limit_min) p2.y = y_limit_min;
-
-                        // Check if segment is fully clipped (Note: p2 < p1 in this direction)
-                        if (p2.y >= p1.y) continue;
-                    }
-
-                    // C. 绘制
-                    ImU32 col_s = ImGui::ColorConvertFloat4ToU32(ImVec4(base_col.x, base_col.y, base_col.z, base_col.w * alpha_s));
-                    ImU32 col_e = ImGui::ColorConvertFloat4ToU32(ImVec4(base_col.x, base_col.y, base_col.z, base_col.w * alpha_e));
-
-                    DrawGradientLineSegment(dl, p1, p2, thickness, col_s, col_e);
+                    ranges[range_count++] = { perimeter + pos_tail, perimeter };
+                    ranges[range_count++] = { 0.0f, pos_head };
+                }
+                else
+                {
+                    ranges[range_count++] = { pos_tail, pos_head };
                 }
             }
-            side_start_accum += side_len;
+            else // CCW
+            {
+                if (pos_tail > perimeter)
+                {
+                    ranges[range_count++] = { pos_head, perimeter };
+                    ranges[range_count++] = { 0.0f, pos_tail - perimeter };
+                }
+                else
+                {
+                    ranges[range_count++] = { pos_head, pos_tail };
+                }
+            }
+
+            // D. 绘制逻辑 (与之前相同，只是套在循环里)
+            float side_start_accum = 0.0f;
+            for (int i = 0; i < 4; ++i)
+            {
+                float side_len = lens[i];
+                float side_end_accum = side_start_accum + side_len;
+
+                for (int r = 0; r < range_count; ++r)
+                {
+                    float overlap_start = std::max(ranges[r].start, side_start_accum);
+                    float overlap_end = std::min(ranges[r].end, side_end_accum);
+
+                    if (overlap_start < overlap_end)
+                    {
+                        // Alpha 渐变计算
+                        float alpha_s = 1.0f, alpha_e = 1.0f;
+                        if (is_gradient)
+                        {
+                            float dist_s, dist_e;
+                            if (!is_ccw)
+                            {
+                                float eff_head = (pos_tail < 0.0f && overlap_start > pos_head) ? (pos_head + perimeter) : pos_head;
+                                dist_s = eff_head - overlap_start;
+                                dist_e = eff_head - overlap_end;
+                            }
+                            else
+                            {
+                                dist_s = overlap_start - pos_head;
+                                if (dist_s < 0) dist_s += perimeter;
+                                dist_e = overlap_end - pos_head;
+                                if (dist_e < 0) dist_e += perimeter;
+                            }
+                            if (trail_px > 0.001f)
+                            {
+                                alpha_s = std::clamp(1.0f - (dist_s / trail_px), 0.0f, 1.0f);
+                                alpha_e = std::clamp(1.0f - (dist_e / trail_px), 0.0f, 1.0f);
+                            }
+                        }
+
+                        // 坐标映射
+                        float local_s = overlap_start - side_start_accum;
+                        float local_e = overlap_end - side_start_accum;
+                        ImVec2 p1, p2;
+                        bool touches_start = (local_s <= 0.01f);
+                        bool touches_end = (local_e >= side_len - 0.01f);
+
+                        // 根据边索引计算物理坐标 (Top, Right, Bottom, Left)
+                        if (i == 0)
+                        { // Top
+                            p1 = ImVec2(p_min.x + local_s, p_min.y); p2 = ImVec2(p_min.x + local_e, p_min.y);
+                            if (touches_start) p1.x -= half_t; if (touches_end) p2.x += half_t;
+                        }
+                        else if (i == 1)
+                        { // Right
+                            p1 = ImVec2(p_max.x, p_min.y + local_s); p2 = ImVec2(p_max.x, p_min.y + local_e);
+                            float y_min = p_min.y + half_t, y_max = p_max.y - half_t;
+                            if (p1.y < y_min) p1.y = y_min; if (p2.y > y_max) p2.y = y_max;
+                            if (p1.y >= p2.y) continue;
+                        }
+                        else if (i == 2)
+                        { // Bottom
+                            p1 = ImVec2(p_max.x - local_s, p_max.y); p2 = ImVec2(p_max.x - local_e, p_max.y);
+                            if (touches_start) p1.x += half_t; if (touches_end) p2.x -= half_t;
+                        }
+                        else
+                        { // Left
+                            p1 = ImVec2(p_min.x, p_max.y - local_s); p2 = ImVec2(p_min.x, p_max.y - local_e);
+                            float y_min = p_min.y + half_t, y_max = p_max.y - half_t;
+                            if (p1.y > y_max) p1.y = y_max; if (p2.y < y_min) p2.y = y_min;
+                            if (p2.y >= p1.y) continue;
+                        }
+
+                        ImU32 col_s = ImGui::ColorConvertFloat4ToU32(ImVec4(base_col.x, base_col.y, base_col.z, base_col.w * alpha_s));
+                        ImU32 col_e = ImGui::ColorConvertFloat4ToU32(ImVec4(base_col.x, base_col.y, base_col.z, base_col.w * alpha_e));
+                        DrawGradientLineSegment(dl, p1, p2, thickness, col_s, col_e);
+                    }
+                }
+                side_start_accum += side_len;
+            }
+
+            // --- Step 4: 移动游标到下一段 ---
+            // 游标向"后"移动：移动量 = 当前段长度 + 间隙
+            // 在 0~1 的进度条上，"流光"通常是向前流动的，所以下一个段应该在当前段的"后面"
+            // 即 progress 值更小的地方。
+            current_head_cursor -= (current_len_ratio + single_gap_ratio);
         }
     }
 };
