@@ -67,6 +67,7 @@ private:
     float m_core_hover_progress = 0.0f;
     float m_hover_energy_progress = 0.0f;
 
+    float current_box_size = 0.0f;
     float m_anim_progress = 0.0f;
     float line_prog = 0.0f;
     float m_rotation_angle = 0.0f;

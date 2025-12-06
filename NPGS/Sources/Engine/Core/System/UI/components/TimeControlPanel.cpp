@@ -28,10 +28,13 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
     // ---------------------------------------------------------
     // 第一行：时间显示
     // ---------------------------------------------------------
-    m_text_display = std::make_shared<TechText>("T+00000000.00.00 00:00:00");
+    m_text_display = std::make_shared<TechText>("T+00000000.00.00 00:00:00", theme.color_text_highlight, false, true, theme.color_accent);
     m_text_display->m_font = ctx.m_font_subtitle;
+    m_text_display->m_glow_intensity = 0.3;
+    m_text_display->m_glow_spread = 2.5;
     m_text_display->SetColor(theme.color_text_highlight);
     m_text_display->m_align_h = Alignment::End;
+
     main_vbox->AddChild(m_text_display);
 
     // ---------------------------------------------------------

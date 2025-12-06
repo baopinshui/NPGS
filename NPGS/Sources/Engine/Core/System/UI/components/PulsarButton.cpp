@@ -376,7 +376,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         }
 
         // 应用缩放
-        float current_box_size = base_size * current_scale;
+        current_box_size = base_size * current_scale;
 
         // 居中设置 Rect
         m_bg_panel->m_rect.x = icon_current_center.x - current_box_size * 0.5f;
@@ -824,7 +824,7 @@ void PulsarButton::Draw(ImDrawList* draw_list)
             {
                 draw_list->AddLine(p1, p2, GetColorWithAlpha(theme.color_accent, 0.7f));
                 float rem_len = draw_len - l1;
-                ImVec2 end_p = { p2.x + d2.x * (rem_len / l2), p2.y + d2.y * (rem_len / l2) };
+                ImVec2 end_p = { p2.x + std::max(d2.x * (rem_len / l2)-2.0f- current_box_size * 0.5f,0.0f), p2.y + d2.y * (rem_len / l2) };
                 draw_list->AddLine(p2, end_p, GetColorWithAlpha(theme.color_accent, 0.7f));
             }
         }
