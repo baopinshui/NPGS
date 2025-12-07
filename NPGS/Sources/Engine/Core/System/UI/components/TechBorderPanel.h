@@ -22,6 +22,10 @@ public:
     float m_flow_randomness = 0.0f;   // 随机性强度
     bool m_flow_use_gradient = 0;     // 渐变
 
+    ImVec4 m_ground_state_col;
+    ImVec4 m_excited_state_col;
+
+
     TechBorderPanel();
 
     void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override;

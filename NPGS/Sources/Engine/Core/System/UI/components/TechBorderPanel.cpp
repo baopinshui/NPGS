@@ -31,6 +31,12 @@ void TechBorderPanel::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down,
             m_hovered = true;
         }
     }
+
+
+
+    const auto& theme = UIContext::Get().m_theme;
+    m_ground_state_col= theme.color_border;
+    m_excited_state_col= theme.color_accent;
 }
 
 void TechBorderPanel::Update(float dt, const ImVec2& parent_abs_pos)
@@ -57,7 +63,6 @@ void TechBorderPanel::Update(float dt, const ImVec2& parent_abs_pos)
 void TechBorderPanel::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
-    const auto& theme = UIContext::Get().m_theme;
 
     // 1. 绘制背景
     ImVec2 p_min = m_absolute_pos;
@@ -65,7 +70,7 @@ void TechBorderPanel::Draw(ImDrawList* dl)
 
     if (m_use_glass_effect)
     {
-        DrawGlassBackground(dl, p_min, p_max, {0.0f,0.0f,0.0f,0.1f});
+        DrawGlassBackground(dl, p_min, p_max, {0.0f,0.0f,0.0f,0.3f});
     }
 
     // 2. 绘制子元素
@@ -79,14 +84,14 @@ void TechBorderPanel::Draw(ImDrawList* dl)
     ImU32 border_col;
     if (m_force_accent_color)
     {
-        border_col = GetColorWithAlpha(theme.color_accent, 1.0f);
+        border_col = GetColorWithAlpha(m_excited_state_col, 1.0f);
     }
     else
     {
         if (!m_hovered && m_rect.w < 100.0f)
-            border_col = GetColorWithAlpha(theme.color_border, 1.0f);
+            border_col = GetColorWithAlpha(m_ground_state_col, 1.0f);
         else
-            border_col = GetColorWithAlpha(theme.color_accent, 1.0f);
+            border_col = GetColorWithAlpha(m_excited_state_col, 1.0f);
     }
 
     // 4. 双层流光绘制

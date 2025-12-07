@@ -572,7 +572,8 @@ void FApplication::ExecuteMainRender()
 
     // 2. 创建唯一的 UI 根
     m_ui_root = std::make_shared<UI::UIRoot>();
-
+    auto vignette = std::make_shared<UI::ScreenVignette>();
+    //m_ui_root->AddChild(vignette);
     // 3. 创建 NeuralMenuController
     m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("设置项","你の百毒","〉 设置","关闭终端");
 

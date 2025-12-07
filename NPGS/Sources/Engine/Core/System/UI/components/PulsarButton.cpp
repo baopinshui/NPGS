@@ -463,11 +463,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
     }
 
-    // --- 7. 更新图标 ---
-// ... (后续代码不变)
 
-    // --- 7. 更新图标 ---
-// ... (后续代码不变)
 
 
 

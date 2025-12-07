@@ -1,5 +1,6 @@
 #include "TimeControlPanel.h"
 
+    #include "imgui_internal.h" // Include this header to access internal ImGui structures like ImDrawListSharedData
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN

@@ -17,5 +17,6 @@
 #include "components/CinematicInfoPanel.h"
 #include "components/TimeControlPanel.h"
 #include "components/LogPanel.h"
+#include "components/ScreenVignette.h" 
 
 #include "UITool/AstroDataBuilder.h"            

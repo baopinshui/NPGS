@@ -10,7 +10,7 @@ _SYSTEM_BEGIN
 _UI_BEGIN
 
 // [修改] 构造函数实现，接收 closetext
-CelestialInfoPanel::CelestialInfoPanel(const std::string & foldtext, const std::string & closetext)
+CelestialInfoPanel::CelestialInfoPanel(const std::string& foldtext, const std::string& closetext)
 {
     // 自身作为容器，不阻挡输入，全透明
     m_rect = { 0, 0, 0, 0 };
@@ -30,7 +30,6 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string & foldtext, const std::
     m_collapsed_btn->m_rect = { 0, 0, 24, 100 }; // 窄条设计
     m_collapsed_btn->SetUseGlass(true);
     m_collapsed_btn->on_click = [this]() { this->ToggleCollapse(); };
-
     AddChild(m_collapsed_btn);
 
     // =========================================================
@@ -42,7 +41,7 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string & foldtext, const std::
     m_main_panel->m_thickness = 2.0f;
     AddChild(m_main_panel);
 
-    // --- 主面板内部布局容器 ---
+    // --- 主面板内部布局容器 (无边距，撑满整个面板) ---
     auto root_vbox = std::make_shared<VBox>();
     root_vbox->m_rect = { 0, 0, PANEL_WIDTH, PANEL_HEIGHT };
     root_vbox->m_padding = 0.0f;
@@ -51,38 +50,16 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string & foldtext, const std::
     m_main_panel->AddChild(root_vbox);
 
     // =========================================================
-    // Image 预览区域
+    // A. Header 区域 (放入一个带边距的容器)
     // =========================================================
     {
-        m_preview_image = std::make_shared<Image>(0);
-        m_preview_image->m_fill_h = true;
-        m_preview_image->m_auto_height = true;
-        m_preview_image->m_aspect_ratio = 16.0f / 9.0f;
-        m_preview_image->m_visible = false;
-        root_vbox->AddChild(m_preview_image);
-    }
+        auto header_content_box = std::make_shared<VBox>();
+        // 设置水平边距，使其内容居中
+        header_content_box->m_rect = { 15, 15, PANEL_WIDTH - 30, 0 };
+        header_content_box->m_fill_h = false;
+        header_content_box->m_align_h = Alignment::Center;
+        header_content_box->m_padding = 4.0f;
 
-    // =========================================================
-    // 内容包裹容器
-    // =========================================================
-    auto content_wrapper_vbox = std::make_shared<VBox>();
-    content_wrapper_vbox->m_fill_v = true;
-    content_wrapper_vbox->m_block_input = false;
-    content_wrapper_vbox->m_padding = 0.0f;
-    root_vbox->AddChild(content_wrapper_vbox);
-
-    auto main_vbox = std::make_shared<VBox>();
-    main_vbox->m_rect = { 15, 15, PANEL_WIDTH - 30, 0 };
-    main_vbox->m_fill_h = false;
-    main_vbox->m_fill_v = true;
-    main_vbox->m_align_h = Alignment::Center;
-    main_vbox->m_padding = 4.0f;
-    content_wrapper_vbox->AddChild(main_vbox);
-
-    // =========================================================
-    // A. Header 区域
-    // =========================================================
-    {
         auto header_row = std::make_shared<HBox>();
         header_row->m_rect.h = 28.0f;
 
@@ -102,17 +79,44 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string & foldtext, const std::
         header_row->AddChild(m_title_text);
         header_row->AddChild(m_subtitle_text);
 
-        main_vbox->AddChild(header_row);
+        header_content_box->AddChild(header_row);
 
         auto div = std::make_shared<TechDivider>();
         div->m_color = theme.color_accent;
         div->m_rect.h = 8.0f;
-        main_vbox->AddChild(div);
+        header_content_box->AddChild(div);
+
+        // 将带边距的 Header 容器加入到根容器中
+        root_vbox->AddChild(header_content_box);
     }
 
     // =========================================================
-    // B. Tabs 区域
+    // [新位置] Image 预览区域 (直接加入 root_vbox，实现全宽)
     // =========================================================
+    {
+        m_preview_image = std::make_shared<Image>(0);
+        m_preview_image->m_fill_h = true;       // 撑满父容器宽度
+        m_preview_image->m_auto_height = true;
+        m_preview_image->m_aspect_ratio = 16.0f / 9.0f;
+        m_preview_image->m_visible = false;
+        // 直接添加到 root_vbox，它将自动获得全宽
+        root_vbox->AddChild(m_preview_image);
+    }
+
+    // =========================================================
+    // B, C, D. 主内容区域 (Tabs, ScrollView, Footer)
+    // (放入另一个带边距的容器)
+    // =========================================================
+    auto main_content_box = std::make_shared<VBox>();
+    // 设置水平边距，顶部不再需要15px的边距
+    main_content_box->m_rect = { 15, 0, PANEL_WIDTH - 30, 0 };
+    main_content_box->m_fill_h = false;
+    main_content_box->m_fill_v = true; // 此容器需要填充剩余的垂直空间
+    main_content_box->m_align_h = Alignment::Center;
+    main_content_box->m_padding = 4.0f;
+    root_vbox->AddChild(main_content_box);
+
+    // B. Tabs 区域
     {
         auto tabs_scroll_view = std::make_shared<HorizontalScrollView>();
         tabs_scroll_view->m_rect.h = 20.0f;
@@ -124,16 +128,14 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string & foldtext, const std::
         m_tabs_container->m_rect.h = 20.0f;
 
         tabs_scroll_view->AddChild(m_tabs_container);
-        main_vbox->AddChild(tabs_scroll_view);
+        main_content_box->AddChild(tabs_scroll_view);
     }
 
     auto spacer = std::make_shared<UIElement>();
     spacer->m_rect.h = 4.0f;
-    main_vbox->AddChild(spacer);
+    main_content_box->AddChild(spacer);
 
-    // =========================================================
     // C. 数据滚动区
-    // =========================================================
     auto scroll_view = std::make_shared<ScrollView>();
     scroll_view->m_fill_v = true;
 
@@ -141,77 +143,60 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string & foldtext, const std::
     m_content_vbox->m_padding = 8.0f;
 
     scroll_view->AddChild(m_content_vbox);
-    main_vbox->AddChild(scroll_view);
+    main_content_box->AddChild(scroll_view);
 
-    // =========================================================
-    // D. Footer 区域 (进度条 + 关闭按钮)
-    // =========================================================
+    // D. Footer 区域
     {
         auto footer_box = std::make_shared<VBox>();
-        // [修改] 移除固定高度，让 VBox 根据内容自动撑开，
-        // 防止新增的按钮被裁剪或溢出
-        // footer_box->m_rect.h = 50.0f; 
         footer_box->m_padding = 4.0f;
 
+        // ... [Footer 内部代码与之前完全相同，此处省略] ...
         // --- 1. 顶部分割线 ---
         auto sep = std::make_shared<TechDivider>();
         sep->m_color = theme.color_border;
         sep->m_rect.h = 8.0f;
         footer_box->AddChild(sep);
-
         // --- 2. 进度条相关 ---
         auto prog_label = std::make_shared<TechText>(">>> Star Lifter Progress");
         prog_label->SetColor(theme.color_accent);
         prog_label->m_rect.h = 16.0f;
         prog_label->m_font = UIContext::Get().m_font_small;
-
         auto progress = std::make_shared<TechProgressBar>("");
         progress->m_rect.h = 6.0f;
         progress->m_progress = 0.45f;
-
         auto prog_info = std::make_shared<HBox>();
         prog_info->m_rect.h = 14.0f;
-
         auto t1 = std::make_shared<TechText>("Main Coil");
         t1->SetColor(theme.color_text_disabled);
         t1->m_font = UIContext::Get().m_font_small;
         t1->m_rect.w = 100.0f;
-
         auto t2 = std::make_shared<TechText>("45%");
         t2->SetColor(theme.color_text);
         t2->m_font = UIContext::Get().m_font_small;
         t2->m_fill_h = true;
         t2->m_align_h = Alignment::End;
-
         prog_info->AddChild(t1);
         prog_info->AddChild(t2);
-
         footer_box->AddChild(prog_label);
         footer_box->AddChild(progress);
         footer_box->AddChild(prog_info);
-
-        // --- 3. [新增] 底部关闭按钮区域 ---
-
-
-        // 装饰分割线
+        // --- 3. 底部关闭按钮区域 ---
         auto sep_btn = std::make_shared<TechDivider>();
         sep_btn->m_color = theme.color_accent;
         sep_btn->m_color.w = 0.7;
         sep_btn->m_rect.h = 14.0f;
         sep_btn->m_visual_height = 1.0f;
         footer_box->AddChild(sep_btn);
-
-        // 关闭按钮
         auto close_btn = std::make_shared<TechButton>(closetext, TechButton::Style::Normal);
-        close_btn->m_rect.h = 32.0f; // 按钮高度
-        close_btn->m_align_h = Alignment::Stretch; // 撑满水平宽度
+        close_btn->m_rect.h = 32.0f;
+        close_btn->m_align_h = Alignment::Stretch;
         close_btn->on_click = [this]() { this->ToggleCollapse(); };
-
         footer_box->AddChild(close_btn);
         auto spacer_btn1 = std::make_shared<UIElement>();
         spacer_btn1->m_rect.h = 8.0f;
         footer_box->AddChild(spacer_btn1);
-        main_vbox->AddChild(footer_box);
+
+        main_content_box->AddChild(footer_box);
     }
 }
 

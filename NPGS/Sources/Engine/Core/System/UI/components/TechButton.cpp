@@ -107,7 +107,7 @@ void TechButton::Draw(ImDrawList* dl)
     ImVec2 p_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
     if (m_use_glass)
     {
-        DrawGlassBackground(dl, p_min, p_max);
+        DrawGlassBackground(dl, p_min, p_max, {0.0,0.0,0.0,0.3});
 
     }
     if (m_style == Style::Normal)

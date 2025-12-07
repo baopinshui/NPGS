@@ -119,9 +119,42 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
 
     ImVec2 draw_pos(draw_x, draw_y);
 
-    // 3. 荧光绘制
-// 3. 荧光绘制 (高斯模糊模拟)
-    // 3. 荧光绘制 (修改后：12点高斯近似)
+    bool is_highlight_white = (final_col_vec.x > 0.99f && final_col_vec.y > 0.99f && final_col_vec.z > 0.99f);
+    if (is_highlight_white&&!m_use_glow)
+    {
+        ImVec4 glow_base = ImVec4{0.0f,0.0f,0.0f,1.0f};
+
+        float base_alpha_val = 0.4f * 0.2f * alpha_mult;
+
+        // 扩散半径
+        float s = 0.5f;
+
+        struct GlowTap { float x, y, w; };
+        static const GlowTap kernel[12] = {
+            { 0.5f,  0.0f, 1.05f}, { -0.5f, 0.0f, 1.05f}, { 0.0f,  0.5f, 1.05f}, { 0.0f, -0.5f, 1.05f},
+
+            { 0.8f,  0.8f, 0.65f}, { 0.8f, -0.8f, 0.65f}, {-0.8f,  0.8f, 0.65f}, {-0.8f, -0.8f, 0.65f},
+
+            { 1.5f,  0.0f, 0.30f}, {-1.5f, 0.0f, 0.30f}, { 0.0f,  1.5f, 0.30f}, { 0.0f, -1.5f, 0.30f}
+        };
+
+        for (const auto& tap : kernel)
+        {
+            float step_alpha = base_alpha_val * tap.w;
+
+            if (step_alpha <= 0.005f) continue;
+
+            if (step_alpha > 1.0f) step_alpha = 1.0f;
+
+            ImU32 glow_col = GetColorWithAlpha(glow_base, step_alpha);
+
+            dl->AddText(
+                ImVec2(draw_pos.x + tap.x * s, draw_pos.y + tap.y * s),
+                glow_col,
+                text_to_draw.c_str()
+            );
+        }
+    }
     if (m_use_glow)
     {
         ImVec4 glow_base = m_glow_color.value_or(final_col_vec);
