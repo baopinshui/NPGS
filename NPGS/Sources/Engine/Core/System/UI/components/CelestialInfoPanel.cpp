@@ -38,71 +38,86 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& foldtext)
     m_main_panel->m_thickness = 2.0f;
     AddChild(m_main_panel);
 
-    // --- 主面板内部布局容器 ---
-    auto main_vbox = std::make_shared<VBox>();
-    main_vbox->m_rect = { 15, 15, PANEL_WIDTH - 30, PANEL_HEIGHT - 30 };
-    main_vbox->m_padding = 4.0f; // 整体布局紧凑
-    m_main_panel->AddChild(main_vbox);
+   // --- 主面板内部布局容器 ---
+    // [修改 1] 这个 VBox 现在作为根布局，占满整个面板，并且没有内边距
+    auto root_vbox = std::make_shared<VBox>();
+    root_vbox->m_rect = { 0, 0, PANEL_WIDTH, PANEL_HEIGHT }; // 占满
+    root_vbox->m_padding = 0.0f; // 无内边距
+    root_vbox->m_fill_h = true;  // 确保水平填充
+    root_vbox->m_fill_v = true;  // 确保垂直填充
+    m_main_panel->AddChild(root_vbox);
 
     // =========================================================
-    // A. Header 区域 (标题 + 分割线)
+    // [修改 2] Image 预览区域现在直接添加到 root_vbox，使其等宽
     // =========================================================
     {
-        auto header_row = std::make_shared<HBox>();
-        header_row->m_rect.h = 28.0f; // 固定高度
+        m_preview_image = std::make_shared<Image>(0);
+        m_preview_image->m_fill_h = true;
+        m_preview_image->m_auto_height = true;
+        m_preview_image->m_aspect_ratio = 16.0f / 9.0f;
+        m_preview_image->m_visible = false;
+        
+        // **关键**：添加到根 VBox
+        root_vbox->AddChild(m_preview_image);
+    }
+    
+    // =========================================================
+    // [修改 3] 创建一个新的 Panel 来容纳所有需要边距的内容
+    // =========================================================
+    auto content_wrapper_vbox = std::make_shared<VBox>(); // Use VBox instead of Panel
+    content_wrapper_vbox->m_fill_v = true; // This flag now works correctly
+    content_wrapper_vbox->m_block_input = false;
+    content_wrapper_vbox->m_padding = 0.0f; // A VBox doesn't need a bg_color, just padding
+    root_vbox->AddChild(content_wrapper_vbox);
 
-        // 1. 主标题 (左对齐，大号，高亮)
+    // =========================================================
+    // [修改 4] remains mostly the same, but adds to the new content_wrapper_vbox
+    // =========================================================
+    auto main_vbox = std::make_shared<VBox>();
+    // This VBox provides the margins for the content
+    main_vbox->m_rect = { 15, 15, PANEL_WIDTH - 30, 0 };
+    main_vbox->m_fill_h = false;
+    main_vbox->m_fill_v = true;
+
+    main_vbox->m_align_h = Alignment::Center;
+    main_vbox->m_padding = 4.0f;
+    content_wrapper_vbox->AddChild(main_vbox); // Add to the new VBox wrapper
+
+    // =========================================================
+    // A. Header 区域 (代码不变, 父级是新的 main_vbox)
+    // =========================================================
+    {
+        // ... (Header, Title, Subtitle, and Divider code remains exactly the same) ...
+        // All of these are added to `main_vbox` as before.
+        auto header_row = std::make_shared<HBox>();
+        header_row->m_rect.h = 28.0f;
+
         m_title_text = std::make_shared<TechText>("No Target");
         m_title_text->m_font = UIContext::Get().m_font_bold;
         m_title_text->SetColor(theme.color_accent);
-        m_title_text->m_align_v = Alignment::End; // 底部对齐
-        m_title_text->m_rect.w = 120.0f;          // 预留宽度
-
-        // 2. 副标题 (右对齐，小号，灰色)
+        m_title_text->m_align_v = Alignment::End;
+        m_title_text->m_rect.w = 120.0f;
 
         m_subtitle_text = std::make_shared<TechText>("");
         m_subtitle_text->SetColor(theme.color_text_disabled);
         m_subtitle_text->m_font = UIContext::Get().m_font_regular;
-        m_subtitle_text->m_align_v = Alignment::End; // 底部对齐
-        m_subtitle_text->m_align_h = Alignment::End; // 靠右
-        m_subtitle_text->m_fill_h = true;            // 填满剩余空间
+        m_subtitle_text->m_align_v = Alignment::End;
+        m_subtitle_text->m_align_h = Alignment::End;
+        m_subtitle_text->m_fill_h = true;
 
         header_row->AddChild(m_title_text);
         header_row->AddChild(m_subtitle_text);
 
-        // [修复] 必须添加到主布局中
         main_vbox->AddChild(header_row);
 
-        // 3. Header 下方的分割线
         auto div = std::make_shared<TechDivider>();
         div->m_color = theme.color_accent;
-        div->m_rect.h = 8.0f; // 分割线占位高度
+        div->m_rect.h = 8.0f;
         main_vbox->AddChild(div);
     }
-    // =========================================================
-    // [新增] Image 预览区域
-    // =========================================================
-    {
-        // 创建 Image 组件，初始纹理为 0
-        m_preview_image = std::make_shared<Image>(0);
-
-        // [关键设置]
-        m_preview_image->m_fill_h = true;      // 让 VBox 把它的宽度拉伸到填满容器
-        m_preview_image->m_auto_height = true; // 告诉 Image 根据拉伸后的宽度自动算高度
-
-        // 默认先给个比例，防止除以0 (例如 16:9)
-        m_preview_image->m_aspect_ratio = 16.0f / 9.0f;
-
-        // 初始隐藏
-        m_preview_image->m_visible = false;
-
-        main_vbox->AddChild(m_preview_image);
-
-        // 加一点间距
-        auto spacer = std::make_shared<UIElement>();
-        spacer->m_rect.h = 8.0f;
-        main_vbox->AddChild(spacer);
-    }
+    
+    // [注意] 删除原来在这里的 Image 创建代码块
+    
 
     // =========================================================
     // B. Tabs 区域 (实心/透明切换风格)

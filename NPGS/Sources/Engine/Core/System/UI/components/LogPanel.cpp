@@ -122,6 +122,7 @@ LogPanel::LogPanel(const std::string& sysstr, const std::string& savestr )
     m_system_text->m_rect.h = 14.0f;
 
     m_autosave_text = std::make_shared<TechText>(savestr, theme.color_text_disabled, true);
+    m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
     m_autosave_text->m_font = ctx.m_font_regular;
     m_autosave_text->m_rect.h = 14.0f;
 

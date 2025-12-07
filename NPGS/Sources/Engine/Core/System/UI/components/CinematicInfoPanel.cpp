@@ -32,7 +32,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     // Title (Shared configuration)
     // Top: "TRANSCENDENT...", Bottom: "BH - ..."
     m_title_text = std::make_shared<TechText>("", theme.color_text_highlight, true,true, theme.color_accent);
-    m_title_text->m_glow_intensity = 0.3;
+    m_title_text->m_glow_intensity = 0.5;
     m_title_text->m_glow_spread = 2.5;
     m_title_text->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold; // Ensure large title
     m_title_text->m_align_h = Alignment::Center;

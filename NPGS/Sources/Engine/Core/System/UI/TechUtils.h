@@ -174,7 +174,6 @@ public:
         DrawCorner(dl, ImVec2(x2 - half_t, y2 - half_t), -corner_len, -corner_len, thickness, col);
     }
 
-    // 辅助：绘制渐变线段 (修复了对齐逻辑)
     static void DrawGradientLineSegment(ImDrawList* dl, ImVec2 p1, ImVec2 p2, float thickness, ImU32 col_start, ImU32 col_end)
     {
         float half_t = thickness * 0.5f;
@@ -219,10 +218,6 @@ public:
         }
     }
 
-    // [修复版] 绘制流光边框
-    // 逻辑修正：
-    // 1. p_min/p_max 修正为线条的"中心路径"坐标，确保角落完美重合
-    // 2. 移除 Side 1 和 Side 3 的 clamp 裁剪，消除角落断层
     static void DrawGradientFlow(ImDrawList* dl, ImVec2 base_p_min, ImVec2 base_p_max, float offset, float thickness, ImU32 col, float progress, float total_len_ratio, bool is_gradient, bool is_ccw, int segment_count = 1, float randomness = 0.0f)
     {
         if (segment_count < 1) segment_count = 1;

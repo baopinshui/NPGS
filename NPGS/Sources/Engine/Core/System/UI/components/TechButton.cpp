@@ -31,7 +31,7 @@ void TechButton::SetLabel(const std::string& text, bool with_effect)
         // 如果调用者希望有特效，强制开启组件的特效开关
         if (with_effect)
         {
-            m_label_component->m_use_effect = true;
+            m_label_component->SetAnimMode(TechTextAnimMode::Hacker);
         }
 
         // 设置新文本

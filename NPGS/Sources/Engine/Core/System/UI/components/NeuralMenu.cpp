@@ -49,7 +49,7 @@ NeuralMenu::NeuralMenu(const std::string& mainbuttonstr1, const std::string& mai
 
     // A. Header Title
     header_title = std::make_shared<TechText>(settingstr, std::nullopt, true);
-    header_title->m_use_effect = true;
+    header_title->SetAnimMode(TechTextAnimMode::Hacker);
     header_title->m_rect.h = 20.0f;
     header_title->m_align_h = Alignment::Start;
     header_title->m_font = UIContext::Get().m_font_bold;

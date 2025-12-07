@@ -31,10 +31,14 @@ struct UITheme
     ImVec4 color_button_hover = { 0.3f, 0.3f, 0.3f, 1.0f };
     ImVec4 color_button_active = { 0.4f, 0.4f, 0.4f, 1.0f };
     ImVec4 color_border = { 0.5f, 0.5f, 0.5f, 1.0f };
-    //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的主题色
-    //ImVec4 color_accent = ImVec4(0.845f, 0.845f, 0.561f, 1.0f); // #米黄色
-    //ImVec4 color_accent = ImVec4(1.0f,0.25f,0.0f, 1.0f); 
-    //ImVec4 color_accent = ImVec4(0.98f,0.14f,0.24f, 1.0f); 
+    //NPGS-k0.73-001
+    //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的提案    蓝
+    //ImVec4 color_accent = ImVec4(0.845f, 0.845f, 0.561f, 1.0f);                       // baopinsui的提案1 米黄
+    //ImVec4 color_accent = ImVec4(0.0f,1.0f,1.0f, 1.0f);                               // baopinsui的提案2 青
+    //ImVec4 color_accent = ImVec4(1.0f,0.25f,0.0f, 1.0f);                              // dagger的提案1  亮红
+    //ImVec4 color_accent = ImVec4(0.98f,0.14f,0.24f, 1.0f);                            //dagger的提案2   还是亮红
+    //ImVec4 color_accent = ImVec4(0.0f,1.0f,0.0f, 1.0f);                               //edlsdpsy的提案  绿
+
     ImVec4 color_accent = ImVec4(0.0f, 1.0f,1.0f, 1.0f);
 };
 
