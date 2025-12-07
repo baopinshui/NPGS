@@ -36,11 +36,12 @@ using CelestialData = std::vector<InfoPage>;
 class CelestialInfoPanel : public UIElement
 {
 public:
-    CelestialInfoPanel(const std::string& foldtext="INFO");
+    // [修改] 构造函数增加 closetext 参数
+    CelestialInfoPanel(const std::string& foldtext = "INFO", const std::string& closetext = "CLOSE PANEL");
 
     void SetData(const CelestialData& data);
 
-    void SetObjectImage(ImTextureID texture_id, float img_w = 0.0f, float img_h = 0.0f, ImVec4 Col= {1.0f,1.0f,1.0f,1.0f});
+    void SetObjectImage(ImTextureID texture_id, float img_w = 0.0f, float img_h = 0.0f, ImVec4 Col = { 1.0f,1.0f,1.0f,1.0f });
 
     void SetTitle(const std::string& title, const std::string& subtitle = "");
     void Update(float dt, const ImVec2& parent_abs_pos) override;
@@ -55,31 +56,25 @@ private:
     void SelectTab(int index);   // 切换 Tab
     void RefreshContent();       // 根据当前 Tab 刷新列表
 
-
-
-    std::shared_ptr<TechText> m_title_text; // 新增：保存标题组件指针
-    std::shared_ptr<TechText> m_subtitle_text; // 新增：保存副标题组件指针
-
+    std::shared_ptr<TechText> m_title_text; // 保存标题组件指针
+    std::shared_ptr<TechText> m_subtitle_text; // 保存副标题组件指针
 
     std::shared_ptr<Image> m_preview_image;
 
     // 子组件引用 (用于在Update中操作它们)
     std::shared_ptr<TechBorderPanel> m_main_panel;
     std::shared_ptr<TechButton> m_collapsed_btn;
-    // [新增] 保存容器指针以便动态修改
+    // 保存容器指针以便动态修改
     std::shared_ptr<HBox> m_tabs_container;    // 存放 Tab 按钮
     std::shared_ptr<VBox> m_content_vbox;      // 存放滚动内容
-
 
     // 数据状态
     CelestialData m_current_data;
     int m_current_tab_index = 0;
 
     // 状态
-    bool m_is_collapsed = false;
-    float m_anim_progress = 0.0f; // 0.0 (展开) -> 1.0 (收起)
-
-
+    bool m_is_collapsed = true;   // [修改] 默认为收起状态
+    float m_anim_progress = 1.0f; // [修改] 1.0 表示完全收起 (初始状态)
 };
 
 _UI_END
