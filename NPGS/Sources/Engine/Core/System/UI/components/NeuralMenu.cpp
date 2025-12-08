@@ -58,7 +58,6 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // B. Top Divider
     auto sep_top = std::make_shared<TechDivider>();
-    sep_top->m_color = theme.color_accent;
     main_layout->AddChild(sep_top);
 
     // C. Scroll Area
@@ -72,7 +71,6 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // D. Bottom Divider
     auto sep_bot = std::make_shared<TechDivider>();
-    sep_bot->m_color = theme.color_accent;
     main_layout->AddChild(sep_bot);
 
     // E. Footer Button

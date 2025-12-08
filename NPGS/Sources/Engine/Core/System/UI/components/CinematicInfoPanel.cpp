@@ -31,7 +31,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
 
     // Title (Shared configuration)
     // Top: "TRANSCENDENT...", Bottom: "BH - ..."
-    m_title_text = std::make_shared<TechText>("", theme.color_text_highlight, true,true, theme.color_accent);
+    m_title_text = std::make_shared<TechText>("", theme.color_text_highlight, true,true);
     m_title_text->m_glow_intensity = 0.5;
     m_title_text->m_glow_spread = 2.5;
     m_title_text->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold; // Ensure large title
@@ -49,11 +49,10 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     
     if (m_position == Position::Top)
     {
-        m_divider->m_color = theme.color_accent;
 
         m_divider->m_use_gradient = true;
     }
-    else m_divider->m_color = theme.color_text_disabled;
+    else m_divider->m_color_override = theme.color_text_disabled;
 
     // --- Layout Construction ---
 
@@ -69,18 +68,19 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_top_stats_box->m_block_input = false;
         m_top_stats_box->m_rect.h = 0.0f;
 
-        auto create_top_stat = [&](std::shared_ptr<TechText>& ptr, const ImVec4& color)
+        auto create_top_stat = [&](std::shared_ptr<TechText>& ptr, const ImVec4& color,bool use_default)
         {
             ptr = std::make_shared<TechText>("", color, true);
+            if (use_default) ptr->m_color_override = std::nullopt;
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_top_stats_box->AddChild(ptr);
         };
 
         // Colors from theme: 1 & 2 are standard text, 3 (Reward) is accent
-        create_top_stat(m_top_stat_1, theme.color_text);
-        create_top_stat(m_top_stat_2, theme.color_text);
-        create_top_stat(m_top_stat_3, theme.color_accent);
+        create_top_stat(m_top_stat_1, theme.color_text,0);
+        create_top_stat(m_top_stat_2, theme.color_text,0);
+        create_top_stat(m_top_stat_3, theme.color_accent,1);
 
         m_layout_vbox->AddChild(m_title_text);
         m_layout_vbox->AddChild(m_top_stats_box);

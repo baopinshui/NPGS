@@ -104,8 +104,9 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey )
     AddChild(m_list_box);
 
     m_divider = std::make_shared<TechDivider>();
-    m_divider->m_color = theme.color_text_disabled;
-    m_divider->m_color.w = 0.5f;
+    ImVec4 div_col = theme.color_text_disabled;
+    div_col.w = 0.5f;
+    m_divider->m_color_override = div_col;
     m_divider->m_rect.h = 2.0f;
     AddChild(m_divider);
 

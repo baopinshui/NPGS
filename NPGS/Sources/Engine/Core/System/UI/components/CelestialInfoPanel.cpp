@@ -65,7 +65,6 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
 
         m_title_text = std::make_shared<TechText>("No Target");
         m_title_text->m_font = UIContext::Get().m_font_bold;
-        m_title_text->SetColor(theme.color_accent);
         m_title_text->m_align_v = Alignment::End;
         m_title_text->m_rect.w = 120.0f;
 
@@ -82,7 +81,6 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         header_content_box->AddChild(header_row);
 
         auto div = std::make_shared<TechDivider>();
-        div->m_color = theme.color_accent;
         div->m_rect.h = 8.0f;
         header_content_box->AddChild(div);
 
@@ -153,12 +151,10 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         // ... [Footer 内部代码与之前完全相同，此处省略] ...
         // --- 1. 顶部分割线 ---
         auto sep = std::make_shared<TechDivider>();
-        sep->m_color = theme.color_border;
         sep->m_rect.h = 8.0f;
         footer_box->AddChild(sep);
         // --- 2. 进度条相关 ---
         auto prog_label = std::make_shared<TechText>(">>> Star Lifter Progress");
-        prog_label->SetColor(theme.color_accent);
         prog_label->m_rect.h = 16.0f;
         prog_label->m_font = UIContext::Get().m_font_small;
         auto progress = std::make_shared<TechProgressBar>("");
@@ -182,8 +178,6 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         footer_box->AddChild(prog_info);
         // --- 3. 底部关闭按钮区域 ---
         auto sep_btn = std::make_shared<TechDivider>();
-        sep_btn->m_color = theme.color_accent;
-        sep_btn->m_color.w = 0.7;
         sep_btn->m_rect.h = 14.0f;
         sep_btn->m_visual_height = 1.0f;
         footer_box->AddChild(sep_btn);
@@ -347,7 +341,7 @@ void CelestialInfoPanel::RefreshContent()
     if (m_current_tab_index < 0 || m_current_tab_index >= m_current_data.size()) return;
 
     const auto& current_page = m_current_data[m_current_tab_index];
-    const auto& theme = UIContext::Get().m_theme;
+    auto& theme = UIContext::Get().m_theme;
 
     ImFont* target_font = UIContext::Get().m_font_regular;
     if (!target_font) target_font = ImGui::GetFont();
@@ -370,7 +364,6 @@ void CelestialInfoPanel::RefreshContent()
 
         auto line = std::make_shared<Panel>();
         line->m_rect.w = 2.0f;
-        line->m_bg_color = col_line;
         line->m_align_v = Alignment::Start;
         line->m_rect.h = total_group_height;
         group_hbox->AddChild(line);
@@ -397,7 +390,7 @@ void CelestialInfoPanel::RefreshContent()
             v->m_fill_h = true;
             v->m_font = target_font;
 
-            if (item.highlight) v->SetColor(col_highlight);
+            if (item.highlight) v->m_color_override=std::nullopt;
 
             row->AddChild(k);
             row->AddChild(v);

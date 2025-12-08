@@ -158,7 +158,7 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
 
     // 1. 颜色计算
     const auto& theme = UIContext::Get().m_theme;
-    ImVec4 final_col_vec = m_color_override.value_or(theme.color_text);
+    ImVec4 final_col_vec = m_color_override.value_or(theme.color_accent);
 
     // 2. 布局计算
     ImVec2 text_size = ImGui::CalcTextSize(text_to_draw.c_str());
@@ -211,7 +211,7 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
     }
     if (m_use_glow)
     {
-        ImVec4 glow_base = m_glow_color.value_or(final_col_vec);
+        ImVec4 glow_base = m_glow_color.value_or(theme.color_accent);
 
         // 基础 Alpha：保持原来的 0.4 系数，作为基准强度
         float base_alpha_val = 0.4f * m_glow_intensity * alpha_mult;

@@ -32,11 +32,6 @@ void TechBorderPanel::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down,
         }
     }
 
-
-
-    const auto& theme = UIContext::Get().m_theme;
-    m_ground_state_col= theme.color_border;
-    m_excited_state_col= theme.color_accent;
 }
 
 void TechBorderPanel::Update(float dt, const ImVec2& parent_abs_pos)
@@ -81,17 +76,18 @@ void TechBorderPanel::Draw(ImDrawList* dl)
     dl->PopClipRect();
 
     // 3. 颜色逻辑
+    const auto& theme = UIContext::Get().m_theme; // [新增] 实时获取主题
     ImU32 border_col;
     if (m_force_accent_color)
     {
-        border_col = GetColorWithAlpha(m_excited_state_col, 1.0f);
+        border_col = GetColorWithAlpha(theme.color_accent, 1.0f); // [修改]
     }
     else
     {
         if (!m_hovered && m_rect.w < 100.0f)
-            border_col = GetColorWithAlpha(m_ground_state_col, 1.0f);
+            border_col = GetColorWithAlpha(theme.color_border, 1.0f); // [修改]
         else
-            border_col = GetColorWithAlpha(m_excited_state_col, 1.0f);
+            border_col = GetColorWithAlpha(theme.color_accent, 1.0f); // [修改]
     }
 
     // 4. 双层流光绘制

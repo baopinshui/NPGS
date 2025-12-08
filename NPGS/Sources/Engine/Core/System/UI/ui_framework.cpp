@@ -270,7 +270,7 @@ void Panel::Draw(ImDrawList* draw_list)
         );
 
     }
-    ImVec4 bg = m_bg_color.value_or(UIContext::Get().m_theme.color_panel_bg);
+    ImVec4 bg = m_bg_color.value_or(UIContext::Get().m_theme.color_accent);
 
     draw_list->AddRectFilled(
         m_absolute_pos,

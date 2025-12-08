@@ -38,7 +38,6 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
     manage_text->m_align_h = Alignment::Center;
     manage_text->m_font = ctx.m_font_small;
     manage_text->m_rect.h = 16.0f;
-    manage_text->SetColor(theme.color_accent); // 修正颜色
     manage_text->m_block_input = false; // 点击穿透
 
     // 3. "NETWORK" 文本
@@ -47,7 +46,6 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
 
     network_text->m_font = ctx.m_font_small;
     network_text->m_rect.h = 16.0f;
-    network_text->SetColor(theme.color_accent); // 修正颜色
     network_text->m_block_input = false; // 点击穿透
 
     vbox->AddChild(m_symbol);
