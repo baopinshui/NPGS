@@ -33,6 +33,16 @@ InputField::InputField(std::string* target) : m_target_string(target)
 
 void InputField::Update(float dt, const ImVec2& parent_abs_pos)
 {
+    bool current_focused = IsFocused();
+    if (m_last_frame_focused && !current_focused)
+    {
+        // 刚才有焦点，现在没了 -> 触发提交
+        if (on_commit && m_target_string)
+        {
+            on_commit(*m_target_string);
+        }
+    }
+    m_last_frame_focused = current_focused;
     UIElement::Update(dt, parent_abs_pos);
     if (IsFocused())
     {

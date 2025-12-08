@@ -35,7 +35,7 @@ private:
 class LogPanel : public UIElement
 {
 public:
-    LogPanel(const std::string& sys_key = "> System Scan Complete.", const std::string& save_key = "> Auto-Save: T+114514.01.01");
+    LogPanel(const std::string& sys_key = "ui.log.system_scan", const std::string& save_key ="ui.log.autosave");
 
     void AddLog(LogType type, const std::string& title, const std::string& message);
     void SetSystemStatus(const std::string& text);
@@ -51,7 +51,7 @@ private:
 
     std::shared_ptr<TechText> m_system_text;
     std::shared_ptr<TechText> m_autosave_text;
-    const size_t MAX_LOG_COUNT = 6;
+    const size_t MAX_LOG_COUNT = 4;
     // 列表可视区域固定高度
     const float LIST_AREA_HEIGHT = MAX_LOG_COUNT * LogCard::CARD_HEIGHT;
 

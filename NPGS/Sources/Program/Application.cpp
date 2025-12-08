@@ -34,10 +34,6 @@ void FApplication::OnLanguageChanged() // [新增]
 
     // 2. 刷新动态数据面板
     SimulateStarSelectionAndUpdateUI();
-
-    // 3. 刷新其他需要翻译的动态文本
-    m_log_panel->SetSystemStatus(Npgs::System::TR("ui.log.system_scan"));
-    // 注意：Autosave 时间戳是动态的，但前缀是静态的
     m_log_panel->SetAutoSaveTime(Npgs::System::TR("ui.log.autosave") + FormatTime(GameTime));
 }
 std::string FApplication::FormatTime(double total_seconds)
@@ -594,7 +590,7 @@ void FApplication::ExecuteMainRender()
     // 5. 创建 PulsarButtons
     // Button 1: Dyson Beam
     m_beam_button = std::make_shared<UI::PulsarButton>(
-        "ui.status.can_liftoff",    // status_key
+        "ui.status.target_locked",    // status_key
         "ui.action.fire_beam",      // label_key
         "☼",                        // icon_char (非文本，不翻译)
         "ui.label.energy",          // stat_label_key
@@ -605,7 +601,7 @@ void FApplication::ExecuteMainRender()
     );
 
     m_rkkv_button = std::make_shared<UI::PulsarButton>(
-        "ui.status.ready_to_launch",// status_key
+        "ui.status.target_locked",// status_key
         "ui.action.launch_rkkv",    // label_key
         RKKVID,
         "ui.label.mass",            // stat_label_key
@@ -616,7 +612,7 @@ void FApplication::ExecuteMainRender()
     );
 
 	m_VN_button = std::make_shared<UI::PulsarButton>(
-		"ui.status.ready_to_launch",    // status_key
+		"ui.status.target_locked",    // status_key
 		"ui.action.launch_vn",          // label_key
 		"⌘",                            // icon_char
         "ui.label.mass",                // stat_label_key
@@ -627,7 +623,7 @@ void FApplication::ExecuteMainRender()
 	);
 
 	m_message_button = std::make_shared<UI::PulsarButton>(
-        "ui.status.ready_to_send",      // status_key
+        "ui.status.target_locked",      // status_key
 		"ui.action.send_message",       // label_key
 		"i",                            // icon_char
 		"ui.label.weight_time",         // stat_label_key
@@ -687,18 +683,18 @@ void FApplication::ExecuteMainRender()
         if (want_expand)
         {
             m_rkkv_button->SetActive(true);
-            m_beam_button->SetActive(false);  // 打开自己
+            m_beam_button->SetActive(false);  
             m_VN_button->SetActive(false);
             m_message_button->SetActive(false);
 
             // 假设 RKKV 总是可以发射
-            m_rkkv_button->SetI18nKey("ui.status.ready_to_launch");
-            m_rkkv_button->SetExecutable(true); // <--- 设置为可执行
+            m_rkkv_button->SetI18nKey("ui.status.target_locked");
+            m_rkkv_button->SetExecutable(true); 
         }
         else
         {
             m_rkkv_button->SetActive(false);
-            m_rkkv_button->SetExecutable(false); // <--- 关闭时重置
+            m_rkkv_button->SetExecutable(false); 
         }
     };
 
@@ -719,14 +715,13 @@ void FApplication::ExecuteMainRender()
 			m_beam_button->SetActive(false); 
 			m_rkkv_button->SetActive(false);
 			m_message_button->SetActive(false);
-			// 假设 VN 总是可以发射
-			m_VN_button->SetI18nKey("ui.status.ready_to_launch");
-			m_VN_button->SetExecutable(true); // <--- 设置为可执行
+			m_VN_button->SetI18nKey("ui.status.target_locked");
+			m_VN_button->SetExecutable(true); 
 		}
 		else
 		{
 			m_VN_button->SetActive(false);
-			m_VN_button->SetExecutable(false); // <--- 关闭时重置
+			m_VN_button->SetExecutable(false); 
 		}
 	};
     m_VN_button->on_execute_callback = [this](const std::string& id, const std::string& val)
@@ -743,9 +738,8 @@ void FApplication::ExecuteMainRender()
 			m_beam_button->SetActive(false);
 			m_rkkv_button->SetActive(false);
             m_VN_button->SetActive(false);
-            // 假设 VN 总是可以发射
-            m_message_button->SetI18nKey("ui.status.ready_to_send");
-            m_message_button->SetExecutable(true); // <--- 设置为可执行
+            m_message_button->SetI18nKey("ui.status.target_locked");
+            m_message_button->SetExecutable(true); 
         }
         else
         {
@@ -755,7 +749,14 @@ void FApplication::ExecuteMainRender()
     };
     m_message_button->on_execute_callback = [this](const std::string& id, const std::string& val)
     {
-
+        if (System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::English)
+        {
+            System::I18nManager::Get().SetLanguage(System::I18nManager::Language::Chinese);
+        }
+        else if (System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::Chinese)
+        {
+            System::I18nManager::Get().SetLanguage(System::I18nManager::Language::English);
+        }
         NpgsCoreInfo("传输意识至目标，用时: {}", val);
     };
 
@@ -806,18 +807,7 @@ void FApplication::ExecuteMainRender()
         glfwPollEvents();
         // 开始 UI 帧
         _uiRenderer->BeginFrame();
-        if (ImGui::Begin("I18n Debug"))
-        {
-            if (ImGui::RadioButton("English", System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::English))
-            {
-                System::I18nManager::Get().SetLanguage(System::I18nManager::Language::English);
-            }
-            if (ImGui::RadioButton("Chinese", System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::Chinese))
-            {
-                System::I18nManager::Get().SetLanguage(System::I18nManager::Language::Chinese);
-            }
-        }
-        ImGui::End();
+
         auto& ui_ctx = Npgs::System::UI::UIContext::Get();
         ui_ctx.m_display_size = ImVec2((float)_WindowSize.width, (float)_WindowSize.height);
 

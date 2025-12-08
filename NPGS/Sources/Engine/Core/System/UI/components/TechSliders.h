@@ -78,14 +78,15 @@ public:
         AddChild(m_value_input);
 
         // [核心修正] Lambda 现在调用虚函数，而不是进行类型检查
-        m_value_input->on_change = [this](const std::string& input)
+        m_value_input->on_commit = [this](const std::string& input)
         {
             double parsed_value;
             if (TryParseScientific(input, parsed_value))
             {
-                // 调用虚函数，让正确的子类实现来处理赋值逻辑
+                // 调用虚函数更新数值
                 this->SetValueFromParsedInput(parsed_value);
             }
+            // 如果解析失败（格式不对），什么都不做，下次刷新会变回旧数值
         };
     }
 
@@ -108,14 +109,19 @@ public:
                 if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true; else m_is_rgb = false;
             }
         }
-
+        UIElement::Update(dt, parent_abs_pos);
         if (m_value_input)
         {
             ImFont* font = GetFont();
+
+            // [修改] 只有当输入框 **没有焦点** 时，才从底层数据同步显示文本
+            // 这样当用户正在打字（有焦点）时，我们不会用底层数据覆盖用户正在输入的内容
             if (!m_value_input->IsFocused())
             {
                 char buf[64];
                 snprintf(buf, 64, "%.2e", (double)*m_target_value);
+
+                // 只有当显示的文本和目标值不一致时才更新，避免每帧都在改 string
                 if (m_value_string_buffer != buf)
                 {
                     m_value_string_buffer = buf;
@@ -131,7 +137,6 @@ public:
             m_value_input->m_font = font;
         }
 
-        UIElement::Update(dt, parent_abs_pos);
     }
 
     virtual float GetNormalizedVisualPos() const = 0;

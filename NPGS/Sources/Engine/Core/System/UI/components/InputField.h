@@ -21,7 +21,7 @@ public:
 
     std::string* m_target_string = nullptr;
     OnChangeCallback on_change;
-
+    OnChangeCallback on_commit;
     // 视觉
     std::optional<ImVec4> m_bg_color;
     ImVec4 m_text_color;
@@ -40,6 +40,7 @@ public:
     float m_anim_tail = 0.0f; // 点 B (后端，负责擦除)
     int m_activation_count = 0; // 记录触发了多少次“显示”，用于计算目标相位
     bool m_last_show_state = false; // 上一帧是否应该显示
+    bool m_last_frame_focused = false;
 
     InputField(std::string* target);
     void Update(float dt, const ImVec2& parent_abs_pos) override;

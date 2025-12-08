@@ -82,14 +82,13 @@ void I18nManager::LoadDictionary()
         m_dictionary["ui.status.ready_to_send"] = "READY TO SEND";
         m_dictionary["ui.status.target_locked"] = "TARGET LOCKED123456";
         m_dictionary["ui.status.no_target"] = "NO TARGET";
-        m_dictionary["ui.status.can_liftoff"] = "CAN LIFTOFF";
         m_dictionary["ui.action.fire_beam"] = "FIRE DYSON BEAM";
         m_dictionary["ui.action.launch_rkkv"] = "LAUNCH RKKV";
         m_dictionary["ui.action.launch_vn"] = "SEND VON NEUMANN PROBE";
         m_dictionary["ui.action.send_message"] = "SEND MESSAGE";
         m_dictionary["ui.label.energy"] = "ENERGY";
         m_dictionary["ui.label.mass"] = "MASS";
-        m_dictionary["ui.label.weight_time"] = "WEIGHT, TIME";
+        m_dictionary["ui.label.weight_time"] = "TIME COST";
         m_dictionary["ui.unit.joules"] = "J";
         m_dictionary["ui.unit.kg"] = "kg";
         m_dictionary["ui.unit.years"] = "yr";
@@ -255,14 +254,13 @@ void I18nManager::LoadDictionary()
         m_dictionary["ui.status.ready_to_send"] = "准备发送";
         m_dictionary["ui.status.target_locked"] = "目标已锁定";
         m_dictionary["ui.status.no_target"] = "无目标";
-        m_dictionary["ui.status.can_liftoff"] = "可以起飞";
         m_dictionary["ui.action.fire_beam"] = "发射戴森光束";
         m_dictionary["ui.action.launch_rkkv"] = "发射RKKV";
         m_dictionary["ui.action.launch_vn"] = "发送冯诺依曼探测器";
         m_dictionary["ui.action.send_message"] = "发送信息";
         m_dictionary["ui.label.energy"] = "能量";
         m_dictionary["ui.label.mass"] = "质量";
-        m_dictionary["ui.label.weight_time"] = "权重, 用时";
+        m_dictionary["ui.label.weight_time"] = "用时";
         m_dictionary["ui.unit.joules"] = "焦耳";
         m_dictionary["ui.unit.kg"] = "千克";
         m_dictionary["ui.unit.years"] = "年";
@@ -276,7 +274,7 @@ void I18nManager::LoadDictionary()
         m_dictionary["log.event.beam_fired_desc"] = "发射能量：{} 焦耳。";
 
         // --- Cinematic Info Panel ---
-        m_dictionary["cinematic.title.singularity"] = "超凡环状奇点";
+        m_dictionary["cinematic.title.singularity"] = "你家超绝环状奇点";
         m_dictionary["cinematic.stat.mass_dominated"] = "已支配质量: {}";
         m_dictionary["cinematic.stat.star_systems"] = "恒星系统: {}";
         m_dictionary["cinematic.stat.reward"] = "奖励: {}";
