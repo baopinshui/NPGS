@@ -920,7 +920,7 @@ void FApplication::ExecuteMainRender()
 
             bool has_target = (int(0.33*RealityTime) % 2 == 1); // 随机模拟
 
-
+            ctx.m_theme.color_accent = ImVec4{float(0.5+0.5*std::sin(RealityTime)),0.0,0.0,1.0};
             if (has_target)
             {
                 m_beam_button->SetI18nKey("ui.status.target_locked");

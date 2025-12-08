@@ -74,7 +74,6 @@ public:
         m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;
         const auto& theme = UIContext::Get().m_theme;
         m_value_input->m_text_color = theme.color_text;
-        m_value_input->m_border_color = theme.color_accent;
         AddChild(m_value_input);
 
         // [核心修正] Lambda 现在调用虚函数，而不是进行类型检查
@@ -126,6 +125,7 @@ public:
                 {
                     m_value_string_buffer = buf;
                     m_value_input->m_cursor_pos = m_value_string_buffer.length();
+                    m_value_input->ResetSelection();
                 }
             }
             float h_up = m_rect.h;
