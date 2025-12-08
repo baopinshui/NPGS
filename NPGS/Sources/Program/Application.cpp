@@ -720,7 +720,7 @@ void FApplication::ExecuteMainRender()
 			m_rkkv_button->SetActive(false);
 			m_message_button->SetActive(false);
 			// 假设 VN 总是可以发射
-			m_VN_button->SetStatusText("ui.status.ready_to_launch");
+			m_VN_button->SetI18nKey("ui.status.ready_to_launch");
 			m_VN_button->SetExecutable(true); // <--- 设置为可执行
 		}
 		else
@@ -744,7 +744,7 @@ void FApplication::ExecuteMainRender()
 			m_rkkv_button->SetActive(false);
             m_VN_button->SetActive(false);
             // 假设 VN 总是可以发射
-            m_message_button->SetStatusText("ui.status.ready_to_send");
+            m_message_button->SetI18nKey("ui.status.ready_to_send");
             m_message_button->SetExecutable(true); // <--- 设置为可执行
         }
         else

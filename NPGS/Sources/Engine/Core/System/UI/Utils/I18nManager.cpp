@@ -32,6 +32,7 @@ std::string I18nManager::Get(const std::string& key) const
         return it->second;
     }
     // 找不到时返回Key本身，便于调试发现缺失的翻译
+    if (key == "") return "";
     return "!" + key + "!";
 }
 
@@ -43,6 +44,7 @@ std::string I18nManager::Get(const char* key) const
     {
         return it->second;
     }
+    if (key == "") return "";
     return "!" + std::string(key) + "!";
 }
 
