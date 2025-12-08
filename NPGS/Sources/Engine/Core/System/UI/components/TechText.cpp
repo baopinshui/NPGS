@@ -6,20 +6,34 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-TechText::TechText(const std::string& text,
+TechText::TechText(const std::string& text_or_key,
     const std::optional<ImVec4>& color,
     bool use_hacker_effect,
     bool use_glow,
     const std::optional<ImVec4>& glow_color)
-    : m_text(text)
-    , m_color_override(color)
-    , m_use_glow(use_glow)
-    , m_glow_color(glow_color)
+    : m_text(""), // 初始为空
+    m_color_override(color),
+    m_use_glow(use_glow),
+    m_glow_color(glow_color)
 {
     m_block_input = false;
     m_rect.h = 20.0f;
 
-    // 初始化模式
+    // [修改] 构造时设置Key
+    if (text_or_key.rfind("ui.", 0) == 0 ||
+        text_or_key.rfind("astro.", 0) == 0 ||
+        text_or_key.rfind("log.", 0) == 0 ||
+        text_or_key.rfind("enum.", 0) == 0)
+    {
+        // 判定为Key
+        SetI18nKey(text_or_key);
+    }
+    else
+    {
+        // 判定为原始文本
+        SetText(text_or_key);
+    }
+
     if (use_hacker_effect)
     {
         m_anim_mode = TechTextAnimMode::Hacker;
@@ -30,7 +44,13 @@ TechText::TechText(const std::string& text,
         m_anim_mode = TechTextAnimMode::None;
     }
 }
+void TechText::SetI18nKey(const std::string& key)
+{
+    if (m_i18n_key == key) return;
 
+    m_i18n_key = key;
+    m_local_i18n_version = 0; // 强制下一帧更新
+}
 TechText* TechText::SetAnimMode(TechTextAnimMode mode)
 {
     m_anim_mode = mode;
@@ -39,6 +59,7 @@ TechText* TechText::SetAnimMode(TechTextAnimMode mode)
 
 void TechText::SetText(const std::string& new_text)
 {
+    if (!m_i18n_key.empty()) m_i18n_key.clear();
     if (m_text == new_text) return;
 
     if (m_anim_mode == TechTextAnimMode::Scroll)
@@ -81,6 +102,39 @@ void TechText::RestartEffect()
 
 void TechText::Update(float dt, const ImVec2& parent_abs_pos)
 {
+    if (!m_i18n_key.empty())
+    {
+        auto& i18n = System::I18nManager::Get();
+        if (m_local_i18n_version != i18n.GetVersion())
+        {
+            // 获取翻译后的文本
+            std::string translated = i18n.Get(m_i18n_key);
+
+            // 调用原始的文本设置逻辑以触发动画
+            // 注意：这里不再调用 SetText，因为它会清除key。我们直接修改 m_text
+            if (m_text != translated)
+            {
+                if (m_anim_mode == TechTextAnimMode::Scroll)
+                {
+                    m_old_text = m_text;
+                    m_text = translated;
+                    m_scroll_progress = 0.0f;
+                }
+                else if (m_anim_mode == TechTextAnimMode::Hacker)
+                {
+                    m_text = translated;
+                    m_hacker_effect.Start(m_text, 0.0f);
+                }
+                else
+                {
+                    m_text = translated;
+                }
+            }
+
+            m_local_i18n_version = i18n.GetVersion();
+        }
+    }
+
     UIElement::Update(dt, parent_abs_pos);
 
     if (m_anim_mode == TechTextAnimMode::Hacker)

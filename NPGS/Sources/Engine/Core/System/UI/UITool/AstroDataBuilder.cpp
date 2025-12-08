@@ -37,34 +37,34 @@ CelestialData AstroDataBuilder::BuildDataForStar(const Astro::AStar* star)
     // =======================================================
     {
         InfoPage page;
-        page.name = "PHYSICAL";
+        page.name = TR("astro.page.physical");
 
         InfoGroup g_basic;
-        g_basic.items.push_back({ "类型", star->GetStellarClass().ToString() });
-        g_basic.items.push_back({ "演化阶段", StarPhaseToString(star->GetEvolutionPhase()), true });
-        g_basic.items.push_back({ "演化进度", std::to_string(star->GetEvolutionProgress() * 100.0) + "%" });
-        g_basic.items.push_back({ "年龄", FormatScientific(star->GetAge(), "yr") });
-        g_basic.items.push_back({ "预期寿命", FormatScientific(star->GetLifetime(), "yr") });
+        g_basic.items.push_back({ TR("astro.type"), star->GetStellarClass().ToString() });
+        g_basic.items.push_back({ TR("astro.phase"), StarPhaseToString(star->GetEvolutionPhase()), true });
+        g_basic.items.push_back({ TR("astro.progress"), std::to_string(star->GetEvolutionProgress() * 100.0) + "%" });
+        g_basic.items.push_back({ TR("astro.age"), FormatScientific(star->GetAge(), "yr") });
+        g_basic.items.push_back({ TR("astro.lifespan"), FormatScientific(star->GetLifetime(), "yr") });
         page.groups.push_back(g_basic);
 
         InfoGroup g_mass;
-        g_mass.items.push_back({ "质量", FormatScientific(star->GetMass(), "kg") });
-        g_mass.items.push_back({ "初始质量", FormatScientific(star->GetInitialMass(), "kg") });
+        g_mass.items.push_back({ TR("astro.mass"), FormatScientific(star->GetMass(), "kg") });
+        g_mass.items.push_back({ TR("astro.initial_mass"), FormatScientific(star->GetInitialMass(), "kg") });
         page.groups.push_back(g_mass);
 
         InfoGroup g_energy;
-        g_energy.items.push_back({ "热功率", FormatScientific(star->GetLuminosity(), "W") });
-        g_energy.items.push_back({ "表面温度", FormatScientific(star->GetTeff(), "K"), true });
-        g_energy.items.push_back({ "核心温度", FormatScientific(star->GetCoreTemp(), "K") });
-        g_energy.items.push_back({ "核心密度", FormatScientific(star->GetCoreDensity(), "kg/m^3") });
+        g_energy.items.push_back({ TR("astro.luminosity"), FormatScientific(star->GetLuminosity(), "W") });
+        g_energy.items.push_back({ TR("astro.temp_surface"), FormatScientific(star->GetTeff(), "K"), true });
+        g_energy.items.push_back({ TR("astro.temp_core"), FormatScientific(star->GetCoreTemp(), "K") });
+        g_energy.items.push_back({ TR("astro.density_core"), FormatScientific(star->GetCoreDensity(), "kg/m^3") });
         page.groups.push_back(g_energy);
 
         InfoGroup g_phys;
-        g_phys.items.push_back({ "半径", FormatScientific(star->GetRadius(), "m") });
-        g_phys.items.push_back({ "扁率", std::to_string(star->GetOblateness()) });
-        g_phys.items.push_back({ "自转周期", FormatScientific(star->GetSpin(), "s") });
-        g_phys.items.push_back({ "逃逸速度", FormatScientific(star->GetEscapeVelocity(), "m/s") });
-        g_phys.items.push_back({ "磁场强度", FormatScientific(star->GetMagneticField(), "T") });
+        g_phys.items.push_back({ TR("astro.radius"), FormatScientific(star->GetRadius(), "m") });
+        g_phys.items.push_back({ TR("astro.oblateness"), std::to_string(star->GetOblateness()) });
+        g_phys.items.push_back({ TR("astro.spin"), FormatScientific(star->GetSpin(), "s") });
+        g_phys.items.push_back({ TR("astro.escape_vel"), FormatScientific(star->GetEscapeVelocity(), "m/s") });
+        g_phys.items.push_back({ TR("astro.mag_field"), FormatScientific(star->GetMagneticField(), "T") });
         page.groups.push_back(g_phys);
 
         data.push_back(page);
@@ -75,19 +75,19 @@ CelestialData AstroDataBuilder::BuildDataForStar(const Astro::AStar* star)
     // =======================================================
     {
         InfoPage page;
-        page.name = "COMPOSITION";
+        page.name = TR("astro.page.composition");
 
         InfoGroup g_surface;
-        g_surface.items.push_back({ "金属丰度 [Fe/H]", std::to_string(star->GetFeH()) });
-        g_surface.items.push_back({ "表面氢(H1)质量分数", std::to_string(star->GetSurfaceH1()) });
-        g_surface.items.push_back({ "表面金属(Z)质量分数", std::to_string(star->GetSurfaceZ()) });
-        g_surface.items.push_back({ "表面挥发物质量分数", std::to_string(star->GetSurfaceVolatiles()) });
-        g_surface.items.push_back({ "表面含能核素质量分数", std::to_string(star->GetSurfaceEnergeticNuclide()) });
+        g_surface.items.push_back({ TR("astro.metallicity"), std::to_string(star->GetFeH()) });
+        g_surface.items.push_back({ TR("astro.surf_h1"), std::to_string(star->GetSurfaceH1()) });
+        g_surface.items.push_back({ TR("astro.surf_z"), std::to_string(star->GetSurfaceZ()) });
+        g_surface.items.push_back({ TR("astro.surf_volatiles"), std::to_string(star->GetSurfaceVolatiles()) });
+        g_surface.items.push_back({ TR("astro.surf_energetic"), std::to_string(star->GetSurfaceEnergeticNuclide()) });
         page.groups.push_back(g_surface);
 
         InfoGroup g_wind;
-        g_wind.items.push_back({ "星风速度", FormatScientific(star->GetStellarWindSpeed(), "m/s") });
-        g_wind.items.push_back({ "星风质量流失率", FormatScientific(star->GetStellarWindMassLossRate(), "kg/s") });
+        g_wind.items.push_back({ TR("astro.wind_speed"), FormatScientific(star->GetStellarWindSpeed(), "m/s") });
+        g_wind.items.push_back({ TR("astro.wind_loss_rate"), FormatScientific(star->GetStellarWindMassLossRate(), "kg/s") });
         page.groups.push_back(g_wind);
 
         data.push_back(page);
@@ -98,18 +98,18 @@ CelestialData AstroDataBuilder::BuildDataForStar(const Astro::AStar* star)
     // =======================================================
     {
         InfoPage page;
-        page.name = "EVOLUTION";
+        page.name = TR("astro.page.evolution");
 
         InfoGroup g_evo;
-        g_evo.items.push_back({ "形成方式", StarFromToString(star->GetStarFrom()) });
-        g_evo.items.push_back({ "预期结局", PredictOutcomeToString(star) });
-        g_evo.items.push_back({ "预期残骸", PredictRemnantToString(star) });
+        g_evo.items.push_back({ TR("astro.formation"), StarFromToString(star->GetStarFrom()) });
+        g_evo.items.push_back({ TR("astro.predicted_outcome"), PredictOutcomeToString(star) });
+        g_evo.items.push_back({ TR("astro.predicted_remnant"), PredictRemnantToString(star) });
         page.groups.push_back(g_evo);
 
         InfoGroup g_misc;
-        g_misc.items.push_back({ "是否为孤星", star->GetIsSingleStar() ? "是" : "否" });
-        g_misc.items.push_back({ "是否存在行星系", star->GetHasPlanets() ? "是" : "否" });
-        g_misc.items.push_back({ "举星器最低线圈质量", FormatScientific(star->GetMinCoilMass(), "kg") });
+        g_misc.items.push_back({ TR("astro.is_single"), star->GetIsSingleStar() ? TR("bool.yes") : TR("bool.no") });
+        g_misc.items.push_back({ TR("astro.has_planets"), star->GetHasPlanets() ? TR("bool.yes") : TR("bool.no") });
+        g_misc.items.push_back({ TR("astro.min_coil_mass"), FormatScientific(star->GetMinCoilMass(), "kg") });
         page.groups.push_back(g_misc);
 
         data.push_back(page);
@@ -130,20 +130,20 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = "PHYSICAL";
+        page.name = TR("astro.page.physical");
 
         InfoGroup g_type;
-        g_type.items.push_back({ "类型", PlanetTypeToString(planet->GetPlanetType()) });
-        g_type.items.push_back({ "是否迁移行星", planet->GetMigration() ? "是" : "否" });
+        g_type.items.push_back({ TR("astro.type"), PlanetTypeToString(planet->GetPlanetType()) });
+        g_type.items.push_back({ TR("astro.is_migrated"), planet->GetMigration() ? TR("bool.yes") : TR("bool.no") });
         page.groups.push_back(g_type);
 
         InfoGroup g_phys;
-        g_phys.items.push_back({ "总质量", planet->GetMass().str() + " kg" });
-        g_phys.items.push_back({ "半径", FormatScientific(planet->GetRadius(), "m") });
-        g_phys.items.push_back({ "表面温度", FormatScientific(planet->GetBalanceTemperature(), "K") });
-        g_phys.items.push_back({ "自转周期", FormatScientific(planet->GetSpin(), "s") });
-        g_phys.items.push_back({ "逃逸速度", FormatScientific(planet->GetEscapeVelocity(), "m/s") });
-        g_phys.items.push_back({ "年龄", FormatScientific(planet->GetAge(), "yr") });
+        g_phys.items.push_back({ TR("astro.mass_total"), planet->GetMass().str() + " kg" });
+        g_phys.items.push_back({ TR("astro.radius"), FormatScientific(planet->GetRadius(), "m") });
+        g_phys.items.push_back({ TR("astro.temp_balance"), FormatScientific(planet->GetBalanceTemperature(), "K") });
+        g_phys.items.push_back({ TR("astro.spin"), FormatScientific(planet->GetSpin(), "s") });
+        g_phys.items.push_back({ TR("astro.escape_vel"), FormatScientific(planet->GetEscapeVelocity(), "m/s") });
+        g_phys.items.push_back({ TR("astro.age"), FormatScientific(planet->GetAge(), "yr") });
         page.groups.push_back(g_phys);
 
         data.push_back(page);
@@ -154,20 +154,20 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = "COMPOSITION";
+        page.name = TR("astro.page.composition");
 
         InfoGroup g_mass;
-        g_mass.items.push_back({ "大气质量", planet->GetAtmosphereMass().str() + " kg" });
-        g_mass.items.push_back({ "海洋质量", planet->GetOceanMass().str() + " kg" });
-        g_mass.items.push_back({ "核心质量", planet->GetCoreMass().str() + " kg" });
-        g_mass.items.push_back({ "地壳矿脉质量", planet->GetCrustMineralMass().str() + " kg" });
+        g_mass.items.push_back({ TR("astro.mass_atmosphere"), planet->GetAtmosphereMass().str() + " kg" });
+        g_mass.items.push_back({ TR("astro.mass_ocean"), planet->GetOceanMass().str() + " kg" });
+        g_mass.items.push_back({ TR("astro.mass_core"), planet->GetCoreMass().str() + " kg" });
+        g_mass.items.push_back({ TR("astro.mass_crust_mineral"), planet->GetCrustMineralMass().str() + " kg" });
         page.groups.push_back(g_mass);
 
         InfoGroup g_mass_detail;
-        g_mass_detail.items.push_back({ "大气-重元素", planet->GetAtmosphereMassZ().str() + " kg" });
-        g_mass_detail.items.push_back({ "大气-挥发物", planet->GetAtmosphereMassVolatiles().str() + " kg" });
-        g_mass_detail.items.push_back({ "大气-含能核素", planet->GetAtmosphereMassEnergeticNuclide().str() + " kg" });
-        g_mass_detail.items.push_back({ "海洋-重元素", planet->GetOceanMassZ().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("astro.mass_atmo_z"), planet->GetAtmosphereMassZ().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("astro.mass_atmo_volatiles"), planet->GetAtmosphereMassVolatiles().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("astro.mass_atmo_energetic"), planet->GetAtmosphereMassEnergeticNuclide().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("astro.mass_ocean_z"), planet->GetOceanMassZ().str() + " kg" });
         // ...可以继续添加所有详细成分...
         page.groups.push_back(g_mass_detail);
 
@@ -179,15 +179,15 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = "ORBIT";
+        page.name = TR("astro.page.orbit");
 
         InfoGroup g_orbit;
         // 注意：Builder只接收IAstroObject指针，没有轨道上下文。
         // 如需显示轨道数据，需要修改BuildDataForObject的参数，
         // 比如传入一个包含天体和其轨道的结构体。
-        g_orbit.items.push_back({ "轨道半长轴", "N/A" });
-        g_orbit.items.push_back({ "轨道周期", "N/A" });
-        g_orbit.items.push_back({ "轨道偏心率", "N/A" });
+        g_orbit.items.push_back({ TR("astro.orbit_sma"), TR("data.not_available") });
+        g_orbit.items.push_back({ TR("astro.orbit_period"), TR("data.not_available") });
+        g_orbit.items.push_back({ TR("astro.orbit_eccentricity"), TR("data.not_available") });
         page.groups.push_back(g_orbit);
 
         data.push_back(page);
@@ -198,15 +198,15 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = "CIVILIZATION";
+        page.name = TR("astro.page.civilization");
 
         InfoGroup g_life;
-        g_life.items.push_back({ "生命演化阶段", "N/A" }); // 需从CivilizationData获取
+        g_life.items.push_back({ TR("astro.life_phase"), TR("data.not_available") }); // 需从CivilizationData获取
         page.groups.push_back(g_life);
 
         InfoGroup g_civ;
-        g_civ.items.push_back({ "文明演化阶段", "N/A" }); // 需从CivilizationData获取
-        g_civ.items.push_back({ "卡尔达舍夫指数", "N/A" }); // 需从CivilizationData获取
+        g_civ.items.push_back({ TR("astro.civ_phase"), TR("data.not_available") }); // 需从CivilizationData获取
+        g_civ.items.push_back({ TR("astro.kardashev_index"), TR("data.not_available") }); // 需从CivilizationData获取
         page.groups.push_back(g_civ);
 
         data.push_back(page);
@@ -230,23 +230,23 @@ std::string AstroDataBuilder::StarPhaseToString(Astro::AStar::EEvolutionPhase ph
     using EPhase = Astro::AStar::EEvolutionPhase;
     switch (phase)
     {
-    case EPhase::kPrevMainSequence: return          "前主序";
-    case EPhase::kMainSequence: return              "氢主序";
-    case EPhase::kRedGiant: return                  "红巨星";
-    case EPhase::kCoreHeBurn: return                "氦主序";
-    case EPhase::kEarlyAgb: return                  "早期渐近巨星";
-    case EPhase::kThermalPulseAgb: return           "热脉冲渐近巨星";
-    case EPhase::kPostAgb: return                   "后渐近巨星支";
-    case EPhase::kWolfRayet: return                 "沃尔夫-拉叶星";
-    case EPhase::kHeliumWhiteDwarf: return          "氦白矮星";
-    case EPhase::kCarbonOxygenWhiteDwarf: return    "碳氧白矮星";
-    case EPhase::kOxygenNeonMagnWhiteDwarf: return  "氧氖镁白矮星";
-    case EPhase::kNeutronStar: return               "中子星";
-    case EPhase::kStellarBlackHole: return          "恒星质量黑洞";
-    case EPhase::kMiddleBlackHole: return           "中等质量黑洞";
-    case EPhase::kSuperMassiveBlackHole: return     "超大质量黑洞";
-    case EPhase::kNull: return                      "未知";
-    default: return "未知";
+    case EPhase::kPrevMainSequence: return          TR("enum.star.prev_ms");
+    case EPhase::kMainSequence: return              TR("enum.star.main_seq");
+    case EPhase::kRedGiant: return                  TR("enum.star.red_giant");
+    case EPhase::kCoreHeBurn: return                TR("enum.star.core_he_burn");
+    case EPhase::kEarlyAgb: return                  TR("enum.star.early_agb");
+    case EPhase::kThermalPulseAgb: return           TR("enum.star.tp_agb");
+    case EPhase::kPostAgb: return                   TR("enum.star.post_agb");
+    case EPhase::kWolfRayet: return                 TR("enum.star.wolf_rayet");
+    case EPhase::kHeliumWhiteDwarf: return          TR("enum.star.he_wd");
+    case EPhase::kCarbonOxygenWhiteDwarf: return    TR("enum.star.co_wd");
+    case EPhase::kOxygenNeonMagnWhiteDwarf: return  TR("enum.star.onemg_wd");
+    case EPhase::kNeutronStar: return               TR("enum.star.neutron_star");
+    case EPhase::kStellarBlackHole: return          TR("enum.star.stellar_bh");
+    case EPhase::kMiddleBlackHole: return           TR("enum.star.middle_bh");
+    case EPhase::kSuperMassiveBlackHole: return     TR("enum.star.supermassive_bh");
+    case EPhase::kNull: return                      TR("enum.unknown");
+    default: return TR("enum.unknown");
     }
 }
 std::string AstroDataBuilder::StarFromToString(Astro::AStar::EStarFrom from)
@@ -254,16 +254,16 @@ std::string AstroDataBuilder::StarFromToString(Astro::AStar::EStarFrom from)
     using EFrom = Astro::AStar::EStarFrom;
     switch (from)
     {
-    case EFrom::kNormalFrom: return                "普通坍缩";
-    case EFrom::kWhiteDwarfMerge: return           "白矮星合并";
-    case EFrom::kSlowColdingDown: return           "缓慢冷却"; // 形成黑矮星的过程
-    case EFrom::kEnvelopeDisperse: return          "包层吹散"; // 形成白矮星的过程
-    case EFrom::kElectronCaptureSupernova: return  "电子俘获型超新星";
-    case EFrom::kIronCoreCollapseSupernova: return "铁核坍缩型超新星";
-    case EFrom::kRelativisticJetHypernova: return  "相对论性喷流超新星";
-    case EFrom::kPairInstabilitySupernova: return  "不稳定对超新星";
-    case EFrom::kPhotondisintegration: return      "光致解离";
-    default: return "未知形成方式";
+    case EFrom::kNormalFrom: return                TR("enum.star_from.normal");
+    case EFrom::kWhiteDwarfMerge: return           TR("enum.star_from.wd_merge");
+    case EFrom::kSlowColdingDown: return           TR("enum.star_from.slow_cooling");
+    case EFrom::kEnvelopeDisperse: return          TR("enum.star_from.envelope_disperse");
+    case EFrom::kElectronCaptureSupernova: return  TR("enum.star_from.ec_supernova");
+    case EFrom::kIronCoreCollapseSupernova: return TR("enum.star_from.fe_core_supernova");
+    case EFrom::kRelativisticJetHypernova: return  TR("enum.star_from.jet_hypernova");
+    case EFrom::kPairInstabilitySupernova: return  TR("enum.star_from.pair_inst_supernova");
+    case EFrom::kPhotondisintegration: return      TR("enum.star_from.photodisintegration");
+    default: return TR("enum.unknown_formation");
     }
 }
 
@@ -276,31 +276,30 @@ std::string AstroDataBuilder::PredictOutcomeToString(const Astro::AStar* star)
     // 如果恒星已经是残骸，它的结局就是“缓慢熄灭”或“蒸发”
     if (phase >= EPhase::kHeliumWhiteDwarf && phase <= EPhase::kOxygenNeonMagnWhiteDwarf)
     {
-        return "缓慢熄灭";
+        return TR("enum.outcome.slow_fade");
     }
     if (phase == EPhase::kNeutronStar)
     {
-        return "缓慢冷却";
+        return TR("enum.outcome.slow_cool");
     }
     if (phase >= EPhase::kStellarBlackHole)
     {
-        return "霍金辐射蒸发";
+        return TR("enum.outcome.hawking_radiation");
     }
 
     // 否则，根据初始质量预测
-    // 注意：这里的质量边界是简化的近似值
     const double initialMassKg = star->GetInitialMass();
     const double solarMass = 1.98847e30; // 太阳质量
     const double m_sun = initialMassKg / solarMass;
 
-    if (m_sun < 0.5) return "缓慢熄灭";
-    if (m_sun < 8.0) return "吹散包层";
-    if (m_sun < 10.0) return "电子俘获型超新星";
-    if (m_sun < 40.0) return "铁核坍缩型超新星";
-    if (m_sun < 130.0) return "相对论性喷流超新星"; // 假设
-    if (m_sun < 250.0) return "不稳定对超新星";
+    if (m_sun < 0.5) return TR("enum.outcome.slow_fade");
+    if (m_sun < 8.0) return TR("enum.outcome.envelope_disperse");
+    if (m_sun < 10.0) return TR("enum.outcome.ec_supernova");
+    if (m_sun < 40.0) return TR("enum.outcome.fe_core_supernova");
+    if (m_sun < 130.0) return TR("enum.outcome.jet_hypernova");
+    if (m_sun < 250.0) return TR("enum.outcome.pair_inst_supernova");
 
-    return "光致解离";
+    return TR("enum.outcome.photodisintegration");
 }
 
 // [新增] 预测恒星残骸
@@ -315,13 +314,13 @@ std::string AstroDataBuilder::PredictRemnantToString(const Astro::AStar* star)
     case EPhase::kHeliumWhiteDwarf:
     case EPhase::kCarbonOxygenWhiteDwarf:
     case EPhase::kOxygenNeonMagnWhiteDwarf:
-        return "白矮星";
+        return TR("enum.remnant.white_dwarf");
     case EPhase::kNeutronStar:
-        return "中子星";
+        return TR("enum.remnant.neutron_star");
     case EPhase::kStellarBlackHole:
     case EPhase::kMiddleBlackHole:
     case EPhase::kSuperMassiveBlackHole:
-        return "黑洞";
+        return TR("enum.remnant.black_hole");
     }
 
     // 否则，根据初始质量预测
@@ -329,10 +328,10 @@ std::string AstroDataBuilder::PredictRemnantToString(const Astro::AStar* star)
     const double solarMass = 1.98847e30;
     const double m_sun = initialMassKg / solarMass;
 
-    if (m_sun < 8.0) return "白矮星";
-    if (m_sun < 25.0) return "中子星";
+    if (m_sun < 8.0) return TR("enum.remnant.white_dwarf");
+    if (m_sun < 25.0) return TR("enum.remnant.neutron_star");
 
-    return "黑洞";
+    return TR("enum.remnant.black_hole");
 }
 
 std::string AstroDataBuilder::PlanetTypeToString(Astro::APlanet::EPlanetType type)
@@ -340,21 +339,21 @@ std::string AstroDataBuilder::PlanetTypeToString(Astro::APlanet::EPlanetType typ
     using EType = Astro::APlanet::EPlanetType;
     switch (type)
     {
-    case EType::kRocky: return "岩质行星";
-    case EType::kTerra: return "类地行星";
-    case EType::kIcePlanet: return "冰壳行星";
-    case EType::kChthonian: return "冥府行星";
-    case EType::kOceanic: return "海洋行星";
-    case EType::kSubIceGiant: return "亚冰巨星";
-    case EType::kIceGiant: return "冰巨星";
-    case EType::kGasGiant: return "气态巨行星";
-    case EType::kHotSubIceGiant: return "热亚冰巨星";
-    case EType::kHotIceGiant: return "热冰巨星";
-    case EType::kHotGasGiant: return "热木星";
-    case EType::kRockyAsteroidCluster: return "岩质小天体集群";
-    case EType::kRockyIceAsteroidCluster: return "岩冰质小天体集群";
-    case EType::kArtificalOrbitalStructureCluster: return "轨道非天然结构集群";
-    default: return "未知类型";
+    case EType::kRocky: return TR("enum.planet.rocky");
+    case EType::kTerra: return TR("enum.planet.terra");
+    case EType::kIcePlanet: return TR("enum.planet.ice");
+    case EType::kChthonian: return TR("enum.planet.chthonian");
+    case EType::kOceanic: return TR("enum.planet.oceanic");
+    case EType::kSubIceGiant: return TR("enum.planet.sub_ice_giant");
+    case EType::kIceGiant: return TR("enum.planet.ice_giant");
+    case EType::kGasGiant: return TR("enum.planet.gas_giant");
+    case EType::kHotSubIceGiant: return TR("enum.planet.hot_sub_ice_giant");
+    case EType::kHotIceGiant: return TR("enum.planet.hot_ice_giant");
+    case EType::kHotGasGiant: return TR("enum.planet.hot_gas_giant");
+    case EType::kRockyAsteroidCluster: return TR("enum.planet.rocky_asteroid");
+    case EType::kRockyIceAsteroidCluster: return TR("enum.planet.rocky_ice_asteroid");
+    case EType::kArtificalOrbitalStructureCluster: return TR("enum.planet.artificial_cluster");
+    default: return TR("enum.unknown");
     }
 }
 

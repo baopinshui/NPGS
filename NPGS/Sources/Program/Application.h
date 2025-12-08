@@ -32,6 +32,8 @@ private:
     };
 
 public:
+    void OnLanguageChanged();
+    std::string FormatTime(double total_seconds);
     FApplication(const vk::Extent2D& WindowSize, const std::string& WindowTitle, bool bEnableVSync, bool bEnableFullscreen);
     ~FApplication();
 

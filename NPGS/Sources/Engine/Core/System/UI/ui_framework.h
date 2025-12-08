@@ -2,6 +2,7 @@
 #include "Engine/Core/Base/Base.h" 
 #include <Engine/Core/Math/NumericConstants.h>
 #include <imgui.h>
+#include "Utils/I18nManager.h"
 #include <vector>
 #include <memory>
 #include <functional>

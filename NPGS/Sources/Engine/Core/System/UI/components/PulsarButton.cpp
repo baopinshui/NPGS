@@ -19,7 +19,7 @@ void PulsarButton::SetIconColor(const ImVec4& color)
         m_image_icon->m_tint_col = color;
     }
 }
-void PulsarButton::InitCommon(const std::string& status, const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit)
+void PulsarButton::InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key)
 {
     m_rect = { 0, 0, 40, 40 };
     m_block_input = true;
@@ -39,29 +39,29 @@ void PulsarButton::InitCommon(const std::string& status, const std::string& labe
     // 注意：图标(Icon)的创建留给具体的构造函数，必须在 AddChild(m_bg_panel) 之后，其他 Label 之前添加，以保证层级正确
 
     // --- 2. 状态文本 ---
-    m_text_status = std::make_shared<TechText>(status, theme.color_text_highlight, true);
+    m_text_status = std::make_shared<TechText>(status_key, theme.color_text_highlight, true);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
 
     // --- 3. 主标签 ---
-    m_text_label = std::make_shared<TechText>(label, theme.color_text_highlight, true);
+    m_text_label = std::make_shared<TechText>(label_key, theme.color_text_highlight, true);
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
     AddChild(m_text_label);
 
     // --- 4. 统计信息行 ---
-    if (!stat_label.empty())
+    if (!stat_label_key.empty())
     {
-        m_text_stat_label = std::make_shared<TechText>(stat_label + ":", theme.color_text);
+        m_text_stat_label = std::make_shared<TechText>(stat_label_key ,theme.color_text);
         m_text_stat_label->m_font = ctx.m_font_bold;
         m_text_stat_label->m_block_input = false;
         AddChild(m_text_stat_label);
     }
 
-    if (!stat_unit.empty())
+    if (!stat_unit_key.empty())
     {
-        m_text_stat_unit = std::make_shared<TechText>(stat_unit, theme.color_text);
+        m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, theme.color_text);
         m_text_stat_unit->m_font = ctx.m_font_bold;
         m_text_stat_unit->m_block_input = false;
         AddChild(m_text_stat_unit);
@@ -107,10 +107,10 @@ void PulsarButton::InitCommon(const std::string& status, const std::string& labe
 }
 
 // [旧构造函数] 文字图标
-PulsarButton::PulsarButton(const std::string& status, const std::string& label, const std::string& icon_char, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable, const std::string& id)
+PulsarButton::PulsarButton(const std::string& status_key, const std::string& label_key, const std::string& icon_char, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable, const std::string& id)
     : m_is_editable(is_editable)
 {
-    InitCommon(status,label, stat_label, stat_value_ptr, stat_unit);
+    InitCommon(status_key, label_key, stat_label_key, stat_value_ptr, stat_unit_key);
 
     // --- 创建文字图标 ---
     m_id = id;
@@ -130,10 +130,10 @@ PulsarButton::PulsarButton(const std::string& status, const std::string& label, 
 }
 
 // [新构造函数] 图片图标
-PulsarButton::PulsarButton(const std::string& status, const std::string& label, ImTextureID icon_texture, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit, bool is_editable, const std::string& id)
-    :  m_is_editable(is_editable)
+PulsarButton::PulsarButton(const std::string& status_key, const std::string& label_key, ImTextureID icon_texture, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable, const std::string& id)
+    : m_is_editable(is_editable)
 {
-    InitCommon(status,label, stat_label, stat_value_ptr, stat_unit);
+    InitCommon(status_key, label_key, stat_label_key, stat_value_ptr, stat_unit_key);
     m_id = id;
     // --- 创建图片图标 ---
     m_image_icon = std::make_shared<Image>(icon_texture);
@@ -145,35 +145,73 @@ PulsarButton::PulsarButton(const std::string& status, const std::string& label, 
     AddChild(m_image_icon);
 }
 
+void PulsarButton::SetI18nKey(const std::string& status_key)
+{
+    if (!m_text_status || m_text_status->m_i18n_key == status_key) return;
+
+    // 更新内部 TechText 组件的 Key
+    m_text_status->SetI18nKey(status_key);
+
+    // --- 复用 SetStatusText 的线长测量和延迟更新逻辑 ---
+    // 1. 获取翻译后的文本用于测量
+    std::string translated_text = TR(status_key);
+
+    // 2. 测量所需宽度
+    ImFont* font = m_text_status->GetFont();
+    if (!font) font = UIContext::Get().m_font_bold;
+
+    float new_text_w = 0.0f;
+    if (font)
+    {
+        new_text_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, translated_text.c_str()).x;
+    }
+    float required_len = new_text_w + 30.0f;
+
+    // 3. 判断是否需要延迟更新
+    if (m_current_line_len < required_len)
+    {
+        m_pending_status_text = translated_text;
+        m_has_pending_status = true;
+        // 注意：不立即调用 m_text_status->SetText()。
+        // TechText 的自动翻译会在下一帧生效，如果线长不够，我们用 m_pending_status_text 来覆盖它，
+        // 直到线长足够。
+    }
+    else
+    {
+        // 如果线长足够，不需要延迟，TechText的自动翻译机制会处理好一切
+        m_has_pending_status = false;
+        m_pending_status_text.clear();
+    }
+}
+
+
 void PulsarButton::SetStatusText(const std::string& text)
 {
+    // 这个函数现在主要用于向后兼容或设置非I18n文本
     if (!m_text_status) return;
+
+    // 清除key，因为我们现在要设置一个原始文本
+    m_text_status->SetI18nKey("");
+
     if (m_text_status->m_text == text && !m_has_pending_status) return;
 
-    // 1. 获取字体进行测量
     ImFont* font = m_text_status->GetFont();
-    if (!font) font = UIContext::Get().m_font_bold; // 兜底
+    if (!font) font = UIContext::Get().m_font_bold;
 
     float new_text_w = 0.0f;
     if (font)
     {
         new_text_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text.c_str()).x;
     }
+    float required_len = new_text_w + 30.0f;
 
-    float required_len = new_text_w + 30.0f; // 文字宽 + 缓冲
-
-    // 2. 核心判断：当前线长是否足够？
-    // 如果当前视觉长度 (m_current_line_len) 小于 新文字所需长度
-    // 说明是“突然变长”，需要先缓冲
     if (m_current_line_len < required_len)
     {
         m_pending_status_text = text;
         m_has_pending_status = true;
-        // 注意：这里不调用 m_text_status->SetText(text)，保持旧文字显示
     }
     else
     {
-        // 如果是变短，或者当前本来就很长，直接更新
         m_text_status->SetText(text);
         m_has_pending_status = false;
         m_pending_status_text.clear();

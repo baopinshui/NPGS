@@ -25,31 +25,31 @@ public:
     bool m_is_active = false;
     bool m_can_execute = false;
 
-    // [旧构造函数] 使用字符图标
     PulsarButton(
-        const std::string& status,
-        const std::string& label,
+        const std::string& status_key,
+        const std::string& label_key,
         const std::string& icon_char,
-        const std::string& stat_label,
+        const std::string& stat_label_key,
         std::string* stat_value_ptr,
-        const std::string& stat_unit,
+        const std::string& stat_unit_key,
         bool is_editable,
-        const std::string& id=""
+        const std::string& id = ""
     );
 
-    // [新构造函数] 使用图片(ImTextureID)图标
     PulsarButton(
-        const std::string& status,
-        const std::string& label,
+        const std::string& status_key,
+        const std::string& label_key,
         ImTextureID icon_texture,
-        const std::string& stat_label,
+        const std::string& stat_label_key,
         std::string* stat_value_ptr,
-        const std::string& stat_unit,
+        const std::string& stat_unit_key,
         bool is_editable,
-        const std::string& id=""
+        const std::string& id = ""
     );
 
-    void SetActive(bool active);
+    void SetActive(bool active);    
+    void SetI18nKey(const std::string& status_key);
+
     void SetStatusText(const std::string& text);
     void SetExecutable(bool can_execute);
 
@@ -58,8 +58,9 @@ public:
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 
 private:
+
     // [新增] 内部通用初始化逻辑，减少代码重复
-    void InitCommon(const std::string& status,const std::string& label, const std::string& stat_label, std::string* stat_value_ptr, const std::string& stat_unit);
+    void InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key);
     // [新增] 统一设置图标颜色的辅助函数
     void SetIconColor(const ImVec4& color);
 

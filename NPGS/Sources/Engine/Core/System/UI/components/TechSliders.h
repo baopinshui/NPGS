@@ -16,22 +16,42 @@ template<typename T>
 class BaseTechSlider : public UIElement
 {
 public:
-    std::string m_label;
+    // [修改] I18n
+    std::string m_i18n_key;
+    std::string m_translated_label;
+private:
+    uint32_t m_local_i18n_version = 0;
+public:
     T* m_target_value;
     bool m_is_dragging = false;
     bool m_is_rgb = false;
     float max_label_w = 100.0f;
     float value_box_w = 70.0f;
     float padding = 8.0f;
-    BaseTechSlider(const std::string& label, T* binding)
-        : m_label(label), m_target_value(binding)
+    BaseTechSlider(const std::string& key, T* binding) // [修改] 接受 key
+        : m_i18n_key(key), m_target_value(binding)
     {
-        // 增加默认高度，以便容纳两行文字 (如果换行的话)
         m_rect.h = 32.0f;
         m_block_input = true;
-        if (m_label == "R" || m_label == "G" || m_label == "B") m_is_rgb = true;
+        // 立即翻译一次
+        m_translated_label = TR(m_i18n_key);
+        // RGB 判断逻辑现在基于翻译后的文本
+        if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true;
     }
-
+    void Update(float dt, const ImVec2& parent_abs_pos) override
+    {
+        if (!m_i18n_key.empty())
+        {
+            auto& i18n = System::I18nManager::Get();
+            if (m_local_i18n_version != i18n.GetVersion())
+            {
+                m_translated_label = i18n.Get(m_i18n_key);
+                m_local_i18n_version = i18n.GetVersion();
+                if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true; else m_is_rgb = false;
+            }
+        }
+        UIElement::Update(dt, parent_abs_pos);
+    }
     // 子类实现：当前归一化位置 [0, 1]
     virtual float GetNormalizedVisualPos() const = 0;
 
@@ -109,9 +129,9 @@ public:
         ImVec4 accent_vec4 = theme.color_accent;
         if (m_is_rgb)
         {
-            if (m_label == "R") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
-            else if (m_label == "G") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
-            else if (m_label == "B") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
+            if (m_translated_label == "R") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
+            else if (m_translated_label == "G") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
+            else if (m_translated_label == "B") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
         }
 
         ImU32 col_text = GetColorWithAlpha(theme.color_text, 1.0f);
@@ -136,8 +156,8 @@ public:
         // --- 3. 绘制 Label (手动计算换行) ---
         // 修复：不使用 ImGui::Text，而是直接计算分割点并用 dl->AddText 绘制
         {
-            const char* text_begin = m_label.c_str();
-            const char* text_end = text_begin + m_label.size();
+            const char* text_begin = m_translated_label.c_str(); // [修改] 使用翻译后的文本
+            const char* text_end = text_begin + m_translated_label.size(); // [修改]
             float font_size = font ? font->FontSize : 13.0f;
             float line_height = font_size; // 行高
 

@@ -3,7 +3,7 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-CollapsedMainButton::CollapsedMainButton(const std::string& str1, const std::string& str2)
+CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::string& key2)
 {
     // 1. 自身阻挡输入，作为点击的接收者
     m_block_input = true;
@@ -34,7 +34,7 @@ CollapsedMainButton::CollapsedMainButton(const std::string& str1, const std::str
     m_symbol->m_block_input = false; // 点击穿透
 
     // 2. "MANAGE" 文本
-    auto manage_text = std::make_shared<TechText>(str1);
+    auto manage_text = std::make_shared<TechText>(key1);
     manage_text->m_align_h = Alignment::Center;
     manage_text->m_font = ctx.m_font_small;
     manage_text->m_rect.h = 16.0f;
@@ -42,7 +42,7 @@ CollapsedMainButton::CollapsedMainButton(const std::string& str1, const std::str
     manage_text->m_block_input = false; // 点击穿透
 
     // 3. "NETWORK" 文本
-    auto network_text = std::make_shared<TechText>(str2);
+    auto network_text = std::make_shared<TechText>(key2);
     network_text->m_align_h = Alignment::Center;
 
     network_text->m_font = ctx.m_font_small;

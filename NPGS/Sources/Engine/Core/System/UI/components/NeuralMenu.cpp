@@ -6,7 +6,7 @@ _SYSTEM_BEGIN
 _UI_BEGIN
 
 // --- NeuralMenu Implementation ---
-NeuralMenu::NeuralMenu(const std::string& mainbuttonstr1, const std::string& mainbuttonstr2, const std::string& settingstr, const std::string& closestr )
+NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& main_button_key2, const std::string& settings_key, const std::string& close_key )
 {
     // [核心修改]
     // NeuralMenu 自身现在是 UI 树的一部分。它的 rect 代表了它在屏幕上的位置和大小。
@@ -29,7 +29,7 @@ NeuralMenu::NeuralMenu(const std::string& mainbuttonstr1, const std::string& mai
     root_panel->AddChild(bg_view);
 
     // 3. Collapsed View
-    collapsed_btn = std::make_shared<CollapsedMainButton>(mainbuttonstr1, mainbuttonstr2);
+    collapsed_btn = std::make_shared<CollapsedMainButton>(main_button_key1, main_button_key2);
     collapsed_btn->m_font = UIContext::Get().m_font_small;
     collapsed_btn->m_rect = { 0, 0, m_collapsed_size.x, m_collapsed_size.y };
     collapsed_btn->on_click_callback = [this]() { this->ToggleExpand(); };
@@ -48,7 +48,7 @@ NeuralMenu::NeuralMenu(const std::string& mainbuttonstr1, const std::string& mai
     const auto& theme = UIContext::Get().m_theme;
 
     // A. Header Title
-    header_title = std::make_shared<TechText>(settingstr, std::nullopt, true);
+    header_title = std::make_shared<TechText>(settings_key, std::nullopt, true);
     header_title->SetAnimMode(TechTextAnimMode::Hacker);
     header_title->m_rect.h = 20.0f;
     header_title->m_align_h = Alignment::Start;
@@ -76,7 +76,7 @@ NeuralMenu::NeuralMenu(const std::string& mainbuttonstr1, const std::string& mai
     main_layout->AddChild(sep_bot);
 
     // E. Footer Button
-    auto close_btn = std::make_shared<TechButton>(closestr, TechButton::Style::Normal);
+    auto close_btn = std::make_shared<TechButton>(close_key, TechButton::Style::Normal);
     close_btn->m_rect.h = 34.0f;
     close_btn->m_align_h = Alignment::Stretch;
     close_btn->on_click = [this]() { this->ToggleExpand(); };

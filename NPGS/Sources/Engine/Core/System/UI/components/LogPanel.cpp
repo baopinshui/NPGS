@@ -90,7 +90,7 @@ void LogCard::Draw(ImDrawList* dl)
 // LogPanel 实现
 // =================================================================================
 
-LogPanel::LogPanel(const std::string& sysstr, const std::string& savestr )
+LogPanel::LogPanel(const std::string& syskey, const std::string& savekey )
 {
     m_block_input = false;
     m_rect.w = 260.0f;
@@ -117,11 +117,11 @@ LogPanel::LogPanel(const std::string& sysstr, const std::string& savestr )
     m_footer_box->m_padding = 2.0f;
 
     // [修改] 使用成员变量，并开启第3个参数 use_hacker_effect = true
-    m_system_text = std::make_shared<TechText>(sysstr, theme.color_text_disabled, true);
+    m_system_text = std::make_shared<TechText>(syskey, theme.color_text_disabled, true);
     m_system_text->m_font = ctx.m_font_regular;
     m_system_text->m_rect.h = 14.0f;
 
-    m_autosave_text = std::make_shared<TechText>(savestr, theme.color_text_disabled, true);
+    m_autosave_text = std::make_shared<TechText>(savekey, theme.color_text_disabled, true);
     m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
     m_autosave_text->m_font = ctx.m_font_regular;
     m_autosave_text->m_rect.h = 14.0f;

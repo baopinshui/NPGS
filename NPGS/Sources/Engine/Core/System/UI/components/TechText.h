@@ -24,6 +24,10 @@ public:
     std::string m_text; // 当前/目标文字
     std::optional<ImVec4> m_color_override;
 
+    std::string m_i18n_key;
+private:
+    uint32_t m_local_i18n_version = 0;
+public:
     // Hacker 特效相关
     HackerTextHelper m_hacker_effect;
 
@@ -42,15 +46,16 @@ public:
     float m_glow_spread = 1.0f;
 
     // 构造函数更新
-    TechText(const std::string& text,
+    TechText(const std::string& text_or_key,
         const std::optional<ImVec4>& color = std::nullopt,
-        bool use_hacker_effect = false, // 兼容旧代码，true则设为 Hacker 模式
+        bool use_hacker_effect = false,
         bool use_glow = false,
         const std::optional<ImVec4>& glow_color = std::nullopt);
 
     // 设置模式的辅助函数
     TechText* SetAnimMode(TechTextAnimMode mode);
-
+    // [新增] 显式设置Key
+    void SetI18nKey(const std::string& key);
     void SetText(const std::string& new_text);
     void RestartEffect();
     void Update(float dt, const ImVec2& parent_abs_pos) override;

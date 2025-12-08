@@ -10,7 +10,7 @@ _SYSTEM_BEGIN
 _UI_BEGIN
 
 // [修改] 构造函数实现，接收 closetext
-CelestialInfoPanel::CelestialInfoPanel(const std::string& foldtext, const std::string& closetext)
+CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::string& close_key)
 {
     // 自身作为容器，不阻挡输入，全透明
     m_rect = { 0, 0, 0, 0 };
@@ -26,7 +26,7 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& foldtext, const std::s
     // =========================================================
     // 1. 创建侧边把手 (Collapsed Tab)
     // =========================================================
-    m_collapsed_btn = std::make_shared<TechButton>(foldtext, TechButton::Style::Vertical);
+    m_collapsed_btn = std::make_shared<TechButton>(fold_key, TechButton::Style::Vertical);
     m_collapsed_btn->m_rect = { 0, 0, 24, 100 }; // 窄条设计
     m_collapsed_btn->SetUseGlass(true);
     m_collapsed_btn->on_click = [this]() { this->ToggleCollapse(); };
@@ -187,7 +187,7 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& foldtext, const std::s
         sep_btn->m_rect.h = 14.0f;
         sep_btn->m_visual_height = 1.0f;
         footer_box->AddChild(sep_btn);
-        auto close_btn = std::make_shared<TechButton>(closetext, TechButton::Style::Normal);
+        auto close_btn = std::make_shared<TechButton>(close_key, TechButton::Style::Normal);
         close_btn->m_rect.h = 32.0f;
         close_btn->m_align_h = Alignment::Stretch;
         close_btn->on_click = [this]() { this->ToggleCollapse(); };

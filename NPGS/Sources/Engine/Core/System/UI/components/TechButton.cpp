@@ -1,44 +1,53 @@
 #include "TechButton.h"
 #include "../TechUtils.h"
+#include "../Utils/I18nManager.h" // [新增]
+#include <imgui_internal.h>
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-TechButton::TechButton(const std::string& label, Style style)
-    : m_text_str(label), m_style(style)
+TechButton::TechButton(const std::string& key, Style style)
+    : m_i18n_key(key), m_style(style) // [修改] 存储 key
 {
     m_block_input = true;
 
-    // 只有非 Vertical 模式才需要内部 TechText 组件来负责布局
+    // 初始文本设置
+    m_text_str = TR(key);
+
     if (m_style != Style::Vertical && m_style != Style::Invisible)
     {
-        m_label_component = std::make_shared<TechText>(label);
+        m_label_component = std::make_shared<TechText>(key); // [修改] 将 key 传给 TechText
         m_label_component->m_align_h = Alignment::Center;
         m_label_component->m_align_v = Alignment::Center;
-        m_label_component->m_block_input = false; // 点击穿透给按钮
+        m_label_component->m_block_input = false;
         AddChild(m_label_component);
     }
 }
-void TechButton::SetLabel(const std::string& text, bool with_effect)
+void TechButton::SetText(const std::string& text, bool with_effect)
 {
-    // 1. 更新内部字符串副本 (Vertical 模式直接使用这个变量绘制)
+    m_i18n_key.clear(); // 清除 key
     m_text_str = text;
-
-    // 2. 如果存在子文本组件 (Normal / Tab 模式)
     if (m_label_component)
     {
-        // 如果调用者希望有特效，强制开启组件的特效开关
-        if (with_effect)
-        {
-            m_label_component->SetAnimMode(TechTextAnimMode::Hacker);
-        }
-
-        // 设置新文本
-        // 注意：TechText::SetText 内部逻辑是：如果 m_use_effect 为 true，它会自动调用 Start()
+        if (with_effect) m_label_component->SetAnimMode(TechTextAnimMode::Hacker);
         m_label_component->SetText(text);
+    }
+}
 
+void TechButton::SetI18nKey(const std::string& key, bool with_effect)
+{
+    if (m_i18n_key == key) return;
 
+    m_i18n_key = key;
+    m_local_i18n_version = 0; // 强制下一帧更新
+
+    // 立即应用一次，以防万一
+    m_text_str = TR(key);
+    if (m_label_component)
+    {
+        if (with_effect) m_label_component->SetAnimMode(TechTextAnimMode::Hacker);
+        m_label_component->SetI18nKey(key);
     }
 }
 
@@ -57,6 +66,15 @@ TechButton* TechButton::SetFont(ImFont* font)
 
 void TechButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
+    if (!m_i18n_key.empty() && (m_style == Style::Vertical || m_style == Style::Invisible))
+    {
+        auto& i18n = System::I18nManager::Get();
+        if (m_local_i18n_version != i18n.GetVersion())
+        {
+            m_text_str = i18n.Get(m_i18n_key);
+            m_local_i18n_version = i18n.GetVersion();
+        }
+    }
     // 1. 动画状态更新
     if (m_hovered) m_hover_progress += dt * m_anim_speed;
     else m_hover_progress -= dt * m_anim_speed;
@@ -150,7 +168,6 @@ void TechButton::Draw(ImDrawList* dl)
 
 void TechButton::DrawVerticalText(ImDrawList* dl, ImU32 col)
 {
-    // 复用之前写好的旋转逻辑
     ImFont* font = UIContext::Get().m_font_small;
     if (!font) font = ImGui::GetFont();
 
@@ -164,11 +181,25 @@ void TechButton::DrawVerticalText(ImDrawList* dl, ImU32 col)
     ImVec2 pen_local = { -text_size.x * 0.5f, -text_size.y * 0.5f };
     ImTextureID tex_id = font->ContainerAtlas->TexID;
 
-    if (font) ImGui::PushFont(font); // 确保字体状态正确
+    if (font) ImGui::PushFont(font);
 
-    for (const char* p = m_text_str.c_str(); *p; p++)
+    const char* text_begin = m_text_str.c_str();
+    const char* text_end = text_begin + m_text_str.length();
+    const char* ptr = text_begin;
+    while (ptr < text_end)
     {
-        const ImFontGlyph* glyph = font->FindGlyph(*p);
+        unsigned int char_code = 0;
+
+        // [核心修正] ImTextCharFromUtf8 返回消耗的字节数 (int)，而不是指针
+        int char_bytes = ImTextCharFromUtf8(&char_code, ptr, text_end);
+
+        // 如果解码失败或到达字符串末尾，则退出循环
+        if (char_bytes == 0)
+        {
+            break;
+        }
+
+        const ImFontGlyph* glyph = font->FindGlyph((ImWchar)char_code);
         if (glyph && glyph->Visible)
         {
             float x0 = pen_local.x + glyph->X0; float y0 = pen_local.y + glyph->Y0;
@@ -183,7 +214,14 @@ void TechButton::DrawVerticalText(ImDrawList* dl, ImU32 col)
                 ImVec2(glyph->U0, glyph->V0), ImVec2(glyph->U1, glyph->V0),
                 ImVec2(glyph->U1, glyph->V1), ImVec2(glyph->U0, glyph->V1), col);
         }
-        pen_local.x += glyph->AdvanceX;
+
+        if (glyph)
+        {
+            pen_local.x += glyph->AdvanceX;
+        }
+
+        // [核心修正] 手动将指针向前移动消耗的字节数
+        ptr += char_bytes;
     }
 
     if (font) ImGui::PopFont();

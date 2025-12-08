@@ -165,6 +165,9 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\components\ScreenVignette.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\Utils\I18nManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -354,6 +357,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\components\ScreenVignette.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\Utils\I18nManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

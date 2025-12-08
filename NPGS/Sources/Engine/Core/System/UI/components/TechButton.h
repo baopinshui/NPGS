@@ -26,11 +26,15 @@ public:
     bool m_selected = false; // 用于 Tab 模式
     bool  m_use_glass = false;
     float m_anim_speed = 5.0f; // 动画速度
-
+    std::string m_i18n_key;
+private:
+    uint32_t m_local_i18n_version = 0;
+public:
     // 构造
-    TechButton(const std::string& label, Style style = Style::Normal);
+    TechButton(const std::string& key, Style style = Style::Normal);
 
-    void SetLabel(const std::string& text, bool with_effect = false);
+    void SetText(const std::string& text, bool with_effect = false);
+    void SetI18nKey(const std::string& key, bool with_effect = false);
     TechButton* SetFont(ImFont* font);
     // 链式配置
     TechButton* SetSelected(bool v) { m_selected = v; return this; }

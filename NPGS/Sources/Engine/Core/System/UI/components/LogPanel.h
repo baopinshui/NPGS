@@ -35,7 +35,7 @@ private:
 class LogPanel : public UIElement
 {
 public:
-    LogPanel(const std::string& sysstr= "> System Scan Complete.", const std::string& savestr="> Auto-Save: T+114514.01.01");
+    LogPanel(const std::string& sys_key = "> System Scan Complete.", const std::string& save_key = "> Auto-Save: T+114514.01.01");
 
     void AddLog(LogType type, const std::string& title, const std::string& message);
     void SetSystemStatus(const std::string& text);

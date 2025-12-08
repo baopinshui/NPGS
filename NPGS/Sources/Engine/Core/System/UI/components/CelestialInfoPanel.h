@@ -37,7 +37,7 @@ class CelestialInfoPanel : public UIElement
 {
 public:
     // [修改] 构造函数增加 closetext 参数
-    CelestialInfoPanel(const std::string& foldtext = "INFO", const std::string& closetext = "CLOSE PANEL");
+    CelestialInfoPanel(const std::string& fold_key = "ui.info", const std::string& close_key = "ui.close_panel");
 
     void SetData(const CelestialData& data);
 

@@ -28,7 +28,19 @@ namespace Art = Runtime::Asset;
 namespace Grt = Runtime::Graphics;
 namespace SysSpa = System::Spatial;
 namespace UI = Npgs::System::UI;
-std::string FormatTime(double total_seconds)
+void FApplication::OnLanguageChanged() // [新增]
+{
+    // 1. 静态UI会自动更新，无需操作
+
+    // 2. 刷新动态数据面板
+    SimulateStarSelectionAndUpdateUI();
+
+    // 3. 刷新其他需要翻译的动态文本
+    m_log_panel->SetSystemStatus(Npgs::System::TR("ui.log.system_scan"));
+    // 注意：Autosave 时间戳是动态的，但前缀是静态的
+    m_log_panel->SetAutoSaveTime(Npgs::System::TR("ui.log.autosave") + FormatTime(GameTime));
+}
+std::string FApplication::FormatTime(double total_seconds)
 {
     const long SECONDS_PER_DAY = 86400;
     const long DAYS_PER_MONTH = 30;
@@ -75,7 +87,9 @@ FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& Wi
 }
 
 FApplication::~FApplication()
-{}
+{
+    System::I18nManager::Get().UnregisterCallback(this);
+}
 std::seed_seq seed{ std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() };
 Npgs::System::Generator::FStellarGenerator Gen(seed,Npgs::System::Generator::FStellarGenerator::EStellarTypeGenerationOption::kRandom);
 
@@ -567,61 +581,62 @@ void FApplication::ExecuteMainRender()
     auto& theme = UI::UIContext::Get().m_theme;
 
     auto& ctx = UI::UIContext::Get();
-    //theme.color_accent = ImVec4(0.745f, 0.745f, 0.561f, 1.0f); // #BEBE8F
-    //theme.color_panel_bg = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-
+    System::I18nManager::Get().RegisterCallback(this, [this]() { this->OnLanguageChanged(); });
     // 2. 创建唯一的 UI 根
     m_ui_root = std::make_shared<UI::UIRoot>();
     auto vignette = std::make_shared<UI::ScreenVignette>();
     //m_ui_root->AddChild(vignette);
     // 3. 创建 NeuralMenuController
-    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("设置项","你の百毒","〉 设置","关闭终端");
-
+    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("ui.manage", "ui.network", "ui.settings", "ui.close_terminal");
     // 4. 将菜单的根面板添加到 UI 根中
     m_ui_root->AddChild(m_neural_menu_controller);
 
     // 5. 创建 PulsarButtons
     // Button 1: Dyson Beam
     m_beam_button = std::make_shared<UI::PulsarButton>(
-        "可以起飞",
-        "发射戴森光束", // 这是主按钮文字
-        "☼",
-        "ENERGY",
+        "ui.status.can_liftoff",    // status_key
+        "ui.action.fire_beam",      // label_key
+        "☼",                        // icon_char (非文本，不翻译)
+        "ui.label.energy",          // stat_label_key
         &m_beam_energy,
-        "J",
+        "ui.unit.joules",           // stat_unit_key
         true,
         "beam"
     );
 
     m_rkkv_button = std::make_shared<UI::PulsarButton>(
-        "君のUI本当上手",
-        "发射RKKV",
+        "ui.status.ready_to_launch",// status_key
+        "ui.action.launch_rkkv",    // label_key
         RKKVID,
-        "MASS",
+        "ui.label.mass",            // stat_label_key
         &m_rkkv_mass, 
-        "kg",
-        true
-        , "rkkv"
+        "ui.unit.kg",               // stat_unit_key
+        true,
+        "rkkv"
     );
+
 	m_VN_button = std::make_shared<UI::PulsarButton>(
-		"cxk",
-		"发送冯诺依曼探测器",
-		"⌘",
-        "MASS",
+		"ui.status.ready_to_launch",    // status_key
+		"ui.action.launch_vn",          // label_key
+		"⌘",                            // icon_char
+        "ui.label.mass",                // stat_label_key
         &m_VN_mass,
-        "kg",
+        "ui.unit.kg",                   // stat_unit_key
 		true,
         "vn"
 	);
+
 	m_message_button = std::make_shared<UI::PulsarButton>(
-        "",
-		"发送信息",
-		"i",
-		"发送权重，用时",
-        &m_VN_mass,
-		"年·",
-		false
+        "ui.status.ready_to_send",      // status_key
+		"ui.action.send_message",       // label_key
+		"i",                            // icon_char
+		"ui.label.weight_time",         // stat_label_key
+        &m_VN_mass, // 假设有一个 m_message_time 变量
+		"ui.unit.years",                // stat_unit_key
+		false,
+        "message"
 	);
+
     m_beam_button->m_rect = { 50, 360, 40, 40 };
 
     m_rkkv_button->m_rect = { 50, 440, 40, 40 };
@@ -677,7 +692,7 @@ void FApplication::ExecuteMainRender()
             m_message_button->SetActive(false);
 
             // 假设 RKKV 总是可以发射
-            m_rkkv_button->SetStatusText("READY TO LAUNCH");
+            m_rkkv_button->SetI18nKey("ui.status.ready_to_launch");
             m_rkkv_button->SetExecutable(true); // <--- 设置为可执行
         }
         else
@@ -690,9 +705,9 @@ void FApplication::ExecuteMainRender()
     m_rkkv_button->on_execute_callback = [this](const std::string& id, const std::string& val)
     {
         SimulateStarSelectionAndUpdateUI();
-        m_log_panel->AddLog(System::UI::LogType::Info, ">> SCAN_RESULT", "Test test 测试");
-        m_log_panel->AddLog(System::UI::LogType::Alert, ">> [CRITICAL]", "我的我要爆了！！！");
-        m_log_panel->SetAutoSaveTime("> Auto-Save: "+FormatTime(GameTime));
+        m_log_panel->AddLog(System::UI::LogType::Info, Npgs::System::TR("log.event.scan_result_title"), Npgs::System::TR("log.event.scan_result_desc"));
+        m_log_panel->AddLog(System::UI::LogType::Alert, Npgs::System::TR("log.event.critical_error_title"), Npgs::System::TR("log.event.critical_error_desc"));
+        m_log_panel->SetAutoSaveTime(Npgs::System::TR("ui.log.autosave") + FormatTime(GameTime));
         NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
     };
 
@@ -705,7 +720,7 @@ void FApplication::ExecuteMainRender()
 			m_rkkv_button->SetActive(false);
 			m_message_button->SetActive(false);
 			// 假设 VN 总是可以发射
-			m_VN_button->SetStatusText("READY TO LAUNCH");
+			m_VN_button->SetStatusText("ui.status.ready_to_launch");
 			m_VN_button->SetExecutable(true); // <--- 设置为可执行
 		}
 		else
@@ -729,7 +744,7 @@ void FApplication::ExecuteMainRender()
 			m_rkkv_button->SetActive(false);
             m_VN_button->SetActive(false);
             // 假设 VN 总是可以发射
-            m_message_button->SetStatusText("READY TO SEND");
+            m_message_button->SetStatusText("ui.status.ready_to_send");
             m_message_button->SetExecutable(true); // <--- 设置为可执行
         }
         else
@@ -752,7 +767,7 @@ void FApplication::ExecuteMainRender()
 	m_ui_root->AddChild(m_message_button);
 
 
-    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>();
+    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>("ui.info", "ui.close_panel");
     // 将其根元素添加到 UIRoot (假设 ui_root 是你的 UIRoot 实例)
     m_ui_root->AddChild(m_celestial_info);
 
@@ -766,7 +781,7 @@ void FApplication::ExecuteMainRender()
     m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(&GameTime, &TimeRate);
     m_ui_root->AddChild(m_time_control_panel);
 
-    m_log_panel = std::make_shared<System::UI::LogPanel>();
+    m_log_panel = std::make_shared<System::UI::LogPanel>("ui.log.system_scan", "ui.log.autosave");
 
     m_ui_root->AddChild(m_log_panel);
 
@@ -791,6 +806,18 @@ void FApplication::ExecuteMainRender()
         glfwPollEvents();
         // 开始 UI 帧
         _uiRenderer->BeginFrame();
+        if (ImGui::Begin("I18n Debug"))
+        {
+            if (ImGui::RadioButton("English", System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::English))
+            {
+                System::I18nManager::Get().SetLanguage(System::I18nManager::Language::English);
+            }
+            if (ImGui::RadioButton("Chinese", System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::Chinese))
+            {
+                System::I18nManager::Get().SetLanguage(System::I18nManager::Language::Chinese);
+            }
+        }
+        ImGui::End();
         auto& ui_ctx = Npgs::System::UI::UIContext::Get();
         ui_ctx.m_display_size = ImVec2((float)_WindowSize.width, (float)_WindowSize.height);
 
@@ -906,12 +933,12 @@ void FApplication::ExecuteMainRender()
 
             if (has_target)
             {
-                m_beam_button->SetStatusText("TARGET LOCKED");
+                m_beam_button->SetI18nKey("ui.status.target_locked");
                 m_beam_button->SetExecutable(true); // <--- 设置为可执行
             }
             else
             {
-                m_beam_button->SetStatusText("NO TARGET");
+                m_beam_button->SetI18nKey("ui.status.no_target");
                 m_beam_button->SetExecutable(false); // <--- 设置为不可执行
             }
 
@@ -932,34 +959,34 @@ void FApplication::ExecuteMainRender()
             else if (info_phase == 1)
             {
                 m_top_Info->SetCivilizationData(
-                    "TRANSCENDENT RINGULARITY",
-                    "已支配质量: 2.4e30 kg",
-                    "恒星系统: 14,201",
-                    "REWARD: 1.875e+21"
+                    Npgs::System::TR("cinematic.title.singularity"),
+                    std::vformat(Npgs::System::TR("cinematic.stat.mass_dominated"), std::make_format_args("2.4e30 kg")),
+                    std::vformat(Npgs::System::TR("cinematic.stat.star_systems"), std::make_format_args("14201")),
+                    std::vformat(Npgs::System::TR("cinematic.stat.reward"), std::make_format_args("1.875e+21"))
                 );
 
                 m_bottom_Info->SetCelestialData(
-                    "191981",
-                    "BH",
-                    "质量:1.91E+36kg",
-                    "光度:8.10E+30 W"
+                    "191981", // ID
+                    Npgs::System::TR("cinematic.type.black_hole"),
+                    std::vformat(Npgs::System::TR("cinematic.stat.mass"), std::make_format_args("1.91E+36kg")),
+                    std::vformat(Npgs::System::TR("cinematic.stat.luminosity"), std::make_format_args("8.10E+30 W"))
                 );
             }
             // 阶段 2: 文明
             else if (info_phase == 2)
             {
                 m_top_Info->SetCivilizationData(
-                    "TYPE-II CIVILIZATION",
-                    "输出: 3.8e26 W",
-                    "建造进度: 84.2%",
-                    "状态: 警告"
+                    Npgs::System::TR("cinematic.title.type2_civ"),
+                    std::vformat(Npgs::System::TR("cinematic.stat.output"), std::make_format_args("3.8e26 W")),
+                    std::vformat(Npgs::System::TR("cinematic.stat.progress"), std::make_format_args("84.2%")),
+                    Npgs::System::TR("cinematic.stat.status_warning")
                 );
 
                 m_bottom_Info->SetCelestialData(
                     "000001",
                     "Red Giant",
-                    "M = 6.4E+29kg",
-                    "L = 4.7E+24W"
+                    std::vformat(Npgs::System::TR("cinematic.stat.mass"), std::make_format_args("1.91E+29kg")),
+                    std::vformat(Npgs::System::TR("cinematic.stat.luminosity"), std::make_format_args("8.10E+99 W"))
                 );
             }
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);

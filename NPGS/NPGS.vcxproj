@@ -292,6 +292,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TimeControlPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\ui_framework.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\Utils\I18nManager.cpp" />
     <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\CelestialObject.cpp" />
     <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\Planet.cpp" />
     <ClCompile Include="Sources\Engine\Core\Types\Entries\Astro\Star.cpp" />
@@ -359,6 +360,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\neural_ui.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\ui_framework.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\Utils\I18nManager.h" />
     <ClInclude Include="Sources\Engine\Core\Types\Entries\Astro\CelestialObject.h" />
     <ClInclude Include="Sources\Engine\Core\Types\Entries\Astro\Planet.h" />
     <ClInclude Include="Sources\Engine\Core\Types\Entries\Astro\Star.h" />
