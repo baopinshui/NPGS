@@ -25,6 +25,7 @@ public:
     bool m_is_active = false;
     bool m_can_execute = false;
 
+    // [修改] 构造函数参数名保持不变，但内部逻辑会改变
     PulsarButton(
         const std::string& status_key,
         const std::string& label_key,
@@ -47,10 +48,12 @@ public:
         const std::string& id = ""
     );
 
-    void SetActive(bool active);    
+    void SetActive(bool active);
     void SetI18nKey(const std::string& status_key);
 
+    // [弃用] 但保留用于向后兼容
     void SetStatusText(const std::string& text);
+
     void SetExecutable(bool can_execute);
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
@@ -58,11 +61,16 @@ public:
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 
 private:
-
-    // [新增] 内部通用初始化逻辑，减少代码重复
     void InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key);
-    // [新增] 统一设置图标颜色的辅助函数
     void SetIconColor(const ImVec4& color);
+
+    // [新增] 内部存储 Key，用于手动控制 I18n 更新
+    std::string m_status_key;
+    std::string m_label_key;
+    // 统计标签也可能需要更新
+    std::string m_stat_label_key;
+    std::string m_stat_unit_key;
+    uint32_t m_local_i18n_version = 0;
 
     bool m_core_hovered = false;
     float m_core_hover_progress = 0.0f;
@@ -72,10 +80,13 @@ private:
     float m_anim_progress = 0.0f;
     float line_prog = 0.0f;
     float m_rotation_angle = 0.0f;
+
+    // 暂存文本：当需要伸长横线时，新文本存在这里
     std::string m_pending_status_text;
+    std::string m_pending_label_text; // [新增] Label 也可能变长
+    bool m_has_pending_text = false;  // [修改] 统一标记
 
     std::string* m_stat_value_ptr = nullptr;
-    bool m_has_pending_status = false;
     float m_current_line_len = 130.0f;
     float m_target_line_len = 130.0f;
 
@@ -85,9 +96,8 @@ private:
     std::shared_ptr<TechText> m_text_stat_value;
     std::shared_ptr<TechText> m_text_stat_unit;
 
-    // 图标现在可能是文字，也可能是图片
     std::shared_ptr<TechText> m_text_icon;
-    std::shared_ptr<Image>    m_image_icon; // [新增]
+    std::shared_ptr<Image>    m_image_icon;
 
     bool m_is_editable;
     std::shared_ptr<InputField> m_input_field;
@@ -106,6 +116,9 @@ private:
 
     const ImVec2 pulsar_center_offset = { 20.0f, 20.0f };
     const float pulsar_radius = 60.0f;
+
+    // [新增] 辅助函数：检查文本长度并决定是否暂存
+    void CheckAndSetText(std::shared_ptr<TechText> comp, std::string& pending_str, const std::string& new_text);
 };
 
 _UI_END
