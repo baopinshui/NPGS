@@ -79,6 +79,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     if (m_is_editable && stat_value_ptr)
     {
         m_input_field = std::make_shared<InputField>(stat_value_ptr);
+        m_input_field->m_font = ctx.m_font_bold;
         m_input_field->m_text_color = theme.color_accent;
         m_input_field->m_border_color = theme.color_accent;
         AddChild(m_input_field);
@@ -86,7 +87,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     else if (stat_value_ptr)
     {
         m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, theme.color_accent, true);
-        m_text_stat_value->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold;
+        m_text_stat_value->m_font = ctx.m_font_bold;
         m_text_stat_value->m_block_input = false;
         AddChild(m_text_stat_value);
     }
@@ -524,7 +525,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         if (m_input_field)
         {
             m_input_field->m_rect.x = val_x;
-            m_input_field->m_rect.y = stat_y - 2.0f;
+            m_input_field->m_rect.y = stat_y - 0.0f;
             m_input_field->m_rect.w = 100.0f;
             m_input_field->m_alpha = text_alpha;
             m_input_field->m_visible = (text_alpha > 0.01f);
@@ -533,7 +534,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         if (m_text_stat_value)
         {
             m_text_stat_value->m_rect.x = val_x;
-            m_text_stat_value->m_rect.y = stat_y - 4.0f;
+            m_text_stat_value->m_rect.y = stat_y - 0.0f;
             m_text_stat_value->m_alpha = text_alpha;
             m_text_stat_value->m_visible = (text_alpha > 0.01f);
         }

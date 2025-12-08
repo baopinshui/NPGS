@@ -1,5 +1,6 @@
 #pragma once
 #include "../ui_framework.h"
+#include "InputField.h" // [新增] 引入 InputField
 #include <string>
 #include <cmath>
 #include <algorithm>
@@ -16,11 +17,43 @@ template<typename T>
 class BaseTechSlider : public UIElement
 {
 public:
-    // [修改] I18n
-    std::string m_i18n_key;
+    std::string m_i1n_key;
     std::string m_translated_label;
 private:
-    uint32_t m_local_i18n_version = 0;
+    uint32_t m_local_i1n_version = 0;
+    std::string m_value_string_buffer;
+    std::shared_ptr<InputField> m_value_input;
+
+    bool TryParseScientific(const std::string& s, double& result)
+    {
+        if (s.empty()) return false;
+        std::string temp = s;
+        size_t pos;
+        if ((pos = temp.find("*10^")) != std::string::npos)
+        {
+            temp.replace(pos, 4, "e");
+        }
+        else if ((pos = temp.find("x10^")) != std::string::npos)
+        {
+            temp.replace(pos, 4, "e");
+        }
+
+        try
+        {
+            result = std::stod(temp);
+            return true;
+        }
+        catch (const std::invalid_argument&)
+        {
+            return false;
+        }
+        catch (const std::out_of_range&)
+        {
+            return false;
+        }
+        return false;
+    }
+
 public:
     T* m_target_value;
     bool m_is_dragging = false;
@@ -28,95 +61,142 @@ public:
     float max_label_w = 100.0f;
     float value_box_w = 70.0f;
     float padding = 8.0f;
-    BaseTechSlider(const std::string& key, T* binding) // [修改] 接受 key
-        : m_i18n_key(key), m_target_value(binding)
+
+    BaseTechSlider(const std::string& key, T* binding)
+        : m_i1n_key(key), m_target_value(binding)
     {
         m_rect.h = 32.0f;
         m_block_input = true;
-        // 立即翻译一次
-        m_translated_label = TR(m_i18n_key);
-        // RGB 判断逻辑现在基于翻译后的文本
+        m_translated_label = TR(m_i1n_key);
         if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true;
+
+        m_value_input = std::make_shared<InputField>(&m_value_string_buffer);
+        m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;
+        const auto& theme = UIContext::Get().m_theme;
+        m_value_input->m_text_color = theme.color_text;
+        m_value_input->m_border_color = theme.color_accent;
+        AddChild(m_value_input);
+
+        // [核心修正] Lambda 现在调用虚函数，而不是进行类型检查
+        m_value_input->on_change = [this](const std::string& input)
+        {
+            double parsed_value;
+            if (TryParseScientific(input, parsed_value))
+            {
+                // 调用虚函数，让正确的子类实现来处理赋值逻辑
+                this->SetValueFromParsedInput(parsed_value);
+            }
+        };
     }
+
+    // [新增] 虚函数，用于子类重写数值设置逻辑
+    virtual void SetValueFromParsedInput(double parsed_value)
+    {
+        // 基类默认行为：直接赋值
+        *this->m_target_value = static_cast<T>(parsed_value);
+    }
+
     void Update(float dt, const ImVec2& parent_abs_pos) override
     {
-        if (!m_i18n_key.empty())
+        if (!m_i1n_key.empty())
         {
             auto& i18n = System::I18nManager::Get();
-            if (m_local_i18n_version != i18n.GetVersion())
+            if (m_local_i1n_version != i18n.GetVersion())
             {
-                m_translated_label = i18n.Get(m_i18n_key);
-                m_local_i18n_version = i18n.GetVersion();
+                m_translated_label = i18n.Get(m_i1n_key);
+                m_local_i1n_version = i18n.GetVersion();
                 if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true; else m_is_rgb = false;
             }
         }
+
+        if (m_value_input)
+        {
+            ImFont* font = GetFont();
+            if (!m_value_input->IsFocused())
+            {
+                char buf[64];
+                snprintf(buf, 64, "%.2e", (double)*m_target_value);
+                if (m_value_string_buffer != buf)
+                {
+                    m_value_string_buffer = buf;
+                    m_value_input->m_cursor_pos = m_value_string_buffer.length();
+                }
+            }
+            float h_up = m_rect.h;
+            float input_h = font ? font->FontSize : 13.0f;
+            m_value_input->m_rect.w = value_box_w;
+            m_value_input->m_rect.h = input_h;
+            m_value_input->m_rect.x = m_rect.w - value_box_w;
+            m_value_input->m_rect.y = (h_up - input_h) * 0.5f;
+            m_value_input->m_font = font;
+        }
+
         UIElement::Update(dt, parent_abs_pos);
     }
-    // 子类实现：当前归一化位置 [0, 1]
+
     virtual float GetNormalizedVisualPos() const = 0;
-
-    // 子类实现：视觉中性点/原点 [0, 1] (线性=0.0, 油门=0.5)
     virtual float GetNeutralVisualPos() const { return 0.0f; }
-
-    // 子类实现：拖拽逻辑
     virtual void OnDrag(float rel_x) = 0;
 
-    // 通用的鼠标事件处理
     void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override
     {
-        // 如果已经被外部遮挡，且不在拖拽状态，直接放弃
-        // 注意：如果正在 m_is_dragging，即使外部 handled=true 我们也要继续处理（比如鼠标移出了窗口）
-        if (handled && !m_is_dragging)
+        if (!m_visible || m_alpha <= 0.01f) return;
+
+        // [核心修复] 优先处理拖拽状态
+        // 如果当前正在拖拽滑块，则滑块独占所有鼠标事件，不分发给子元素。
+        if (m_is_dragging)
+        {
+            // 拖拽过程中，更新滑块位置
+            float slider_start_x = m_absolute_pos.x + max_label_w + padding;
+            float slider_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
+            if (slider_w < 10.0f) slider_w = 10.0f;
+            float rel_x = (mouse_pos.x - slider_start_x) / slider_w;
+            OnDrag(std::clamp(rel_x, 0.0f, 1.0f));
+
+            // 如果鼠标释放，则结束拖拽
+            if (mouse_released)
+            {
+                m_is_dragging = false;
+                ReleaseMouse();
+            }
+
+            handled = true; // 拖拽期间，事件被完全消耗
+            return;         // 直接返回，不执行后续逻辑
+        }
+
+        // --- 如果没有在拖拽，则执行正常事件分发 ---
+
+        // 1. 让子元素（输入框）优先处理事件
+        for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+        {
+            (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+        }
+
+        // 如果子元素已经消耗了事件，则滑块自身不进行交互判断
+        if (handled)
         {
             m_hovered = false;
             return;
         }
 
-        
-        
-
+        // 2. 如果子元素未处理，则检查滑块轨道区域的交互（开始新的拖拽）
         float slider_start_x = m_absolute_pos.x + max_label_w + padding;
         float slider_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
+        if (slider_w < 10.0f) { slider_w = 10.0f; }
 
-        // 简单的布局防崩坏逻辑
-        if (slider_w < 10.0f) { slider_w = 10.0f; slider_start_x = m_absolute_pos.x + m_rect.w - slider_w; }
-
-        // 判定鼠标是否在滑条的有效可点击区域内
         bool mouse_in_slider = (mouse_pos.x >= slider_start_x - 5.0f && mouse_pos.x <= slider_start_x + slider_w + 5.0f &&
             mouse_pos.y >= m_absolute_pos.y && mouse_pos.y <= m_absolute_pos.y + m_rect.h);
 
-        // 1. 开始拖拽逻辑
-        // 只有当事件未被处理 (!handled) 时才允许发起新的拖拽
-        if (!m_is_dragging && !handled && mouse_clicked && mouse_in_slider)
+        m_hovered = mouse_in_slider;
+
+        if (mouse_clicked && mouse_in_slider)
         {
             m_is_dragging = true;
             CaptureMouse();
-            handled = true; // [关键] 标记事件被消耗，开始拖拽
+            handled = true;
         }
-
-        // 2. 结束拖拽逻辑
-        if (m_is_dragging && mouse_released)
-        {
-            m_is_dragging = false;
-            ReleaseMouse();
-            handled = true; // 释放动作本身也是一种交互，应该被标记处理
-        }
-
-        // 3. 拖拽过程逻辑
-        if (m_is_dragging)
-        {
-            float rel_x = (mouse_pos.x - slider_start_x) / slider_w;
-            OnDrag(std::clamp(rel_x, 0.0f, 1.0f));
-            handled = true; // [关键] 拖拽过程中始终消耗事件
-            return; // 拖拽时不需要再走基类的通用悬停逻辑
-        }
-
-        // 4. 如果没有发生拖拽相关的交互，调用基类处理通用悬停 (Hover)
-        // 这里的 handled 传进去，如果上面逻辑都没触发，handled 依然是 false (或外部传入的状态)
-        UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
-    // [视觉升级] 重写 Draw 方法
     void Draw(ImDrawList* dl) override
     {
         if (!m_visible || m_alpha <= 0.01f) return;
@@ -125,7 +205,6 @@ public:
 
         const auto& theme = UIContext::Get().m_theme;
 
-        // --- 1. 颜色配置 ---
         ImVec4 accent_vec4 = theme.color_accent;
         if (m_is_rgb)
         {
@@ -136,95 +215,46 @@ public:
 
         ImU32 col_text = GetColorWithAlpha(theme.color_text, 1.0f);
         ImU32 col_accent = GetColorWithAlpha(accent_vec4, 1.0f);
-        ImU32 col_accent_dim = GetColorWithAlpha(accent_vec4, 0.4f);
 
-        // 基础滑轨背景 (半透明可见)
-        ImVec4 track_bg_vec = theme.color_border;
-        track_bg_vec.w = 0.3f;
-        ImU32 col_track_bg = GetColorWithAlpha(track_bg_vec, 1.0f);
-
-        // --- 2. 布局计算 ---
         float h = m_rect.h;
         float y_center = m_absolute_pos.y + h * 0.5f;
-
-
         float track_x = m_absolute_pos.x + max_label_w + padding;
         float track_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
-
         if (track_w < 10.0f) track_w = 10.0f;
 
-        // --- 3. 绘制 Label (手动计算换行) ---
-        // 修复：不使用 ImGui::Text，而是直接计算分割点并用 dl->AddText 绘制
         {
-            const char* text_begin = m_translated_label.c_str(); // [修改] 使用翻译后的文本
-            const char* text_end = text_begin + m_translated_label.size(); // [修改]
+            const char* text_begin = m_translated_label.c_str();
+            const char* text_end = text_begin + m_translated_label.size();
             float font_size = font ? font->FontSize : 13.0f;
-            float line_height = font_size; // 行高
+            float line_height = font_size;
 
-            // 计算文字总尺寸（含换行）以便垂直居中
             ImVec2 total_size = ImGui::CalcTextSize(text_begin, text_end, false, max_label_w);
             float text_start_y = y_center - total_size.y * 0.5f;
 
             const char* line_ptr = text_begin;
             float current_y = text_start_y;
-
-            // 循环绘制每一行
             while (line_ptr < text_end)
             {
-                // 计算当前行在 max_label_w 宽度下应该在哪里断开
                 const char* next_line_ptr = font->CalcWordWrapPositionA(1.0f, line_ptr, text_end, max_label_w);
-
-                // 如果一行都放不下（next == line），强制进一个字符防止死循环
                 if (next_line_ptr == line_ptr) next_line_ptr++;
-
                 dl->AddText(ImVec2(m_absolute_pos.x, current_y), col_text, line_ptr, next_line_ptr);
-
                 line_ptr = next_line_ptr;
-                // 跳过空格/换行符（简单的处理）
                 while (line_ptr < text_end && (*line_ptr == ' ' || *line_ptr == '\n')) line_ptr++;
-
                 current_y += line_height;
             }
         }
 
-        // --- 4. 绘制轨道 (Track) ---
-        float track_h = 1.0f; // 极细
+        float track_h = 1.0f;
         float track_y = y_center - track_h * 0.5f;
-
-        // 轨道背景：不再使用灰色，使用主题色但极低透明度 (15%)
         ImVec4 track_bg_col = accent_vec4;
         track_bg_col.w = 0.5f;
-
-        // 绘制轨道背景
         dl->AddRectFilled(
             ImVec2(track_x, track_y),
             ImVec2(track_x + track_w, track_y + track_h),
             GetColorWithAlpha(track_bg_col, 1.0f)
         );
 
-        // --- 5. 绘制高亮填充 (Fill) ---
-        float t = GetNormalizedVisualPos();       // 当前位置 0~1
-       // float t_neutral = GetNeutralVisualPos();  // 中性点 (0.0 或 0.5)
-       //
-       // // 计算填充范围 (从中心向目标延伸)
-       // float t_min = std::min(t, t_neutral);
-       // float t_max = std::max(t, t_neutral);
-       //
-       // float fill_start_x = track_x + track_w * t_min;
-       // float fill_end_x = track_x + track_w * t_max;
-       //
-       // // 只有当偏离中性点时才绘制
-       // if (t_max - t_min > 0.001f)
-       // {
-       //     dl->AddRectFilled(
-       //         ImVec2(fill_start_x, track_y),
-       //         ImVec2(fill_end_x, track_y + track_h),
-       //         col_accent_dim,
-       //         2.0f
-       //     );
-       // }
-
-        // --- 6. 绘制游标 (Grabber) ---
+        float t = GetNormalizedVisualPos();
         float grab_x = track_x + track_w * t;
         float grab_w = 6.0f;
         float grab_h = 14.0f;
@@ -246,7 +276,6 @@ public:
             0.0f
         );
 
-        // 光晕
         if (m_is_dragging || m_hovered)
         {
             dl->AddRect(
@@ -259,24 +288,12 @@ public:
             );
         }
 
-        // --- 7. 绘制数值 (科学计数法) ---
-        char buf[64];
-        // 强制转换为 float 使用 %.4e (保留4位小数的科学计数法)
-        snprintf(buf, 64, "%.2e", (float)*m_target_value);
-
-        ImVec2 val_size = ImGui::CalcTextSize(buf);
-        // 右对齐
-        float val_x = m_absolute_pos.x + m_rect.w - val_size.x;
-
-        dl->AddText(ImVec2(val_x, y_center - val_size.y * 0.5f), col_text, buf);
+        UIElement::Draw(dl);
 
         if (font) ImGui::PopFont();
     }
 };
 
-// ==========================================
-// 1. 线性滑块 (Linear Slider)
-// ==========================================
 template<typename T>
 class LinearTechSlider : public BaseTechSlider<T>
 {
@@ -285,6 +302,13 @@ public:
 
     LinearTechSlider(const std::string& label, T* binding, T min_val, T max_val)
         : BaseTechSlider<T>(label, binding), m_min(min_val), m_max(max_val) {}
+
+    // [新增] 重写基类方法，加入范围限制逻辑
+    void SetValueFromParsedInput(double parsed_value) override
+    {
+        T new_val = static_cast<T>(parsed_value);
+        *this->m_target_value = std::clamp(new_val, this->m_min, this->m_max);
+    }
 
     float GetNormalizedVisualPos() const override
     {
@@ -295,7 +319,6 @@ public:
         return std::clamp((val - min_f) / (max_f - min_f), 0.0f, 1.0f);
     }
 
-    // 线性滑块从中点 0.0 (左侧) 开始填充
     float GetNeutralVisualPos() const override { return 0.0f; }
 
     void OnDrag(float rel_x) override
@@ -316,9 +339,6 @@ public:
     }
 };
 
-// ==========================================
-// 2. 油门滑块 (Throttle Slider)
-// ==========================================
 template<typename T>
 class ThrottleTechSlider : public BaseTechSlider<T>
 {
@@ -335,7 +355,6 @@ public:
         return (m_throttle_val + 1.0f) * 0.5f;
     }
 
-    // 油门滑块从 0.5 (中间) 开始填充
     float GetNeutralVisualPos() const override { return 0.5f; }
 
     void OnDrag(float rel_x) override
@@ -351,15 +370,11 @@ public:
         {
             if (std::abs(m_throttle_val) > 0.001f)
             {
-                m_throttle_val *= 0.85f; // 回弹速度
+                m_throttle_val *= 0.85f;
                 if (std::abs(m_throttle_val) < 0.001f) m_throttle_val = 0.0f;
             }
-
-            // [关键修改]：松手后（非拖拽状态），只更新视觉位置(m_throttle_val)，
-            // 不再更新绑定的目标数值，直接返回。
             return;
         }
-
 
         if (std::abs(m_throttle_val) < 0.001f)
         {
@@ -369,7 +384,7 @@ public:
 
         double val_d = static_cast<double>(*this->m_target_value);
         double a_d = static_cast<double>(m_feature_a);
-        double speed_mult = 1.0+pow(m_throttle_val,2.0);
+        double speed_mult = 1.0 + pow(m_throttle_val, 2.0);
 
         double change_rate = sqrt(pow(val_d, 2.0) + pow(a_d, 2.0));
         double delta = m_throttle_val * dt * speed_mult * change_rate;

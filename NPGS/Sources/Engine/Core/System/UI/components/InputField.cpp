@@ -1,24 +1,19 @@
 #include "InputField.h"
 #include "../TechUtils.h"
+#include <cmath>
+
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
-// [修改] 重写 GetFont，强制使用 Monospace
+
 ImFont* InputField::GetFont() const
 {
-    // 1. 如果用户手动给这个 InputField 设置了特定字体 (m_font)，优先级最高
     if (m_font) return m_font;
-
-    // 2. 默认情况：InputField 必须用等宽字体
-    // 注意：你之前的代码里写的是 m_font_bold，这会导致错位，必须用 m_font_mono
-    // 请确保 UIContext 也就是 ui_framework.h/cpp 里加载了这个字体
     ImFont* mono = UIContext::Get().m_font_bold;
-
-    // 3. 兜底
     if (mono) return mono;
-    return UIElement::GetFont(); // 回退到基类逻辑
+    return UIElement::GetFont();
 }
-// ... in InputField.cpp
+
 InputField::InputField(std::string* target) : m_target_string(target)
 {
     m_block_input = true;
@@ -26,11 +21,16 @@ InputField::InputField(std::string* target) : m_target_string(target)
     m_rect.h = 20.0f;
     if (m_target_string) m_cursor_pos = m_target_string->length();
 
-    // 从UITheme初始化颜色
     const auto& theme = UIContext::Get().m_theme;
     m_text_color = theme.color_text;
     m_border_color = theme.color_border;
+
+    m_anim_head = 0.0f;
+    m_anim_tail = 0.0f;
+    m_activation_count = 0;
+    m_last_show_state = false;
 }
+
 void InputField::Update(float dt, const ImVec2& parent_abs_pos)
 {
     UIElement::Update(dt, parent_abs_pos);
@@ -40,6 +40,60 @@ void InputField::Update(float dt, const ImVec2& parent_abs_pos)
         if (m_cursor_blink_timer > 1.0f) m_cursor_blink_timer = 0.0f;
         m_show_cursor = m_cursor_blink_timer < 0.5f;
     }
+
+    bool should_show = false;
+    switch (m_underline_mode)
+    {
+    case UnderlineDisplayMode::Always: should_show = true; break;
+    case UnderlineDisplayMode::OnHoverOrFocus: should_show = m_hovered || IsFocused(); break;
+    case UnderlineDisplayMode::Never: should_show = false; break;
+    }
+
+    if (should_show && !m_last_show_state)
+    {
+        m_activation_count++;
+    }
+    m_last_show_state = should_show;
+
+    float target_head = static_cast<float>(m_activation_count);
+
+    // Tail 的目标：如果是显示状态，保持在上一圈的末尾（保证线是满的）
+    // 如果是隐藏状态，追赶到当前圈的末尾（让线消失）
+    float target_tail = should_show ?
+        static_cast<float>(m_activation_count - 1) :
+        static_cast<float>(m_activation_count);
+
+    float speed = 8.0f;
+
+    auto UpdateValue = [&](float& current, float target, float dt_speed)
+    {
+        if (current < target)
+        {
+            current += (target - current+0.1) * dt_speed * dt;
+            if (std::abs(target - current) < 0.001f) current = target;
+        }
+    };
+
+    UpdateValue(m_anim_head, target_head, speed);
+
+    // [修复 1] 将尾部速度改为与头部一致 (去掉 * 1.2f)
+    // 这样在快速划过时，尾部会以相同的速度跟随头部，形成一个向右移动的“光标”，而不会中途吞噬头部
+    UpdateValue(m_anim_tail, target_tail, speed);
+
+    // [修复 2] 强制约束：尾部永远不能超过头部
+    // 这解决了闪烁问题，确保任何时候线段长度 >= 0
+    if (m_anim_tail > m_anim_head)
+    {
+        m_anim_tail = m_anim_head;
+    }
+
+    // 重置逻辑 (防止浮点数无限增大)
+    if (!should_show && m_anim_head == m_anim_tail && m_anim_head > 1.0f)
+    {
+        m_anim_head = 0.0f;
+        m_anim_tail = 0.0f;
+        m_activation_count = 0;
+    }
 }
 
 void InputField::Draw(ImDrawList* draw_list)
@@ -47,34 +101,27 @@ void InputField::Draw(ImDrawList* draw_list)
     if (!m_visible || m_alpha <= 0.01f) return;
     ImFont* font = GetFont();
     ImGui::PushFont(font);
-    // --- 1. 获取关键数据 ---
-    float font_size = ImGui::GetFontSize(); // 自适应字体高度
 
-    // [修改] 顶对齐：直接使用组件的绝对 Y 坐标，不计算居中偏移
+    float font_size = ImGui::GetFontSize();
     float draw_y = m_absolute_pos.y;
+    float width = m_rect.w;
+    float start_x = m_absolute_pos.x;
 
-    // --- 2. 准备颜色 ---
     ImU32 border_col = GetColorWithAlpha(m_border_color, 1.0f);
     ImU32 text_col = GetColorWithAlpha(m_text_color, 1.0f);
 
-    // --- 3. 绘制文本 (顶对齐) ---
-    ImVec2 text_pos = ImVec2(m_absolute_pos.x, draw_y);
+    ImVec2 text_pos = ImVec2(start_x, draw_y);
     if (m_target_string && !m_target_string->empty())
     {
         draw_list->AddText(text_pos, text_col, m_target_string->c_str());
     }
 
-    // --- 4. 绘制光标 (自适应) ---
     if (IsFocused() && m_show_cursor)
     {
-        // 确保光标位置不越界
         if (m_cursor_pos > m_target_string->length()) m_cursor_pos = m_target_string->length();
-
         std::string sub = m_target_string->substr(0, m_cursor_pos);
         ImVec2 cursor_offset = ImGui::CalcTextSize(sub.c_str());
-
         float cursor_x = text_pos.x + cursor_offset.x;
-
         draw_list->AddLine(
             ImVec2(cursor_x, draw_y),
             ImVec2(cursor_x, draw_y + font_size),
@@ -83,61 +130,86 @@ void InputField::Draw(ImDrawList* draw_list)
         );
     }
 
-    // --- 5. 绘制下划线 (自适应) ---
-    // 下划线位置 = 顶部 + 字体高度 + 2像素间距
-    // 这样无论字体多大，下划线永远紧跟在文字下方
     float line_y = draw_y + font_size + 2.0f;
 
-    // 使用 AddLine 绘制底线
-    TechUtils::DrawHardLine(draw_list,
-        ImVec2(m_absolute_pos.x, line_y),
-        ImVec2(m_absolute_pos.x + m_rect.w, line_y),
-        border_col,
-        1.0f
-    );
-    ImGui::PopFont(); // 必须成对出现
+    int cycle_head = static_cast<int>(std::floor(m_anim_head));
+    int cycle_tail = static_cast<int>(std::floor(m_anim_tail));
+
+    float ratio_head = m_anim_head - cycle_head;
+    float ratio_tail = m_anim_tail - cycle_tail;
+
+    // [MODIFICATION] The change is entirely within this lambda
+    auto DrawSegment = [&](float r_start, float r_end)
+    {
+        // 1. 定义裁剪区间 (硬编码调节)
+        // 意思：逻辑进度走过 0.1 才开始在屏幕上显示，走到 0.9 时就在屏幕上显示满了
+        const float clip_min = 0.01f; // 裁剪掉头部的 1%
+        const float clip_max = 0.99f; // 裁剪掉尾部的 1%
+        const float clip_range = clip_max - clip_min;
+
+        // 2. 辅助 Remap 函数：将逻辑值 [clip_min, clip_max] 映射到 视觉值 [0, 1]
+        auto Remap = [&](float val) -> float
+        {
+            if (val <= clip_min) return 0.0f;
+            if (val >= clip_max) return 1.0f;
+            return (val - clip_min) / clip_range;
+        };
+
+        // 3. 计算映射后的坐标
+        float mapped_start = Remap(r_start);
+        float mapped_end = Remap(r_end);
+
+        // 如果映射后长度太短（说明整段都在裁剪区间内），则不绘制
+        if (mapped_end <= mapped_start + 0.001f) return;
+
+        // 4. 使用映射后的全长 [0, 1] 进行绘制
+        TechUtils::DrawHardLine(draw_list,
+            ImVec2(start_x + width * mapped_start, line_y),
+            ImVec2(start_x + width * mapped_end, line_y),
+            border_col,
+            1.0f
+        );
+    };
+
+    if (cycle_head == cycle_tail)
+    {
+        DrawSegment(ratio_tail, ratio_head);
+    }
+    else
+    {
+        DrawSegment(ratio_tail, 1.0f);
+        DrawSegment(0.0f, ratio_head);
+    }
+
+    ImGui::PopFont();
 }
+
 
 void InputField::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
-    // 调用基类处理通用逻辑（如 hover 状态）
-     UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released,handled);
-
+    // ... (This function remains unchanged)
+    UIElement::HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     if (m_clicked && mouse_clicked)
     {
         RequestFocus();
-
-        // [核心功能]：鼠标点击定位光标
         if (m_target_string && !m_target_string->empty())
         {
             ImFont* font = GetFont();
             ImGui::PushFont(font);
-
-            // 2. 计算鼠标相对于文本起点的偏移
             float click_local_x = mouse_pos.x - m_absolute_pos.x;
-
-            // 如果点在最左边，光标归零
             if (click_local_x <= 0)
             {
                 m_cursor_pos = 0;
             }
             else
             {
-                // 3. 遍历寻找最近的字符间隙
-                // 我们通过比较 "鼠标位置" 和 "字符中心点" 来决定光标在字符前还是字符后
                 float best_diff = 99999.0f;
                 int best_index = 0;
-
-                // 遍历 0 到 length (包括末尾位置)
                 for (int i = 0; i <= m_target_string->length(); ++i)
                 {
-                    // 获取从开头到当前索引 i 的子字符串宽度
                     std::string sub = m_target_string->substr(0, i);
                     float width = ImGui::CalcTextSize(sub.c_str()).x;
-
                     float diff = std::abs(click_local_x - width);
-
-                    // 如果当前的距离比之前的更近，更新最佳位置
                     if (diff < best_diff)
                     {
                         best_diff = diff;
@@ -146,28 +218,23 @@ void InputField::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool
                 }
                 m_cursor_pos = best_index;
             }
-
             ImGui::PopFont();
         }
         else
         {
-            // 字符串为空，光标只能在 0
             m_cursor_pos = 0;
         }
-
-        // 重置光标闪烁，让用户点击后立刻看到光标
         m_cursor_blink_timer = 0.0f;
         m_show_cursor = true;
     }
 }
+
 bool InputField::HandleKeyboardEvent()
 {
+    // ... (This function remains unchanged)
     if (!IsFocused() || !m_target_string) return false;
-
     ImGuiIO& io = ImGui::GetIO();
     bool handled = false;
-
-    // 字符输入
     if (!io.InputQueueCharacters.empty())
     {
         for (int i = 0; i < io.InputQueueCharacters.Size; i++)
@@ -182,7 +249,6 @@ bool InputField::HandleKeyboardEvent()
         }
         io.InputQueueCharacters.clear();
     }
-    // 功能键
     if (ImGui::IsKeyPressed(ImGuiKey_Backspace) && m_cursor_pos > 0)
     {
         m_target_string->erase(m_cursor_pos - 1, 1);
@@ -206,20 +272,18 @@ bool InputField::HandleKeyboardEvent()
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Home)) { m_cursor_pos = 0; handled = true; }
     if (ImGui::IsKeyPressed(ImGuiKey_End)) { m_cursor_pos = m_target_string->length(); handled = true; }
-
     if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_Escape))
     {
         UIContext::Get().ClearFocus();
         handled = true;
     }
-
     if (handled && on_change)
     {
         on_change(*m_target_string);
     }
-
     return handled;
 }
+
 _UI_END
 _SYSTEM_END
 _NPGS_END
