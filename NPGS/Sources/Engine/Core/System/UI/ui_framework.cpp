@@ -44,6 +44,48 @@ ImVec4 StyleColor::Resolve() const
     return base_color;
 }
 
+void UIContext::NewFrame()
+{
+    m_tooltip_candidate_key.clear();
+}
+
+// [不变] 组件调用此方法请求显示 Tooltip
+void UIContext::RequestTooltip(const std::string& key)
+{
+    if (m_tooltip_candidate_key.empty() && !key.empty())
+    {
+        m_tooltip_candidate_key = key;
+    }
+}
+
+// [核心修正] 在 UIRoot Update 最后调用，更新计时器
+void UIContext::UpdateTooltipLogic(float dt)
+{
+    // 1. 检测悬停的组件是否发生了变化
+    if (m_tooltip_candidate_key != m_tooltip_previous_candidate_key)
+    {
+        // 鼠标移动到了新的组件上，或者移出了所有组件
+        m_tooltip_timer = 0.0f;        // 重置计时器
+        m_tooltip_active_key.clear();  // 立刻隐藏旧的 Tooltip
+    }
+
+    // 2. 如果当前有悬停的组件，则累加计时器
+    if (!m_tooltip_candidate_key.empty())
+    {
+        m_tooltip_timer += dt;
+    }
+
+    // 3. 检查计时器是否达到显示阈值
+    if (m_tooltip_timer > 0.5f)
+    {
+        // 将候选者转为激活状态
+        m_tooltip_active_key = m_tooltip_candidate_key;
+    }
+
+    // 4. 为下一帧记录当前状态
+    m_tooltip_previous_candidate_key = m_tooltip_candidate_key;
+}
+
 ImVec4 UIContext::GetThemeColor(ThemeColorID id) const
 {
     const auto& t = m_theme;
@@ -228,6 +270,10 @@ void UIElement::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool 
     }
     if (inside)
     {
+        if (!m_tooltip_key.empty())
+        {
+            UIContext::Get().RequestTooltip(m_tooltip_key);
+        }
         // 只有在 block_input 时才算“消耗”了事件
         if (m_block_input)
         {
@@ -691,7 +737,38 @@ void HorizontalScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_
 }
 
 // 在文件末尾，_UI_END 之前，添加 UIRoot 的实现
+void DrawGlobalTooltip(ImDrawList* fg_draw_list)
+{
+    auto& ctx = UIContext::Get();
+    if (ctx.m_tooltip_active_key.empty()) return;
 
+    std::string text = TR(ctx.m_tooltip_active_key); // 使用 TR 宏
+    if (text.empty() || text == ctx.m_tooltip_active_key) return; // 如果翻译失败或为空，不显示
+
+    ImFont* font = ctx.m_font_regular ? ctx.m_font_regular : ImGui::GetFont();
+
+    float font_size = font->FontSize;
+    ImVec2 text_size = font->CalcTextSizeA(font_size, 300.0f, 0.0f, text.c_str());
+    ImVec2 padding = { 10.0f, 8.0f };
+    ImVec2 box_size = { text_size.x + padding.x * 2, text_size.y + padding.y * 2 };
+
+    ImVec2 mouse_pos = ImGui::GetIO().MousePos;
+    ImVec2 pos = { mouse_pos.x + 15.0f, mouse_pos.y + 15.0f };
+
+    if (pos.x + box_size.x > ctx.m_display_size.x) pos.x = mouse_pos.x - box_size.x - 5.0f;
+    if (pos.y + box_size.y > ctx.m_display_size.y) pos.y = mouse_pos.y - box_size.y - 5.0f;
+
+    ImU32 bg_col = IM_COL32(10, 15, 20, 240);
+    ImVec4 accent = ctx.GetThemeColor(ThemeColorID::Accent);
+    ImU32 border_col = ImGui::ColorConvertFloat4ToU32(accent);
+
+    fg_draw_list->AddRectFilled(pos, ImVec2(pos.x + box_size.x, pos.y + box_size.y), bg_col, 4.0f);
+    fg_draw_list->AddRect(pos, ImVec2(pos.x + box_size.x, pos.y + box_size.y), border_col, 4.0f, 0, 1.5f);
+
+    ImGui::PushFont(font);
+    fg_draw_list->AddText(font, font_size, ImVec2(pos.x + padding.x, pos.y + padding.y), IM_COL32_WHITE, text.c_str(), nullptr, 300.0f);
+    ImGui::PopFont();
+}
 // --- UIRoot 实现 ---
 UIRoot::UIRoot()
 {
@@ -707,6 +784,7 @@ void UIRoot::Update(float dt)
     ImGuiIO& io = ImGui::GetIO();
 
     UIContext& ctx = UIContext::Get();
+    ctx.NewFrame();
 
     m_rect = { 0, 0, ctx.m_display_size.x, ctx.m_display_size.y };
     UIElement* focused_element_before_events = ctx.m_focused_element;
@@ -742,11 +820,13 @@ void UIRoot::Update(float dt)
 
     // --- 5. 更新所有UI元素的状态和动画 ---
     UIElement::Update(dt, { 0,0 });
+    ctx.UpdateTooltipLogic(dt);
 }
 void UIRoot::Draw() {
 
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     UIElement::Draw(draw_list);
+    DrawGlobalTooltip(draw_list);
 }
 
 void UIRoot::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)

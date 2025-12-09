@@ -85,23 +85,30 @@ public:
     // 状态管理
     UIElement* m_focused_element = nullptr;  // 当前拥有键盘焦点的元素
     UIElement* m_captured_element = nullptr; // 当前捕获鼠标的元素 (拖拽用)
+    // 悬停提示
+    std::string m_tooltip_candidate_key;          // [不变] 当前帧鼠标悬停的组件的 Key
+    std::string m_tooltip_active_key;             // [不变] 经过计时确认后，正在显示的 Key
+    std::string m_tooltip_previous_candidate_key;
+    float m_tooltip_timer = 0.0f;                 // [不变] 计时器
+    //主题
     UITheme m_theme;
-
+    //字体
     ImFont* m_font_regular = nullptr;
     ImFont* m_font_bold = nullptr;
     ImFont* m_font_large = nullptr;
     ImFont* m_font_small = nullptr;
     ImFont* m_font_subtitle = nullptr;
 
-
+    //毛玻璃texture
     ImTextureID m_scene_blur_texture = 0;
-
-    // [新增] 屏幕尺寸，用于计算 UV
     ImVec2 m_display_size = { 1920, 1080 };
 
 
 
     // API
+    void NewFrame();
+    void RequestTooltip(const std::string& key);
+    void UpdateTooltipLogic(float dt);
     ImVec4 GetThemeColor(ThemeColorID id) const;
     void SetFocus(UIElement* element);
     void ClearFocus();
@@ -166,7 +173,7 @@ public:
     bool m_visible = true;
     float m_alpha = 1.0f;
     std::string m_id;
-
+    std::string m_tooltip_key;
 
     // 布局属性 [新增]
     Alignment m_align_h = Alignment::Stretch; // 水平对齐
@@ -218,6 +225,7 @@ public:
     virtual void ResetInteraction();
 
     // 功能 API
+    UIElement* SetTooltip(const std::string& key) { m_tooltip_key = key; return this; }
     // 新增：绘制毛玻璃背景的辅助函数
     void DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max, const ImVec4& BackCol= ImVec4(0.0,0.0,0.0,0.6));
     void To(float* property, float target, float duration, EasingType easing = EasingType::EaseOutQuad, TweenCallback on_complete = nullptr);
