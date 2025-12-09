@@ -187,6 +187,10 @@ public:
             mouse_pos.y >= m_absolute_pos.y && mouse_pos.y <= m_absolute_pos.y + m_rect.h);
 
         m_hovered = mouse_in_slider;
+        if (m_hovered && !m_tooltip_key.empty())
+        {
+            UIContext::Get().RequestTooltip(m_tooltip_key);
+        }
 
         if (mouse_clicked && mouse_in_slider)
         {

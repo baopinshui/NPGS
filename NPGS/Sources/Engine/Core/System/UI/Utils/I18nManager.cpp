@@ -38,6 +38,7 @@ static bool IsI18nKey(const std::string& key)
         key.rfind("enum.", 0) == 0 ||
         key.rfind("cinematic.", 0) == 0 ||
         key.rfind("bool.", 0) == 0 ||
+        key.rfind("tooltip.", 0) == 0 ||
         key.rfind("data.", 0) == 0;
 }
 
@@ -91,6 +92,7 @@ void I18nManager::LoadDictionary()
     // In a real project, this should be loaded from a JSON/XML/CSV file.
     if (m_current_lang == Language::English)
     {
+        m_dictionary["tooltip.test"] = "you are right,but genshin impact is a...";
         // --- Static UI (General) ---
         m_dictionary["ui.manage"] = "MANAGE";
         m_dictionary["ui.network"] = "NETWORK";
@@ -263,6 +265,7 @@ void I18nManager::LoadDictionary()
     }
     else if (m_current_lang == Language::Chinese)
     {
+        m_dictionary["tooltip.test"] = "我是一发相对论性动能杀伤器呀！の∮";
         // --- Static UI (General) ---
         m_dictionary["ui.manage"] = "管理";
         m_dictionary["ui.network"] = "网络";
