@@ -18,7 +18,45 @@ float AnimationUtils::Ease(float t, EasingType type)
     }
 }
 
-// --- UIContext Implementation ---
+ImVec4 StyleColor::Resolve() const
+{
+    ImVec4 base_color;
+    if (id == ThemeColorID::Custom)
+    {
+        base_color = custom_value;
+    }
+    else if (id != ThemeColorID::None)
+    {
+        // 在 .cpp 文件中，UIContext::Get() 是完全可见的，不会再报错
+        base_color = UIContext::Get().GetThemeColor(id);
+    }
+    else
+    {
+        return ImVec4(0, 0, 0, 0); // None
+    }
+
+    // Apply modifiers if they exist
+    if (alpha_override >= 0.0f)
+    {
+        base_color.w = alpha_override;
+    }
+
+    return base_color;
+}
+
+ImVec4 UIContext::GetThemeColor(ThemeColorID id) const
+{
+    const auto& t = m_theme;
+    switch (id)
+    {
+    case ThemeColorID::Text:          return t.color_text;
+    case ThemeColorID::TextHighlight: return t.color_text_highlight;
+    case ThemeColorID::TextDisabled:  return t.color_text_disabled;
+    case ThemeColorID::Border:        return t.color_border;
+    case ThemeColorID::Accent:        return t.color_accent;
+    default: return ImVec4(0, 0, 0, 0);
+    }
+}
 void UIContext::SetFocus(UIElement* element) { m_focused_element = element; }
 void UIContext::ClearFocus() { m_focused_element = nullptr; }
 void UIContext::SetCapture(UIElement* element) { m_captured_element = element; }
@@ -270,7 +308,7 @@ void Panel::Draw(ImDrawList* draw_list)
         );
 
     }
-    ImVec4 bg = m_bg_color.value_or(UIContext::Get().m_theme.color_accent);
+    ImVec4 bg = m_bg_color.Resolve();
 
     draw_list->AddRectFilled(
         m_absolute_pos,

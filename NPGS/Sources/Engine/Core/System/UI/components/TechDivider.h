@@ -8,13 +8,13 @@ _UI_BEGIN
 class TechDivider : public UIElement
 {
 public:
-    std::optional<ImVec4> m_color_override;
+    StyleColor m_color;
     float m_visual_height=1.0f;
     bool m_use_gradient = false; // [新增] 是否启用向两端透明的渐变
-    TechDivider()
+    TechDivider(const StyleColor& color = ThemeColorID::Border) : m_color(color)
     {
         m_block_input = false;
-        m_rect.h = 1.0f; // 默认高度
+        m_rect.h = 1.0f;
         m_rect.w = 10.0f;
     }
 
@@ -22,8 +22,7 @@ public:
     {
         if (!m_visible || m_alpha <= 0.01f) return;
         float h = std::max(m_visual_height, 1.0f);
-        const auto& theme = UIContext::Get().m_theme; // [新增] 实时获取主题
-        ImVec4 final_color = m_color_override.value_or(theme.color_border); // [新增] 决定最终颜色
+        ImVec4 final_color = m_color.Resolve();
         if (m_use_gradient)
         {
             // --- 渐变模式 (中心实色，两端透明) ---

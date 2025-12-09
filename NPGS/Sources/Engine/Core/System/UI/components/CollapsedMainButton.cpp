@@ -35,6 +35,7 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
 
     // 2. "MANAGE" 文本
     auto manage_text = std::make_shared<TechText>(key1);
+    manage_text->m_color = ThemeColorID::Accent;
     manage_text->m_align_h = Alignment::Center;
     manage_text->m_font = ctx.m_font_small;
     manage_text->m_rect.h = 16.0f;
@@ -43,7 +44,7 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
     // 3. "NETWORK" 文本
     auto network_text = std::make_shared<TechText>(key2);
     network_text->m_align_h = Alignment::Center;
-
+    network_text->m_color = ThemeColorID::Accent;
     network_text->m_font = ctx.m_font_small;
     network_text->m_rect.h = 16.0f;
     network_text->m_block_input = false; // 点击穿透

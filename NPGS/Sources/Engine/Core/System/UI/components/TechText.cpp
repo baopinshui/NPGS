@@ -7,12 +7,12 @@ _SYSTEM_BEGIN
 _UI_BEGIN
 
 TechText::TechText(const std::string& text_or_key,
-    const std::optional<ImVec4>& color,
+    const StyleColor& color,
     bool use_hacker_effect,
     bool use_glow,
-    const std::optional<ImVec4>& glow_color)
-    : m_text(""), // 初始为空
-    m_color_override(color),
+    const StyleColor& glow_color)
+    : m_text(""),
+    m_color(color),           
     m_use_glow(use_glow),
     m_glow_color(glow_color)
 {
@@ -157,8 +157,7 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
     if (text_to_draw.empty() || alpha_mult <= 0.01f) return;
 
     // 1. 颜色计算
-    const auto& theme = UIContext::Get().m_theme;
-    ImVec4 final_col_vec = m_color_override.value_or(theme.color_accent);
+    ImVec4 final_col_vec = m_color.Resolve();
 
     // 2. 布局计算
     ImVec2 text_size = ImGui::CalcTextSize(text_to_draw.c_str());
@@ -211,7 +210,7 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
     }
     if (m_use_glow)
     {
-        ImVec4 glow_base = m_glow_color.value_or(theme.color_accent);
+        ImVec4 glow_base = m_glow_color.Resolve();
 
         // 基础 Alpha：保持原来的 0.4 系数，作为基准强度
         float base_alpha_val = 0.4f * m_glow_intensity * alpha_mult;

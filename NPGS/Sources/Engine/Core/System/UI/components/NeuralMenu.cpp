@@ -48,12 +48,11 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
     const auto& theme = UIContext::Get().m_theme;
 
     // A. Header Title
-    header_title = std::make_shared<TechText>(settings_key, std::nullopt, true);
+    header_title = std::make_shared<TechText>(settings_key, ThemeColorID::TextHighlight, true);
     header_title->SetAnimMode(TechTextAnimMode::Hacker);
     header_title->m_rect.h = 20.0f;
     header_title->m_align_h = Alignment::Start;
     header_title->m_font = UIContext::Get().m_font_bold;
-    header_title->SetColor(theme.color_text_highlight);
     main_layout->AddChild(header_title);
 
     // B. Top Divider

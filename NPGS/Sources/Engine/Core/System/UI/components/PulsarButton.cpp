@@ -44,15 +44,15 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     AddChild(m_bg_panel);
 
     // --- 2. 状态文本 ---
-    // [注意] 这里传入 TR(key) 而不是 key，这样 TechText 就不会被识别为 I18n Key 模式
-    // 从而避免 TechText 内部自动更新，交由 PulsarButton::Update 控制
-    m_text_status = std::make_shared<TechText>(TR(status_key), theme.color_text_highlight, true);
+    // [Note remains valid] TR(key) is passed, not the key itself, so TechText becomes a "dumb"
+    // display controlled by PulsarButton's complex update logic.
+    m_text_status = std::make_shared<TechText>(TR(status_key), ThemeColorID::TextHighlight, true);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
 
     // --- 3. 主标签 ---
-    m_text_label = std::make_shared<TechText>(TR(label_key), theme.color_text_highlight, true);
+    m_text_label = std::make_shared<TechText>(TR(label_key), ThemeColorID::TextHighlight, true);
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
     AddChild(m_text_label);
@@ -60,8 +60,9 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     // --- 4. 统计信息行 ---
     if (!stat_label_key.empty())
     {
-        // 这里的 ":" 手动拼接
-        m_text_stat_label = std::make_shared<TechText>(TR(stat_label_key) + ":", theme.color_text);
+        // The ":" is still manually concatenated here because the I18n update logic
+        // in PulsarButton::Update also does this. This keeps it consistent.
+        m_text_stat_label = std::make_shared<TechText>(TR(stat_label_key) + ":", ThemeColorID::Text);
         m_text_stat_label->m_font = ctx.m_font_bold;
         m_text_stat_label->m_block_input = false;
         AddChild(m_text_stat_label);
@@ -69,7 +70,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
 
     if (!stat_unit_key.empty())
     {
-        m_text_stat_unit = std::make_shared<TechText>(TR(stat_unit_key), theme.color_text);
+        m_text_stat_unit = std::make_shared<TechText>(TR(stat_unit_key), ThemeColorID::Text);
         m_text_stat_unit->m_font = ctx.m_font_bold;
         m_text_stat_unit->m_block_input = false;
         AddChild(m_text_stat_unit);
@@ -80,12 +81,16 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     {
         m_input_field = std::make_shared<InputField>(stat_value_ptr);
         m_input_field->m_font = ctx.m_font_bold;
+        // [NEW] Configure the input field's colors to match the PulsarButton's style
+        m_input_field->m_text_color = ThemeColorID::Accent;
+        m_input_field->m_border_color = ThemeColorID::Accent;
         AddChild(m_input_field);
     }
     else if (stat_value_ptr)
     {
-        m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, theme.color_accent, true);
-        m_text_stat_value->m_color_override = std::nullopt;
+        m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, ThemeColorID::Accent, true);
+        // [REMOVED] The confusing `m_color_override = std::nullopt;` line is no longer needed.
+        // The TechText constructor now correctly handles the color assignment.
         m_text_stat_value->m_font = ctx.m_font_bold;
         m_text_stat_value->m_block_input = false;
         AddChild(m_text_stat_value);

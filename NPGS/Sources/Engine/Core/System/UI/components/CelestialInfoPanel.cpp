@@ -64,12 +64,14 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         header_row->m_rect.h = 28.0f;
 
         m_title_text = std::make_shared<TechText>("No Target");
+        m_title_text->SetColor(ThemeColorID::Accent);
         m_title_text->m_font = UIContext::Get().m_font_bold;
         m_title_text->m_align_v = Alignment::End;
         m_title_text->m_rect.w = 120.0f;
 
+        // [MODIFIED] m_subtitle_text now uses a semantic StyleColor
         m_subtitle_text = std::make_shared<TechText>("");
-        m_subtitle_text->SetColor(theme.color_text_disabled);
+        m_subtitle_text->SetColor(ThemeColorID::TextDisabled); // <-- Clean
         m_subtitle_text->m_font = UIContext::Get().m_font_regular;
         m_subtitle_text->m_align_v = Alignment::End;
         m_subtitle_text->m_align_h = Alignment::End;
@@ -163,11 +165,11 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         auto prog_info = std::make_shared<HBox>();
         prog_info->m_rect.h = 14.0f;
         auto t1 = std::make_shared<TechText>("Main Coil");
-        t1->SetColor(theme.color_text_disabled);
+        t1->SetColor(ThemeColorID::TextDisabled);
         t1->m_font = UIContext::Get().m_font_small;
         t1->m_rect.w = 100.0f;
         auto t2 = std::make_shared<TechText>("45%");
-        t2->SetColor(theme.color_text);
+        t2->SetColor(ThemeColorID::Text);
         t2->m_font = UIContext::Get().m_font_small;
         t2->m_fill_h = true;
         t2->m_align_h = Alignment::End;
@@ -341,7 +343,6 @@ void CelestialInfoPanel::RefreshContent()
     if (m_current_tab_index < 0 || m_current_tab_index >= m_current_data.size()) return;
 
     const auto& current_page = m_current_data[m_current_tab_index];
-    auto& theme = UIContext::Get().m_theme;
 
     ImFont* target_font = UIContext::Get().m_font_regular;
     if (!target_font) target_font = ImGui::GetFont();
@@ -349,10 +350,10 @@ void CelestialInfoPanel::RefreshContent()
     float row_height = font_size + 4.0f;
     float key_width = font_size * 6.5f;
 
-    ImVec4 col_line = theme.color_accent; col_line.w = 0.5f;
-    ImVec4 col_key = theme.color_text_disabled;
-    ImVec4 col_val = theme.color_text;
-    ImVec4 col_highlight = theme.color_accent;
+    StyleColor col_line = StyleColor(ThemeColorID::Accent).WithAlpha(0.5f);
+    StyleColor col_key = ThemeColorID::TextDisabled;
+    StyleColor col_val = ThemeColorID::Text;
+    StyleColor col_highlight = ThemeColorID::Accent;
 
     for (const auto& group : current_page.groups)
     {
@@ -363,6 +364,7 @@ void CelestialInfoPanel::RefreshContent()
         group_hbox->m_rect.h = total_group_height;
 
         auto line = std::make_shared<Panel>();
+        line->m_bg_color = col_line;
         line->m_rect.w = 2.0f;
         line->m_align_v = Alignment::Start;
         line->m_rect.h = total_group_height;
@@ -384,13 +386,14 @@ void CelestialInfoPanel::RefreshContent()
             k->m_font = target_font;
             k->m_rect.w = key_width;
 
+            // [MODIFIED] Create TechText with StyleColor, and use SetColor for highlight
             auto v = std::make_shared<TechText>(item.value, col_val, true);
             v->m_align_h = Alignment::End;
             v->m_align_v = Alignment::Center;
             v->m_fill_h = true;
             v->m_font = target_font;
 
-            if (item.highlight) v->m_color_override=std::nullopt;
+            if (item.highlight) v->SetColor(ThemeColorID::Accent);
 
             row->AddChild(k);
             row->AddChild(v);

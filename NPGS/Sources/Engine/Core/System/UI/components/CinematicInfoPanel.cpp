@@ -8,51 +8,48 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
 {
     m_block_input = false;
     m_visible = false;
-    // [Change] 面板自身Alpha设为1，具体可见性由子元素Alpha控制
     m_alpha = 1.0f;
 
     auto& ctx = UIContext::Get();
-    auto& theme = ctx.m_theme;
+    // 'theme' is no longer needed here
 
-    // [Adjustment] Different max widths for top vs bottom to match the visual reference
-    // Top is wide (spanning the screen width mostly), Bottom is compact (centered on the BH text)
     if (m_position == Position::Top) m_max_width = 800.0f;
     else m_max_width = 300.0f;
 
-    // 1. Main VBox
+    // 1. Main VBox (unchanged)
     m_layout_vbox = std::make_shared<VBox>();
     m_layout_vbox->m_fill_h = true;
-    // [Adjustment] Tighter padding to group title and stats closely like in the image
     m_layout_vbox->m_padding = 4.0f;
     m_layout_vbox->m_block_input = false;
     AddChild(m_layout_vbox);
 
     // --- Component Initialization ---
 
-    // Title (Shared configuration)
-    // Top: "TRANSCENDENT...", Bottom: "BH - ..."
-    m_title_text = std::make_shared<TechText>("", theme.color_text_highlight, true,true);
+    // [MODIFIED] Title now uses ThemeColorID
+    m_title_text = std::make_shared<TechText>("", ThemeColorID::TextHighlight, true, true);
     m_title_text->m_glow_intensity = 0.5;
     m_title_text->m_glow_spread = 2.5;
-    m_title_text->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold; // Ensure large title
+    m_title_text->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold;
     m_title_text->m_align_h = Alignment::Center;
     m_title_text->m_fill_h = true;
-    m_title_text->m_rect.h = 24.0f; // Sufficient height for large font
-    m_title_text->m_align_v = Alignment::Center; // Ensure alignment
+    m_title_text->m_rect.h = 24.0f;
+    m_title_text->m_align_v = Alignment::Center;
 
-    // Divider (Shared configuration)
-    m_divider = std::make_shared<TechDivider>();
-    m_divider->m_rect.h = 1.0f;
-    m_divider->m_align_h = Alignment::Center;
-
-    // [Adjustment] Bottom divider is whiteish/grey, Top is colored accent
-    
+    // [MODIFIED] Divider is now initialized with a StyleColor.
+    // The conditional logic is much cleaner.
     if (m_position == Position::Top)
     {
-
+        // For the top, we create a divider that defaults to the Accent color
+        m_divider = std::make_shared<TechDivider>(ThemeColorID::Accent);
         m_divider->m_use_gradient = true;
     }
-    else m_divider->m_color_override = theme.color_text_disabled;
+    else
+    {
+        // For the bottom, we create one that defaults to TextDisabled
+        m_divider = std::make_shared<TechDivider>(ThemeColorID::TextDisabled);
+    }
+    m_divider->m_rect.h = 1.0f;
+    m_divider->m_align_h = Alignment::Center;
 
     // --- Layout Construction ---
 
@@ -60,7 +57,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     {
         // Top Layout: Title -> Stats -> Divider
 
-        // Stats Container
+        // Stats Container (unchanged)
         m_top_stats_box = std::make_shared<HBox>();
         m_top_stats_box->m_padding = 20.0f;
         m_top_stats_box->m_fill_h = false;
@@ -68,19 +65,19 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_top_stats_box->m_block_input = false;
         m_top_stats_box->m_rect.h = 0.0f;
 
-        auto create_top_stat = [&](std::shared_ptr<TechText>& ptr, const ImVec4& color,bool use_default)
+        // [MODIFIED] The complex 'create_top_stat' lambda is completely gone.
+        // We can now directly and clearly create the TechText components.
+        auto setup_stat = [&](std::shared_ptr<TechText>& ptr, const StyleColor& color)
         {
             ptr = std::make_shared<TechText>("", color, true);
-            if (use_default) ptr->m_color_override = std::nullopt;
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_top_stats_box->AddChild(ptr);
         };
 
-        // Colors from theme: 1 & 2 are standard text, 3 (Reward) is accent
-        create_top_stat(m_top_stat_1, theme.color_text,0);
-        create_top_stat(m_top_stat_2, theme.color_text,0);
-        create_top_stat(m_top_stat_3, theme.color_accent,1);
+        setup_stat(m_top_stat_1, ThemeColorID::Text);
+        setup_stat(m_top_stat_2, ThemeColorID::Text);
+        setup_stat(m_top_stat_3, ThemeColorID::Accent); // The "Reward" stat uses the Accent color.
 
         m_layout_vbox->AddChild(m_title_text);
         m_layout_vbox->AddChild(m_top_stats_box);
@@ -90,14 +87,14 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     {
         // Bottom Layout: Title -> Divider -> Type Text -> Stats
 
-        // Type Text ("Supermassive Black Hole")
-        m_bot_type_text = std::make_shared<TechText>("", theme.color_text, true);
+        // [MODIFIED] Type Text now uses ThemeColorID
+        m_bot_type_text = std::make_shared<TechText>("", ThemeColorID::Text, true);
         m_bot_type_text->m_font = ctx.m_font_regular;
         m_bot_type_text->m_align_h = Alignment::Center;
         m_bot_type_text->m_fill_h = true;
         m_bot_type_text->m_align_v = Alignment::Center;
 
-        // Stats Container ("M=... L=...")
+        // Stats Container (unchanged)
         m_bot_stats_box = std::make_shared<HBox>();
         m_bot_stats_box->m_padding = 30.0f;
         m_bot_stats_box->m_fill_h = false;
@@ -105,24 +102,24 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_bot_stats_box->m_block_input = false;
         m_bot_stats_box->m_rect.h = 0.0f;
 
-        auto create_bot_stat = [&](std::shared_ptr<TechText>& ptr)
+        // [MODIFIED] The 'create_bot_stat' lambda is also gone.
+        auto setup_stat = [&](std::shared_ptr<TechText>& ptr)
         {
-            // [Adjustment] Disabled color (darker grey) for technical stats
-            ptr = std::make_shared<TechText>("", theme.color_text_disabled, true);
-            ptr->m_font = ctx.m_font_bold; // Keep legible
+            ptr = std::make_shared<TechText>("", ThemeColorID::TextDisabled, true);
+            ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_bot_stats_box->AddChild(ptr);
         };
-        create_bot_stat(m_bot_stat_1);
-        create_bot_stat(m_bot_stat_2);
+
+        setup_stat(m_bot_stat_1);
+        setup_stat(m_bot_stat_2);
 
         m_layout_vbox->AddChild(m_title_text);
-        m_layout_vbox->AddChild(m_divider); // Divider immediately under title
+        m_layout_vbox->AddChild(m_divider);
         m_layout_vbox->AddChild(m_bot_type_text);
         m_layout_vbox->AddChild(m_bot_stats_box);
     }
 }
-
 void CinematicInfoPanel::UpdateTextWidth(std::shared_ptr<TechText> text_elem, const std::string& content)
 {
     if (!text_elem) return;

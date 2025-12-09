@@ -15,7 +15,10 @@ ImFont * InputField::GetFont() const
     return UIElement::GetFont();
 }
 
-InputField::InputField(std::string* target) : m_target_string(target)
+InputField::InputField(std::string* target) 
+    : m_target_string(target),
+    m_text_color(ThemeColorID::Text),   // Default text color is Accent
+    m_border_color(ThemeColorID::Accent)
 {
     m_block_input = true;
     m_focusable = true;
@@ -215,8 +218,8 @@ void InputField::Draw(ImDrawList* draw_list)
     float start_x = m_absolute_pos.x;
 
     const auto& theme = UIContext::Get().m_theme;
-    ImVec4 final_border_color = m_border_color.value_or(theme.color_accent); // [新增]
-    ImVec4 final_text_color = m_text_color.value_or(theme.color_accent); // [新增]
+    ImVec4 final_border_color = m_border_color.Resolve();
+    ImVec4 final_text_color = m_text_color.Resolve();
 
     ImU32 border_col = GetColorWithAlpha(final_border_color, 1.0f);
     ImU32 text_col = GetColorWithAlpha(final_text_color, 1.0f);

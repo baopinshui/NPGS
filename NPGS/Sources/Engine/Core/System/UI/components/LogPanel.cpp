@@ -90,12 +90,12 @@ void LogCard::Draw(ImDrawList* dl)
 // LogPanel 实现
 // =================================================================================
 
-LogPanel::LogPanel(const std::string& syskey, const std::string& savekey )
+LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
 {
     m_block_input = false;
     m_rect.w = 260.0f;
 
-    const auto& theme = UIContext::Get().m_theme;
+    // No need for 'theme' and 'ctx' local variables for color anymore
     auto& ctx = UIContext::Get();
 
     m_list_box = std::make_shared<VBox>();
@@ -103,10 +103,9 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey )
     m_list_box->m_fill_h = true;
     AddChild(m_list_box);
 
-    m_divider = std::make_shared<TechDivider>();
-    ImVec4 div_col = theme.color_text_disabled;
-    div_col.w = 0.5f;
-    m_divider->m_color_override = div_col;
+    m_divider = std::make_shared<TechDivider>(
+        StyleColor(ThemeColorID::TextDisabled).WithAlpha(0.5f)
+    );
     m_divider->m_rect.h = 2.0f;
     AddChild(m_divider);
 
@@ -114,15 +113,11 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey )
     m_footer_box->m_padding = 2.0f;
 
     // 3. 底部静态信息
-    m_footer_box = std::make_shared<VBox>();
-    m_footer_box->m_padding = 2.0f;
-
-    // [修改] 使用成员变量，并开启第3个参数 use_hacker_effect = true
-    m_system_text = std::make_shared<TechText>(syskey, theme.color_text_disabled, true);
+    m_system_text = std::make_shared<TechText>(syskey, ThemeColorID::TextDisabled, true);
     m_system_text->m_font = ctx.m_font_regular;
     m_system_text->m_rect.h = 14.0f;
 
-    m_autosave_text = std::make_shared<TechText>(savekey, theme.color_text_disabled, true);
+    m_autosave_text = std::make_shared<TechText>(savekey, ThemeColorID::TextDisabled, true);
     m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
     m_autosave_text->m_font = ctx.m_font_regular;
     m_autosave_text->m_rect.h = 14.0f;
@@ -130,7 +125,6 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey )
     m_footer_box->AddChild(m_system_text);
     m_footer_box->AddChild(m_autosave_text);
     AddChild(m_footer_box);
-
 }
 
 void LogPanel::SetSystemStatus(const std::string& text)

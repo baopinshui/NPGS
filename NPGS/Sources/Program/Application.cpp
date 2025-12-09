@@ -864,7 +864,9 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.JetBrightmut = 1.0;
                 BlackHoleArgs.JetSaturation = 0.0;
                 BlackHoleArgs.JetShiftMax = 3.0;
-                m_neural_menu_controller->AddThrottle("TimeRate", &TimeRate);
+                m_neural_menu_controller->AddLinear("R", &ctx.m_theme.color_accent.x,0.0f,1.0f);
+                m_neural_menu_controller->AddLinear("G", &ctx.m_theme.color_accent.y,0.0f,1.0f);
+                m_neural_menu_controller->AddLinear("B", &ctx.m_theme.color_accent.z,0.0f,1.0f);
                 m_neural_menu_controller->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol);
                 m_neural_menu_controller->AddThrottle("Spin", &BlackHoleArgs.Spin);
                 m_neural_menu_controller->AddThrottle("Mu", &BlackHoleArgs.Mu);
@@ -920,7 +922,6 @@ void FApplication::ExecuteMainRender()
 
             bool has_target = (int(0.33*RealityTime) % 2 == 1); // 随机模拟
 
-            ctx.m_theme.color_accent = ImVec4{float(0.5+0.5*std::sin(RealityTime)),0.0,0.0,1.0};
             if (has_target)
             {
                 m_beam_button->SetI18nKey("ui.status.target_locked");

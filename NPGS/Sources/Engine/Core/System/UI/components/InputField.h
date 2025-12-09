@@ -23,9 +23,8 @@ public:
     OnChangeCallback on_change;
     OnChangeCallback on_commit;
     // 视觉
-    std::optional<ImVec4> m_bg_color;
-    std::optional<ImVec4> m_text_color;   // [修改] 改为 optional
-    std::optional<ImVec4> m_border_color; // [修改] 改为 optional
+    StyleColor m_text_color;
+    StyleColor m_border_color;
 
     // 状态
     int m_cursor_pos = 0;

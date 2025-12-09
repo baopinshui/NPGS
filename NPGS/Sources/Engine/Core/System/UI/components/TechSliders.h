@@ -68,12 +68,10 @@ public:
         m_rect.h = 32.0f;
         m_block_input = true;
         m_translated_label = TR(m_i1n_key);
-        if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true;
+        if (m_translated_label == "!R!" || m_translated_label == "!G!" || m_translated_label == "!B!") m_is_rgb = true;
 
         m_value_input = std::make_shared<InputField>(&m_value_string_buffer);
         m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;
-        const auto& theme = UIContext::Get().m_theme;
-        m_value_input->m_text_color = theme.color_text;
         AddChild(m_value_input);
 
         // [核心修正] Lambda 现在调用虚函数，而不是进行类型检查
@@ -105,7 +103,7 @@ public:
             {
                 m_translated_label = i18n.Get(m_i1n_key);
                 m_local_i1n_version = i18n.GetVersion();
-                if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true; else m_is_rgb = false;
+                if (m_translated_label == "!R!" || m_translated_label == "!G!" || m_translated_label == "!B!") m_is_rgb = true; else m_is_rgb = false;
             }
         }
         UIElement::Update(dt, parent_abs_pos);
@@ -213,9 +211,9 @@ public:
         ImVec4 accent_vec4 = theme.color_accent;
         if (m_is_rgb)
         {
-            if (m_translated_label == "R") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
-            else if (m_translated_label == "G") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
-            else if (m_translated_label == "B") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
+            if (m_translated_label == "!R!") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
+            else if (m_translated_label == "!G!") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
+            else if (m_translated_label == "!B!") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
         }
 
         ImU32 col_text = GetColorWithAlpha(theme.color_text, 1.0f);

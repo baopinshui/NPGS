@@ -27,6 +27,16 @@ public:
     bool  m_use_glass = false;
     float m_anim_speed = 5.0f; // 动画速度
     std::string m_i18n_key;
+
+    StyleColor m_color_bg;
+    StyleColor m_color_bg_hover;
+    StyleColor m_color_text;
+    StyleColor m_color_text_hover;
+    StyleColor m_color_border;
+    StyleColor m_color_border_hover;
+    StyleColor m_color_selected_bg;
+    StyleColor m_color_selected_text;
+
 private:
     uint32_t m_local_i18n_version = 0;
 public:

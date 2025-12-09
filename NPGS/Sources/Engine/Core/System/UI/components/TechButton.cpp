@@ -15,6 +15,33 @@ TechButton::TechButton(const std::string& key, Style style)
     // 初始文本设置
     m_text_str = TR(key);
 
+    switch (m_style)
+    {
+    case Style::Normal:
+        m_color_bg = StyleColor(ThemeColorID::Accent).WithAlpha(0.1f);
+        m_color_bg_hover = ThemeColorID::Accent;
+        m_color_text = ThemeColorID::Accent;
+        m_color_text_hover = ImVec4(0, 0, 0, 1);
+        m_color_border = ThemeColorID::Accent;
+        m_color_border_hover = ThemeColorID::Accent;
+        break;
+    case Style::Tab:
+        m_color_bg = StyleColor();
+        m_color_bg_hover = StyleColor(ThemeColorID::Accent).WithAlpha(0.2f);
+        m_color_text = ThemeColorID::TextDisabled;
+        m_color_text_hover = ThemeColorID::Accent;
+        m_color_selected_bg = ThemeColorID::Accent;
+        m_color_selected_text = ImVec4(0, 0, 0, 1);
+        break;
+    case Style::Vertical:
+        m_color_border = ThemeColorID::Border;
+        m_color_border_hover = ThemeColorID::Accent;
+        m_color_text = ThemeColorID::TextDisabled;
+        m_color_text_hover = ThemeColorID::Accent;
+        break;
+    default: break;
+    }
+
     if (m_style != Style::Vertical && m_style != Style::Invisible)
     {
         m_label_component = std::make_shared<TechText>(key); // [修改] 将 key 传给 TechText
@@ -92,8 +119,8 @@ void TechButton::Update(float dt, const ImVec2& parent_abs_pos)
         if (m_style == Style::Normal)
         {
             // Normal: 悬停变色
-            ImVec4 col_normal = theme.color_accent;
-            ImVec4 col_hover = { 0.0f, 0.0f, 0.0f, 1.0f }; // 悬停变黑 (配合背景亮起)
+            ImVec4 col_normal = m_color_text.Resolve();
+            ImVec4 col_hover = m_color_text_hover.Resolve();
             m_label_component->SetColor(TechUtils::LerpColor(col_normal, col_hover, m_hover_progress));
         }
         else if (m_style == Style::Tab)
@@ -101,12 +128,12 @@ void TechButton::Update(float dt, const ImVec2& parent_abs_pos)
             // Tab: 选中时黑色，未选中时灰色(悬停变亮)
             if (m_selected)
             {
-                m_label_component->SetColor({ 0.0f, 0.0f, 0.0f, 1.0f });
+                m_label_component->SetColor(m_color_selected_text.Resolve());
             }
             else
             {
-                ImVec4 col_idle = theme.color_text_disabled;
-                ImVec4 col_hover = theme.color_accent;
+                ImVec4 col_idle = m_color_text.Resolve();
+                ImVec4 col_hover = m_color_text_hover.Resolve();
                 m_label_component->SetColor(TechUtils::LerpColor(col_idle, col_hover, m_hover_progress));
             }
         }
@@ -130,14 +157,15 @@ void TechButton::Draw(ImDrawList* dl)
     }
     if (m_style == Style::Normal)
     {
-        ImVec4 bg_idle = theme.color_accent; bg_idle.w = 0.1f;
-        ImVec4 bg_hover = theme.color_accent;
+        ImVec4 bg_idle = m_color_bg.Resolve();
+        ImVec4 bg_hover = m_color_bg_hover.Resolve();
         ImU32 col_bg = GetColorWithAlpha(TechUtils::LerpColor(bg_idle, bg_hover, m_hover_progress), 1.0f);
 
         dl->AddRectFilled(m_absolute_pos, ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h), col_bg);
 
-        // 边框: Bracket 风格
-        ImU32 col_border = GetColorWithAlpha(theme.color_accent, 1.0f);
+        // 边框: Bracket 风格        
+        ImU32 col_border = GetColorWithAlpha(m_color_border.Resolve(), 1.0f);
+
         TechUtils::DrawBracketedBox(dl, m_absolute_pos, ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h), col_border, 2.0f, 6.0f);
     }
     else if (m_style == Style::Tab)
@@ -145,22 +173,25 @@ void TechButton::Draw(ImDrawList* dl)
         ImVec4 bg_col;
         if (m_selected)
         {
-            bg_col = theme.color_accent;
+            bg_col = m_color_selected_bg.Resolve();
         }
         else
         {
-            bg_col = theme.color_accent;
-            bg_col.w = 0.0f + 0.2f * m_hover_progress; 
+            ImVec4 bg_idle = m_color_bg.Resolve();
+            ImVec4 bg_hover = m_color_bg_hover.Resolve();
+            bg_col = TechUtils::LerpColor(bg_idle, bg_hover, m_hover_progress);
         }
         dl->AddRectFilled(m_absolute_pos, ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h), GetColorWithAlpha(bg_col, 1.0f));
     }
     else if (m_style == Style::Vertical)
     {
-        ImVec4 bg_idle = theme.color_border; bg_idle.w = 1.0f;
-        ImVec4 bg_hover = theme.color_accent;
-        ImU32 col_border = GetColorWithAlpha(TechUtils::LerpColor(bg_idle, bg_hover, m_hover_progress), 1.0f);
+        ImVec4 border_idle = m_color_border.Resolve();
+        ImVec4 border_hover = m_color_border_hover.Resolve();
+        ImU32 col_border = GetColorWithAlpha(TechUtils::LerpColor(border_idle, border_hover, m_hover_progress), 1.0f);
         TechUtils::DrawBracketedBox(dl, m_absolute_pos, ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h), col_border, 2.0f, 6.0f);
-        ImU32 col_text = GetColorWithAlpha(m_hovered ? theme.color_accent : theme.color_text_disabled, 1.0f);
+        ImVec4 text_idle = m_color_text.Resolve();
+        ImVec4 text_hover = m_color_text_hover.Resolve();
+        ImU32 col_text = GetColorWithAlpha(TechUtils::LerpColor(text_idle, text_hover, m_hover_progress), 1.0f);
         DrawVerticalText(dl, col_text);
     }
     UIElement::Draw(dl);

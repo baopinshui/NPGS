@@ -22,7 +22,7 @@ class TechText : public UIElement
 {
 public:
     std::string m_text; // 当前/目标文字
-    std::optional<ImVec4> m_color_override;
+    StyleColor m_color;
 
     std::string m_i18n_key;
 private:
@@ -41,16 +41,16 @@ public:
 
     // 荧光相关
     bool m_use_glow = false;
-    std::optional<ImVec4> m_glow_color;
+    StyleColor  m_glow_color;
     float m_glow_intensity = 1.0f;
     float m_glow_spread = 1.0f;
 
     // 构造函数更新
     TechText(const std::string& text_or_key,
-        const std::optional<ImVec4>& color = std::nullopt,
+        const StyleColor& color = ThemeColorID::Text,
         bool use_hacker_effect = false,
         bool use_glow = false,
-        const std::optional<ImVec4>& glow_color = std::nullopt);
+        const StyleColor& glow_color = ThemeColorID::Accent);
 
     // 设置模式的辅助函数
     TechText* SetAnimMode(TechTextAnimMode mode);
@@ -61,11 +61,15 @@ public:
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* dl) override;
 
-    TechText* SetColor(const ImVec4& col) { m_color_override = col; return this; }
-    TechText* SetGlow(bool enable, const std::optional<ImVec4>& color = std::nullopt, float spread = 2.0f)
+    TechText* SetColor(const StyleColor& col) { m_color = col; return this; }
+    TechText* SetGlow(bool enable, const StyleColor& color = ThemeColorID::None, float spread = 2.0f)
     {
         m_use_glow = enable;
-        if (color.has_value()) m_glow_color = color;
+        // 只有当传入的颜色不是 None 时才覆盖，允许用户只开关辉光而不改变颜色
+        if (color.id != ThemeColorID::None)
+        {
+            m_glow_color = color;
+        }
         m_glow_spread = spread;
         return this;
     }

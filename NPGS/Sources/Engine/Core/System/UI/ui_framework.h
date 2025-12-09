@@ -17,20 +17,27 @@ _UI_BEGIN
 
 // --- 前置声明 ---
 class UIElement;
-
+class UIContext; 
 // --- 1. 对齐与布局 ---
 enum class Alignment { Start, Center, End, Stretch };
 
 // --- 2. 统一主题管理 ---
+
+enum class ThemeColorID
+{
+    None,           // 无色/透明/不绘制
+    Text,           // color_text
+    TextHighlight,  // color_text_highlight
+    TextDisabled,   // color_text_disabled
+    Border,         // color_border
+    Accent,         // color_accent (高亮色)
+    Custom          // 代表使用的是具体的 ImVec4 值
+};
 struct UITheme
 {
-    ImVec4 color_text_highlight = { 1.0f, 1.0f, 1.0f, 1.0f };
     ImVec4 color_text = { 0.8f, 0.8f, 0.8f, 1.0f };
+    ImVec4 color_text_highlight = { 1.0f, 1.0f, 1.0f, 1.0f };
     ImVec4 color_text_disabled = { 0.5f, 0.5f, 0.5f, 1.0f };
-    ImVec4 color_panel_bg = { 0.1f, 0.1f, 0.1f, 0.8f };
-    ImVec4 color_button_bg = { 0.2f, 0.2f, 0.2f, 1.0f };
-    ImVec4 color_button_hover = { 0.3f, 0.3f, 0.3f, 1.0f };
-    ImVec4 color_button_active = { 0.4f, 0.4f, 0.4f, 1.0f };
     ImVec4 color_border = { 0.5f, 0.5f, 0.5f, 1.0f };
     //NPGS-k0.73-001
     //ImVec4 color_accent = { 30.0f / 255.0f, 114.0f / 255.0f, 232.0f / 255.0f, 1.0f }; // korvo的提案    蓝
@@ -42,7 +49,32 @@ struct UITheme
 
     ImVec4 color_accent = ImVec4(0.0f, 1.0f,1.0f, 1.0f);
 };
+struct StyleColor
+{
+    ThemeColorID id = ThemeColorID::None;
+    ImVec4 custom_value = { 0,0,0,0 };
 
+    // [NEW] Modifier: -1.0f means no override. 0.0f to 1.0f overrides the alpha.
+    float alpha_override = -1.0f;
+
+    // --- Constructors ---
+    StyleColor() : id(ThemeColorID::None) {}
+    StyleColor(ThemeColorID _id) : id(_id) {}
+    StyleColor(const ImVec4& col) : id(ThemeColorID::Custom), custom_value(col) {}
+
+    // [NEW] Fluent interface for setting modifiers (Chainable methods)
+    StyleColor WithAlpha(float alpha) const
+    {
+        StyleColor new_color = *this;
+        new_color.alpha_override = alpha;
+        return new_color;
+    }
+
+    // [MODIFIED] The core Resolve method now applies modifiers
+    ImVec4 Resolve() const;
+
+    bool HasValue() const { return id != ThemeColorID::None; }
+};
 // --- 3. UI 上下文 (单例/全局管理) ---
 // 用于管理焦点、鼠标捕获、主题等全局状态
 class UIContext
@@ -70,6 +102,7 @@ public:
 
 
     // API
+    ImVec4 GetThemeColor(ThemeColorID id) const;
     void SetFocus(UIElement* element);
     void ClearFocus();
     void SetCapture(UIElement* element);
@@ -78,6 +111,8 @@ public:
 };
 
 // --- 基础工具 ---
+
+
 struct Rect
 {
     float x, y, w, h;
@@ -202,7 +237,7 @@ class Panel : public UIElement
 {
 public:
     // 支持直接覆盖颜色，也支持使用 Theme 默认颜色
-    std::optional<ImVec4> m_bg_color;
+    StyleColor m_bg_color;
 
     bool m_use_glass_effect = false;
 
