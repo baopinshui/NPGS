@@ -129,12 +129,12 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
 
 void LogPanel::SetSystemStatus(const std::string& text)
 {
-    if (m_system_text) m_system_text->SetText(text);
+    if (m_system_text) m_system_text->SetSourceText(text);
 }
 
 void LogPanel::SetAutoSaveTime(const std::string& text)
 {
-    if (m_autosave_text) m_autosave_text->SetText(text);
+    if (m_autosave_text) m_autosave_text->SetSourceText(text);
 }
 
 void LogPanel::AddLog(LogType type, const std::string& title, const std::string& message)

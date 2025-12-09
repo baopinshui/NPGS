@@ -133,7 +133,7 @@ void TimeControlPanel::Update(float dt, const ImVec2& parent_abs_pos)
     // 2. 时间显示更新
     if (m_time_ptr)
     {
-        m_text_display->SetText(FormatTime(*m_time_ptr));
+        m_text_display->SetSourceText(FormatTime(*m_time_ptr));
     }
 
     // 3. [关键逻辑] 数据同步与状态管理
@@ -159,7 +159,7 @@ void TimeControlPanel::Update(float dt, const ImVec2& parent_abs_pos)
     {
         if (!last_paused_state)
         {
-            m_pause_btn->SetI18nKey("ui.time.resume");
+            m_pause_btn->SetSourceText("ui.time.resume");
 			m_pause_btn->SetFont( UIContext::Get().m_font_subtitle);
             last_paused_state = true;
         }
@@ -168,7 +168,7 @@ void TimeControlPanel::Update(float dt, const ImVec2& parent_abs_pos)
     {
         if (last_paused_state)
         {
-            m_pause_btn->SetI18nKey("ui.time.pause");
+            m_pause_btn->SetSourceText("ui.time.pause");
 			m_pause_btn->SetFont(UIContext::Get().m_font_regular);
             last_paused_state = false;
         }

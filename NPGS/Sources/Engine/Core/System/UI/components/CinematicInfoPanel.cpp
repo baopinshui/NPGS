@@ -130,7 +130,7 @@ void CinematicInfoPanel::UpdateTextWidth(std::shared_ptr<TechText> text_elem, co
         text_elem->m_rect.w = w + 4.0f; // Add slight padding
         text_elem->m_rect.h = font->FontSize + 2.0f;
     }
-    text_elem->SetText(content);
+    text_elem->SetSourceText(content);
 }
 
 void CinematicInfoPanel::SetCivilizationData(const std::string& name, const std::string& stat1, const std::string& stat2, const std::string& stat3)
@@ -140,7 +140,7 @@ void CinematicInfoPanel::SetCivilizationData(const std::string& name, const std:
     CheckStateTransition(has_content);
     if (has_content)
     {
-        m_title_text->SetText(name);
+        m_title_text->SetSourceText(name);
         UpdateTextWidth(m_top_stat_1, stat1);
         UpdateTextWidth(m_top_stat_2, stat2);
         UpdateTextWidth(m_top_stat_3, stat3);
@@ -154,9 +154,9 @@ void CinematicInfoPanel::SetCelestialData(const std::string& id, const std::stri
     CheckStateTransition(has_content);
     if (has_content)
     {
-        m_title_text->SetText(type + "-" + id);
+        m_title_text->SetSourceText(type + "-" + id);
 
-        m_bot_type_text->SetText(type);
+        m_bot_type_text->SetSourceText(type);
 
         UpdateTextWidth(m_bot_stat_1, stat1);
         UpdateTextWidth(m_bot_stat_2, stat2);

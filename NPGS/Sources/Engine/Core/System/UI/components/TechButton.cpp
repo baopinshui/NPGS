@@ -7,13 +7,13 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-TechButton::TechButton(const std::string& key, Style style)
-    : m_i18n_key(key), m_style(style) // [修改] 存储 key
+TechButton::TechButton(const std::string& key_or_text, Style style)
+    : m_source_text(key_or_text), m_style(style) // [修改] 直接保存源字符串
 {
     m_block_input = true;
 
-    // 初始文本设置
-    m_text_str = TR(key);
+    // [修改] 初始文本直接通过 TR 获取
+    m_current_display_text = TR(key_or_text);
 
     switch (m_style)
     {
@@ -44,37 +44,27 @@ TechButton::TechButton(const std::string& key, Style style)
 
     if (m_style != Style::Vertical && m_style != Style::Invisible)
     {
-        m_label_component = std::make_shared<TechText>(key); // [修改] 将 key 传给 TechText
+        // [核心修改] 直接将源字符串传给 TechText，它会自己处理
+        m_label_component = std::make_shared<TechText>(m_source_text);
         m_label_component->m_align_h = Alignment::Center;
         m_label_component->m_align_v = Alignment::Center;
         m_label_component->m_block_input = false;
         AddChild(m_label_component);
     }
 }
-void TechButton::SetText(const std::string& text, bool with_effect)
+void TechButton::SetSourceText(const std::string& key_or_text, bool with_effect)
 {
-    m_i18n_key.clear(); // 清除 key
-    m_text_str = text;
+    if (m_source_text == key_or_text) return;
+    m_source_text = key_or_text;
+
+    // 更新显示文本
+    m_current_display_text = TR(m_source_text);
+
     if (m_label_component)
     {
         if (with_effect) m_label_component->SetAnimMode(TechTextAnimMode::Hacker);
-        m_label_component->SetText(text);
-    }
-}
-
-void TechButton::SetI18nKey(const std::string& key, bool with_effect)
-{
-    if (m_i18n_key == key) return;
-
-    m_i18n_key = key;
-    m_local_i18n_version = 0; // 强制下一帧更新
-
-    // 立即应用一次，以防万一
-    m_text_str = TR(key);
-    if (m_label_component)
-    {
-        if (with_effect) m_label_component->SetAnimMode(TechTextAnimMode::Hacker);
-        m_label_component->SetI18nKey(key);
+        // TechText 现在也使用新的统一接口
+        m_label_component->SetSourceText(m_source_text);
     }
 }
 
@@ -93,14 +83,10 @@ TechButton* TechButton::SetFont(ImFont* font)
 
 void TechButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
-    if (!m_i18n_key.empty() && (m_style == Style::Vertical || m_style == Style::Invisible))
+    if (m_style == Style::Vertical)
     {
-        auto& i18n = System::I18nManager::Get();
-        if (m_local_i18n_version != i18n.GetVersion())
-        {
-            m_text_str = i18n.Get(m_i18n_key);
-            m_local_i18n_version = i18n.GetVersion();
-        }
+        // 简单地每帧都获取最新文本
+        m_current_display_text = TR(m_source_text);
     }
     // 1. 动画状态更新
     if (m_hovered) m_hover_progress += dt * m_anim_speed;
@@ -207,15 +193,15 @@ void TechButton::DrawVerticalText(ImDrawList* dl, ImU32 col)
     float s = sinf(angle);
 
     float font_size = font->FontSize;
-    ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, m_text_str.c_str());
+    ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, m_current_display_text.c_str());
     ImVec2 center = { m_absolute_pos.x + m_rect.w * 0.5f, m_absolute_pos.y + m_rect.h * 0.5f };
     ImVec2 pen_local = { -text_size.x * 0.5f, -text_size.y * 0.5f };
     ImTextureID tex_id = font->ContainerAtlas->TexID;
 
     if (font) ImGui::PushFont(font);
 
-    const char* text_begin = m_text_str.c_str();
-    const char* text_end = text_begin + m_text_str.length();
+    const char* text_begin = m_current_display_text.c_str();
+    const char* text_end = text_begin + m_current_display_text.length();
     const char* ptr = text_begin;
     while (ptr < text_end)
     {

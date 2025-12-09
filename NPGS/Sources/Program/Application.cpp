@@ -688,7 +688,7 @@ void FApplication::ExecuteMainRender()
             m_message_button->SetActive(false);
 
             // 假设 RKKV 总是可以发射
-            m_rkkv_button->SetI18nKey("ui.status.target_locked");
+            m_rkkv_button->SetStatus("ui.status.target_locked");
             m_rkkv_button->SetExecutable(true); 
         }
         else
@@ -715,7 +715,7 @@ void FApplication::ExecuteMainRender()
 			m_beam_button->SetActive(false); 
 			m_rkkv_button->SetActive(false);
 			m_message_button->SetActive(false);
-			m_VN_button->SetI18nKey("ui.status.target_locked");
+			m_VN_button->SetStatus("ui.status.target_locked");
 			m_VN_button->SetExecutable(true); 
 		}
 		else
@@ -738,7 +738,7 @@ void FApplication::ExecuteMainRender()
 			m_beam_button->SetActive(false);
 			m_rkkv_button->SetActive(false);
             m_VN_button->SetActive(false);
-            m_message_button->SetI18nKey("ui.status.target_locked");
+            m_message_button->SetStatus("ui.status.target_locked");
             m_message_button->SetExecutable(true); 
         }
         else
@@ -924,12 +924,12 @@ void FApplication::ExecuteMainRender()
 
             if (has_target)
             {
-                m_beam_button->SetI18nKey("ui.status.target_locked");
+                m_beam_button->SetStatus("ui.status.target_locked");
                 m_beam_button->SetExecutable(true); // <--- 设置为可执行
             }
             else
             {
-                m_beam_button->SetI18nKey("ui.status.no_target");
+                m_beam_button->SetStatus("ui.status.no_target");
                 m_beam_button->SetExecutable(false); // <--- 设置为不可执行
             }
 

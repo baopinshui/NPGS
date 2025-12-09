@@ -1,13 +1,12 @@
 #include "PulsarButton.h"
 #include "../TechUtils.h"
 #include "TechBorderPanel.h"
+#include "../Utils/I18nManager.h" // 确保引用，以便使用 TR
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-static void PushFont(ImFont* font) { if (font) ImGui::PushFont(font); }
-static void PopFont(ImFont* font) { if (font) ImGui::PopFont(); }
 void PulsarButton::SetIconColor(const ImVec4& color)
 {
     if (m_text_icon)
@@ -19,17 +18,18 @@ void PulsarButton::SetIconColor(const ImVec4& color)
         m_image_icon->m_tint_col = color;
     }
 }
+
 void PulsarButton::InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key)
 {
     m_rect = { 0, 0, 40, 40 };
     m_block_input = true;
 
-    // [关键] 保存 Key 到 PulsarButton 自身，而不是 TechText
-    // TechText 只被用作显示容器，初始化时直接翻译
+    // 保存 Key，因为 Status 和 Label 的更新会影响布局动画，
+    // 所以我们不能让 TechText 自动更新，必须由 PulsarButton 手动监听并控制更新时机。
     m_status_key = status_key;
     m_label_key = label_key;
     m_stat_label_key = stat_label_key;
-    m_stat_unit_key = stat_unit_key;
+    // m_stat_unit_key 不需要保存，因为它不需要动画控制，直接交给 TechText
 
     auto& ctx = UIContext::Get();
     const auto& theme = UIContext::Get().m_theme;
@@ -44,14 +44,17 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     AddChild(m_bg_panel);
 
     // --- 2. 状态文本 ---
-    // [Note remains valid] TR(key) is passed, not the key itself, so TechText becomes a "dumb"
-    // display controlled by PulsarButton's complex update logic.
+    // 这里传入 TR(key) 而不是 key。
+    // 这样 TechText 会认为这是“原始文本”模式。
+    // 这样做的目的是防止 TechText 自动响应语言切换，
+    // 从而让 PulsarButton 可以在语言切换时介入，先执行伸缩动画，再设置文本。
     m_text_status = std::make_shared<TechText>(TR(status_key), ThemeColorID::TextHighlight, true);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
 
     // --- 3. 主标签 ---
+    // 同上，手动控制
     m_text_label = std::make_shared<TechText>(TR(label_key), ThemeColorID::TextHighlight, true);
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
@@ -60,8 +63,9 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     // --- 4. 统计信息行 ---
     if (!stat_label_key.empty())
     {
-        // The ":" is still manually concatenated here because the I18n update logic
-        // in PulsarButton::Update also does this. This keeps it consistent.
+        // 这里的逻辑比较特殊，因为要拼接 ":"。
+        // 所以我们还是传入拼接后的字符串，TechText 视为原始文本。
+        // 我们需要在 PulsarButton::Update 里手动维护它。
         m_text_stat_label = std::make_shared<TechText>(TR(stat_label_key) + ":", ThemeColorID::Text);
         m_text_stat_label->m_font = ctx.m_font_bold;
         m_text_stat_label->m_block_input = false;
@@ -70,7 +74,9 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
 
     if (!stat_unit_key.empty())
     {
-        m_text_stat_unit = std::make_shared<TechText>(TR(stat_unit_key), ThemeColorID::Text);
+        // 单位不需要拼接，也不影响布局动画。
+        // 所以直接传入 Key！TechText 会检测到它是 Key，并自动处理 I18n 更新。
+        m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, ThemeColorID::Text);
         m_text_stat_unit->m_font = ctx.m_font_bold;
         m_text_stat_unit->m_block_input = false;
         AddChild(m_text_stat_unit);
@@ -81,22 +87,20 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     {
         m_input_field = std::make_shared<InputField>(stat_value_ptr);
         m_input_field->m_font = ctx.m_font_bold;
-        // [NEW] Configure the input field's colors to match the PulsarButton's style
         m_input_field->m_text_color = ThemeColorID::Accent;
         m_input_field->m_border_color = ThemeColorID::Accent;
         AddChild(m_input_field);
     }
     else if (stat_value_ptr)
     {
+        // 数值是动态数据，直接作为原始文本传入
         m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, ThemeColorID::Accent, true);
-        // [REMOVED] The confusing `m_color_override = std::nullopt;` line is no longer needed.
-        // The TechText constructor now correctly handles the color assignment.
         m_text_stat_value->m_font = ctx.m_font_bold;
         m_text_stat_value->m_block_input = false;
         AddChild(m_text_stat_value);
     }
 
-    // 初始化射线 (保持不变)
+    // 初始化射线 (逻辑不变)
     m_rays.resize(24);
     for (auto& ray : m_rays)
     {
@@ -149,7 +153,9 @@ PulsarButton::PulsarButton(const std::string& status_key, const std::string& lab
 // 检查新文本的宽度，如果超过当前线长，放入 pending；否则直接更新
 void PulsarButton::CheckAndSetText(std::shared_ptr<TechText> comp, std::string& pending_str, const std::string& new_text)
 {
-    if (!comp || comp->m_text == new_text) return;
+    // 如果文本没变，直接忽略。注意这里我们比较的是 m_source_key_or_text，
+    // 因为对于 Status/Label 我们是手动控制的，这里存的就是当前显示的文本。
+    if (!comp || comp->m_source_key_or_text == new_text) return;
 
     ImFont* font = comp->GetFont();
     if (!font) font = UIContext::Get().m_font_bold;
@@ -168,18 +174,18 @@ void PulsarButton::CheckAndSetText(std::shared_ptr<TechText> comp, std::string& 
     {
         pending_str = new_text;
         m_has_pending_text = true; // 标记有待处理的文本
-        // 此时不更新 comp->m_text，等待线伸长
+        // 此时不更新 comp 的文本，等待线伸长后再提交
     }
     else
     {
         // 空间足够，直接更新
-        comp->SetText(new_text);
+        // [修改] 使用新的 SetSourceText API
+        comp->SetSourceText(new_text);
         pending_str.clear();
-        // 注意：不清除 m_has_pending_text，因为可能另一个文本框还在 pending
     }
 }
 
-void PulsarButton::SetI18nKey(const std::string& status_key)
+void PulsarButton::SetStatus(const std::string& status_key)
 {
     if (m_status_key == status_key) return;
     m_status_key = status_key;
@@ -187,13 +193,6 @@ void PulsarButton::SetI18nKey(const std::string& status_key)
     // 立即触发一次检查
     std::string translated = TR(m_status_key);
     CheckAndSetText(m_text_status, m_pending_status_text, translated);
-}
-
-void PulsarButton::SetStatusText(const std::string& text)
-{
-    // 非 Key 模式，清空 Key 防止冲突
-    m_status_key.clear();
-    CheckAndSetText(m_text_status, m_pending_status_text, text);
 }
 
 void PulsarButton::SetActive(bool active)
@@ -227,34 +226,34 @@ void PulsarButton::SetExecutable(bool can_execute) { m_can_execute = can_execute
 
 void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
-    // --- 0. I18n 更新检查 (新增) ---
-    // 只有当 PulsarButton 自己管理 Key 时，TechText 才是被动的
+    // --- 0. I18n 更新检查 ---
+    // 只有当 PulsarButton 需要介入动画控制时才手动检查
     auto& i18n = System::I18nManager::Get();
     if (m_local_i18n_version != i18n.GetVersion())
     {
         m_local_i18n_version = i18n.GetVersion();
 
-        // 1. Status 文本检查
+        // 1. Status 文本检查 (涉及动画)
         if (!m_status_key.empty())
         {
             CheckAndSetText(m_text_status, m_pending_status_text, i18n.Get(m_status_key));
         }
 
-        // 2. Label 文本检查
+        // 2. Label 文本检查 (涉及动画)
         if (!m_label_key.empty())
         {
             CheckAndSetText(m_text_label, m_pending_label_text, i18n.Get(m_label_key));
         }
 
-        // 3. 统计标签直接更新 (不涉及横线伸长逻辑，简单处理)
+        // 3. 统计标签更新 (因为要手动拼接冒号，所以 TechText 无法自动处理)
         if (!m_stat_label_key.empty() && m_text_stat_label)
         {
-            m_text_stat_label->SetText(i18n.Get(m_stat_label_key) + ":");
+            m_text_stat_label->SetSourceText(i18n.Get(m_stat_label_key) + ":");
         }
-        if (!m_stat_unit_key.empty() && m_text_stat_unit)
-        {
-            m_text_stat_unit->SetText(i18n.Get(m_stat_unit_key));
-        }
+        
+        // 4. [移除] 统计单位更新
+        // m_text_stat_unit 在 InitCommon 中被初始化为 Key 模式，
+        // 所以 TechText::Update 会自动检测版本变更并更新文本。
     }
 
     // --- 动画逻辑开始 ---
@@ -272,11 +271,13 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     m_rotation_angle += current_rot_speed * dt;
     if (m_rotation_angle > 2.0f * Npgs::Math::kPi) m_rotation_angle -= 2.0f * Npgs::Math::kPi;
 
+    // 检查动态数值更新
     if (!m_is_editable && m_stat_value_ptr && m_text_stat_value)
     {
-        if (m_text_stat_value->m_text != *m_stat_value_ptr)
+        // 同样比较 Source Text (因为数值也是作为 Raw Text 传入的)
+        if (m_text_stat_value->m_source_key_or_text != *m_stat_value_ptr)
         {
-            m_text_stat_value->SetText(*m_stat_value_ptr);
+            m_text_stat_value->SetSourceText(*m_stat_value_ptr);
         }
     }
 
@@ -292,10 +293,9 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
     // --- 3. [核心逻辑] 动态测量与线长控制 ---
 
-    // 获取用于计算目标长度的文本
-    // 优先使用 pending (即将显示的)，否则使用 current (当前显示的)
-    std::string target_status_str = (!m_pending_status_text.empty()) ? m_pending_status_text : (m_text_status ? m_text_status->m_text : "");
-    std::string target_label_str = (!m_pending_label_text.empty()) ? m_pending_label_text : (m_text_label ? m_text_label->m_text : "");
+    // 获取用于计算目标长度的文本 (优先 pending, 其次当前显示的 source text)
+    std::string target_status_str = (!m_pending_status_text.empty()) ? m_pending_status_text : (m_text_status ? m_text_status->m_source_key_or_text : "");
+    std::string target_label_str = (!m_pending_label_text.empty()) ? m_pending_label_text : (m_text_label ? m_text_label->m_source_key_or_text : "");
 
     float max_text_w = 0.0f;
 
@@ -332,12 +332,8 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
 
     // D. 检查动画是否完成，完成则提交文本
-    // 只有当 m_has_pending_text 为真时才检查
     if (m_has_pending_text)
     {
-        // 判断条件：当前长度已经达到或接近目标长度
-        // 注意：如果是缩短操作，我们也可以立即更新文本；如果是伸长，必须等伸长完毕
-        // 简单策略：只要长度足够容纳 target，就可以提交
         bool is_length_sufficient = (m_current_line_len >= calculated_target_len - 2.0f);
 
         if (is_length_sufficient)
@@ -345,13 +341,13 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
             // 提交 Status
             if (!m_pending_status_text.empty() && m_text_status)
             {
-                m_text_status->SetText(m_pending_status_text);
+                m_text_status->SetSourceText(m_pending_status_text);
                 m_pending_status_text.clear();
             }
             // 提交 Label
             if (!m_pending_label_text.empty() && m_text_label)
             {
-                m_text_label->SetText(m_pending_label_text);
+                m_text_label->SetSourceText(m_pending_label_text);
                 m_pending_label_text.clear();
             }
 
@@ -361,7 +357,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
 
     // --- 4. 动态计算布局与路径 (逻辑不变) ---
-    // 使用 m_current_line_len 绘制
     ImVec2 p_start = { 20.0f, 20.0f };
     float rel_line_y = 20.0f - 40.0f;
 
@@ -522,7 +517,8 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
         ImFont* font = m_text_stat_label->GetFont();
         float lbl_w = 0.0f;
-        if (font) lbl_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_stat_label->m_text.c_str()).x;
+        // 注意：此处使用 m_source_key_or_text 获取当前显示的文本长度 (因为它是拼接后的 Raw 模式)
+        if (font) lbl_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_stat_label->m_source_key_or_text.c_str()).x;
 
         float val_x = rel_text_x + lbl_w + 5.0f;
 
@@ -549,6 +545,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
             else
             {
                 ImFont* lg_font = UIContext::Get().m_font_large;
+                // m_text_stat_value 也是 Raw 模式，取其 source text
                 if (lg_font && m_text_stat_value) val_w = lg_font->CalcTextSizeA(lg_font->FontSize, FLT_MAX, 0.0f, m_text_stat_value->m_hacker_effect.m_display_text.c_str()).x;
             }
 
@@ -569,155 +566,17 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
 }
 
-
-
-void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
-{
-    if (!m_visible || m_alpha <= 0.01f) return;
-
-    // 1. 优先让子元素（如 InputField）处理事件
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
-    {
-        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
-    }
-
-    if (handled)
-    {
-        m_hovered = false;
-        m_label_hovered = false;
-        return;
-    }
-
-    // --- [核心实现] 交互区域判定 ---
-
-    // A. 计算左侧核心区域 (Core / Toggle) 的 Rect
-    //    这是折叠/展开的开关
-    const float closed_w = 40.0f;
-    const float closed_h = 40.0f;
-    const float open_w = pulsar_radius;
-    const float open_h = pulsar_radius;
-
-    float current_w = closed_w + (open_w - closed_w) * m_anim_progress;
-    float current_h = closed_h + (open_h - closed_h) * m_anim_progress;
-
-    // 核心始终相对于起始位置
-    ImVec2 center = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
-    Rect core_hit_rect = {
-        center.x - current_w * 0.5f,
-        center.y - current_h * 0.5f,
-        current_w,
-        current_h
-    };
-
-    // B. [关键修改] 计算右侧功能区 (Action Group: Icon + Label)
-    //    只有在展开且稳定后才生效
-    m_label_hovered = false; // 复用此变量表示“功能区悬停”
-    bool is_action_area = false;
-
-    if (m_is_active && m_anim_progress > 0.8f)
-    {
-        // 1. 获取移动后的图标区域 (直接使用 bg_panel 的绝对位置)
-        //    bg_panel 在 Update 中已经跟随动画更新了位置
-        Rect icon_abs_rect = { 0,0,0,0 };
-        if (m_bg_panel)
-        {
-            icon_abs_rect = {
-                m_bg_panel->m_absolute_pos.x,
-                m_bg_panel->m_absolute_pos.y,
-                m_bg_panel->m_rect.w,
-                m_bg_panel->m_rect.h
-            };
-        }
-
-        // 2. 获取标签文本区域
-        Rect label_abs_rect = { 0,0,0,0 };
-        if (m_text_label)
-        {
-            ImFont* font = UIContext::Get().m_font_bold;
-            ImVec2 txt_sz = { 100, 20 };
-            if (font) txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_text.c_str());
-
-            label_abs_rect = {
-                m_text_label->m_absolute_pos.x - 10.0f,
-                m_text_label->m_absolute_pos.y - 5.0f,
-                txt_sz.x + 20.0f,
-                txt_sz.y + 10.0f
-            };
-        }
-
-        // 3. 只要鼠标在 图标 或 标签 上，都视为功能区悬停
-        if (icon_abs_rect.Contains(mouse_pos) || label_abs_rect.Contains(mouse_pos))
-        {
-            is_action_area = true;
-        }
-    }
-
-    // C. 综合交互逻辑
-    bool inside_core = core_hit_rect.Contains(mouse_pos);
-    if (!handled && inside_core)
-    {
-        m_core_hovered = true;
-    }
-    // 如果在功能区 (Icon/Label)
-    if (is_action_area && m_block_input)
-    {
-        m_hovered = true;
-        handled = true;
-
-        // 只有可执行时，才标记为“悬停高亮状态”
-        // 如果不可执行 (!m_can_execute)，虽然拦截了点击，但不显示高亮
-        if (m_can_execute)
-        {
-            m_label_hovered = true;
-        }
-
-        if (mouse_clicked)
-        {
-            m_clicked = true;
-            // 点击了功能区，尝试执行
-            if (m_can_execute && on_execute_callback)
-            {
-                std::string val = "";
-                if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
-                on_execute_callback(m_id, val);
-            }
-        }
-    }
-    // 如果不在功能区，但在核心区 (且功能区未激活或未覆盖核心区)
-    else if (inside_core && m_block_input)
-    {
-        m_hovered = true;
-        handled = true;
-
-        if (mouse_clicked)
-        {
-            m_clicked = true;
-            // 点击核心 -> 切换开关
-            if (on_toggle_callback) on_toggle_callback(!m_is_active);
-            else SetActive(!m_is_active);
-        }
-    }
-    else
-    {
-        m_hovered = false;
-    }
-
-    if (mouse_released) m_clicked = false;
-}
-
 void PulsarButton::Draw(ImDrawList* draw_list)
 {
+    // Draw 方法完全不变，因为它只负责根据状态绘图，不涉及文本更新逻辑
     if (!m_visible) return;
 
     const auto& theme = UIContext::Get().m_theme;
     
-
     // 2. 绘制展开后的图形 (连接线、脉冲星)
-    // 所有的文字都由 UIElement::Draw -> 子元素 Draw 完成
     if (m_anim_progress > 0.01f)
     {
         ImVec2 center_abs = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
-        //float line_prog = std::max(0.0f, (m_anim_progress - 0.5f) * 2.0f);
         float pulsar_scale = std::min(1.0f, m_anim_progress * 1.5f);
         const ImU32 color_theme = GetColorWithAlpha(theme.color_accent, 1.0f);
         const ImU32 color_white = GetColorWithAlpha(theme.color_text_highlight, 1.0f);
@@ -787,7 +646,7 @@ void PulsarButton::Draw(ImDrawList* draw_list)
             float text_abs_x = m_absolute_pos.x + rel_text_x;
 
             ImVec2 p1 = center_abs;
-            ImVec2 p2 = { center_abs.x + 60.0f, line_abs_y };// 修改后：使用当前动态长度
+            ImVec2 p2 = { center_abs.x + 60.0f, line_abs_y };
             ImVec2 p3 = { text_abs_x + m_current_line_len, line_abs_y };
 
             ImVec2 d1 = { p2.x - p1.x, p2.y - p1.y }; float l1 = std::sqrt(d1.x * d1.x + d1.y * d1.y);
@@ -809,10 +668,107 @@ void PulsarButton::Draw(ImDrawList* draw_list)
             }
         }
     }
-
-    
-     
     UIElement::Draw(draw_list);
+}
+
+void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
+{
+    // HandleMouseEvent 逻辑与 UI 交互相关，不受本次重构影响，保持原样
+    if (!m_visible || m_alpha <= 0.01f) return;
+
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    {
+        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+    }
+
+    if (handled)
+    {
+        m_hovered = false;
+        m_label_hovered = false;
+        return;
+    }
+
+    const float closed_w = 40.0f;
+    const float closed_h = 40.0f;
+    const float open_w = pulsar_radius;
+    const float open_h = pulsar_radius;
+
+    float current_w = closed_w + (open_w - closed_w) * m_anim_progress;
+    float current_h = closed_h + (open_h - closed_h) * m_anim_progress;
+
+    ImVec2 center = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
+    Rect core_hit_rect = { center.x - current_w * 0.5f, center.y - current_h * 0.5f, current_w, current_h };
+
+    m_label_hovered = false;
+    bool is_action_area = false;
+
+    if (m_is_active && m_anim_progress > 0.8f)
+    {
+        Rect icon_abs_rect = { 0,0,0,0 };
+        if (m_bg_panel)
+        {
+            icon_abs_rect = { m_bg_panel->m_absolute_pos.x, m_bg_panel->m_absolute_pos.y, m_bg_panel->m_rect.w, m_bg_panel->m_rect.h };
+        }
+
+        Rect label_abs_rect = { 0,0,0,0 };
+        if (m_text_label)
+        {
+            ImFont* font = UIContext::Get().m_font_bold;
+            ImVec2 txt_sz = { 100, 20 };
+            if (font) txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_current_display_text.c_str());
+
+            label_abs_rect = { m_text_label->m_absolute_pos.x - 10.0f, m_text_label->m_absolute_pos.y - 5.0f, txt_sz.x + 20.0f, txt_sz.y + 10.0f };
+        }
+
+        if (icon_abs_rect.Contains(mouse_pos) || label_abs_rect.Contains(mouse_pos))
+        {
+            is_action_area = true;
+        }
+    }
+
+    bool inside_core = core_hit_rect.Contains(mouse_pos);
+    if (!handled && inside_core)
+    {
+        m_core_hovered = true;
+    }
+
+    if (is_action_area && m_block_input)
+    {
+        m_hovered = true;
+        handled = true;
+        if (m_can_execute)
+        {
+            m_label_hovered = true;
+        }
+
+        if (mouse_clicked)
+        {
+            m_clicked = true;
+            if (m_can_execute && on_execute_callback)
+            {
+                std::string val = "";
+                if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
+                on_execute_callback(m_id, val);
+            }
+        }
+    }
+    else if (inside_core && m_block_input)
+    {
+        m_hovered = true;
+        handled = true;
+        if (mouse_clicked)
+        {
+            m_clicked = true;
+            if (on_toggle_callback) on_toggle_callback(!m_is_active);
+            else SetActive(!m_is_active);
+        }
+    }
+    else
+    {
+        m_hovered = false;
+    }
+
+    if (mouse_released) m_clicked = false;
 }
 
 _UI_END

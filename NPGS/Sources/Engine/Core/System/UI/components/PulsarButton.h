@@ -4,13 +4,11 @@
 #include <functional>
 #include "HackerTextHelper.h"
 #include "InputField.h"
-#include "TechText.h" 
-#include "TechBorderPanel.h" 
-
+#include "TechText.h"
+#include "TechBorderPanel.h"
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
-
 class PulsarButton : public UIElement
 {
 public:
@@ -25,7 +23,6 @@ public:
     bool m_is_active = false;
     bool m_can_execute = false;
 
-    // [修改] 构造函数参数名保持不变，但内部逻辑会改变
     PulsarButton(
         const std::string& status_key,
         const std::string& label_key,
@@ -49,27 +46,22 @@ public:
     );
 
     void SetActive(bool active);
-    void SetI18nKey(const std::string& status_key);
-
-    // [弃用] 但保留用于向后兼容
-    void SetStatusText(const std::string& text);
-
+    void SetStatus(const std::string& status_key);
     void SetExecutable(bool can_execute);
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
-
 private:
     void InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key);
     void SetIconColor(const ImVec4& color);
 
-    // [新增] 内部存储 Key，用于手动控制 I18n 更新
+        // 内部存储 Key，用于 I18n 更新时的手动翻译（针对需要动画控制的文本）
     std::string m_status_key;
     std::string m_label_key;
-    // 统计标签也可能需要更新
     std::string m_stat_label_key;
-    std::string m_stat_unit_key;
+    // 注意：m_stat_unit_key 不需要存，因为它直接交给 TechText 自动管理
+
     uint32_t m_local_i18n_version = 0;
 
     bool m_core_hovered = false;
@@ -83,8 +75,8 @@ private:
 
     // 暂存文本：当需要伸长横线时，新文本存在这里
     std::string m_pending_status_text;
-    std::string m_pending_label_text; // [新增] Label 也可能变长
-    bool m_has_pending_text = false;  // [修改] 统一标记
+    std::string m_pending_label_text;
+    bool m_has_pending_text = false;
 
     std::string* m_stat_value_ptr = nullptr;
     float m_current_line_len = 130.0f;
@@ -102,7 +94,6 @@ private:
     bool m_is_editable;
     std::shared_ptr<InputField> m_input_field;
     std::shared_ptr<TechBorderPanel> m_bg_panel;
-    Rect m_label_hit_rect = { 0,0,0,0 };
     bool m_label_hovered = false;
 
     struct RaySegment { float offset, bump_height; bool has_bump, is_gap; float thickness; };
@@ -117,10 +108,9 @@ private:
     const ImVec2 pulsar_center_offset = { 20.0f, 20.0f };
     const float pulsar_radius = 60.0f;
 
-    // [新增] 辅助函数：检查文本长度并决定是否暂存
+    // 辅助函数：检查文本长度并决定是否暂存
     void CheckAndSetText(std::shared_ptr<TechText> comp, std::string& pending_str, const std::string& new_text);
 };
-
 _UI_END
 _SYSTEM_END
 _NPGS_END

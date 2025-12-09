@@ -6,90 +6,55 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-TechText::TechText(const std::string& text_or_key,
+TechText::TechText(const std::string& key_or_text,
     const StyleColor& color,
     bool use_hacker_effect,
     bool use_glow,
     const StyleColor& glow_color)
-    : m_text(""),
-    m_color(color),           
+    : m_source_key_or_text(key_or_text), // 直接保存原始输入
+    m_color(color),
     m_use_glow(use_glow),
     m_glow_color(glow_color)
 {
     m_block_input = false;
     m_rect.h = 20.0f;
 
-    // [修改] 构造时设置Key
-    if (text_or_key.rfind("ui.", 0) == 0 ||
-        text_or_key.rfind("astro.", 0) == 0 ||
-        text_or_key.rfind("log.", 0) == 0 ||
-        text_or_key.rfind("enum.", 0) == 0)
-    {
-        // 判定为Key
-        SetI18nKey(text_or_key);
-    }
-    else
-    {
-        // 判定为原始文本
-        SetText(text_or_key);
-    }
+    m_current_display_text = TR(m_source_key_or_text);
+
 
     if (use_hacker_effect)
     {
         m_anim_mode = TechTextAnimMode::Hacker;
-        m_hacker_effect.Start(m_text, 0.0f);
+        m_hacker_effect.Start(m_current_display_text, 0.0f);
     }
     else
     {
         m_anim_mode = TechTextAnimMode::None;
     }
 }
-void TechText::SetI18nKey(const std::string& key)
-{
-    if (m_i18n_key == key) return;
 
-    m_i18n_key = key;
-    m_local_i18n_version = 0; // 强制下一帧更新
-}
 TechText* TechText::SetAnimMode(TechTextAnimMode mode)
 {
     m_anim_mode = mode;
     return this;
 }
 
-void TechText::SetText(const std::string& new_text)
+void TechText::SetSourceText(const std::string& new_key_or_text)
 {
-    if (!m_i18n_key.empty()) m_i18n_key.clear();
-    if (m_text == new_text) return;
+    if (m_source_key_or_text == new_key_or_text) return;
 
-    if (m_anim_mode == TechTextAnimMode::Scroll)
-    {
-        // [滚动模式逻辑]
-        // 1. 当前显示的文本变成旧文本
-        m_old_text = m_text;
-        // 2. 更新新文本
-        m_text = new_text;
-        // 3. 重置进度，开始动画
-        m_scroll_progress = 0.0f;
-    }
-    else if (m_anim_mode == TechTextAnimMode::Hacker)
-    {
-        // [Hacker 模式逻辑]
-        m_text = new_text;
-        m_hacker_effect.Start(m_text, 0.0f);
-    }
-    else
-    {
-        // [普通模式] 直接赋值
-        m_text = new_text;
-    }
+    m_source_key_or_text = new_key_or_text;
+
+    // 强制下一帧进行更新检查
+    m_local_i18n_version = 0;
 }
+
 
 void TechText::RestartEffect()
 {
     if (m_anim_mode == TechTextAnimMode::Hacker)
     {
-        m_hacker_effect.Start(m_text, 0.0f);
+        m_hacker_effect.Start(m_current_display_text, 0.0f);
     }
     else if (m_anim_mode == TechTextAnimMode::Scroll)
     {
@@ -102,37 +67,31 @@ void TechText::RestartEffect()
 
 void TechText::Update(float dt, const ImVec2& parent_abs_pos)
 {
-    if (!m_i18n_key.empty())
+    auto& i18n = System::I18nManager::Get();
+    if (m_local_i18n_version != i18n.GetVersion())
     {
-        auto& i18n = System::I18nManager::Get();
-        if (m_local_i18n_version != i18n.GetVersion())
+        std::string new_display_text = TR(m_source_key_or_text);
+
+        if (m_current_display_text != new_display_text)
         {
-            // 获取翻译后的文本
-            std::string translated = i18n.Get(m_i18n_key);
-
-            // 调用原始的文本设置逻辑以触发动画
-            // 注意：这里不再调用 SetText，因为它会清除key。我们直接修改 m_text
-            if (m_text != translated)
+            // 文本发生了变化，触发动画
+            if (m_anim_mode == TechTextAnimMode::Scroll)
             {
-                if (m_anim_mode == TechTextAnimMode::Scroll)
-                {
-                    m_old_text = m_text;
-                    m_text = translated;
-                    m_scroll_progress = 0.0f;
-                }
-                else if (m_anim_mode == TechTextAnimMode::Hacker)
-                {
-                    m_text = translated;
-                    m_hacker_effect.Start(m_text, 0.0f);
-                }
-                else
-                {
-                    m_text = translated;
-                }
+                m_old_text = m_current_display_text;
+                m_current_display_text = new_display_text;
+                m_scroll_progress = 0.0f;
             }
-
-            m_local_i18n_version = i18n.GetVersion();
+            else if (m_anim_mode == TechTextAnimMode::Hacker)
+            {
+                m_current_display_text = new_display_text;
+                m_hacker_effect.Start(m_current_display_text, 0.0f);
+            }
+            else
+            {
+                m_current_display_text = new_display_text;
+            }
         }
+        m_local_i18n_version = i18n.GetVersion();
     }
 
     UIElement::Update(dt, parent_abs_pos);
@@ -309,12 +268,12 @@ void TechText::Draw(ImDrawList* dl)
         // 这里 t 稍微做个映射，让新文字稍微晚一点点出来会更有层次感，或者直接同步
         float new_y_offset = move_dist * (1.0f - t);
         float new_alpha = t;
-        DrawTextContent(dl, m_text, new_y_offset, new_alpha);
+        DrawTextContent(dl, m_current_display_text, new_y_offset, new_alpha);
     }
     else
     {
         // === 常规/Hacker 绘制逻辑 ===
-        std::string display_str = (m_anim_mode == TechTextAnimMode::Hacker) ? m_hacker_effect.m_display_text : m_text;
+        std::string display_str = (m_anim_mode == TechTextAnimMode::Hacker) ? m_hacker_effect.m_display_text : m_current_display_text;
         DrawTextContent(dl, display_str, 0.0f, 1.0f);
     }
 

@@ -247,8 +247,8 @@ void CelestialInfoPanel::SetObjectImage(ImTextureID texture_id, float img_w, flo
 
 void CelestialInfoPanel::SetTitle(const std::string& title, const std::string& subtitle)
 {
-    if (m_title_text) m_title_text->SetText(title);
-    if (m_subtitle_text) m_subtitle_text->SetText(subtitle);
+    if (m_title_text) m_title_text->SetSourceText(title);
+    if (m_subtitle_text) m_subtitle_text->SetSourceText(subtitle);
 }
 
 void CelestialInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)

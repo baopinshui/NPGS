@@ -98,13 +98,9 @@ public:
     {
         if (!m_i1n_key.empty())
         {
-            auto& i18n = System::I18nManager::Get();
-            if (m_local_i1n_version != i18n.GetVersion())
-            {
-                m_translated_label = i18n.Get(m_i1n_key);
-                m_local_i1n_version = i18n.GetVersion();
-                if (m_translated_label == "!R!" || m_translated_label == "!G!" || m_translated_label == "!B!") m_is_rgb = true; else m_is_rgb = false;
-            }
+            // [修改] 简化
+            m_translated_label = TR(m_i1n_key);
+            if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true; else m_is_rgb = false;
         }
         UIElement::Update(dt, parent_abs_pos);
         if (m_value_input)
@@ -211,9 +207,9 @@ public:
         ImVec4 accent_vec4 = theme.color_accent;
         if (m_is_rgb)
         {
-            if (m_translated_label == "!R!") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
-            else if (m_translated_label == "!G!") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
-            else if (m_translated_label == "!B!") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
+            if (m_translated_label == "R") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
+            else if (m_translated_label == "G") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
+            else if (m_translated_label == "B") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
         }
 
         ImU32 col_text = GetColorWithAlpha(theme.color_text, 1.0f);

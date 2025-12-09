@@ -24,28 +24,55 @@ void I18nManager::SetLanguage(Language lang)
     }
 }
 
+static bool IsI18nKey(const std::string& key)
+{
+    // 如果字符串为空，或者不包含点'.', 极有可能不是key
+    if (key.empty() || key.find('.') == std::string::npos)
+    {
+        return false;
+    }
+    // 约定所有key都以特定前缀开头
+    return key.rfind("ui.", 0) == 0 ||
+        key.rfind("astro.", 0) == 0 ||
+        key.rfind("log.", 0) == 0 ||
+        key.rfind("enum.", 0) == 0 ||
+        key.rfind("cinematic.", 0) == 0 ||
+        key.rfind("bool.", 0) == 0 ||
+        key.rfind("data.", 0) == 0;
+}
+
+
 std::string I18nManager::Get(const std::string& key) const
 {
+    // [核心修改]
+    // 1. 判断传入的字符串是否是一个有效的I18n键
+    if (!IsI18nKey(key))
+    {
+        // 如果不是，直接返回原始字符串
+        return key;
+    }
+
+    // 2. 如果是键，则执行原来的查找逻辑
     auto it = m_dictionary.find(key);
     if (it != m_dictionary.end())
     {
         return it->second;
     }
+
     // 找不到时返回Key本身，便于调试发现缺失的翻译
-    if (key == "") return "";
+    // 这里的逻辑保持不变，因为能走到这里说明它被识别为key但没找到翻译
     return "!" + key + "!";
 }
 
 std::string I18nManager::Get(const char* key) const
 {
-    // unordered_map::find() 有 const char* 的重载，不会创建临时 std::string
-    auto it = m_dictionary.find(key);
-    if (it != m_dictionary.end())
-    {
-        return it->second;
-    }
-    if (key == "") return "";
-    return "!" + std::string(key) + "!";
+    if (!key) return "";
+
+    // [核心修改]
+    // 同样应用判断逻辑
+    // 为了避免重复代码，可以先转换为string再调用上面的重载
+    // （对于const char*的查找性能损失微乎其微，但代码清晰度大大提高）
+    return Get(std::string(key));
 }
 
 void I18nManager::RegisterCallback(void* observer, Callback cb)

@@ -21,11 +21,10 @@ enum class TechTextAnimMode
 class TechText : public UIElement
 {
 public:
-    std::string m_text; // 当前/目标文字
     StyleColor m_color;
 
-    std::string m_i18n_key;
-private:
+    std::string m_source_key_or_text;
+    std::string m_current_display_text; // 当前显示的文本
     uint32_t m_local_i18n_version = 0;
 public:
     // Hacker 特效相关
@@ -55,8 +54,7 @@ public:
     // 设置模式的辅助函数
     TechText* SetAnimMode(TechTextAnimMode mode);
     // [新增] 显式设置Key
-    void SetI18nKey(const std::string& key);
-    void SetText(const std::string& new_text);
+    void SetSourceText(const std::string& key_or_text);
     void RestartEffect();
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* dl) override;
