@@ -3,6 +3,7 @@
 #include <Engine/Core/Math/NumericConstants.h>
 #include <imgui.h>
 #include "Utils/I18nManager.h"
+#include "components/GlobalTooltip.h"
 #include <vector>
 #include <memory>
 #include <functional>
@@ -332,6 +333,8 @@ public:
     void Draw();
     // 重写事件处理，实现事件穿透
     void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
+private: 
+    std::shared_ptr<GlobalTooltip> m_tooltip;
 };
 
 _UI_END

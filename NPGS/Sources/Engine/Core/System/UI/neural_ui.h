@@ -18,5 +18,6 @@
 #include "components/TimeControlPanel.h"
 #include "components/LogPanel.h"
 #include "components/ScreenVignette.h" 
+#include "components/GlobalTooltip.h"
 
 #include "UITool/AstroDataBuilder.h"            

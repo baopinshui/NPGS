@@ -279,6 +279,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\CinematicInfoPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\GlobalTooltip.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\InputField.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\LogPanel.cpp" />
@@ -342,6 +343,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CelestialInfoPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CinematicInfoPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\CollapsedMainButton.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\GlobalTooltip.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\HackerTextHelper.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\InputField.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\LogPanel.h" />

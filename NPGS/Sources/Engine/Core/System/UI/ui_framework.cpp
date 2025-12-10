@@ -737,38 +737,7 @@ void HorizontalScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_
 }
 
 // 在文件末尾，_UI_END 之前，添加 UIRoot 的实现
-void DrawGlobalTooltip(ImDrawList* fg_draw_list)
-{
-    auto& ctx = UIContext::Get();
-    if (ctx.m_tooltip_active_key.empty()) return;
 
-    std::string text = TR(ctx.m_tooltip_active_key); // 使用 TR 宏
-    if (text.empty() || text == ctx.m_tooltip_active_key) return; // 如果翻译失败或为空，不显示
-
-    ImFont* font = ctx.m_font_regular ? ctx.m_font_regular : ImGui::GetFont();
-
-    float font_size = font->FontSize;
-    ImVec2 text_size = font->CalcTextSizeA(font_size, 300.0f, 0.0f, text.c_str());
-    ImVec2 padding = { 10.0f, 8.0f };
-    ImVec2 box_size = { text_size.x + padding.x * 2, text_size.y + padding.y * 2 };
-
-    ImVec2 mouse_pos = ImGui::GetIO().MousePos;
-    ImVec2 pos = { mouse_pos.x + 15.0f, mouse_pos.y + 15.0f };
-
-    if (pos.x + box_size.x > ctx.m_display_size.x) pos.x = mouse_pos.x - box_size.x - 5.0f;
-    if (pos.y + box_size.y > ctx.m_display_size.y) pos.y = mouse_pos.y - box_size.y - 5.0f;
-
-    ImU32 bg_col = IM_COL32(10, 15, 20, 240);
-    ImVec4 accent = ctx.GetThemeColor(ThemeColorID::Accent);
-    ImU32 border_col = ImGui::ColorConvertFloat4ToU32(accent);
-
-    fg_draw_list->AddRectFilled(pos, ImVec2(pos.x + box_size.x, pos.y + box_size.y), bg_col, 4.0f);
-    fg_draw_list->AddRect(pos, ImVec2(pos.x + box_size.x, pos.y + box_size.y), border_col, 4.0f, 0, 1.5f);
-
-    ImGui::PushFont(font);
-    fg_draw_list->AddText(font, font_size, ImVec2(pos.x + padding.x, pos.y + padding.y), IM_COL32_WHITE, text.c_str(), nullptr, 300.0f);
-    ImGui::PopFont();
-}
 // --- UIRoot 实现 ---
 UIRoot::UIRoot()
 {
@@ -776,6 +745,7 @@ UIRoot::UIRoot()
     m_rect = { 0, 0, io.DisplaySize.x, io.DisplaySize.y };
     m_block_input = false; // 关键：自身不阻挡输入，允许事件穿透
     m_visible = true;
+    m_tooltip = std::make_shared<GlobalTooltip>();
 }
 
 void UIRoot::Update(float dt)
@@ -821,12 +791,16 @@ void UIRoot::Update(float dt)
     // --- 5. 更新所有UI元素的状态和动画 ---
     UIElement::Update(dt, { 0,0 });
     ctx.UpdateTooltipLogic(dt);
+    m_tooltip->Update(dt, { 0, 0 });
 }
 void UIRoot::Draw() {
 
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     UIElement::Draw(draw_list);
-    DrawGlobalTooltip(draw_list);
+    if (m_tooltip)
+    {
+        m_tooltip->Draw(draw_list);
+    }
 }
 
 void UIRoot::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)

@@ -610,6 +610,7 @@ void FApplication::ExecuteMainRender()
         true,
         "rkkv"
     );
+    m_rkkv_button->m_text_label->SetTooltip("tooltip.test");
 
 	m_VN_button = std::make_shared<UI::PulsarButton>(
 		"ui.status.target_locked",    // status_key

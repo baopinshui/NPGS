@@ -23,6 +23,17 @@ public:
     bool m_is_active = false;
     bool m_can_execute = false;
 
+
+    std::shared_ptr<TechText> m_text_status;
+    std::shared_ptr<TechText> m_text_label;
+    std::shared_ptr<TechText> m_text_stat_label;
+    std::shared_ptr<TechText> m_text_stat_value;
+    std::shared_ptr<TechText> m_text_stat_unit;
+
+    std::shared_ptr<TechText> m_text_icon;
+    std::shared_ptr<Image>    m_image_icon;
+
+
     PulsarButton(
         const std::string& status_key,
         const std::string& label_key,
@@ -82,14 +93,6 @@ private:
     float m_current_line_len = 130.0f;
     float m_target_line_len = 130.0f;
 
-    std::shared_ptr<TechText> m_text_status;
-    std::shared_ptr<TechText> m_text_label;
-    std::shared_ptr<TechText> m_text_stat_label;
-    std::shared_ptr<TechText> m_text_stat_value;
-    std::shared_ptr<TechText> m_text_stat_unit;
-
-    std::shared_ptr<TechText> m_text_icon;
-    std::shared_ptr<Image>    m_image_icon;
 
     bool m_is_editable;
     std::shared_ptr<InputField> m_input_field;
