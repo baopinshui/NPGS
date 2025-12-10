@@ -70,6 +70,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         auto setup_stat = [&](std::shared_ptr<TechText>& ptr, const StyleColor& color)
         {
             ptr = std::make_shared<TechText>("", color, true);
+            ptr->SetSizing(TechTextSizingMode::AutoWidthHeight);
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_top_stats_box->AddChild(ptr);
@@ -106,6 +107,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         auto setup_stat = [&](std::shared_ptr<TechText>& ptr)
         {
             ptr = std::make_shared<TechText>("", ThemeColorID::TextDisabled, true);
+            ptr->SetSizing(TechTextSizingMode::AutoWidthHeight);
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_bot_stats_box->AddChild(ptr);
@@ -120,18 +122,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_layout_vbox->AddChild(m_bot_stats_box);
     }
 }
-void CinematicInfoPanel::UpdateTextWidth(std::shared_ptr<TechText> text_elem, const std::string& content)
-{
-    if (!text_elem) return;
-    ImFont* font = text_elem->GetFont();
-    if (font)
-    {
-        float w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, content.c_str()).x;
-        text_elem->m_rect.w = w + 4.0f; // Add slight padding
-        text_elem->m_rect.h = font->FontSize + 2.0f;
-    }
-    text_elem->SetSourceText(content);
-}
+
 
 void CinematicInfoPanel::SetCivilizationData(const std::string& name, const std::string& stat1, const std::string& stat2, const std::string& stat3)
 {
@@ -141,9 +132,9 @@ void CinematicInfoPanel::SetCivilizationData(const std::string& name, const std:
     if (has_content)
     {
         m_title_text->SetSourceText(name);
-        UpdateTextWidth(m_top_stat_1, stat1);
-        UpdateTextWidth(m_top_stat_2, stat2);
-        UpdateTextWidth(m_top_stat_3, stat3);
+        m_top_stat_1->SetSourceText(stat1);
+        m_top_stat_2->SetSourceText(stat2);
+        m_top_stat_3->SetSourceText(stat3);
     }
 }
 
@@ -157,9 +148,8 @@ void CinematicInfoPanel::SetCelestialData(const std::string& id, const std::stri
         m_title_text->SetSourceText(type + "-" + id);
 
         m_bot_type_text->SetSourceText(type);
-
-        UpdateTextWidth(m_bot_stat_1, stat1);
-        UpdateTextWidth(m_bot_stat_2, stat2);
+        m_bot_stat_1->SetSourceText(stat1);
+        m_bot_stat_2->SetSourceText(stat2);
     }
 }
 

@@ -59,8 +59,6 @@ private:
 
     void CheckStateTransition(bool has_content);
 
-    // 辅助：计算并设置文字宽度
-    void UpdateTextWidth(std::shared_ptr<TechText> text_elem, const std::string& content);
 };
 
 _UI_END

@@ -18,12 +18,10 @@ class BaseTechSlider : public UIElement
 {
 public:
     std::string m_i1n_key;
-    std::string m_translated_label;
 private:
-    uint32_t m_local_i1n_version = 0;
     std::string m_value_string_buffer;
     std::shared_ptr<InputField> m_value_input;
-
+    std::shared_ptr<TechText> m_label_component;
     bool TryParseScientific(const std::string& s, double& result)
     {
         if (s.empty()) return false;
@@ -67,26 +65,34 @@ public:
     {
         m_rect.h = 32.0f;
         m_block_input = true;
-        m_translated_label = TR(m_i1n_key);
-        if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true;
+        // m_translated_label = TR(m_i1n_key); // <-- REMOVED (TechText handles this)
 
+        // Check for RGB based on the key's translation
+        std::string initial_label = TR(m_i1n_key);
+        if (initial_label == "R" || initial_label == "G" || initial_label == "B") m_is_rgb = true;
+
+        // [NEW] Create and configure the label as a TechText component
+        m_label_component = std::make_shared<TechText>(m_i1n_key);
+        m_label_component->SetSizing(TechTextSizingMode::AutoHeight); // Automatically wrap text and adjust height
+        m_label_component->m_align_v = Alignment::Center;             // Vertically center the text block
+        m_label_component->m_block_input = false;                     // Label doesn't block clicks
+        AddChild(m_label_component);
+
+        // InputField creation remains the same
         m_value_input = std::make_shared<InputField>(&m_value_string_buffer);
         m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;
         AddChild(m_value_input);
 
-        // [核心修正] Lambda 现在调用虚函数，而不是进行类型检查
+        // on_commit lambda remains the same
         m_value_input->on_commit = [this](const std::string& input)
         {
             double parsed_value;
             if (TryParseScientific(input, parsed_value))
             {
-                // 调用虚函数更新数值
                 this->SetValueFromParsedInput(parsed_value);
             }
-            // 如果解析失败（格式不对），什么都不做，下次刷新会变回旧数值
         };
     }
-
     // [新增] 虚函数，用于子类重写数值设置逻辑
     virtual void SetValueFromParsedInput(double parsed_value)
     {
@@ -98,11 +104,21 @@ public:
     {
         if (!m_i1n_key.empty())
         {
-            // [修改] 简化
-            m_translated_label = TR(m_i1n_key);
-            if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true; else m_is_rgb = false;
+            std::string current_label = TR(m_i1n_key);
+            if (current_label == "R" || current_label == "G" || current_label == "B") m_is_rgb = true;
+            else m_is_rgb = false;
         }
-        UIElement::Update(dt, parent_abs_pos);
+
+
+        if (m_label_component)
+        {
+            m_label_component->m_rect.x = 0;
+            m_label_component->m_rect.y = 0;
+            m_label_component->m_rect.w = max_label_w; // Provide the maximum width for text wrapping
+            m_label_component->m_rect.h = m_rect.h;     // Give it the full slider height for vertical centering
+            m_label_component->m_font = GetFont();      // Ensure it uses the correct font
+        }
+
         if (m_value_input)
         {
             ImFont* font = GetFont();
@@ -130,7 +146,7 @@ public:
             m_value_input->m_rect.y = (h_up - input_h) * 0.5f;
             m_value_input->m_font = font;
         }
-
+        UIElement::Update(dt, parent_abs_pos);
     }
 
     virtual float GetNormalizedVisualPos() const = 0;
@@ -211,12 +227,13 @@ public:
         ImVec4 accent_vec4 = theme.color_accent;
         if (m_is_rgb)
         {
-            if (m_translated_label == "R") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
-            else if (m_translated_label == "G") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
-            else if (m_translated_label == "B") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
+            // [MODIFIED] Get the current text from the component or re-translate
+            std::string current_label = TR(m_i1n_key);
+            if (current_label == "R") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
+            else if (current_label == "G") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
+            else if (current_label == "B") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
         }
 
-        ImU32 col_text = GetColorWithAlpha(theme.color_text, 1.0f);
         ImU32 col_accent = GetColorWithAlpha(accent_vec4, 1.0f);
 
         float h = m_rect.h;
@@ -224,28 +241,6 @@ public:
         float track_x = m_absolute_pos.x + max_label_w + padding;
         float track_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
         if (track_w < 10.0f) track_w = 10.0f;
-
-        {
-            const char* text_begin = m_translated_label.c_str();
-            const char* text_end = text_begin + m_translated_label.size();
-            float font_size = font ? font->FontSize : 13.0f;
-            float line_height = font_size;
-
-            ImVec2 total_size = ImGui::CalcTextSize(text_begin, text_end, false, max_label_w);
-            float text_start_y = y_center - total_size.y * 0.5f;
-
-            const char* line_ptr = text_begin;
-            float current_y = text_start_y;
-            while (line_ptr < text_end)
-            {
-                const char* next_line_ptr = font->CalcWordWrapPositionA(1.0f, line_ptr, text_end, max_label_w);
-                if (next_line_ptr == line_ptr) next_line_ptr++;
-                dl->AddText(ImVec2(m_absolute_pos.x, current_y), col_text, line_ptr, next_line_ptr);
-                line_ptr = next_line_ptr;
-                while (line_ptr < text_end && (*line_ptr == ' ' || *line_ptr == '\n')) line_ptr++;
-                current_y += line_height;
-            }
-        }
 
         float track_h = 1.0f;
         float track_y = y_center - track_h * 0.5f;
