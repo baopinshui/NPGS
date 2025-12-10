@@ -18,7 +18,7 @@ TechText::TechText(const std::string& key_or_text,
 {
     m_block_input = false;
     m_rect.h = 20.0f;
-
+    m_sizing_mode = TechTextSizingMode::Fixed;
     m_current_display_text = TR(m_source_key_or_text);
 
 
@@ -64,7 +64,45 @@ void TechText::RestartEffect()
         m_scroll_progress = 0.0f;
     }
 }
+void TechText::RecomputeSize()
+{
+    // 如果是固定模式，完全不触碰 m_rect，以保持 UI 稳定性
+    if (m_sizing_mode == TechTextSizingMode::Fixed) return;
 
+    ImFont* font = GetFont();
+    // 必须有 font 才能计算，如果没有就稍后重试（Draw时通常会有）
+    if (!font) font = UIContext::Get().m_font_regular;
+    if (!font) font = ImGui::GetFont();
+
+    float font_size = font->FontSize;
+
+    // 获取当前要展示的最终文本（对于 Hacker 模式，为了防止布局抖动，
+    // 建议使用目标文本计算大小，或者如果你希望它抖动，就用 hacker.m_display_text）
+    // 这里为了 UI 稳定，建议使用 m_current_display_text (目标文本)
+    const std::string& text_to_measure = m_current_display_text;
+    if (text_to_measure.empty())
+    {
+        if (m_sizing_mode == TechTextSizingMode::AutoHeight) m_rect.h = 0.0f;
+        else { m_rect.w = 0.0f; m_rect.h = 0.0f; }
+        return;
+    }
+
+    if (m_sizing_mode == TechTextSizingMode::AutoWidthHeight)
+    {
+        ImVec2 sz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text_to_measure.c_str());
+        m_rect.w = sz.x;
+        m_rect.h = sz.y;
+    }
+    else if (m_sizing_mode == TechTextSizingMode::AutoHeight)
+    {
+        // 宽度由外部（如 VBox 或手动设置）决定，我们只算高度
+        // 如果宽度太小（比如刚初始化），可能还没被布局，暂时设个极大值或保持原样
+        float wrap_w = (m_rect.w > 1.0f) ? m_rect.w : 10000.0f;
+
+        ImVec2 sz = font->CalcTextSizeA(font_size, FLT_MAX, wrap_w, text_to_measure.c_str());
+        m_rect.h = sz.y;
+    }
+}
 void TechText::Update(float dt, const ImVec2& parent_abs_pos)
 {
     auto& i18n = System::I18nManager::Get();
@@ -94,6 +132,8 @@ void TechText::Update(float dt, const ImVec2& parent_abs_pos)
         m_local_i18n_version = i18n.GetVersion();
     }
 
+    RecomputeSize();
+
     UIElement::Update(dt, parent_abs_pos);
 
     if (m_anim_mode == TechTextAnimMode::Hacker)
@@ -115,108 +155,128 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
 {
     if (text_to_draw.empty() || alpha_mult <= 0.01f) return;
 
-    // 1. 颜色计算
+    // --- 1. 资源与字体准备 ---
+    ImFont* font = GetFont();
+    if (!font) font = ImGui::GetFont();
+    if (!font) return;
+    float font_size = font->FontSize;
+
+    // --- 2. 颜色计算 ---
     ImVec4 final_col_vec = m_color.Resolve();
+    ImU32 text_col = GetColorWithAlpha(final_col_vec, 1.0f * alpha_mult);
 
-    // 2. 布局计算
-    ImVec2 text_size = ImGui::CalcTextSize(text_to_draw.c_str());
-    float draw_x = m_absolute_pos.x;
-    float draw_y = m_absolute_pos.y + offset_y; // 应用Y轴偏移
-
-    if (m_align_h == Alignment::Center) draw_x += (m_rect.w - text_size.x) * 0.5f;
-    else if (m_align_h == Alignment::End) draw_x += (m_rect.w - text_size.x);
-
-    if (m_align_v == Alignment::Center) draw_y += (m_rect.h - text_size.y) * 0.5f;
-    else if (m_align_v == Alignment::End) draw_y += (m_rect.h - text_size.y);
-
-    ImVec2 draw_pos(draw_x, draw_y);
+    // --- 3. 辉光参数准备 ---
+    bool use_glow = m_use_glow;
+    ImVec4 glow_base_vec = m_glow_color.Resolve();
+    float glow_alpha_factor = 0.4f * m_glow_intensity;
 
     bool is_highlight_white = (final_col_vec.x > 0.99f && final_col_vec.y > 0.99f && final_col_vec.z > 0.99f);
-    if (is_highlight_white&&!m_use_glow)
+    if (is_highlight_white && !use_glow)
     {
-        ImVec4 glow_base = ImVec4{0.0f,0.0f,0.0f,1.0f};
-
-        float base_alpha_val = 0.4f * 0.2f * alpha_mult;
-
-        // 扩散半径
-        float s = 0.5f;
-
-        struct GlowTap { float x, y, w; };
-        static const GlowTap kernel[12] = {
-            { 0.5f,  0.0f, 1.05f}, { -0.5f, 0.0f, 1.05f}, { 0.0f,  0.5f, 1.05f}, { 0.0f, -0.5f, 1.05f},
-
-            { 0.8f,  0.8f, 0.65f}, { 0.8f, -0.8f, 0.65f}, {-0.8f,  0.8f, 0.65f}, {-0.8f, -0.8f, 0.65f},
-
-            { 1.5f,  0.0f, 0.30f}, {-1.5f, 0.0f, 0.30f}, { 0.0f,  1.5f, 0.30f}, { 0.0f, -1.5f, 0.30f}
-        };
-
-        for (const auto& tap : kernel)
-        {
-            float step_alpha = base_alpha_val * tap.w;
-
-            if (step_alpha <= 0.005f) continue;
-
-            if (step_alpha > 1.0f) step_alpha = 1.0f;
-
-            ImU32 glow_col = GetColorWithAlpha(glow_base, step_alpha);
-
-            dl->AddText(
-                ImVec2(draw_pos.x + tap.x * s, draw_pos.y + tap.y * s),
-                glow_col,
-                text_to_draw.c_str()
-            );
-        }
+        use_glow = true;
+        glow_base_vec = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+        glow_alpha_factor = 0.4f * 0.2f;
     }
-    if (m_use_glow)
+
+    struct GlowTap { float x, y, w; };
+    static const GlowTap kernel[12] = {
+        { 0.5f,  0.0f, 1.05f}, { -0.5f, 0.0f, 1.05f}, { 0.0f,  0.5f, 1.05f}, { 0.0f, -0.5f, 1.05f},
+        { 0.8f,  0.8f, 0.65f}, { 0.8f, -0.8f, 0.65f}, {-0.8f,  0.8f, 0.65f}, {-0.8f, -0.8f, 0.65f},
+        { 1.5f,  0.0f, 0.30f}, {-1.5f, 0.0f, 0.30f}, { 0.0f,  1.5f, 0.30f}, { 0.0f, -1.5f, 0.30f}
+    };
+
+    // --- 4. 布局预计算 ---
+
+    // 【修改点】：只有 AutoHeight 模式才启用自动换行 (wrap_width > 0)。
+    // Fixed 模式下 wrap_width 设为 -1.0f，这意味着“无限宽度”，不仅不会在空格处换行，
+    // 就算超过 m_rect.w 也不会换行（会保持单行直至遇到 \n），这与旧版 AddText 行为一致。
+    float wrap_width = -1.0f;
+    if (m_sizing_mode == TechTextSizingMode::AutoHeight)
     {
-        ImVec4 glow_base = m_glow_color.Resolve();
-
-        // 基础 Alpha：保持原来的 0.4 系数，作为基准强度
-        float base_alpha_val = 0.4f * m_glow_intensity * alpha_mult;
-
-        // 扩散半径
-        float s = m_glow_spread;
-
-        // 定义高斯采样核 (x_mult, y_mult, weight)
-        // 这里的 weight 总和设计为 8.0，以匹配旧版 8 点均匀采样的总亮度
-        struct GlowTap { float x, y, w; };
-        static const GlowTap kernel[12] = {
-            // 内圈 (紧实的核心，距离 ~0.5s) - 权重总和 4.2
-            { 0.5f,  0.0f, 1.05f}, { -0.5f, 0.0f, 1.05f}, { 0.0f,  0.5f, 1.05f}, { 0.0f, -0.5f, 1.05f},
-
-            // 中圈 (对角线填充，距离 ~1.1s) - 权重总和 2.6
-            { 0.8f,  0.8f, 0.65f}, { 0.8f, -0.8f, 0.65f}, {-0.8f,  0.8f, 0.65f}, {-0.8f, -0.8f, 0.65f},
-
-            // 外圈 (柔和的边缘，距离 ~1.5s) - 权重总和 1.2
-            { 1.5f,  0.0f, 0.30f}, {-1.5f, 0.0f, 0.30f}, { 0.0f,  1.5f, 0.30f}, { 0.0f, -1.5f, 0.30f}
-        };
-
-        for (const auto& tap : kernel)
-        {
-            // 计算当前点的 alpha
-            float step_alpha = base_alpha_val * tap.w;
-
-            // 性能优化：极淡的像素直接跳过绘制
-            if (step_alpha <= 0.005f) continue;
-
-            // 安全钳制
-            if (step_alpha > 1.0f) step_alpha = 1.0f;
-
-            // 只有当 Alpha 变化时才重新计算颜色 (减少 GetColorWithAlpha 开销)
-            ImU32 glow_col = GetColorWithAlpha(glow_base, step_alpha);
-
-            dl->AddText(
-                ImVec2(draw_pos.x + tap.x * s, draw_pos.y + tap.y * s),
-                glow_col,
-                text_to_draw.c_str()
-            );
-        }
+        wrap_width = m_rect.w;
+        // 保护性设置：防止宽度过小导致死循环
+        if (wrap_width > 0.0f && wrap_width < font_size) wrap_width = font_size;
     }
-    // 4. 主体绘制
-    ImU32 col = GetColorWithAlpha(final_col_vec, 1.0f * alpha_mult);
-    dl->AddText(draw_pos, col, text_to_draw.c_str());
+
+    // 计算总高度 (用于垂直对齐)
+    float total_content_height = 0.0f;
+    // 仅在 Fixed 模式且需要垂直非顶部对齐时计算，优化性能
+    if (m_sizing_mode == TechTextSizingMode::Fixed && m_align_v != Alignment::Start)
+    {
+        ImVec2 total_sz = font->CalcTextSizeA(font_size, FLT_MAX, wrap_width, text_to_draw.c_str());
+        total_content_height = total_sz.y;
+    }
+
+    // 计算起始 Y 坐标
+    float current_y = m_absolute_pos.y + offset_y;
+    if (m_sizing_mode == TechTextSizingMode::Fixed)
+    {
+        if (m_align_v == Alignment::Center) current_y += (m_rect.h - total_content_height) * 0.5f;
+        else if (m_align_v == Alignment::End) current_y += (m_rect.h - total_content_height);
+    }
+
+    // --- 5. 逐行绘制循环 ---
+    const char* text_begin = text_to_draw.c_str();
+    const char* text_end = text_begin + text_to_draw.size();
+    const char* s = text_begin;
+
+    while (s < text_end)
+    {
+        // A. 寻找断行点
+        const char* line_end;
+        if (wrap_width > 0.0f)
+        {
+            // AutoHeight: 自动换行模式
+            line_end = font->CalcWordWrapPositionA(1.0f, s, text_end, wrap_width);
+            const char* next_newline = strchr(s, '\n');
+            if (next_newline && next_newline < line_end) line_end = next_newline;
+            if (line_end == s && s < text_end) line_end = s + 1;
+        }
+        else
+        {
+            // Fixed / AutoWidthHeight: 不自动换行，只认 \n
+            line_end = strchr(s, '\n');
+            if (!line_end) line_end = text_end;
+        }
+
+        // B. 计算当前行的尺寸
+        ImVec2 line_sz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, s, line_end);
+
+        // C. 计算当前行的水平偏移
+        float line_x = m_absolute_pos.x;
+
+        // 在 Fixed 模式下，m_rect.w 是容器宽度，line_sz.x 是文字宽度，可以正常对齐
+        if (m_align_h == Alignment::Center) line_x += (m_rect.w - line_sz.x) * 0.5f;
+        else if (m_align_h == Alignment::End) line_x += (m_rect.w - line_sz.x);
+
+        ImVec2 draw_pos(line_x, current_y);
+
+        // D. 绘制辉光
+        if (use_glow)
+        {
+            float s_spread = m_glow_spread;
+            for (const auto& tap : kernel)
+            {
+                float step_alpha = glow_alpha_factor * tap.w * alpha_mult;
+                if (step_alpha <= 0.005f) continue;
+                if (step_alpha > 1.0f) step_alpha = 1.0f;
+
+                ImU32 glow_col = GetColorWithAlpha(glow_base_vec, step_alpha);
+                dl->AddText(font, font_size,
+                    ImVec2(draw_pos.x + tap.x * s_spread, draw_pos.y + tap.y * s_spread),
+                    glow_col, s, line_end);
+            }
+        }
+
+        // E. 绘制本体
+        dl->AddText(font, font_size, draw_pos, text_col, s, line_end);
+
+        // F. 移动游标
+        current_y += font_size;
+        s = line_end;
+        if (s < text_end && *s == '\n') s++;
+    }
 }
-
 void TechText::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;

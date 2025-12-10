@@ -18,6 +18,13 @@ enum class TechTextAnimMode
     Scroll  // [新增] 滚动淡入淡出特效
 };
 
+enum class TechTextSizingMode
+{
+    Fixed,          // [默认] 容器尺寸固定，文本在内部对齐，溢出不改变容器大小
+    AutoWidthHeight,// 容器尺寸完全由文本决定（不换行）
+    AutoHeight      // 容器宽度固定（或由父容器决定），文本自动换行，高度自适应
+};
+
 class TechText : public UIElement
 {
 public:
@@ -26,7 +33,7 @@ public:
     std::string m_source_key_or_text;
     std::string m_current_display_text; // 当前显示的文本
     uint32_t m_local_i18n_version = 0;
-public:
+
     // Hacker 特效相关
     HackerTextHelper m_hacker_effect;
 
@@ -44,6 +51,9 @@ public:
     float m_glow_intensity = 1.0f;
     float m_glow_spread = 1.0f;
 
+    // [新增] 尺寸模式
+    TechTextSizingMode m_sizing_mode = TechTextSizingMode::Fixed;
+
     // 构造函数更新
     TechText(const std::string& text_or_key,
         const StyleColor& color = ThemeColorID::Text,
@@ -55,11 +65,9 @@ public:
     TechText* SetAnimMode(TechTextAnimMode mode);
     // [新增] 显式设置Key
     void SetSourceText(const std::string& key_or_text);
-    void RestartEffect();
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
-    void Draw(ImDrawList* dl) override;
-
     TechText* SetColor(const StyleColor& col) { m_color = col; return this; }
+
+    TechText* SetSizing(TechTextSizingMode mode) { m_sizing_mode = mode; return this; }
     TechText* SetGlow(bool enable, const StyleColor& color = ThemeColorID::None, float spread = 2.0f)
     {
         m_use_glow = enable;
@@ -71,8 +79,15 @@ public:
         m_glow_spread = spread;
         return this;
     }
+    void RestartEffect();
+    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    void Draw(ImDrawList* dl) override;
+
+
+
 
 private:
+    void RecomputeSize();
     // [新增] 内部绘制辅助，用于复用发光和对齐逻辑
     void DrawTextContent(ImDrawList* dl, const std::string& text, float offset_y, float alpha_mult);
 };
