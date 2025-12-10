@@ -1,7 +1,7 @@
 #include "PulsarButton.h"
 #include "../TechUtils.h"
 #include "TechBorderPanel.h"
-#include "../Utils/I18nManager.h" // 确保引用，以便使用 TR
+#include "../Utils/I18nManager.h" 
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
@@ -24,12 +24,9 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     m_rect = { 0, 0, 40, 40 };
     m_block_input = true;
 
-    // 保存 Key，因为 Status 和 Label 的更新会影响布局动画，
-    // 所以我们不能让 TechText 自动更新，必须由 PulsarButton 手动监听并控制更新时机。
     m_status_key = status_key;
     m_label_key = label_key;
     m_stat_label_key = stat_label_key;
-    // m_stat_unit_key 不需要保存，因为它不需要动画控制，直接交给 TechText
 
     auto& ctx = UIContext::Get();
     const auto& theme = UIContext::Get().m_theme;
@@ -43,17 +40,12 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     AddChild(m_bg_panel);
 
     // --- 2. 状态文本 ---
-    // 这里传入 TR(key) 而不是 key。
-    // 这样 TechText 会认为这是“原始文本”模式。
-    // 这样做的目的是防止 TechText 自动响应语言切换，
-    // 从而让 PulsarButton 可以在语言切换时介入，先执行伸缩动画，再设置文本。
     m_text_status = std::make_shared<TechText>(TR(status_key), ThemeColorID::TextHighlight, true);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
 
     // --- 3. 主标签 ---
-    // 同上，手动控制
     m_text_label = std::make_shared<TechText>(TR(label_key), ThemeColorID::TextHighlight, true);
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
@@ -62,9 +54,6 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     // --- 4. 统计信息行 ---
     if (!stat_label_key.empty())
     {
-        // 这里的逻辑比较特殊，因为要拼接 ":"。
-        // 所以我们还是传入拼接后的字符串，TechText 视为原始文本。
-        // 我们需要在 PulsarButton::Update 里手动维护它。
         m_text_stat_label = std::make_shared<TechText>(TR(stat_label_key) + ":", ThemeColorID::Text);
         m_text_stat_label->m_font = ctx.m_font_bold;
         m_text_stat_label->m_block_input = false;
@@ -73,8 +62,6 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
 
     if (!stat_unit_key.empty())
     {
-        // 单位不需要拼接，也不影响布局动画。
-        // 所以直接传入 Key！TechText 会检测到它是 Key，并自动处理 I18n 更新。
         m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, ThemeColorID::Text);
         m_text_stat_unit->m_font = ctx.m_font_bold;
         m_text_stat_unit->m_block_input = false;
@@ -92,7 +79,6 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     }
     else if (stat_value_ptr)
     {
-        // 数值是动态数据，直接作为原始文本传入
         m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, ThemeColorID::Accent, true);
         m_text_stat_value->m_font = ctx.m_font_bold;
         m_text_stat_value->m_block_input = false;
@@ -148,50 +134,16 @@ PulsarButton::PulsarButton(const std::string& status_key, const std::string& lab
     AddChild(m_image_icon);
 }
 
-// 辅助函数：核心逻辑
-// 检查新文本的宽度，如果超过当前线长，放入 pending；否则直接更新
-void PulsarButton::CheckAndSetText(std::shared_ptr<TechText> comp, std::string& pending_str, const std::string& new_text)
-{
-    // 如果文本没变，直接忽略。注意这里我们比较的是 m_source_key_or_text，
-    // 因为对于 Status/Label 我们是手动控制的，这里存的就是当前显示的文本。
-    if (!comp || comp->m_source_key_or_text == new_text) return;
-
-    ImFont* font = comp->GetFont();
-    if (!font) font = UIContext::Get().m_font_bold;
-
-    float new_text_w = 0.0f;
-    if (font)
-    {
-        new_text_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, new_text.c_str()).x;
-    }
-
-    // 我们需要线长至少覆盖文本宽度 + 30px buffer
-    float required_len = new_text_w + 30.0f;
-
-    // 如果当前线长不足以容纳新文本
-    if (m_current_line_len < required_len)
-    {
-        pending_str = new_text;
-        m_has_pending_text = true; // 标记有待处理的文本
-        // 此时不更新 comp 的文本，等待线伸长后再提交
-    }
-    else
-    {
-        // 空间足够，直接更新
-        // [修改] 使用新的 SetSourceText API
-        comp->SetSourceText(new_text);
-        pending_str.clear();
-    }
-}
-
 void PulsarButton::SetStatus(const std::string& status_key)
 {
     if (m_status_key == status_key) return;
     m_status_key = status_key;
 
-    // 立即触发一次检查
-    std::string translated = TR(m_status_key);
-    CheckAndSetText(m_text_status, m_pending_status_text, translated);
+    // 立即更新文本
+    if (m_text_status)
+    {
+        m_text_status->SetSourceText(TR(m_status_key));
+    }
 }
 
 void PulsarButton::SetActive(bool active)
@@ -226,33 +178,20 @@ void PulsarButton::SetExecutable(bool can_execute) { m_can_execute = can_execute
 void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
     // --- 0. I18n 更新检查 ---
-    // 只有当 PulsarButton 需要介入动画控制时才手动检查
+    // 一旦版本变化，立即更新所有文本组件
     auto& i18n = System::I18nManager::Get();
     if (m_local_i18n_version != i18n.GetVersion())
     {
         m_local_i18n_version = i18n.GetVersion();
 
-        // 1. Status 文本检查 (涉及动画)
-        if (!m_status_key.empty())
-        {
-            CheckAndSetText(m_text_status, m_pending_status_text, i18n.Get(m_status_key));
-        }
+        if (!m_status_key.empty() && m_text_status)
+            m_text_status->SetSourceText(i18n.Get(m_status_key));
 
-        // 2. Label 文本检查 (涉及动画)
-        if (!m_label_key.empty())
-        {
-            CheckAndSetText(m_text_label, m_pending_label_text, i18n.Get(m_label_key));
-        }
+        if (!m_label_key.empty() && m_text_label)
+            m_text_label->SetSourceText(i18n.Get(m_label_key));
 
-        // 3. 统计标签更新 (因为要手动拼接冒号，所以 TechText 无法自动处理)
         if (!m_stat_label_key.empty() && m_text_stat_label)
-        {
             m_text_stat_label->SetSourceText(i18n.Get(m_stat_label_key) + ":");
-        }
-        
-        // 4. [移除] 统计单位更新
-        // m_text_stat_unit 在 InitCommon 中被初始化为 Key 模式，
-        // 所以 TechText::Update 会自动检测版本变更并更新文本。
     }
 
     // --- 动画逻辑开始 ---
@@ -273,7 +212,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     // 检查动态数值更新
     if (!m_is_editable && m_stat_value_ptr && m_text_stat_value)
     {
-        // 同样比较 Source Text (因为数值也是作为 Raw Text 传入的)
         if (m_text_stat_value->m_source_key_or_text != *m_stat_value_ptr)
         {
             m_text_stat_value->SetSourceText(*m_stat_value_ptr);
@@ -290,69 +228,38 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
     const auto& theme = UIContext::Get().m_theme;
 
-    // --- 3. [核心逻辑] 动态测量与线长控制 ---
-
-    // 获取用于计算目标长度的文本 (优先 pending, 其次当前显示的 source text)
-    std::string target_status_str = (!m_pending_status_text.empty()) ? m_pending_status_text : (m_text_status ? m_text_status->m_source_key_or_text : "");
-    std::string target_label_str = (!m_pending_label_text.empty()) ? m_pending_label_text : (m_text_label ? m_text_label->m_source_key_or_text : "");
-
+    // --- 3. [核心逻辑] 实时计算目标线长并同步驱动 ---
     float max_text_w = 0.0f;
 
-    // A. 测量 Label 目标宽度
-    if (m_text_label && !target_label_str.empty())
+    // 测量 Label 宽度
+    if (m_text_label)
     {
         ImFont* font = m_text_label->GetFont();
         if (font)
         {
-            float w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, target_label_str.c_str()).x;
+            float w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_current_display_text.c_str()).x;
             if (w > max_text_w) max_text_w = w;
         }
     }
-
-    // B. 测量 Status 目标宽度
-    if (m_text_status && !target_status_str.empty())
+    // 测量 Status 宽度
+    if (m_text_status)
     {
         ImFont* font = m_text_status->GetFont();
         if (font)
         {
-            float w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, target_status_str.c_str()).x;
+            float w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_status->m_current_display_text.c_str()).x;
             if (w > max_text_w) max_text_w = w;
         }
     }
 
-    // C. 驱动线长动画
-    float calculated_target_len = std::max(130.0f, max_text_w + 30.0f);
+    // 计算目标长度，无论变长还是变短都直接设置目标
+    float calculated_target_len = std::max(130.0f, max_text_w + 40.0f);
 
+    // 如果目标长度发生变化，触发平滑过渡
     if (std::abs(calculated_target_len - m_target_line_len) > 1.0f)
     {
         m_target_line_len = calculated_target_len;
-        // 触发伸缩动画
-        To(&m_current_line_len, m_target_line_len, 0.3f, EasingType::EaseOutQuad);
-    }
-
-    // D. 检查动画是否完成，完成则提交文本
-    if (m_has_pending_text)
-    {
-        bool is_length_sufficient = (m_current_line_len >= calculated_target_len - 2.0f);
-
-        if (is_length_sufficient)
-        {
-            // 提交 Status
-            if (!m_pending_status_text.empty() && m_text_status)
-            {
-                m_text_status->SetSourceText(m_pending_status_text);
-                m_pending_status_text.clear();
-            }
-            // 提交 Label
-            if (!m_pending_label_text.empty() && m_text_label)
-            {
-                m_text_label->SetSourceText(m_pending_label_text);
-                m_pending_label_text.clear();
-            }
-
-            // 所有 pending 都处理完了，重置标记
-            m_has_pending_text = false;
-        }
+        To(&m_current_line_len, m_target_line_len, 0.2f, EasingType::EaseOutQuad);
     }
 
     // --- 4. 动态计算布局与路径 (逻辑不变) ---
@@ -516,7 +423,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
         ImFont* font = m_text_stat_label->GetFont();
         float lbl_w = 0.0f;
-        // 注意：此处使用 m_source_key_or_text 获取当前显示的文本长度 (因为它是拼接后的 Raw 模式)
         if (font) lbl_w = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_stat_label->m_source_key_or_text.c_str()).x;
 
         float val_x = rel_text_x + lbl_w + 5.0f;
@@ -544,7 +450,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
             else
             {
                 ImFont* lg_font = UIContext::Get().m_font_large;
-                // m_text_stat_value 也是 Raw 模式，取其 source text
                 if (lg_font && m_text_stat_value) val_w = lg_font->CalcTextSizeA(lg_font->FontSize, FLT_MAX, 0.0f, m_text_stat_value->m_hacker_effect.m_display_text.c_str()).x;
             }
 
@@ -567,11 +472,10 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
 void PulsarButton::Draw(ImDrawList* draw_list)
 {
-    // Draw 方法完全不变，因为它只负责根据状态绘图，不涉及文本更新逻辑
     if (!m_visible) return;
 
     const auto& theme = UIContext::Get().m_theme;
-    
+
     // 2. 绘制展开后的图形 (连接线、脉冲星)
     if (m_anim_progress > 0.01f)
     {
@@ -662,17 +566,55 @@ void PulsarButton::Draw(ImDrawList* draw_list)
             {
                 draw_list->AddLine(p1, p2, GetColorWithAlpha(theme.color_accent, 0.7f));
                 float rem_len = draw_len - l1;
-                ImVec2 end_p = { p2.x + std::max(d2.x * (rem_len / l2)-2.0f- current_box_size * 0.5f,0.0f), p2.y + d2.y * (rem_len / l2) };
+                ImVec2 end_p = { p2.x + std::max(d2.x * (rem_len / l2) - 2.0f - current_box_size * 0.5f,0.0f), p2.y + d2.y * (rem_len / l2) };
                 draw_list->AddLine(p2, end_p, GetColorWithAlpha(theme.color_accent, 0.7f));
             }
         }
     }
-    UIElement::Draw(draw_list);
+
+    // --- [核心修改] 手动绘制子元素以应用局部裁剪 ---
+    // 为了防止文字超出当前的 m_current_line_len，我们对 Status 和 Label 应用裁剪。
+    // 裁剪区域：X 轴从文字起点开始，最大宽度为当前装饰线长度。
+
+
+    // 垂直方向覆盖足够的范围即可
+    ImVec2 clip_min = { -10.0f, m_absolute_pos.y - 100.0f };
+    ImVec2 clip_max = { m_bg_panel->m_rect.x+ m_absolute_pos.x-14.0f, m_absolute_pos.y + 100.0f };
+
+    bool font_pushed = false;
+    ImFont* font = GetFont();
+    if (font)
+    {
+        ImGui::PushFont(font);
+        font_pushed = true;
+    }
+
+    for (auto& child : m_children)
+    {
+        // 仅对 Label 和 Status 应用裁剪，防止其向右侧侵入未延伸到的区域
+        bool need_clip = (child == m_text_status || child == m_text_label);
+
+        if (need_clip)
+        {
+            draw_list->PushClipRect(clip_min, clip_max, true);
+        }
+
+        child->Draw(draw_list);
+
+        if (need_clip)
+        {
+            draw_list->PopClipRect();
+        }
+    }
+
+    if (font_pushed)
+    {
+        ImGui::PopFont();
+    }
 }
 
 void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
 {
-    // HandleMouseEvent 逻辑与 UI 交互相关，不受本次重构影响，保持原样
     if (!m_visible || m_alpha <= 0.01f) return;
 
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
