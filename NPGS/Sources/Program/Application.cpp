@@ -106,7 +106,7 @@ void FApplication::SimulateStarSelectionAndUpdateUI()
     // a. 设置标题
     std::string subtitle = Npgs::System::UI::AstroDataBuilder::StarPhaseToString(myStar.GetEvolutionPhase());
     m_celestial_info->SetTitle(subtitle+"-114514", subtitle);
-    m_celestial_info->SetObjectImage(stage4ID, 1200, 800, {kelvin_to_rgb(myStar.GetTeff()).r ,kelvin_to_rgb(myStar.GetTeff()).g ,kelvin_to_rgb(myStar.GetTeff()).b ,1.0});
+    m_celestial_info->SetObjectImage(stage0ID, 1200, 800, {kelvin_to_rgb(myStar.GetTeff()).r ,kelvin_to_rgb(myStar.GetTeff()).g ,kelvin_to_rgb(myStar.GetTeff()).b ,1.0});
     // b. 设置数据
     m_celestial_info->SetData(ui_data);
 }
@@ -768,8 +768,12 @@ void FApplication::ExecuteMainRender()
 	m_ui_root->AddChild(m_message_button);
 
 
-    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>("ui.info", "ui.close_panel");
-    // 将其根元素添加到 UIRoot (假设 ui_root 是你的 UIRoot 实例)
+    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>(
+        "ui.info",
+        "ui.close_panel",
+        "ui.celestial.progress_label", // New key
+        "ui.celestial.coil_label"      // New key
+    );
     m_ui_root->AddChild(m_celestial_info);
 
 
@@ -779,7 +783,10 @@ void FApplication::ExecuteMainRender()
     m_ui_root->AddChild(m_top_Info);
     m_ui_root->AddChild(m_bottom_Info);
 
-    m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(&GameTime, &TimeRate);
+    m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(
+        &GameTime, &TimeRate,
+        "ui.time.pause", "ui.time.resume", "ui.time.reset_speed"
+    );
     m_ui_root->AddChild(m_time_control_panel);
 
     m_log_panel = std::make_shared<System::UI::LogPanel>("ui.log.system_scan", "ui.log.autosave");

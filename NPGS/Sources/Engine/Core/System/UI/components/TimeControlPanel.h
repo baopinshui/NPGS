@@ -13,7 +13,13 @@ _UI_BEGIN
 class TimeControlPanel : public UIElement
 {
 public:
-    TimeControlPanel(double* current_time_ptr, double* time_scale_ptr);
+    TimeControlPanel(
+        double* current_time_ptr,
+        double* time_scale_ptr,
+        const std::string& pause_key,
+        const std::string& resume_key,
+        const std::string& reset_key
+    );
     void Update(float dt, const ImVec2& parent_abs_pos) override;
 
 private:
@@ -25,7 +31,8 @@ private:
 
     // [移除] m_stored_scale 不再需要，因为 m_visual_target_scale 充当了记忆存储且可编辑
     bool m_is_paused = false;
-
+    std::string m_pause_key;
+    std::string m_resume_key;
     std::shared_ptr<TechText> m_text_display;
     std::shared_ptr<TechButton> m_pause_btn;
     std::shared_ptr<TechButton> m_1x_btn;

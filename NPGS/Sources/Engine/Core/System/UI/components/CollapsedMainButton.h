@@ -12,7 +12,7 @@ class CollapsedMainButton : public UIElement
 {
 public:
     std::function<void()> on_click_callback;
-    CollapsedMainButton(const std::string& key1 = "ui.manage", const std::string& key2 = "ui.network");
+    CollapsedMainButton(const std::string& key1, const std::string& key2);
 
     // [修正] 确保重写了 Update，用于处理动画和 Alpha 传递
     void Update(float dt, const ImVec2& parent_abs_pos) override;

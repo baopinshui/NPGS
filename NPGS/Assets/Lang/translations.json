@@ -1,0 +1,660 @@
+{
+  "tooltip": {
+    "test": {
+      "en": "you are right,but genshin impact is a...",
+      "zh": "我是一发相对论性动能杀伤器呀！の∮"
+    }
+  },
+  "ui": {
+    "manage": {
+      "en": "MANAGE",
+      "zh": "管理"
+    },
+    "network": {
+      "en": "NETWORK",
+      "zh": "网络"
+    },
+    "settings": {
+      "en": "> SETTINGS",
+      "zh": "> 设置"
+    },
+    "close_terminal": {
+      "en": "CLOSE TERMINAL",
+      "zh": "关闭终端"
+    },
+    "info": {
+      "en": "INFO",
+      "zh": "信息"
+    },
+    "close_panel": {
+      "en": "CLOSE PANEL",
+      "zh": "关闭面板"
+    },
+    "time": {
+      "pause": {
+        "en": " || ",
+        "zh": " || "
+      },
+      "resume": {
+        "en": "▶",
+        "zh": "▶"
+      },
+      "reset_speed": {
+        "en": " x1 ",
+        "zh": " x1 "
+      }
+    },
+    "celestial": {
+      "progress_label": {
+        "en": ">>> Star Lifter Progress",
+        "zh": ">>> Star Lifter 建造进度 "
+      },
+      "coil_label": {
+        "en": "Main Coil",
+        "zh": "赤道主线圈"
+      }
+    },
+    "log": {
+      "system_scan": {
+        "en": "> System Scan Complete.",
+        "zh": "> 系统扫描完成。"
+      },
+      "autosave": {
+        "en": "> Auto-Save: T+",
+        "zh": "> 自动存档: T+"
+      }
+    },
+    "status": {
+      "ready_to_launch": {
+        "en": "READY TO LAUNCH",
+        "zh": "准备发射"
+      },
+      "ready_to_send": {
+        "en": "READY TO SEND",
+        "zh": "准备发送"
+      },
+      "target_locked": {
+        "en": "TARGET LOCKED123456",
+        "zh": "目标已锁定"
+      },
+      "no_target": {
+        "en": "NO TARGET",
+        "zh": "无目标"
+      }
+    },
+    "action": {
+      "fire_beam": {
+        "en": "FIRE DYSON BEAM",
+        "zh": "发射戴森光束"
+      },
+      "launch_rkkv": {
+        "en": "LAUNCH RKKV",
+        "zh": "发射RKKV"
+      },
+      "launch_vn": {
+        "en": "SEND VON NEUMANN PROBE",
+        "zh": "发送冯诺依曼探测器"
+      },
+      "send_message": {
+        "en": "SEND MESSAGE",
+        "zh": "发送信息"
+      }
+    },
+    "label": {
+      "energy": {
+        "en": "ENERGY",
+        "zh": "能量"
+      },
+      "mass": {
+        "en": "MASS",
+        "zh": "质量"
+      },
+      "weight_time": {
+        "en": "TIME COST",
+        "zh": "用时"
+      }
+    },
+    "unit": {
+      "joules": {
+        "en": "J",
+        "zh": "焦耳"
+      },
+      "kg": {
+        "en": "kg",
+        "zh": "千克"
+      },
+      "years": {
+        "en": "yr",
+        "zh": "年"
+      }
+    }
+  },
+  "log": {
+    "event": {
+      "scan_result_title": {
+        "en": ">> SCAN_RESULT",
+        "zh": ">> 扫描结果"
+      },
+      "scan_result_desc": {
+        "en": "Test data has been loaded.",
+        "zh": "测试数据已加载。"
+      },
+      "critical_error_title": {
+        "en": ">> [CRITICAL]",
+        "zh": ">> [严重错误]"
+      },
+      "critical_error_desc": {
+        "en": "System integrity compromised!",
+        "zh": "系统完整性受损！"
+      },
+      "beam_fired_title": {
+        "en": ">> DYSON BEAM",
+        "zh": ">> 戴森光束"
+      },
+      "beam_fired_desc": {
+        "en": "Fired with {} Joules.",
+        "zh": "发射能量：{} 焦耳。"
+      }
+    }
+  },
+  "cinematic": {
+    "title": {
+      "singularity": {
+        "en": "TRANSCENDENT RINGULARITY",
+        "zh": "你家超绝环状奇点"
+      },
+      "type2_civ": {
+        "en": "TYPE-II CIVILIZATION",
+        "zh": "II型文明"
+      }
+    },
+    "stat": {
+      "mass_dominated": {
+        "en": "Dominated Mass: {}",
+        "zh": "已支配质量: {}"
+      },
+      "star_systems": {
+        "en": "Star Systems: {}",
+        "zh": "恒星系统: {}"
+      },
+      "reward": {
+        "en": "REWARD: {}",
+        "zh": "奖励: {}"
+      },
+      "mass": {
+        "en": "Mass: {}",
+        "zh": "质量: {}"
+      },
+      "luminosity": {
+        "en": "Luminosity: {}",
+        "zh": "光度: {}"
+      },
+      "output": {
+        "en": "Output: {}",
+        "zh": "输出功率: {}"
+      },
+      "progress": {
+        "en": "Construction: {}",
+        "zh": "建造进度: {}"
+      },
+      "status_warning": {
+        "en": "Status: WARNING",
+        "zh": "状态: 警告"
+      }
+    },
+    "type": {
+      "black_hole": {
+        "en": "BH",
+        "zh": "黑洞"
+      },
+      "red_giant": {
+        "en": "Red Giant",
+        "zh": "红巨星"
+      }
+    }
+  },
+  "bool": {
+    "yes": {
+      "en": "Yes",
+      "zh": "是"
+    },
+    "no": {
+      "en": "No",
+      "zh": "否"
+    }
+  },
+  "data": {
+    "not_available": {
+      "en": "N/A",
+      "zh": "不可用"
+    }
+  },
+  "enum": {
+    "unknown": {
+      "en": "Unknown",
+      "zh": "未知"
+    },
+    "unknown_formation": {
+      "en": "Unknown Formation",
+      "zh": "未知形成方式"
+    },
+    "star": {
+      "prev_ms": {
+        "en": "Pre-Main Sequence",
+        "zh": "前主序星"
+      },
+      "main_seq": {
+        "en": "Main Sequence",
+        "zh": "主序星"
+      },
+      "red_giant": {
+        "en": "Red Giant",
+        "zh": "红巨星"
+      },
+      "core_he_burn": {
+        "en": "Core He Burn",
+        "zh": "氦核燃烧"
+      },
+      "early_agb": {
+        "en": "Early AGB",
+        "zh": "早期渐近巨星支"
+      },
+      "tp_agb": {
+        "en": "Thermal Pulse AGB",
+        "zh": "热脉冲渐近巨星支"
+      },
+      "post_agb": {
+        "en": "Post-AGB",
+        "zh": "后渐近巨星支"
+      },
+      "wolf_rayet": {
+        "en": "Wolf-Rayet",
+        "zh": "沃尔夫-拉叶星"
+      },
+      "he_wd": {
+        "en": "Helium White Dwarf",
+        "zh": "氦白矮星"
+      },
+      "co_wd": {
+        "en": "Carbon-Oxygen White Dwarf",
+        "zh": "碳氧白矮星"
+      },
+      "onemg_wd": {
+        "en": "O-Ne-Mg White Dwarf",
+        "zh": "氧氖镁白矮星"
+      },
+      "neutron_star": {
+        "en": "Neutron Star",
+        "zh": "中子星"
+      },
+      "stellar_bh": {
+        "en": "Stellar Black Hole",
+        "zh": "恒星级黑洞"
+      },
+      "middle_bh": {
+        "en": "Intermediate-Mass Black Hole",
+        "zh": "中等质量黑洞"
+      },
+      "supermassive_bh": {
+        "en": "Supermassive Black Hole",
+        "zh": "超大质量黑洞"
+      }
+    },
+    "star_from": {
+      "normal": {
+        "en": "Normal Collapse",
+        "zh": "正常坍缩"
+      },
+      "wd_merge": {
+        "en": "White Dwarf Merger",
+        "zh": "白矮星合并"
+      },
+      "slow_cooling": {
+        "en": "Slow Cooling",
+        "zh": "缓慢冷却"
+      },
+      "envelope_disperse": {
+        "en": "Envelope Dispersal",
+        "zh": "包层离散"
+      },
+      "ec_supernova": {
+        "en": "Electron-Capture Supernova",
+        "zh": "电子俘获超新星"
+      },
+      "fe_core_supernova": {
+        "en": "Iron Core-Collapse Supernova",
+        "zh": "铁核坍缩超新星"
+      },
+      "jet_hypernova": {
+        "en": "Relativistic Jet Hypernova",
+        "zh": "相对论性喷流极超新星"
+      },
+      "pair_inst_supernova": {
+        "en": "Pair-Instability Supernova",
+        "zh": "不稳定对超新星"
+      },
+      "photodisintegration": {
+        "en": "Photodisintegration",
+        "zh": "光致蜕变"
+      }
+    },
+    "outcome": {
+      "slow_fade": {
+        "en": "Slowly Fade",
+        "zh": "缓慢熄灭"
+      },
+      "slow_cool": {
+        "en": "Slowly Cool",
+        "zh": "缓慢冷却"
+      },
+      "hawking_radiation": {
+        "en": "Hawking Radiation",
+        "zh": "霍金辐射"
+      },
+      "envelope_disperse": {
+        "en": "Disperse Envelope",
+        "zh": "包层离散"
+      },
+      "ec_supernova": {
+        "en": "Electron-Capture Supernova",
+        "zh": "电子俘获超新星"
+      },
+      "fe_core_supernova": {
+        "en": "Iron Core-Collapse Supernova",
+        "zh": "铁核坍缩超新星"
+      },
+      "jet_hypernova": {
+        "en": "Relativistic Jet Hypernova",
+        "zh": "相对论性喷流极超新星"
+      },
+      "pair_inst_supernova": {
+        "en": "Pair-Instability Supernova",
+        "zh": "不稳定对超新星"
+      },
+      "photodisintegration": {
+        "en": "Photodisintegration",
+        "zh": "光致蜕变"
+      }
+    },
+    "remnant": {
+      "white_dwarf": {
+        "en": "White Dwarf",
+        "zh": "白矮星"
+      },
+      "neutron_star": {
+        "en": "Neutron Star",
+        "zh": "中子星"
+      },
+      "black_hole": {
+        "en": "Black Hole",
+        "zh": "黑洞"
+      }
+    },
+    "planet": {
+      "rocky": {
+        "en": "Rocky Planet",
+        "zh": "岩石行星"
+      },
+      "terra": {
+        "en": "Terrestrial Planet",
+        "zh": "类地行星"
+      },
+      "ice": {
+        "en": "Ice Planet",
+        "zh": "冰行星"
+      },
+      "chthonian": {
+        "en": "Chthonian Planet",
+        "zh": "冥府行星"
+      },
+      "oceanic": {
+        "en": "Ocean Planet",
+        "zh": "海洋行星"
+      },
+      "sub_ice_giant": {
+        "en": "Sub-Ice Giant",
+        "zh": "亚冰巨星"
+      },
+      "ice_giant": {
+        "en": "Ice Giant",
+        "zh": "冰巨星"
+      },
+      "gas_giant": {
+        "en": "Gas Giant",
+        "zh": "气态巨行星"
+      },
+      "hot_sub_ice_giant": {
+        "en": "Hot Sub-Ice Giant",
+        "zh": "热亚冰巨星"
+      },
+      "hot_ice_giant": {
+        "en": "Hot Ice Giant",
+        "zh": "热冰巨星"
+      },
+      "hot_gas_giant": {
+        "en": "Hot Jupiter",
+        "zh": "热木星"
+      },
+      "rocky_asteroid": {
+        "en": "Rocky Asteroid Cluster",
+        "zh": "岩石小行星群"
+      },
+      "rocky_ice_asteroid": {
+        "en": "Rocky-Ice Asteroid Cluster",
+        "zh": "岩冰小行星群"
+      },
+      "artificial_cluster": {
+        "en": "Artificial Orbital Structure Cluster",
+        "zh": "人造轨道结构群"
+      }
+    }
+  },
+  "astro": {
+    "page": {
+      "physical": {
+        "en": "PHYSICAL",
+        "zh": "物理参数"
+      },
+      "composition": {
+        "en": "COMPOSITION",
+        "zh": "构成成分"
+      },
+      "evolution": {
+        "en": "EVOLUTION",
+        "zh": "演化"
+      },
+      "orbit": {
+        "en": "ORBIT",
+        "zh": "轨道"
+      },
+      "civilization": {
+        "en": "CIVILIZATION",
+        "zh": "文明"
+      }
+    },
+    "type": {
+      "en": "Type",
+      "zh": "类型"
+    },
+    "phase": {
+      "en": "Evolution Phase",
+      "zh": "演化阶段"
+    },
+    "progress": {
+      "en": "Evolution Progress",
+      "zh": "演化进度"
+    },
+    "age": {
+      "en": "Age",
+      "zh": "年龄"
+    },
+    "lifespan": {
+      "en": "Expected Lifespan",
+      "zh": "预期寿命"
+    },
+    "mass": {
+      "en": "Mass",
+      "zh": "质量"
+    },
+    "initial_mass": {
+      "en": "Initial Mass",
+      "zh": "初始质量"
+    },
+    "luminosity": {
+      "en": "Luminosity",
+      "zh": "光度"
+    },
+    "temp_surface": {
+      "en": "Surface Temp.",
+      "zh": "表面温度"
+    },
+    "temp_core": {
+      "en": "Core Temp.",
+      "zh": "核心温度"
+    },
+    "density_core": {
+      "en": "Core Density",
+      "zh": "核心密度"
+    },
+    "radius": {
+      "en": "Radius",
+      "zh": "半径"
+    },
+    "oblateness": {
+      "en": "Oblateness",
+      "zh": "扁率"
+    },
+    "spin": {
+      "en": "Rotation Period",
+      "zh": "自转周期"
+    },
+    "escape_vel": {
+      "en": "Escape Velocity",
+      "zh": "逃逸速度"
+    },
+    "mag_field": {
+      "en": "Magnetic Field",
+      "zh": "磁场强度"
+    },
+    "metallicity": {
+      "en": "Metallicity [Fe/H]",
+      "zh": "金属丰度 [Fe/H]"
+    },
+    "surf_h1": {
+      "en": "Surface H1 Mass Fraction",
+      "zh": "表面氢(H1)质量分数"
+    },
+    "surf_z": {
+      "en": "Surface Z Mass Fraction",
+      "zh": "表面金属(Z)质量分数"
+    },
+    "surf_volatiles": {
+      "en": "Surface Volatiles Mass Fraction",
+      "zh": "表面挥发物质量分数"
+    },
+    "surf_energetic": {
+      "en": "Surface Energetic Nuclide Mass Fraction",
+      "zh": "表面含能核素质量分数"
+    },
+    "wind_speed": {
+      "en": "Stellar Wind Speed",
+      "zh": "星风速度"
+    },
+    "wind_loss_rate": {
+      "en": "Stellar Wind Mass Loss Rate",
+      "zh": "星风质量流失率"
+    },
+    "formation": {
+      "en": "Formation",
+      "zh": "形成方式"
+    },
+    "predicted_outcome": {
+      "en": "Predicted Outcome",
+      "zh": "预期结局"
+    },
+    "predicted_remnant": {
+      "en": "Predicted Remnant",
+      "zh": "预期残骸"
+    },
+    "is_single": {
+      "en": "Is Single Star",
+      "zh": "是否为孤星"
+    },
+    "has_planets": {
+      "en": "Has Planets",
+      "zh": "是否存在行星系"
+    },
+    "min_coil_mass": {
+      "en": "Min. Coil Mass for Lifter",
+      "zh": "举星器最低线圈质量"
+    },
+    "is_migrated": {
+      "en": "Is Migrated Planet",
+      "zh": "是否迁移行星"
+    },
+    "mass_total": {
+      "en": "Total Mass",
+      "zh": "总质量"
+    },
+    "temp_balance": {
+      "en": "Balance Temperature",
+      "zh": "平衡温度"
+    },
+    "mass_atmosphere": {
+      "en": "Atmosphere Mass",
+      "zh": "大气质量"
+    },
+    "mass_ocean": {
+      "en": "Ocean Mass",
+      "zh": "海洋质量"
+    },
+    "mass_core": {
+      "en": "Core Mass",
+      "zh": "核心质量"
+    },
+    "mass_crust_mineral": {
+      "en": "Crust Mineral Mass",
+      "zh": "地壳矿脉质量"
+    },
+    "mass_atmo_z": {
+      "en": "Atmosphere Heavy Elements",
+      "zh": "大气重元素"
+    },
+    "mass_atmo_volatiles": {
+      "en": "Atmosphere Volatiles",
+      "zh": "大气挥发物"
+    },
+    "mass_atmo_energetic": {
+      "en": "Atmosphere Energetic Nuclides",
+      "zh": "大气含能核素"
+    },
+    "mass_ocean_z": {
+      "en": "Ocean Heavy Elements",
+      "zh": "海洋重元素"
+    },
+    "orbit_sma": {
+      "en": "Semi-Major Axis",
+      "zh": "轨道半长轴"
+    },
+    "orbit_period": {
+      "en": "Orbital Period",
+      "zh": "轨道周期"
+    },
+    "orbit_eccentricity": {
+      "en": "Eccentricity",
+      "zh": "轨道偏心率"
+    },
+    "life_phase": {
+      "en": "Life Evolution Stage",
+      "zh": "生命演化阶段"
+    },
+    "civ_phase": {
+      "en": "Civilization Stage",
+      "zh": "文明演化阶段"
+    },
+    "kardashev_index": {
+      "en": "Kardashev Index",
+      "zh": "卡尔达舍夫指数"
+    }
+  }
+}

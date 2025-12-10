@@ -68,7 +68,7 @@ public:
         m_rect.h = 32.0f;
         m_block_input = true;
         m_translated_label = TR(m_i1n_key);
-        if (m_translated_label == "!R!" || m_translated_label == "!G!" || m_translated_label == "!B!") m_is_rgb = true;
+        if (m_translated_label == "R" || m_translated_label == "G" || m_translated_label == "B") m_is_rgb = true;
 
         m_value_input = std::make_shared<InputField>(&m_value_string_buffer);
         m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;

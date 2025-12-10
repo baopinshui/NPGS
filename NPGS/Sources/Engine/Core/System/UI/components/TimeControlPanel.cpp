@@ -5,8 +5,8 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_ptr)
-    : m_time_ptr(current_time_ptr), m_scale_ptr(time_scale_ptr)
+TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_ptr, const std::string& pause_key, const std::string& resume_key, const std::string& reset_key)
+    : m_time_ptr(current_time_ptr), m_scale_ptr(time_scale_ptr), m_pause_key(pause_key), m_resume_key(resume_key)
 {
     // 初始化视觉倍率为当前的真实倍率 (防止一开始UI和实际不一致)
     if (m_scale_ptr) m_visual_target_scale = *m_scale_ptr;
@@ -48,7 +48,7 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
     controls_hbox->m_rect.h = 30.0f;
 
     // [A] 暂停/继续按钮
-    m_pause_btn = std::make_shared<TechButton>("ui.time.pause", TechButton::Style::Normal);
+    m_pause_btn = std::make_shared<TechButton>(pause_key, TechButton::Style::Normal);
     m_pause_btn->m_rect.w = 30.0f;
     m_pause_btn->m_rect.h = 30.0f;
 
@@ -75,7 +75,7 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
     m_speed_slider->max_label_w = 0.0f;
     m_speed_slider->value_box_w = 70.0f;
 
-    m_1x_btn = std::make_shared<TechButton>("ui.time.reset_speed", TechButton::Style::Normal);
+    m_1x_btn = std::make_shared<TechButton>(reset_key, TechButton::Style::Normal);
     m_1x_btn->m_rect.w = 30.0f;
     m_1x_btn->m_rect.h = 30.0f;
       
@@ -159,7 +159,7 @@ void TimeControlPanel::Update(float dt, const ImVec2& parent_abs_pos)
     {
         if (!last_paused_state)
         {
-            m_pause_btn->SetSourceText("ui.time.resume");
+            m_pause_btn->SetSourceText(m_resume_key);
 			m_pause_btn->SetFont( UIContext::Get().m_font_subtitle);
             last_paused_state = true;
         }
@@ -168,7 +168,7 @@ void TimeControlPanel::Update(float dt, const ImVec2& parent_abs_pos)
     {
         if (last_paused_state)
         {
-            m_pause_btn->SetSourceText("ui.time.pause");
+            m_pause_btn->SetSourceText(m_pause_key);
 			m_pause_btn->SetFont(UIContext::Get().m_font_regular);
             last_paused_state = false;
         }

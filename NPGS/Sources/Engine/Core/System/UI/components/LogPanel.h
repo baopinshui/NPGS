@@ -35,7 +35,7 @@ private:
 class LogPanel : public UIElement
 {
 public:
-    LogPanel(const std::string& sys_key = "ui.log.system_scan", const std::string& save_key ="ui.log.autosave");
+    LogPanel(const std::string& sys_key, const std::string& save_key);
 
     void AddLog(LogType type, const std::string& title, const std::string& message);
     void SetSystemStatus(const std::string& text);

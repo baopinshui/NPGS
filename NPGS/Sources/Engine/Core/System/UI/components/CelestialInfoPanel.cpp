@@ -10,7 +10,7 @@ _SYSTEM_BEGIN
 _UI_BEGIN
 
 // [修改] 构造函数实现，接收 closetext
-CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::string& close_key)
+CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::string& close_key, const std::string& progress_label_key, const std::string& coil_label_key)
 {
     // 自身作为容器，不阻挡输入，全透明
     m_rect = { 0, 0, 0, 0 };
@@ -63,7 +63,7 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         auto header_row = std::make_shared<HBox>();
         header_row->m_rect.h = 28.0f;
 
-        m_title_text = std::make_shared<TechText>("No Target");
+        m_title_text = std::make_shared<TechText>(TR("ui.celestial.no_target"));
         m_title_text->SetColor(ThemeColorID::Accent);
         m_title_text->m_font = UIContext::Get().m_font_bold;
         m_title_text->m_align_v = Alignment::End;
@@ -156,7 +156,7 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         sep->m_rect.h = 8.0f;
         footer_box->AddChild(sep);
         // --- 2. 进度条相关 ---
-        auto prog_label = std::make_shared<TechText>(">>> Star Lifter Progress");
+        auto prog_label = std::make_shared<TechText>(progress_label_key);
         prog_label->m_rect.h = 16.0f;
         prog_label->m_font = UIContext::Get().m_font_small;
         auto progress = std::make_shared<TechProgressBar>("");
@@ -164,7 +164,7 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         progress->m_progress = 0.45f;
         auto prog_info = std::make_shared<HBox>();
         prog_info->m_rect.h = 14.0f;
-        auto t1 = std::make_shared<TechText>("Main Coil");
+        auto t1 = std::make_shared<TechText>(coil_label_key);
         t1->SetColor(ThemeColorID::TextDisabled);
         t1->m_font = UIContext::Get().m_font_small;
         t1->m_rect.w = 100.0f;

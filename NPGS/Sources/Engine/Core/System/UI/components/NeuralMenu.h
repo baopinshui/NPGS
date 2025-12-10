@@ -19,10 +19,10 @@ class NeuralMenu : public UIElement
 {
 public:
     NeuralMenu(
-        const std::string& main_button_key1 = "ui.manage",
-        const std::string& main_button_key2 = "ui.network",
-        const std::string& settings_key = "ui.settings",
-        const std::string& close_key = "ui.close_terminal"
+        const std::string& main_button_key1,
+        const std::string& main_button_key2,
+        const std::string& settings_key,
+        const std::string& close_key
     );
 
     // API 保持不变，用于动态添加滑块
