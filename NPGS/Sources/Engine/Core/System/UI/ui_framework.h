@@ -3,7 +3,6 @@
 #include <Engine/Core/Math/NumericConstants.h>
 #include <imgui.h>
 #include "Utils/I18nManager.h"
-#include "components/GlobalTooltip.h"
 #include <vector>
 #include <memory>
 #include <functional>
@@ -19,6 +18,7 @@ _UI_BEGIN
 // --- 前置声明 ---
 class UIElement;
 class UIContext; 
+class GlobalTooltip;
 // --- 1. 对齐与布局 ---
 enum class Alignment { Start, Center, End, Stretch };
 

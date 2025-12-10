@@ -14,7 +14,8 @@ public:
     std::string m_target_text;
     std::string m_display_text;
     bool m_active = false;
-
+    float m_reveval_rate = 15.0;
+    float m_scramble_interval = 0.016f;
     HackerTextHelper(); 
 
     void Start(const std::string& text, float delay = 0.0f);
@@ -28,7 +29,8 @@ private:
 
     // 帧率控制
     float m_scramble_timer = 0.0f;
-    const float SCRAMBLE_INTERVAL = 0.016f;
+    
+
 
     // 字符池
     const char* m_ascii_pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#@%&*<>";

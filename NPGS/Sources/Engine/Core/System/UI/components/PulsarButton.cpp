@@ -40,7 +40,6 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     m_bg_panel->m_use_glass_effect = true;
     m_bg_panel->m_thickness = 2.0f;
     m_bg_panel->m_block_input = false;
-    m_bg_panel->m_bg_color = ImVec4(0.0f, 0.0f, 0.0f, 0.6f);
     AddChild(m_bg_panel);
 
     // --- 2. 状态文本 ---

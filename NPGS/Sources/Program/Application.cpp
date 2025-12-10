@@ -634,6 +634,7 @@ void FApplication::ExecuteMainRender()
         "message"
 	);
 
+    m_message_button->m_text_label->SetTooltip("tooltip.test");
     m_beam_button->m_rect = { 50, 360, 40, 40 };
 
     m_rkkv_button->m_rect = { 50, 440, 40, 40 };
@@ -983,7 +984,7 @@ void FApplication::ExecuteMainRender()
 
                 m_bottom_Info->SetCelestialData(
                     "000001",
-                    "Red Giant",
+                    Npgs::System::TR("cinematic.type.red_giant"),
                     std::vformat(Npgs::System::TR("cinematic.stat.mass"), std::make_format_args("1.91E+29kg")),
                     std::vformat(Npgs::System::TR("cinematic.stat.luminosity"), std::make_format_args("8.10E+99 W"))
                 );

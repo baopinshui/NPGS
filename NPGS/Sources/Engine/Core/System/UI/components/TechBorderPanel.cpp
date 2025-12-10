@@ -60,14 +60,22 @@ void TechBorderPanel::Draw(ImDrawList* dl)
     if (!m_visible || m_alpha <= 0.01f) return;
 
     // 1. 绘制背景
-    ImVec2 p_min = m_absolute_pos;
-    ImVec2 p_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
+    ImVec2 p_min = TechUtils::Snap(m_absolute_pos);
+    ImVec2 p_max = TechUtils::Snap(ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h));
 
     if (m_use_glass_effect)
     {
         DrawGlassBackground(dl, p_min, p_max, {0.0f,0.0f,0.0f,0.3f});
-    }
+	}
+	else
+    {
 
+        dl->AddRectFilled(
+            p_min,
+            p_max,
+            GetColorWithAlpha(m_bg_color.Resolve(), 1.0f)
+        );
+    }
     // 2. 绘制子元素
     ImVec2 clip_min = m_absolute_pos;
     ImVec2 clip_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);

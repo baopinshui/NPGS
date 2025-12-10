@@ -1,4 +1,6 @@
 #include "ui_framework.h"
+#include "TechUtils.h"
+#include "components/GlobalTooltip.h"
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
@@ -334,8 +336,8 @@ void Panel::Draw(ImDrawList* draw_list)
     ImVec2 display_sz = UIContext::Get().m_display_size;
 
     // 2. 计算矩形范围
-    ImVec2 p_min = m_absolute_pos;
-    ImVec2 p_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h);
+    ImVec2 p_min = TechUtils::Snap(m_absolute_pos);
+    ImVec2 p_max = TechUtils::Snap(ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h));
 
     // --- [核心逻辑] 绘制毛玻璃背景 ---
     ImTextureID blur_tex = UIContext::Get().m_scene_blur_texture;

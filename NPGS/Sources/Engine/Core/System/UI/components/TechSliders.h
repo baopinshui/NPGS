@@ -387,7 +387,7 @@ public:
 
         double val_d = static_cast<double>(*this->m_target_value);
         double a_d = static_cast<double>(m_feature_a);
-        double speed_mult = 1.0 + pow(m_throttle_val, 2.0);
+        double speed_mult = 3.0*pow(m_throttle_val, 2.0);
 
         double change_rate = sqrt(pow(val_d, 2.0) + pow(a_d, 2.0));
         double delta = m_throttle_val * dt * speed_mult * change_rate;

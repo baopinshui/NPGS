@@ -69,8 +69,16 @@ void HackerTextHelper::RegenerateScrambleMask()
 
         if (byte_len == 1)
         {
-            // 目标是 ASCII -> 用 ASCII 乱码替换
-            m_cached_scramble_string += m_ascii_pool[rand() % ascii_len];
+            if (c == '\n')
+            {
+                // [修改] 遇到换行符直接保留，保持多行文本布局结构
+                m_cached_scramble_string += '\n';
+            }
+            else
+            {
+                // 目标是 ASCII -> 用 ASCII 乱码替换
+                m_cached_scramble_string += m_ascii_pool[rand() % ascii_len];
+            }
         }
         else
         {
@@ -102,8 +110,8 @@ void HackerTextHelper::Update(float dt)
     }
 
     // 1. 进度更新
-    m_iteration += dt * 15.0f;
     size_t target_char_len = GetUtf8CharCount(m_target_text);
+    m_iteration += dt * std::max(m_reveval_rate, static_cast<float>(target_char_len));
 
     if (m_iteration >= target_char_len)
     {
@@ -114,7 +122,7 @@ void HackerTextHelper::Update(float dt)
 
     // 2. 掩码刷新
     m_scramble_timer += dt;
-    if (m_scramble_timer >= SCRAMBLE_INTERVAL)
+    if (m_scramble_timer >= m_scramble_interval)
     {
         RegenerateScrambleMask();
         m_scramble_timer = 0.0f;
