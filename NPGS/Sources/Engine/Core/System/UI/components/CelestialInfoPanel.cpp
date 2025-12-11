@@ -62,20 +62,21 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
 
         auto header_row = std::make_shared<HBox>();
         header_row->m_rect.h = 28.0f;
+		//header_row->m_fill_h = true;
 
         m_title_text = std::make_shared<TechText>(TR("ui.celestial.no_target"));
         m_title_text->SetColor(ThemeColorID::Accent);
         m_title_text->m_font = UIContext::Get().m_font_bold;
-        m_title_text->m_align_v = Alignment::End;
-        m_title_text->m_rect.w = 120.0f;
+        m_title_text->m_sizing_mode = TechTextSizingMode::AutoHeight;
+        m_title_text->m_align_v = Alignment::Start;
+        m_title_text->m_fill_h = true;
 
         // [MODIFIED] m_subtitle_text now uses a semantic StyleColor
         m_subtitle_text = std::make_shared<TechText>("");
         m_subtitle_text->SetColor(ThemeColorID::TextDisabled); // <-- Clean
+		m_subtitle_text->m_sizing_mode = TechTextSizingMode::AutoWidthHeight;
         m_subtitle_text->m_font = UIContext::Get().m_font_regular;
         m_subtitle_text->m_align_v = Alignment::End;
-        m_subtitle_text->m_align_h = Alignment::End;
-        m_subtitle_text->m_fill_h = true;
 
         header_row->AddChild(m_title_text);
         header_row->AddChild(m_subtitle_text);

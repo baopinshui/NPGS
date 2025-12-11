@@ -22,7 +22,7 @@ public:
     float m_duration = 0.8f; // 默认 0.8秒完成解码
     float m_timer = 0.0f;
 
-    float m_scramble_interval = 0.05f; // 乱码跳动间隔
+    float m_scramble_interval = 0.016f; // 乱码跳动间隔
 
     HackerTextHelper();
 

@@ -132,7 +132,7 @@ struct Rect
 
         // --- DEBUG START: 极简调试代码 ---
         // static bool enable_debug = true; // 如果你想随时开关，可以用这个静态变量
-        if (!true) // 强制开启调试
+        if (true) // 强制开启调试
         {
             // 1. 获取最上层画笔（画在所有窗口之上）
             ImDrawList* fg_draw = ImGui::GetForegroundDrawList();
@@ -177,8 +177,8 @@ public:
     std::string m_tooltip_key;
 
     // 布局属性 [新增]
-    Alignment m_align_h = Alignment::Stretch; // 水平对齐
-    Alignment m_align_v = Alignment::Stretch; // 垂直对齐 (部分容器支持)
+    Alignment m_align_h = Alignment::Stretch; // 决定x方向居中，靠左右或拉伸
+    Alignment m_align_v = Alignment::Stretch; // 决定y方向居中，靠左右或拉伸
 
     bool m_fill_v = false; // 在 VBox 中垂直填充剩余空间
     bool m_fill_h = false; // 在 HBox 中水平填充剩余空间
