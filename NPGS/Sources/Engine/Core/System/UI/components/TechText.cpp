@@ -252,6 +252,14 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
     };
 
     // --- 4. 布局预计算 ---
+
+    float hacker_progress = 1.0f;
+    bool is_hacker_mode = (m_anim_mode == TechTextAnimMode::Hacker && m_hacker_effect.m_active);
+    if (is_hacker_mode)
+    {
+        hacker_progress = m_hacker_effect.GetProgress();
+    }
+
     float wrap_width = -1.0f;
     if (m_sizing_mode == TechTextSizingMode::AutoHeight)
     {
@@ -320,13 +328,34 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
                 }
 
                 // 计算当前行的尺寸与位置
-                ImVec2 line_sz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, line_start, line_end);
+                std::string line_text_str;
+                const char* draw_start = line_start;
+                const char* draw_end = line_end;
+
+                if (is_hacker_mode)
+                {
+                    // 计算当前行在原始字符串中的字节偏移量
+                    size_t global_offset = line_start - text_begin;
+
+                    // 调用 Helper 获取这一行的混合结果
+                    // 这里传入 hacker_progress，意味着所有行共享同一个进度 0% -> 100%
+                    line_text_str = m_hacker_effect.GetMixedSubString(line_start, line_end, global_offset, hacker_progress);
+
+                    // 更新绘制指针指向新的临时字符串
+                    draw_start = line_text_str.c_str();
+                    draw_end = draw_start + line_text_str.size();
+                }
+
+                // 2. 计算尺寸 (注意使用 draw_start, draw_end)
+                ImVec2 line_sz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, draw_start, draw_end);
+
+                // ... (计算 draw_pos x坐标代码不变) ...
                 float line_x = m_absolute_pos.x;
                 if (m_align_h == Alignment::Center) line_x += (m_rect.w - line_sz.x) * 0.5f;
                 else if (m_align_h == Alignment::End) line_x += (m_rect.w - line_sz.x);
                 ImVec2 draw_pos(line_x, current_y);
 
-                // 绘制辉光
+                // 3. 绘制辉光
                 if (use_glow)
                 {
                     for (const auto& tap : kernel)
@@ -334,14 +363,16 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
                         float step_alpha = glow_alpha_factor * tap.w * alpha_mult;
                         if (step_alpha <= 0.005f) continue;
                         ImU32 glow_col = GetColorWithAlpha(glow_base_vec, std::min(1.0f, step_alpha));
-                        dl->AddText(font, font_size, ImVec2(draw_pos.x + tap.x * m_glow_spread, draw_pos.y + tap.y * m_glow_spread), glow_col, line_start, line_end);
+                        // 注意这里传入的是 draw_start, draw_end
+                        dl->AddText(font, font_size, ImVec2(draw_pos.x + tap.x * m_glow_spread, draw_pos.y + tap.y * m_glow_spread), glow_col, draw_start, draw_end);
                     }
                 }
 
-                // 绘制本体
-                dl->AddText(font, font_size, draw_pos, text_col, line_start, line_end);
+                // 4. 绘制本体
+                dl->AddText(font, font_size, draw_pos, text_col, draw_start, draw_end);
 
-                // 移动到下一行
+                // ================== [核心修改区域 END] ==================
+
                 current_y += font_size;
                 line_start = line_end;
                 while (line_start < paragraph_end && (*line_start == ' ' || *line_start == '\t'))
@@ -349,12 +380,8 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
             }
         }
 
-        // C. 移动到下一个段落的开头
         s = paragraph_end;
-        if (s < text_end)
-        {
-            s++; // 移动过 `\n`
-        }
+        if (s < text_end) s++;
     }
 }
 
@@ -413,9 +440,7 @@ void TechText::Draw(ImDrawList* dl)
     }
     else
     {
-        // === 常规/Hacker 绘制逻辑 ===
-        std::string display_str = (m_anim_mode == TechTextAnimMode::Hacker) ? m_hacker_effect.m_display_text : m_current_display_text;
-        DrawTextContent(dl, display_str, 0.0f, 1.0f);
+        DrawTextContent(dl, m_current_display_text, 0.0f, 1.0f);
     }
 
     dl->PopClipRect();
