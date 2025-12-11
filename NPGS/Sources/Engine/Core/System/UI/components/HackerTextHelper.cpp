@@ -69,10 +69,9 @@ void HackerTextHelper::RegenerateScrambleMask()
 
         if (byte_len == 1)
         {
-            if (c == '\n')
+            if (c == '\n' || c == ' ' || c == '\t' || c == '\r')
             {
-                // [修改] 遇到换行符直接保留，保持多行文本布局结构
-                m_cached_scramble_string += '\n';
+                m_cached_scramble_string += (char)c;
             }
             else
             {

@@ -33,6 +33,74 @@ TechText::TechText(const std::string& key_or_text,
     }
 }
 
+
+float CalculateRenderedHeight(ImFont* font, const std::string& text_to_measure, float wrap_w)
+{
+    if (!font || text_to_measure.empty()) return 0.0f;
+
+    float font_size = font->FontSize;
+    float current_h = 0.0f;
+
+    const char* text_begin = text_to_measure.c_str();
+    const char* text_end = text_begin + text_to_measure.size();
+    const char* s = text_begin;
+
+    while (s < text_end)
+    {
+        const char* paragraph_end = strchr(s, '\n');
+        if (!paragraph_end) paragraph_end = text_end;
+
+        if (s == paragraph_end)
+        {
+            // Empty paragraph (blank line)
+            current_h += font_size;
+        }
+        else
+        {
+            const char* line_start = s;
+            while (line_start < paragraph_end)
+            {
+                const char* line_end;
+                if (wrap_w > 0.0f)
+                {
+                    const char* content_start = line_start;
+                    while (content_start < paragraph_end && (*content_start == ' ' || *content_start == '\t'))
+                        content_start++;
+
+                    float indent_width = 0.0f;
+                    if (content_start > line_start)
+                    {
+                        indent_width = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, line_start, content_start).x;
+                    }
+
+                    float remaining_width = wrap_w - indent_width;
+                    if (remaining_width <= 0) remaining_width = 1.0f;
+
+                    line_end = font->CalcWordWrapPositionA(1.0f, content_start, paragraph_end, remaining_width);
+                }
+                else
+                {
+                    line_end = paragraph_end;
+                }
+
+                current_h += font_size;
+                line_start = line_end;
+                while (line_start < paragraph_end && (*line_start == ' ' || *line_start == '\t'))
+                    line_start++;
+            }
+        }
+
+        s = paragraph_end;
+        if (s < text_end)
+        {
+            s++;
+        }
+    }
+
+    return current_h;
+}
+
+
 TechText* TechText::SetAnimMode(TechTextAnimMode mode)
 {
     m_anim_mode = mode;
@@ -98,9 +166,7 @@ void TechText::RecomputeSize()
         // 宽度由外部（如 VBox 或手动设置）决定，我们只算高度
         // 如果宽度太小（比如刚初始化），可能还没被布局，暂时设个极大值或保持原样
         float wrap_w = (m_rect.w > 1.0f) ? m_rect.w : 10000.0f;
-
-        ImVec2 sz = font->CalcTextSizeA(font_size, FLT_MAX, wrap_w, text_to_measure.c_str());
-        m_rect.h = sz.y;
+        m_rect.h = CalculateRenderedHeight(font, text_to_measure, wrap_w);
     }
 }
 void TechText::Update(float dt, const ImVec2& parent_abs_pos)
@@ -186,97 +252,112 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
     };
 
     // --- 4. 布局预计算 ---
-
-    // 【修改点】：只有 AutoHeight 模式才启用自动换行 (wrap_width > 0)。
-    // Fixed 模式下 wrap_width 设为 -1.0f，这意味着“无限宽度”，不仅不会在空格处换行，
-    // 就算超过 m_rect.w 也不会换行（会保持单行直至遇到 \n），这与旧版 AddText 行为一致。
     float wrap_width = -1.0f;
     if (m_sizing_mode == TechTextSizingMode::AutoHeight)
     {
         wrap_width = m_rect.w;
-        // 保护性设置：防止宽度过小导致死循环
         if (wrap_width > 0.0f && wrap_width < font_size) wrap_width = font_size;
     }
 
-    // 计算总高度 (用于垂直对齐)
     float total_content_height = 0.0f;
-    // 仅在 Fixed 模式且需要垂直非顶部对齐时计算，优化性能
     if (m_sizing_mode == TechTextSizingMode::Fixed && m_align_v != Alignment::Start)
     {
-        ImVec2 total_sz = font->CalcTextSizeA(font_size, FLT_MAX, wrap_width, text_to_draw.c_str());
+        ImVec2 total_sz = font->CalcTextSizeA(font_size, FLT_MAX, wrap_width > 0.0f ? wrap_width : -1.0f, text_to_draw.c_str());
         total_content_height = total_sz.y;
     }
 
-    // 计算起始 Y 坐标
     float current_y = m_absolute_pos.y + offset_y;
     if (m_sizing_mode == TechTextSizingMode::Fixed)
     {
         if (m_align_v == Alignment::Center) current_y += (m_rect.h - total_content_height) * 0.5f;
         else if (m_align_v == Alignment::End) current_y += (m_rect.h - total_content_height);
     }
-
-    // --- 5. 逐行绘制循环 ---
+    
+    // --- 5. [BUG修复 2.0] 再次重构绘制循环 ---
     const char* text_begin = text_to_draw.c_str();
     const char* text_end = text_begin + text_to_draw.size();
     const char* s = text_begin;
 
     while (s < text_end)
     {
-        // A. 寻找断行点
-        const char* line_end;
-        if (wrap_width > 0.0f)
+        // A. 查找段落结束点 (下一个换行符或字符串末尾)
+        const char* paragraph_end = strchr(s, '\n');
+        if (!paragraph_end) paragraph_end = text_end;
+
+        // B. 判断当前段落是否为空
+        if (s == paragraph_end)
         {
-            // AutoHeight: 自动换行模式
-            line_end = font->CalcWordWrapPositionA(1.0f, s, text_end, wrap_width);
-            const char* next_newline = strchr(s, '\n');
-            if (next_newline && next_newline < line_end) line_end = next_newline;
-            if (line_end == s && s < text_end) line_end = s + 1;
+            // [正确逻辑] 这是一个空行，仅增加行高
+            current_y += font_size;
         }
         else
         {
-            // Fixed / AutoWidthHeight: 不自动换行，只认 \n
-            line_end = strchr(s, '\n');
-            if (!line_end) line_end = text_end;
-        }
-
-        // B. 计算当前行的尺寸
-        ImVec2 line_sz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, s, line_end);
-
-        // C. 计算当前行的水平偏移
-        float line_x = m_absolute_pos.x;
-
-        // 在 Fixed 模式下，m_rect.w 是容器宽度，line_sz.x 是文字宽度，可以正常对齐
-        if (m_align_h == Alignment::Center) line_x += (m_rect.w - line_sz.x) * 0.5f;
-        else if (m_align_h == Alignment::End) line_x += (m_rect.w - line_sz.x);
-
-        ImVec2 draw_pos(line_x, current_y);
-
-        // D. 绘制辉光
-        if (use_glow)
-        {
-            float s_spread = m_glow_spread;
-            for (const auto& tap : kernel)
+            // [正确逻辑] 这是一个带内容的段落，对其进行自动换行
+            const char* line_start = s;
+            while (line_start < paragraph_end)
             {
-                float step_alpha = glow_alpha_factor * tap.w * alpha_mult;
-                if (step_alpha <= 0.005f) continue;
-                if (step_alpha > 1.0f) step_alpha = 1.0f;
+                const char* line_end;
+                if (wrap_width > 0.0f)
+                {
+                    const char* content_start = line_start;
+                    while (content_start < paragraph_end && (*content_start == ' ' || *content_start == '\t'))
+                        content_start++;
+                    
+                    float indent_width = 0.0f;
+                    if (content_start > line_start)
+                    {
+                        indent_width = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, line_start, content_start).x;
+                    }
+                    
+                    float remaining_width = wrap_width - indent_width;
+                    if (remaining_width <= 0) remaining_width = 1.0f; 
+                    
+                    line_end = font->CalcWordWrapPositionA(1.0f, content_start, paragraph_end, remaining_width);
+                }
+                else
+                {
+                    line_end = paragraph_end;
+                }
 
-                ImU32 glow_col = GetColorWithAlpha(glow_base_vec, step_alpha);
-                dl->AddText(font, font_size,
-                    ImVec2(draw_pos.x + tap.x * s_spread, draw_pos.y + tap.y * s_spread),
-                    glow_col, s, line_end);
+                // 计算当前行的尺寸与位置
+                ImVec2 line_sz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, line_start, line_end);
+                float line_x = m_absolute_pos.x;
+                if (m_align_h == Alignment::Center) line_x += (m_rect.w - line_sz.x) * 0.5f;
+                else if (m_align_h == Alignment::End) line_x += (m_rect.w - line_sz.x);
+                ImVec2 draw_pos(line_x, current_y);
+
+                // 绘制辉光
+                if (use_glow)
+                {
+                    for (const auto& tap : kernel)
+                    {
+                        float step_alpha = glow_alpha_factor * tap.w * alpha_mult;
+                        if (step_alpha <= 0.005f) continue;
+                        ImU32 glow_col = GetColorWithAlpha(glow_base_vec, std::min(1.0f, step_alpha));
+                        dl->AddText(font, font_size, ImVec2(draw_pos.x + tap.x * m_glow_spread, draw_pos.y + tap.y * m_glow_spread), glow_col, line_start, line_end);
+                    }
+                }
+
+                // 绘制本体
+                dl->AddText(font, font_size, draw_pos, text_col, line_start, line_end);
+
+                // 移动到下一行
+                current_y += font_size;
+                line_start = line_end;
+                while (line_start < paragraph_end && (*line_start == ' ' || *line_start == '\t'))
+                    line_start++;
             }
         }
 
-        // E. 绘制本体
-        dl->AddText(font, font_size, draw_pos, text_col, s, line_end);
-
-        // F. 移动游标
-        current_y += font_size;
-        s = line_end;
-        if (s < text_end && *s == '\n') s++;
+        // C. 移动到下一个段落的开头
+        s = paragraph_end;
+        if (s < text_end)
+        {
+            s++; // 移动过 `\n`
+        }
     }
 }
+
 void TechText::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;

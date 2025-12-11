@@ -1,3 +1,5 @@
+// --- START OF FILE GlobalTooltip.h ---
+
 #pragma once
 
 #include "../ui_framework.h"
@@ -25,18 +27,6 @@ private:
         Collapsing
     };
 
-    // 用于记录当前的对齐策略（象限）
-    struct PivotState
-    {
-        bool flip_x = false; // false=右侧(正常), true=左侧
-        bool flip_y = false; // false=下侧(正常), true=上侧
-
-        bool operator!=(const PivotState& other) const
-        {
-            return flip_x != other.flip_x || flip_y != other.flip_y;
-        }
-    };
-
     void Show(const std::string& key);
     void Hide();
 
@@ -45,11 +35,17 @@ private:
 
     // 目标状态
     ImVec2 m_target_size = { 0, 0 };
-    PivotState m_current_pivot;
+
+    // [核心修改] 使用可动画的浮点值替代布尔状态
+    ImVec2 m_target_pivot = { 0, 0 };         // 目标翻转状态 (0=正常, 1=翻转)
+    ImVec2 m_current_pivot_lerp = { 0, 0 };   // 当前用于平滑过渡的插值 (0.0 -> 1.0)
+
 
     // 内部组件
     std::shared_ptr<TechBorderPanel> m_panel;
     std::shared_ptr<TechText> m_text_label;
+
+    float m_max_width = 682.0f;
 
     const float m_padding = 12.0f;
 };

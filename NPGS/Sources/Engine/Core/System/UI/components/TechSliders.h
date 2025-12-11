@@ -22,6 +22,7 @@ private:
     std::string m_value_string_buffer;
     std::shared_ptr<InputField> m_value_input;
     std::shared_ptr<TechText> m_label_component;
+    bool m_last_input_focused = false;
     bool TryParseScientific(const std::string& s, double& result)
     {
         if (s.empty()) return false;
@@ -123,9 +124,12 @@ public:
         {
             ImFont* font = GetFont();
 
-            // [修改] 只有当输入框 **没有焦点** 时，才从底层数据同步显示文本
-            // 这样当用户正在打字（有焦点）时，我们不会用底层数据覆盖用户正在输入的内容
-            if (!m_value_input->IsFocused())
+
+            bool current_input_focused = m_value_input->IsFocused();
+
+            // 只有当输入框当前没有焦点，并且上一帧也没有焦点（处于稳定空闲状态）时，
+            // 我们才允许用 m_target_value 覆盖输入框的文本。
+            if (!current_input_focused && !m_last_input_focused)
             {
                 char buf[64];
                 snprintf(buf, 64, "%.2e", (double)*m_target_value);
@@ -138,6 +142,8 @@ public:
                     m_value_input->ResetSelection();
                 }
             }
+            m_last_input_focused = current_input_focused;
+
             float h_up = m_rect.h;
             float input_h = font ? font->FontSize : 13.0f;
             m_value_input->m_rect.w = value_box_w;
@@ -382,7 +388,7 @@ public:
 
         double val_d = static_cast<double>(*this->m_target_value);
         double a_d = static_cast<double>(m_feature_a);
-        double speed_mult = 3.0*pow(m_throttle_val, 2.0);
+        double speed_mult = 0.1+2.4*pow(m_throttle_val, 2.0);
 
         double change_rate = sqrt(pow(val_d, 2.0) + pow(a_d, 2.0));
         double delta = m_throttle_val * dt * speed_mult * change_rate;

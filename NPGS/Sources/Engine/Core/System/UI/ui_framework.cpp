@@ -78,7 +78,7 @@ void UIContext::UpdateTooltipLogic(float dt)
     }
 
     // 3. 检查计时器是否达到显示阈值
-    if (m_tooltip_timer > 0.5f)
+    if (m_tooltip_timer > 0.2f)
     {
         // 将候选者转为激活状态
         m_tooltip_active_key = m_tooltip_candidate_key;

@@ -177,6 +177,7 @@ void PulsarButton::SetExecutable(bool can_execute) { m_can_execute = can_execute
 
 void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 {
+    UpdateSelf(dt, parent_abs_pos);
     // --- 0. I18n 更新检查 ---
     // 一旦版本变化，立即更新所有文本组件
     auto& i18n = System::I18nManager::Get();
@@ -253,7 +254,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
 
     // 计算目标长度，无论变长还是变短都直接设置目标
-    float calculated_target_len = std::max(130.0f, max_text_w + 40.0f);
+    float calculated_target_len = std::max(130.0f, max_text_w + 30.0f);
 
     // 如果目标长度发生变化，触发平滑过渡
     if (std::abs(calculated_target_len - m_target_line_len) > 1.0f)
@@ -460,7 +461,11 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         }
     }
 
-    UIElement::Update(dt, parent_abs_pos);
+    if (!m_visible) return;
+    for (auto& child : m_children)
+    {
+        child->Update(dt, m_absolute_pos);
+    }
 
     m_core_hovered = false;
 
@@ -579,7 +584,7 @@ void PulsarButton::Draw(ImDrawList* draw_list)
 
     // 垂直方向覆盖足够的范围即可
     ImVec2 clip_min = { -10.0f, m_absolute_pos.y - 100.0f };
-    ImVec2 clip_max = { m_bg_panel->m_rect.x+ m_absolute_pos.x-14.0f, m_absolute_pos.y + 100.0f };
+    ImVec2 clip_max = { m_bg_panel->m_rect.x+ m_absolute_pos.x-9.0f, m_absolute_pos.y + 100.0f };
 
     bool font_pushed = false;
     ImFont* font = GetFont();
