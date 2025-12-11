@@ -14,9 +14,9 @@ GlobalTooltip::GlobalTooltip()
 
     // 1. 创建背景面板
     m_panel = std::make_shared<TechBorderPanel>();
-    m_panel->m_use_glass_effect = false;
-    m_panel->m_bg_color = StyleColor(ImVec4(0.0f, 0.0f, 0.0f, 0.5f));
-    m_panel->m_thickness = 1.0f;
+    m_panel->m_use_glass_effect = true;
+    m_panel->m_glass_col = StyleColor(ImVec4(0.0f, 0.0f, 0.0f, 0.5f));
+    m_panel->m_thickness = 2.0f;
     m_panel->m_block_input = false;
     AddChild(m_panel);
 

@@ -149,7 +149,7 @@ void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, 
     {
         ImVec2 uv_min = ImVec2(p_min.x / ctx.m_display_size.x, p_min.y / ctx.m_display_size.y);
         ImVec2 uv_max = ImVec2(p_max.x / ctx.m_display_size.x, p_max.y / ctx.m_display_size.y);
-        draw_list->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
+        ImGui::GetBackgroundDrawList()->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
 
         draw_list->AddRectFilled(
             p_min,
@@ -341,28 +341,20 @@ void Panel::Draw(ImDrawList* draw_list)
 
     // --- [核心逻辑] 绘制毛玻璃背景 ---
     ImTextureID blur_tex = UIContext::Get().m_scene_blur_texture;
-
+    ImVec4 bg = m_bg_color.Resolve();
     if (m_use_glass_effect && blur_tex != 0)
     {
-        // 计算 UV：将 UI 坐标映射到 [0,1] 范围
-        // 这样纹理就像是“贴”在屏幕后面不动，而 Panel 只是一个窗口
-        ImVec2 uv_min = ImVec2(p_min.x / display_sz.x, p_min.y / display_sz.y);
-        ImVec2 uv_max = ImVec2(p_max.x / display_sz.x, p_max.y / display_sz.y);
-        // 绘制模糊纹理
-        draw_list->AddImage(
-            blur_tex,
-            p_min, p_max,
-            uv_min, uv_max
+        DrawGlassBackground(draw_list, p_min, p_max, bg);
+
+    }else
+    {
+
+        draw_list->AddRectFilled(
+            m_absolute_pos,
+            ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
+            GetColorWithAlpha(bg, 1.0f)
         );
-
     }
-    ImVec4 bg = m_bg_color.Resolve();
-
-    draw_list->AddRectFilled(
-        m_absolute_pos,
-        ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + m_rect.h),
-        GetColorWithAlpha(bg, 1.0f)
-    );
 
     UIElement::Draw(draw_list);
 }

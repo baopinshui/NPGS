@@ -65,7 +65,7 @@ void TechBorderPanel::Draw(ImDrawList* dl)
 
     if (m_use_glass_effect)
     {
-        DrawGlassBackground(dl, p_min, p_max, {0.0f,0.0f,0.0f,0.3f});
+        DrawGlassBackground(dl, p_min, p_max, m_glass_col.Resolve());
 	}
 	else
     {

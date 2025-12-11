@@ -9,6 +9,7 @@ _UI_BEGIN
 class TechBorderPanel : public Panel
 {
 public:
+    StyleColor m_glass_col = ImVec4{ 0.0f,0.0f,0.0f,0.3f };
     float m_thickness = 2.0f;
     bool m_force_accent_color = false;
 
