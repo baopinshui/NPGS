@@ -159,6 +159,19 @@ void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, 
     }
 }
 
+// [NEW] Measure 方法的默认实现
+ImVec2 UIElement::Measure(const ImVec2& available_size)
+{
+    // 默认行为：如果是 Fixed 返回固定值，否则返回 0 (对于 Content，需要子类 override)
+    ImVec2 size = { 0.0f, 0.0f };
+    if (m_width_policy.type == LengthType::Fixed) size.x = m_width_policy.value;
+    if (m_height_policy.type == LengthType::Fixed) size.y = m_height_policy.value;
+    // 如果是 Fill，通常 Measure 不被调用或者返回 available_size
+    if (m_width_policy.type == LengthType::Fill) size.x = available_size.x;
+    if (m_height_policy.type == LengthType::Fill) size.y = available_size.y;
+    return size;
+}
+
 void UIElement::UpdateSelf(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
@@ -328,6 +341,57 @@ void UIElement::CaptureMouse() { UIContext::Get().SetCapture(this); }
 void UIElement::ReleaseMouse() { UIContext::Get().ReleaseCapture(); }
 
 // --- Panel 实现 ---
+
+
+ImVec2 Panel::Measure(const ImVec2& available_size)
+{
+    float w = 0.0f;
+    float h = 0.0f;
+
+    // 1. 如果宽度是固定的或填充的，直接确定
+    if (m_width_policy.type == LengthType::Fixed) w = m_width_policy.value;
+    else if (m_width_policy.type == LengthType::Fill) w = available_size.x;
+
+    // 2. 如果高度是固定的或填充的，直接确定
+    if (m_height_policy.type == LengthType::Fixed) h = m_height_policy.value;
+    else if (m_height_policy.type == LengthType::Fill) h = available_size.y;
+
+    // 3. 如果任一维度是 Content，我们需要测量子元素的最大边界
+    if (m_width_policy.type == LengthType::Content || m_height_policy.type == LengthType::Content)
+    {
+        float max_child_w = 0.0f;
+        float max_child_h = 0.0f;
+
+        for (const auto& child : m_children)
+        {
+            if (!child->m_visible) continue;
+
+            // 这是一个简单的 Panel，不进行复杂的流式布局
+            // 所以我们假设子元素得到的可用空间就是 Panel 的（潜在）最大空间
+            ImVec2 child_avail = {
+                (w > 0) ? w : available_size.x,
+                (h > 0) ? h : available_size.y
+            };
+
+            ImVec2 size = child->Measure(child_avail);
+
+            // 考虑子元素的相对位置（如果有手动偏移）
+            // 注意：这里假设子元素的 m_rect.x/y 是相对于 Panel 的偏移
+            // 在 Measure 阶段，这些偏移可能还没最终确定，但如果是手动布局的 Panel，它们应该是已知的
+            float child_right = child->m_rect.x + size.x;
+            float child_bottom = child->m_rect.y + size.y;
+
+            if (child_right > max_child_w) max_child_w = child_right;
+            if (child_bottom > max_child_h) max_child_h = child_bottom;
+        }
+
+        if (m_width_policy.type == LengthType::Content) w = max_child_w;
+        if (m_height_policy.type == LengthType::Content) h = max_child_h;
+    }
+
+    return ImVec2(w, h);
+}
+
 void Panel::Draw(ImDrawList* draw_list)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
@@ -359,17 +423,62 @@ void Panel::Draw(ImDrawList* draw_list)
     UIElement::Draw(draw_list);
 }
 // --- Image 实现 ---
-void Image::Update(float dt, const ImVec2& parent_abs_pos)
+Image::Image(ImTextureID tex_id) : m_texture_id(tex_id)
 {
-    // [核心逻辑] 如果开启了自动高度，且宽高比有效
-    if (m_auto_height && m_aspect_ratio > 0.001f)
+    m_block_input = false;
+    // Image 默认尺寸自适应内容
+    m_width_policy = Length::Content();
+    m_height_policy = Length::Content();
+}
+
+ImVec2 Image::Measure(const ImVec2& available_size)
+{
+    float w = 0.0f;
+    float h = 0.0f;
+
+    // 1. 尝试确定宽度
+    if (m_width_policy.type == LengthType::Fixed)
     {
-        // 高度 = 当前宽度 / 宽高比
-        m_rect.h = m_rect.w / m_aspect_ratio;
+        w = m_width_policy.value;
+    }
+    else if (m_width_policy.type == LengthType::Fill)
+    {
+        w = available_size.x;
     }
 
-    // 调用基类更新位置和动画
-    UIElement::Update(dt, parent_abs_pos);
+    // 2. 尝试确定高度
+    if (m_height_policy.type == LengthType::Fixed)
+    {
+        h = m_height_policy.value;
+    }
+    else if (m_height_policy.type == LengthType::Fill)
+    {
+        h = available_size.y;
+    }
+
+    // 3. 根据宽高比推算未定义的一边
+    if (m_aspect_ratio > 0.001f)
+    {
+        // 如果宽确定，高自适应
+        if (w > 0.0f && m_height_policy.type == LengthType::Content)
+        {
+            h = w / m_aspect_ratio;
+        }
+        // [新增] 如果高确定，宽自适应
+        else if (h > 0.0f && m_width_policy.type == LengthType::Content)
+        {
+            w = h * m_aspect_ratio;
+        }
+        // 如果都没确定（都是 Content），可能需要给个默认值或基于 texture 原始大小
+        if (w <= 0.0f && h <= 0.0f)
+        {
+            // 如果能获取 texture 大小最好，否则给个默认值防止不可见
+            w = 100.0f;
+            h = w / m_aspect_ratio;
+        }
+    }
+
+    return ImVec2(w, h);
 }
 void Image::Draw(ImDrawList* draw_list)
 {
@@ -384,131 +493,336 @@ void Image::Draw(ImDrawList* draw_list)
     );
 }
 
-// --- VBox 实现 (带 Alignment) ---
+ImVec2 VBox::Measure(const ImVec2& available_size)
+{
+    // 1. 确定传递给子元素的宽度约束
+    float constrained_w = 0.0f;
+    if (m_width_policy.type == LengthType::Fixed) constrained_w = m_width_policy.value;
+    else if (m_width_policy.type == LengthType::Fill) constrained_w = available_size.x;
+    else constrained_w = available_size.x; // Content: 给子元素 0，让它们以最小宽度测量
+
+    float total_fixed_h = 0.0f;
+    float max_child_w = 0.0f;
+    int visible_children = 0;
+
+    for (const auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+        visible_children++;
+
+        // 2. 测量子元素
+        // VBox 垂直方向无限，所以高度给 0 (让子元素自由生长)
+        ImVec2 child_avail = { constrained_w,  available_size.y };
+        ImVec2 size = child->Measure(child_avail);
+
+        // 如果子元素宽是 Fill，它在 Measure 阶段就应该等于 constrained_w
+        // 如果子元素宽是 Fixed/Content，它就是 size.x
+        float effective_child_w = (child->m_width_policy.type == LengthType::Fill) ? constrained_w : size.x;
+
+        if (effective_child_w > max_child_w) max_child_w = effective_child_w;
+
+        // 高度累加：只累加非 Fill 的高度
+        if (child->m_height_policy.type != LengthType::Fill)
+        {
+            total_fixed_h += size.y;
+        }
+    }
+
+    float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
+
+    // 3. 计算自身尺寸
+    float final_w = (m_width_policy.type == LengthType::Content) ? max_child_w : constrained_w;
+    float final_h = 0.0f;
+
+    if (m_height_policy.type == LengthType::Fixed) final_h = m_height_policy.value;
+    else if (m_height_policy.type == LengthType::Fill) final_h = available_size.y;
+    else final_h = total_fixed_h + total_padding; // Content
+
+    return ImVec2(final_w, final_h);
+}
+
 void VBox::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
-
-    // [关键修改] 只更新自身位置和动画，不调用基类 Update，避免触发默认的子节点递归
     UpdateSelf(dt, parent_abs_pos);
 
-    // --- Pass 1: 测量 ---
-    float fixed_height = 0.0f;
-    int fill_count = 0;
+    // --- Pass 1: 测量子元素 & 统计需求 ---
+    float total_fixed_h = 0.0f;
+    float total_fill_weight = 0.0f;
     int visible_children = 0;
+    float max_child_w = 0.0f;
+
+    // 确定当前这一帧，给子元素的可用宽度是多少
+    // 如果我是 Content，目前我宽度未定(视为0)；如果是 Fixed/Fill，m_rect.w 已经是确定的值
+    float available_w_for_child = (m_width_policy.type == LengthType::Content) ? 0.0f : m_rect.w;
 
     for (const auto& child : m_children)
     {
         if (!child->m_visible) continue;
         visible_children++;
-        if (child->m_fill_v) fill_count++;
-        else fixed_height += child->m_rect.h;
+
+        // A. 测量宽度
+        float child_w = 0.0f;
+        if (child->m_width_policy.type == LengthType::Fill)
+        {
+            child_w = available_w_for_child;
+        }
+        else
+        {
+            // Fixed 或 Content，需要测量
+            // 注意：如果我是 Content (available=0)，子元素如果是 Text(Width=Content)，会算出它的最小自然宽
+            if (child->m_width_policy.type == LengthType::Fixed)
+                child_w = child->m_width_policy.value;
+            else
+                child_w = child->Measure({ available_w_for_child, 0 }).x;
+        }
+
+        if (child_w > max_child_w) max_child_w = child_w;
+        child->m_rect.w = child_w; // Pass 1 暂存宽度
+
+        // B. 测量高度
+        if (child->m_height_policy.type == LengthType::Fill)
+        {
+            total_fill_weight += child->m_height_policy.value;
+        }
+        else
+        {
+            // 用刚确定的宽度去测量高度 (处理文本换行)
+            float child_h = 0.0f;
+            if (child->m_height_policy.type == LengthType::Fixed)
+                child_h = child->m_height_policy.value;
+            else
+                child_h = child->Measure({ child_w, 0 }).y;
+
+            total_fixed_h += child_h;
+            child->m_rect.h = child_h; // Pass 1 暂存高度
+        }
     }
 
     float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
 
-    // --- Pass 2: 分配与布局 ---
-    float remaining_height = m_rect.h - fixed_height - total_padding;
-    float fill_child_height = (fill_count > 0) ? std::max(0.0f, remaining_height / fill_count) : 0.0f;
-
-    float current_y = 0.0f;
-    for (size_t i = 0; i < m_children.size(); ++i)
+    // --- Pass 1.5: VBox 自身尺寸适应 ---
+    if (m_width_policy.type == LengthType::Content)
     {
-        auto& child = m_children[i];
-        if (!child->m_visible) continue;
-
-        // A. 确定高度
-        if (child->m_fill_v) child->m_rect.h = fill_child_height;
-
-        // B. 设置位置
-        child->m_rect.y = current_y;
-
-        // C. 水平对齐
-        if (child->m_align_h == Alignment::Stretch) { child->m_rect.x = 0; child->m_rect.w = this->m_rect.w; }
-        else if (child->m_align_h == Alignment::Center) { child->m_rect.x = (this->m_rect.w - child->m_rect.w) * 0.5f; }
-        else if (child->m_align_h == Alignment::End) { child->m_rect.x = this->m_rect.w - child->m_rect.w; }
-        else { child->m_rect.x = 0; }
-
-        // D. [关键] 手动调用子节点 Update，这是该子节点在这一帧唯一的一次更新
-        child->Update(dt, m_absolute_pos);
-
-        // E. 移动游标
-        current_y += child->m_rect.h;
-        if (i < (size_t)visible_children - 1) current_y += m_padding;
+        m_rect.w = max_child_w;
+    }
+    if (m_height_policy.type == LengthType::Content)
+    {
+        m_rect.h = total_fixed_h + total_padding;
     }
 
-    if (fill_count == 0) this->m_rect.h = current_y;
+    // --- Pass 2: 分配剩余空间 (Arrange) ---
+    float remaining_h = std::max(0.0f, m_rect.h - total_fixed_h - total_padding);
+    float current_y = 0.0f;
+
+    for (const auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+
+        // 如果子元素宽是 Fill，且 VBox 刚才因为 Content 变大了，现在更新子元素宽度
+        if (child->m_width_policy.type == LengthType::Fill)
+        {
+            child->m_rect.w = m_rect.w;
+        }
+
+        // 分配高度给 Fill 元素
+        if (child->m_height_policy.type == LengthType::Fill)
+        {
+            float share = (total_fill_weight > 0.001f) ? (child->m_height_policy.value / total_fill_weight) : 0.0f;
+            child->m_rect.h = remaining_h * share;
+        }
+
+        // 水平对齐计算
+        child->m_rect.x = 0; // Start
+        if (child->m_align_h == Alignment::Center) child->m_rect.x = (m_rect.w - child->m_rect.w) * 0.5f;
+        else if (child->m_align_h == Alignment::End) child->m_rect.x = m_rect.w - child->m_rect.w;
+
+        child->m_rect.y = current_y;
+
+        // 递归更新
+        child->Update(dt, m_absolute_pos);
+
+        current_y += child->m_rect.h + m_padding;
+    }
 }
 
-// --- HBox 实现 (修复多重更新) ---
+
+
+
+// --- [NEW] HBox 实现 (核心重构) ---
+ImVec2 HBox::Measure(const ImVec2& available_size)
+{
+    // 1. 确定传递给子元素的高度约束
+    float constrained_h = 0.0f;
+    if (m_height_policy.type == LengthType::Fixed) constrained_h = m_height_policy.value;
+    else if (m_height_policy.type == LengthType::Fill) constrained_h = available_size.y;
+    else constrained_h = 0.0f;
+
+    float total_fixed_w = 0.0f;
+    float max_child_h = 0.0f;
+    int visible_children = available_size.y;
+
+    for (const auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+        visible_children++;
+
+        ImVec2 child_avail = { available_size.x, constrained_h };
+        ImVec2 size = child->Measure(child_avail);
+
+        float effective_child_h = (child->m_height_policy.type == LengthType::Fill) ? constrained_h : size.y;
+        if (effective_child_h > max_child_h) max_child_h = effective_child_h;
+
+        // 宽度累加：只累加非 Fill 的宽度
+        if (child->m_width_policy.type != LengthType::Fill)
+        {
+            total_fixed_w += size.x;
+        }
+    }
+
+    float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
+
+    // 3. 计算自身尺寸
+    float final_h = (m_height_policy.type == LengthType::Content) ? max_child_h : constrained_h;
+    float final_w = 0.0f;
+
+    if (m_width_policy.type == LengthType::Fixed) final_w = m_width_policy.value;
+    else if (m_width_policy.type == LengthType::Fill) final_w = available_size.x;
+    else final_w = total_fixed_w + total_padding; // Content
+
+    return ImVec2(final_w, final_h);
+}
+
 void HBox::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
-
-    // [关键修改] 只更新自身，接管子节点控制权
     UpdateSelf(dt, parent_abs_pos);
 
-    // --- Pass 1: 测量 ---
-    float fixed_width = 0.0f;
-    int fill_count = 0;
+    // --- Pass 1 ---
+    float total_fixed_w = 0.0f;
+    float total_fill_weight = 0.0f;
     int visible_children = 0;
+    float max_child_h = 0.0f;
+
+    float available_h_for_child = (m_height_policy.type == LengthType::Content) ? 0.0f : m_rect.h;
 
     for (const auto& child : m_children)
     {
         if (!child->m_visible) continue;
         visible_children++;
-        if (child->m_fill_h) fill_count++;
-        else fixed_width += child->m_rect.w;
+
+        // A. 测量高度
+        float child_h = 0.0f;
+        if (child->m_height_policy.type == LengthType::Fill)
+        {
+            child_h = available_h_for_child;
+        }
+        else
+        {
+            if (child->m_height_policy.type == LengthType::Fixed)
+                child_h = child->m_height_policy.value;
+            else
+                child_h = child->Measure({ 0, available_h_for_child }).y;
+        }
+
+        if (child_h > max_child_h) max_child_h = child_h;
+        child->m_rect.h = child_h;
+
+        // B. 测量宽度
+        if (child->m_width_policy.type == LengthType::Fill)
+        {
+            total_fill_weight += child->m_width_policy.value;
+        }
+        else
+        {
+            float child_w = 0.0f;
+            if (child->m_width_policy.type == LengthType::Fixed)
+                child_w = child->m_width_policy.value;
+            else
+                child_w = child->Measure({ 0, child_h }).x;
+
+            total_fixed_w += child_w;
+            child->m_rect.w = child_w;
+        }
     }
 
     float total_padding = (visible_children > 1) ? ((float)visible_children - 1.0f) * m_padding : 0.0f;
 
-    // --- Pass 2: 分配与布局 ---
-    float remaining_width = m_rect.w - fixed_width - total_padding;
-    float fill_child_width = (fill_count > 0) ? std::max(0.0f, remaining_width / fill_count) : 0.0f;
-
-    float current_x = 0.0f;
-    float max_child_height = 0.0f;
-
-    for (size_t i = 0; i < m_children.size(); ++i)
+    // --- Pass 1.5 ---
+    if (m_height_policy.type == LengthType::Content)
     {
-        auto& child = m_children[i];
-        if (!child->m_visible) continue;
-
-        // A. 确定宽度
-        if (child->m_fill_h) child->m_rect.w = fill_child_width;
-
-        // B. 设置位置
-        child->m_rect.x = current_x;
-
-        // C. 垂直对齐
-        if (child->m_align_v == Alignment::Stretch) { child->m_rect.y = 0; child->m_rect.h = this->m_rect.h; }
-        else if (child->m_align_v == Alignment::Center) { child->m_rect.y = (this->m_rect.h - child->m_rect.h) * 0.5f; }
-        else if (child->m_align_v == Alignment::End) { child->m_rect.y = this->m_rect.h - child->m_rect.h; }
-        else { child->m_rect.y = 0; }
-
-        // D. [关键] 手动更新子节点
-        child->Update(dt, m_absolute_pos);
-
-        if (child->m_rect.h > max_child_height) max_child_height = child->m_rect.h;
-
-        current_x += child->m_rect.w;
-        if (i < (size_t)visible_children - 1) current_x += m_padding;
+        m_rect.h = max_child_h;
+    }
+    if (m_width_policy.type == LengthType::Content)
+    {
+        m_rect.w = total_fixed_w + total_padding;
     }
 
-    if (m_rect.h <= 0.1f) m_rect.h = max_child_height;
-    if (fill_count == 0) this->m_rect.w = current_x;
-}
+    // --- Pass 2 ---
+    float remaining_w = std::max(0.0f, m_rect.w - total_fixed_w - total_padding);
+    float current_x = 0.0f;
 
+    for (const auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+
+        if (child->m_height_policy.type == LengthType::Fill)
+        {
+            child->m_rect.h = m_rect.h;
+        }
+        if (child->m_width_policy.type == LengthType::Fill)
+        {
+            float share = (total_fill_weight > 0.001f) ? (child->m_width_policy.value / total_fill_weight) : 0.0f;
+            child->m_rect.w = remaining_w * share;
+        }
+
+        child->m_rect.y = 0; // Start
+        if (child->m_align_v == Alignment::Center) child->m_rect.y = (m_rect.h - child->m_rect.h) * 0.5f;
+        else if (child->m_align_v == Alignment::End) child->m_rect.y = m_rect.h - child->m_rect.h;
+
+        child->m_rect.x = current_x;
+
+        child->Update(dt, m_absolute_pos);
+        current_x += child->m_rect.w + m_padding;
+    }
+}
 // --- ScrollView 实现 (修复多重更新) ---
 void ScrollView::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
 
-    // [关键修改] 只更新自身
+    // 1. 基础自身更新
     UpdateSelf(dt, parent_abs_pos);
 
-    // 滚动逻辑 (保留原样)
+    // 2. 内容尺寸测量阶段
+    float content_h_accumulator = 0.0f;
+    float view_w = m_rect.w - (m_show_scrollbar ? 6.0f : 0.0f);
+
+    for (auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+
+        // [布局策略]
+        // 强制子元素宽度固定为视口宽度
+        child->SetWidth(Length::Fix(view_w));
+        // 强制子元素高度自适应内容 (这样 VBox::Measure 才会计算真实高度)
+        child->SetHeight(Length::Content());
+
+        // [关键修正] 使用 Measure 而不是 Update
+        // 传入 {view_w, 0}，0 表示垂直方向无限制
+        ImVec2 measured_size = child->Measure(ImVec2(view_w, 0.0f));
+
+        // 临时存储测量出的高度，供后续布局使用
+        child->m_rect.w = measured_size.x;
+        child->m_rect.h = measured_size.y;
+
+        content_h_accumulator += measured_size.y;
+    }
+
+    m_content_height = content_h_accumulator;
+
+    // ... (后续滚动逻辑保持不变) ...
+    // 3. 滚动状态计算 ...
     float max_scroll = std::max(0.0f, m_content_height - m_rect.h);
     if (m_hovered)
     {
@@ -516,34 +830,34 @@ void ScrollView::Update(float dt, const ImVec2& parent_abs_pos)
         if (std::abs(wheel) > 0.0f) m_target_scroll_y -= wheel * m_scroll_speed;
     }
     m_target_scroll_y = std::clamp(m_target_scroll_y, 0.0f, max_scroll);
+
     float diff = m_target_scroll_y - m_scroll_y;
     if (std::abs(diff) < 0.5f) m_scroll_y = m_target_scroll_y;
     else m_scroll_y += diff * std::min(1.0f, m_smoothing_speed * dt);
 
-    // 布局子元素
-    float current_max_bottom = 0.0f;
-    float view_w = m_rect.w - (m_show_scrollbar ? 6.0f : 0.0f);
+    if (m_scroll_y > max_scroll + 0.1f)
+    {
+        m_target_scroll_y = max_scroll;
+        if (m_scroll_y > max_scroll + 50.0f) m_scroll_y = max_scroll;
+    }
+
+    // 4. Arrange Pass
+    float current_y = 0.0f; // 支持多个子元素堆叠
 
     for (auto& child : m_children)
     {
         if (!child->m_visible) continue;
-        if (child->m_fill_h) child->m_rect.w = view_w;
-        child->m_rect.x = 0;
-        child->m_rect.w = view_w;
-        child->m_rect.y = -m_scroll_y;
 
-        // [关键] 手动更新子节点
+        // 设置滚动后的相对位置
+        child->m_rect.x = 0;
+        child->m_rect.y = current_y - m_scroll_y;
+
+        // [关键] 在位置确定后，调用唯一的 Update
+        // 这会递归更新所有孙节点的 absolute_pos
         child->Update(dt, m_absolute_pos);
 
-        if (child->m_rect.h > current_max_bottom) current_max_bottom = child->m_rect.h;
+        current_y += child->m_rect.h;
     }
-
-    m_content_height = current_max_bottom;
-
-    // 再次 Clamp 逻辑 (保留原样)
-    float new_max_scroll = std::max(0.0f, m_content_height - m_rect.h);
-    if (m_target_scroll_y > new_max_scroll) m_target_scroll_y = new_max_scroll;
-    if (m_scroll_y > new_max_scroll + 50.0f) m_scroll_y = new_max_scroll;
 }
 
 
@@ -605,69 +919,95 @@ void ScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool
     // 注意：不要在这里写 else { m_hovered = false; }，这会导致子节点消耗事件后滚轮失效
 }
 
-
 void HorizontalScrollView::Update(float dt, const ImVec2& parent_abs_pos)
 {
     if (!m_visible) return;
 
-    // 1. 基础位置更新
-    UpdateSelf(dt, parent_abs_pos); // 使用修正后的 UpdateSelf
+    // 1. 基础自身更新
+    UpdateSelf(dt, parent_abs_pos);
 
-    // 2. 计算滚动边界
-    float max_scroll = std::max(0.0f, m_content_width - m_rect.w);
-
-    // 3. 滚动输入处理
-    if (m_hovered)
-    {
-        // 鼠标滚轮同时控制水平滚动
-        float wheel_x = ImGui::GetIO().MouseWheelH; // 水平滚轮 (通常是 Shift + 滚轮)
-        float wheel_y = ImGui::GetIO().MouseWheel;  // 垂直滚轮
-
-        if (std::abs(wheel_y) > std::abs(wheel_x))
-        {
-            m_target_scroll_x -= wheel_y * m_scroll_speed;
-        }
-        else
-        {
-            m_target_scroll_x -= wheel_x * m_scroll_speed;
-        }
-    }
-
-    // 4. 限制目标值并平滑插值
-    m_target_scroll_x = std::clamp(m_target_scroll_x, 0.0f, max_scroll);
-    float diff = m_target_scroll_x - m_scroll_x;
-    if (std::abs(diff) < 0.5f) m_scroll_x = m_target_scroll_x;
-    else m_scroll_x += diff * std::min(1.0f, m_smoothing_speed * dt);
-
+    // 2. 内容尺寸测量阶段 (Measure Pass)
+    float content_w_accumulator = 0.0f;
+    // 如果有横向滚动条，可视高度要减去滚动条高度 (假设为6.0f)
     float view_h = m_rect.h - (m_show_scrollbar ? 6.0f : 0.0f);
-    // 5. 布局子元素
-    float total_child_width = 0.0f;
+
     for (auto& child : m_children)
     {
         if (!child->m_visible) continue;
-        if (child->m_fill_v) child->m_rect.h = view_h;
-        child->m_rect.x = -m_scroll_x;
 
-        // 子元素垂直方向上可以居中或拉伸
-        child->m_align_v = Alignment::Stretch;
+        // 强制高度固定，宽度自适应
+        child->SetHeight(Length::Fix(view_h));
+        child->SetWidth(Length::Content());
 
-        // 手动更新子节点
-        child->Update(dt, m_absolute_pos);
+        // [关键修正] 使用 Measure
+        // 传入 {0, view_h}，0 表示水平无限制
+        ImVec2 measured_size = child->Measure(ImVec2(0.0f, view_h));
 
-        // 测量内容总宽度
-        total_child_width = child->m_rect.x + child->m_rect.w; // HBox 只有一个
+        child->m_rect.w = measured_size.x;
+        child->m_rect.h = measured_size.y;
+
+        content_w_accumulator += measured_size.x;
     }
 
-    // 6. 更新内容总宽度
-    m_content_width = total_child_width + m_scroll_x;
+    // 更新内容总宽度
+    m_content_width = content_w_accumulator;
 
-    // 再次 clamp 防止内容变少时悬空
-    float new_max_scroll = std::max(0.0f, m_content_width - m_rect.w);
-    if (m_target_scroll_x > new_max_scroll) m_target_scroll_x = new_max_scroll;
-    if (m_scroll_x > new_max_scroll) m_scroll_x = new_max_scroll;
+    // 3. 滚动状态计算阶段
+    float max_scroll = std::max(0.0f, m_content_width - m_rect.w);
+
+    if (m_hovered)
+    {
+        // 优先响应水平滚轮，如果没有则响应垂直滚轮
+        float wheel_x = ImGui::GetIO().MouseWheelH;
+        float wheel_y = ImGui::GetIO().MouseWheel;
+
+        if (std::abs(wheel_x) > 0.0f)
+        {
+            m_target_scroll_x -= wheel_x * m_scroll_speed;
+        }
+        else if (std::abs(wheel_y) > 0.0f)
+        {
+            // 很多鼠标只有垂直滚轮，允许用垂直滚轮控制横滚
+            m_target_scroll_x -= wheel_y * m_scroll_speed;
+        }
+    }
+
+    // 限制范围
+    m_target_scroll_x = std::clamp(m_target_scroll_x, 0.0f, max_scroll);
+
+    // 平滑插值
+    float diff = m_target_scroll_x - m_scroll_x;
+    if (std::abs(diff) < 0.5f)
+    {
+        m_scroll_x = m_target_scroll_x;
+    }
+    else
+    {
+        m_scroll_x += diff * std::min(1.0f, m_smoothing_speed * dt);
+    }
+
+    // 防止内容变少时出现空白
+    if (m_scroll_x > max_scroll + 0.1f)
+    {
+        m_target_scroll_x = max_scroll;
+        if (m_scroll_x > max_scroll + 50.0f) m_scroll_x = max_scroll;
+    }
+
+    float current_x = 0.0f;
+    for (auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+
+        // 设置滚动后的位置
+        child->m_rect.x = current_x - m_scroll_x;
+        child->m_rect.y = 0;
+
+        // [关键] 统一调用 Update，确保坐标系正确
+        child->Update(dt, m_absolute_pos);
+
+        current_x += child->m_rect.w;
+    }
 }
-
-
 void HorizontalScrollView::Draw(ImDrawList* draw_list)
 {
     if (!m_visible || m_alpha <= 0.01f) return;

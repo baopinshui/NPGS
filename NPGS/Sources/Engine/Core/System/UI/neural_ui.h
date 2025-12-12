@@ -19,5 +19,6 @@
 #include "components/LogPanel.h"
 #include "components/ScreenVignette.h" 
 #include "components/GlobalTooltip.h"
+#include "components/SliderTrack.h"
 
 #include "UITool/AstroDataBuilder.h"            

@@ -27,6 +27,7 @@ public:
         const std::string& lum_label);
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
+    ImVec2 Measure(const ImVec2& available_size) override;
 
 private:
     Position m_position;

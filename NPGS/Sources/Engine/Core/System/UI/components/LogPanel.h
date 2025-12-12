@@ -23,16 +23,17 @@ public:
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* dl) override;
 
+    static constexpr float CARD_WIDTH = 260.0f;
     static constexpr float CARD_HEIGHT = 58.0f;
 
 private:
     LogType m_type;
     std::shared_ptr<TechText> m_title_text;
     std::shared_ptr<TechText> m_msg_text;
-    float m_pulse_timer = 0.0f; // 仅用于 Alert 闪烁
+    float m_pulse_timer = 0.0f;
 };
 
-class LogPanel : public UIElement
+class LogPanel : public UIElement // [REFACTOR] 保持继承自 UIElement
 {
 public:
     LogPanel(const std::string& sys_key, const std::string& save_key);
@@ -43,21 +44,24 @@ public:
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* dl) override;
+    ImVec2 Measure(const ImVec2& available_size) override;
 
 private:
-    std::shared_ptr<VBox> m_list_box;
-    std::shared_ptr<VBox> m_footer_box;
-    std::shared_ptr<TechDivider> m_divider;
+    // [REFACTOR] 新的结构
+    std::shared_ptr<VBox> m_root_vbox;         // 主布局容器
+    std::shared_ptr<Panel> m_clipping_area;      // 列表的裁剪区域
+    std::shared_ptr<VBox> m_log_container;     // 真正存放 LogCard 的容器
 
+    std::shared_ptr<TechDivider> m_divider;
     std::shared_ptr<TechText> m_system_text;
     std::shared_ptr<TechText> m_autosave_text;
+
     const size_t MAX_LOG_COUNT = 4;
-    // 列表可视区域固定高度
+    // [REFACTOR] 列表区高度现在只用于设置 clipping_area 的高度
     const float LIST_AREA_HEIGHT = MAX_LOG_COUNT * LogCard::CARD_HEIGHT;
 
-    // 滑动控制
+    // 滑动控制 (保持不变)
     float m_slide_offset = 0.0f;
-    bool m_is_sliding = false;
 };
 
 _UI_END

@@ -54,6 +54,7 @@ public:
     float PANEL_HEIGHT = 650.0f;
     float TOP_MARGIN = 150.0f;
     float RIGHT_MARGIN = 20.0f;
+    ImVec2 Measure(const ImVec2& available_size) override;
 
 private:
     void ToggleCollapse();

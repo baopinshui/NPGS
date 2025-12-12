@@ -49,6 +49,8 @@ public:
     bool HandleKeyboardEvent() override;
     ImFont* GetFont() const override;
 
+    ImVec2 Measure(const ImVec2& available_size) override;
+
     // [新增] 辅助函数
     bool HasSelection() const;
     void GetSelectionBounds(int& start, int& end) const;
