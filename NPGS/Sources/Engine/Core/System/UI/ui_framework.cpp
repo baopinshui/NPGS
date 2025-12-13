@@ -422,15 +422,16 @@ void VBox::Update(float dt, const ImVec2& parent_abs_pos)
 
         // B. 设置位置
         child->m_rect.y = current_y;
-
-        // C. 水平对齐
+        // C. [关键] 手动调用子节点 Update，这是该子节点在这一帧唯一的一次更新
+        child->Update(dt, m_absolute_pos);
+        // D. 水平对齐
         if (child->m_align_h == Alignment::Stretch) { child->m_rect.x = 0; child->m_rect.w = this->m_rect.w; }
         else if (child->m_align_h == Alignment::Center) { child->m_rect.x = (this->m_rect.w - child->m_rect.w) * 0.5f; }
         else if (child->m_align_h == Alignment::End) { child->m_rect.x = this->m_rect.w - child->m_rect.w; }
         else { child->m_rect.x = 0; }
 
-        // D. [关键] 手动调用子节点 Update，这是该子节点在这一帧唯一的一次更新
-        child->Update(dt, m_absolute_pos);
+        child->m_absolute_pos.x = m_absolute_pos.x + child->m_rect.x;
+        child->m_absolute_pos.y = m_absolute_pos.y + child->m_rect.y;
 
         // E. 移动游标
         current_y += child->m_rect.h;
@@ -481,15 +482,16 @@ void HBox::Update(float dt, const ImVec2& parent_abs_pos)
         // B. 设置位置
         child->m_rect.x = current_x;
 
-        // C. 垂直对齐
+        // C. [关键] 手动更新子节点
+        child->Update(dt, m_absolute_pos);
+
+        // D. 垂直对齐
         if (child->m_align_v == Alignment::Stretch) { child->m_rect.y = 0; child->m_rect.h = this->m_rect.h; }
         else if (child->m_align_v == Alignment::Center) { child->m_rect.y = (this->m_rect.h - child->m_rect.h) * 0.5f; }
         else if (child->m_align_v == Alignment::End) { child->m_rect.y = this->m_rect.h - child->m_rect.h; }
         else { child->m_rect.y = 0; }
-
-        // D. [关键] 手动更新子节点
-        child->Update(dt, m_absolute_pos);
-
+        child->m_absolute_pos.x = m_absolute_pos.x + child->m_rect.x;
+        child->m_absolute_pos.y = m_absolute_pos.y + child->m_rect.y;
         if (child->m_rect.h > max_child_height) max_child_height = child->m_rect.h;
 
         current_x += child->m_rect.w;
