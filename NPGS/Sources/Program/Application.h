@@ -7,15 +7,17 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 
+#include "DataStructures.h"
+
 #include "Engine/Core/Base/Base.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Context.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Resources.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/Wrappers.h"
 #include "Engine/Core/Runtime/Graphics/Vulkan/VulkanUIRenderer.h"
-#define GLM_FORCE_ALIGNED_GENTYPES
+
 #include "Engine/Core/System/Spatial/Camera.h"
 #include "Engine/Core/System/UI/neural_ui.h" 
-
+#include "Engine/Core/System/UI/ScreenManager.h" // [新增]
 
 #include "Engine/Core/Types/Entries/Astro/Star.h"
 
@@ -36,6 +38,8 @@ public:
     std::string FormatTime(double total_seconds);
     FApplication(const vk::Extent2D& WindowSize, const std::string& WindowTitle, bool bEnableVSync, bool bEnableFullscreen);
     ~FApplication();
+
+    void Quit();
 
     void ExecuteMainRender();
     void Terminate();
@@ -62,11 +66,7 @@ private:
     void HandleCursorPos(double posX, double posY);
     void HandleScroll(double offsetX, double offsetY); 
 
-
-
-
-
-    void SimulateStarSelectionAndUpdateUI();
+    //void Quit();
 private:
     Runtime::Graphics::FVulkanContext*        _VulkanContext;
 
@@ -77,20 +77,7 @@ private:
     bool                                      _bEnableFullscreen;
 
     std::unique_ptr<Runtime::Graphics::FVulkanUIRenderer> _uiRenderer;
-    std::shared_ptr<System::UI::UIRoot> m_ui_root; // 新增：唯一的UI根节点
-
-    // =========================================================================
-    std::shared_ptr<System::UI::CelestialInfoPanel> m_celestial_info;
-    std::shared_ptr<System::UI::NeuralMenu> m_neural_menu_controller;
-    std::shared_ptr<System::UI::PulsarButton> m_beam_button;
-    std::shared_ptr<System::UI::PulsarButton> m_rkkv_button;
-    std::shared_ptr<System::UI::PulsarButton> m_VN_button;
-    std::shared_ptr<System::UI::PulsarButton> m_message_button;
-    std::shared_ptr<System::UI::CinematicInfoPanel> m_top_Info;
-    std::shared_ptr<System::UI::CinematicInfoPanel> m_bottom_Info;
-	std::shared_ptr<System::UI::TimeControlPanel> m_time_control_panel;
-    std::shared_ptr<System::UI::LogPanel> m_log_panel;
-    // Data for the buttons to bind to
+    std::unique_ptr<Npgs::System::UI::ScreenManager> m_screen_manager;
     std::string m_beam_energy;
     std::string m_rkkv_mass;
     std::string m_VN_mass;

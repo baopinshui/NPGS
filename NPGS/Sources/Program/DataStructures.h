@@ -1,6 +1,10 @@
 #pragma once
 
+#define GLM_FORCE_ALIGNED_GENTYPES
+
 #include <glm/glm.hpp>
+#include <glm/gtc/type_aligned.hpp>
+
 
 // Vertex structs
 // --------------
@@ -42,14 +46,14 @@ struct FGameArgs
     float GameTime;
     float TimeDelta;
     float TimeRate;
-} GameArgs{};
+};
 
 struct FBlackHoleArgs
 {
     glm::mat4x4 InverseCamRot;
     glm::vec4 BlackHoleRelativePosRs;
     glm::vec4 BlackHoleRelativeDiskNormal;
-    glm::vec4 BlackHoleRelativeDiskTangen; 
+    glm::vec4 BlackHoleRelativeDiskTangen;
     float BlackHoleTime;
     float BlackHoleMassSol;
     float Spin;
@@ -64,21 +68,21 @@ struct FBlackHoleArgs
     float Reddening;
     float Saturation;
     float BlackbodyIntensityExponent;
-    float RedShiftColorExponent;     
-    float RedShiftIntensityExponent; 
+    float RedShiftColorExponent;
+    float RedShiftIntensityExponent;
     float JetRedShiftIntensityExponent;
-    float JetBrightmut;              
-    float JetSaturation;             
-    float JetShiftMax;               
+    float JetBrightmut;
+    float JetSaturation;
+    float JetShiftMax;
     float BlendWeight;
-} BlackHoleArgs{};
+};
 
 struct FMatrices
 {
     glm::aligned_mat4x4 View{ glm::mat4x4(1.0f) };
     glm::aligned_mat4x4 Projection{ glm::mat4x4(1.0f) };
     glm::aligned_mat4x4 LightSpaceMatrix{ glm::mat4x4(1.0f) };
-} Matrices;
+} ;
 
 struct FMaterial
 {
@@ -98,4 +102,8 @@ struct FLightMaterial
     FMaterial         Material;
     FLight            Light;
     glm::aligned_vec3 ViewPos;
-} LightMaterial;
+} ;
+extern FGameArgs GameArgs;
+extern FBlackHoleArgs BlackHoleArgs;
+extern FMatrices Matrices;
+extern FLightMaterial LightMaterial;

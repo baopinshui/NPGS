@@ -1,3 +1,4 @@
+#define GLM_FORCE_ALIGNED_GENTYPES
 #include "Npgs.h"
 #include "Application.h"
 

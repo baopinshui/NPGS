@@ -2,7 +2,7 @@
 #include "Engine/Core/Base/Base.h" 
 #include <Engine/Core/Math/NumericConstants.h>
 #include <imgui.h>
-#include "Utils/I18nManager.h"
+#include "I18n/I18nManager.h"
 #include <vector>
 #include <memory>
 #include <functional>
@@ -132,7 +132,7 @@ struct Rect
 
         // --- DEBUG START: 极简调试代码 ---
         // static bool enable_debug = true; // 如果你想随时开关，可以用这个静态变量
-        if (true) // 强制开启调试
+        if (!true) // 强制开启调试
         {
             // 1. 获取最上层画笔（画在所有窗口之上）
             ImDrawList* fg_draw = ImGui::GetForegroundDrawList();

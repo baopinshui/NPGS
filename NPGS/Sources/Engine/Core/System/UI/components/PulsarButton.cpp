@@ -1,7 +1,7 @@
 #include "PulsarButton.h"
 #include "../TechUtils.h"
 #include "TechBorderPanel.h"
-#include "../Utils/I18nManager.h" 
+#include "../I18n/I18nManager.h" 
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN

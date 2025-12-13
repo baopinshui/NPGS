@@ -1,6 +1,6 @@
 #include "TechButton.h"
 #include "../TechUtils.h"
-#include "../Utils/I18nManager.h" // [新增]
+#include "../I18n/I18nManager.h" // [新增]
 #include <imgui_internal.h>
 
 _NPGS_BEGIN

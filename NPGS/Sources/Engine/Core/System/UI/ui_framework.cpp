@@ -149,8 +149,21 @@ void UIElement::DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, 
     {
         ImVec2 uv_min = ImVec2(p_min.x / ctx.m_display_size.x, p_min.y / ctx.m_display_size.y);
         ImVec2 uv_max = ImVec2(p_max.x / ctx.m_display_size.x, p_max.y / ctx.m_display_size.y);
-        ImGui::GetBackgroundDrawList()->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
+        ImDrawList* bg_list = ImGui::GetBackgroundDrawList();
 
+        // 1. 获取当前 draw_list 的裁剪区域
+        ImVec2 clip_min = draw_list->GetClipRectMin();
+        ImVec2 clip_max = draw_list->GetClipRectMax();
+
+        // 2. 将该裁剪区域应用到 BackgroundDrawList
+        // 第三个参数 false 表示不与当前已有裁剪取交集（因为我们想强制应用当前窗口的裁剪）
+        bg_list->PushClipRect(clip_min, clip_max, true);
+
+        // 3. 在底层绘制
+        bg_list->AddImage(blur_tex, p_min, p_max, uv_min, uv_max);
+
+        // 4. 恢复 BackgroundDrawList 的状态
+        bg_list->PopClipRect();
         draw_list->AddRectFilled(
             p_min,
             p_max,
