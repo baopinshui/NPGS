@@ -1,10 +1,6 @@
-// --- START OF FILE TechSliders.h ---
-
 #pragma once
 #include "../ui_framework.h"
-#include "InputField.h"
-#include "TechText.h"
-#include "SliderTrack.h" // 需确保此前已创建 SliderTrack.h/cpp
+#include "InputField.h" // [新增] 引入 InputField
 #include <string>
 #include <cmath>
 #include <algorithm>
@@ -15,144 +11,293 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-// =================================================================================
-// BaseTechSlider: 基础滑块容器 (HBox 布局)
-// =================================================================================
+// BaseTechSlider, LinearTechSlider, ThrottleTechSlider
+
 template<typename T>
-class BaseTechSlider : public HBox
+class BaseTechSlider : public UIElement
 {
 public:
-    // --- 子组件引用 ---
-    std::shared_ptr<TechText> m_label_component;
-    std::shared_ptr<SliderTrack> m_track_component;
-    std::shared_ptr<InputField> m_value_input;
-
-    // --- 数据绑定与状态 ---
-    T* m_target_value;
-    std::string m_value_string_buffer;
-    bool m_last_input_focused = false;
     std::string m_i1n_key;
-
-    // --- 辅助工具: 科学计数法解析 ---
+private:
+    std::string m_value_string_buffer;
+    std::shared_ptr<InputField> m_value_input;
+    std::shared_ptr<TechText> m_label_component;
+    bool m_last_input_focused = false;
     bool TryParseScientific(const std::string& s, double& result)
     {
         if (s.empty()) return false;
         std::string temp = s;
         size_t pos;
-        if ((pos = temp.find("*10^")) != std::string::npos) temp.replace(pos, 4, "e");
-        else if ((pos = temp.find("x10^")) != std::string::npos) temp.replace(pos, 4, "e");
+        if ((pos = temp.find("*10^")) != std::string::npos)
+        {
+            temp.replace(pos, 4, "e");
+        }
+        else if ((pos = temp.find("x10^")) != std::string::npos)
+        {
+            temp.replace(pos, 4, "e");
+        }
 
         try
         {
             result = std::stod(temp);
             return true;
         }
-        catch (...) { return false; }
+        catch (const std::invalid_argument&)
+        {
+            return false;
+        }
+        catch (const std::out_of_range&)
+        {
+            return false;
+        }
+        return false;
     }
 
 public:
+    T* m_target_value;
+    bool m_is_dragging = false;
+    bool m_is_rgb = false;
+    float max_label_w = 100.0f;
+    float value_box_w = 70.0f;
+    float padding = 8.0f;
+
     BaseTechSlider(const std::string& key, T* binding)
-        : m_target_value(binding), m_i1n_key(key)
+        : m_i1n_key(key), m_target_value(binding)
     {
-        // 1. 配置 HBox 布局策略
-        SetWidth(Length::Fill());       // 宽度填满父容器
-        SetHeight(Length::Content());   // 高度由子元素决定
-        m_padding = 8.0f;               // 子元素间距
+        m_rect.h = 32.0f;
+        m_block_input = true;
+        // m_translated_label = TR(m_i1n_key); // <-- REMOVED (TechText handles this)
 
-        // 2. 创建并配置 Label
-        m_label_component = std::make_shared<TechText>(key);
-        // 标签固定宽 100，高度填满以垂直居中
-        m_label_component->SetWidth(Length::Fix(100.0f))
-            ->SetHeight(Length::Fill())
-            ->SetAlignment(Alignment::Start, Alignment::Center);
+        // Check for RGB based on the key's translation
+        std::string initial_label = TR(m_i1n_key);
+        if (initial_label == "R" || initial_label == "G" || initial_label == "B") m_is_rgb = true;
 
-        // 3. 创建并配置 Track
-        m_track_component = std::make_shared<SliderTrack>();
-        // 轨道宽度填满 HBox 剩余空间，高度固定
-        m_track_component->SetWidth(Length::Fill())
-            ->SetHeight(Length::Fix(16.0f))
-            ->SetAlignment(Alignment::Center, Alignment::Center);
-
-        // 4. 创建并配置 InputField
-        m_value_input = std::make_shared<InputField>(&m_value_string_buffer);
-        // 输入框固定宽 70，高度固定
-        m_value_input->SetWidth(Length::Fix(70.0f))
-            ->SetHeight(Length::Fix(16.0f))
-            ->SetAlignment(Alignment::End, Alignment::Center);
-        m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;
-
-        // 5. 组装组件
+        // [NEW] Create and configure the label as a TechText component
+        m_label_component = std::make_shared<TechText>(m_i1n_key);
+        m_label_component->SetSizing(TechTextSizingMode::AutoHeight); // Automatically wrap text and adjust height
+        m_label_component->m_align_v = Alignment::Center;             // Vertically center the text block
+        m_label_component->m_block_input = false;                     // Label doesn't block clicks
         AddChild(m_label_component);
-        AddChild(m_track_component);
+
+        // InputField creation remains the same
+        m_value_input = std::make_shared<InputField>(&m_value_string_buffer);
+        m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;
         AddChild(m_value_input);
 
-        // 6. 绑定输入框提交事件 (通用逻辑)
+        // on_commit lambda remains the same
         m_value_input->on_commit = [this](const std::string& input)
         {
             double parsed_value;
             if (TryParseScientific(input, parsed_value))
             {
                 this->SetValueFromParsedInput(parsed_value);
-                // 提交后强制同步一次UI，防止非法输入
-                this->SyncTrackFromValue();
-                this->SyncInputFromValue();
             }
         };
+    }
+    // [新增] 虚函数，用于子类重写数值设置逻辑
+    virtual void SetValueFromParsedInput(double parsed_value)
+    {
+        // 基类默认行为：直接赋值
+        *this->m_target_value = static_cast<T>(parsed_value);
     }
 
     void Update(float dt, const ImVec2& parent_abs_pos) override
     {
-        // 1. 同步逻辑 (由子类决定是否需要每帧同步轨道)
-        UpdateSyncLogic(dt);
-
-        // 2. 特殊视觉处理 (RGB 颜色检测)
-        // 这里的逻辑保持原样，检测 key 是否为 R/G/B 来改变轨道颜色
-        std::string current_label = TR(m_i1n_key); // 获取翻译后的文本
-        bool is_rgb = (current_label == "R" || current_label == "G" || current_label == "B");
-        m_track_component->m_is_rgb_mode = is_rgb;
-        if (is_rgb)
+        if (!m_i1n_key.empty())
         {
-            if (current_label == "R") m_track_component->m_grab_color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
-            else if (current_label == "G") m_track_component->m_grab_color = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
-            else if (current_label == "B") m_track_component->m_grab_color = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
-        }
-        else
-        {
-            m_track_component->m_grab_color = ThemeColorID::Accent;
+            std::string current_label = TR(m_i1n_key);
+            if (current_label == "R" || current_label == "G" || current_label == "B") m_is_rgb = true;
+            else m_is_rgb = false;
         }
 
-        // 3. 执行 HBox 布局
-        HBox::Update(dt, parent_abs_pos);
+
+        if (m_label_component)
+        {
+            m_label_component->m_rect.x = 0;
+            m_label_component->m_rect.y = 0;
+            m_label_component->m_rect.w = max_label_w; // Provide the maximum width for text wrapping
+            m_label_component->m_rect.h = m_rect.h;     // Give it the full slider height for vertical centering
+            m_label_component->m_font = GetFont();      // Ensure it uses the correct font
+        }
+
+        if (m_value_input)
+        {
+            ImFont* font = GetFont();
+
+
+            bool current_input_focused = m_value_input->IsFocused();
+
+            // 只有当输入框当前没有焦点，并且上一帧也没有焦点（处于稳定空闲状态）时，
+            // 我们才允许用 m_target_value 覆盖输入框的文本。
+            if (!current_input_focused && !m_last_input_focused)
+            {
+                char buf[64];
+                snprintf(buf, 64, "%.2e", (double)*m_target_value);
+
+                // 只有当显示的文本和目标值不一致时才更新，避免每帧都在改 string
+                if (m_value_string_buffer != buf)
+                {
+                    m_value_string_buffer = buf;
+                    m_value_input->m_cursor_pos = m_value_string_buffer.length();
+                    m_value_input->ResetSelection();
+                }
+            }
+            m_last_input_focused = current_input_focused;
+
+            float h_up = m_rect.h;
+            float input_h = font ? font->FontSize : 13.0f;
+            m_value_input->m_rect.w = value_box_w;
+            m_value_input->m_rect.h = input_h;
+            m_value_input->m_rect.x = m_rect.w - value_box_w;
+            m_value_input->m_rect.y = (h_up - input_h) * 0.5f;
+            m_value_input->m_font = font;
+        }
+        UIElement::Update(dt, parent_abs_pos);
     }
 
-    // --- 虚接口：供子类实现特定的数值逻辑 ---
-    virtual void SetValueFromParsedInput(double parsed_value) = 0;
-    virtual void UpdateSyncLogic(float dt) = 0; // 替代原本的 SyncUIFromValue，给予子类更多控制权
-    virtual void SyncTrackFromValue() = 0;
+    virtual float GetNormalizedVisualPos() const = 0;
+    virtual float GetNeutralVisualPos() const { return 0.0f; }
+    virtual void OnDrag(float rel_x) = 0;
 
-protected:
-    // 通用输入框同步逻辑
-    void SyncInputFromValue()
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override
     {
-        bool current_input_focused = m_value_input->IsFocused();
-        if (!current_input_focused && !m_last_input_focused)
+        if (!m_visible || m_alpha <= 0.01f) return;
+
+        // [核心修复] 优先处理拖拽状态
+        // 如果当前正在拖拽滑块，则滑块独占所有鼠标事件，不分发给子元素。
+        if (m_is_dragging)
         {
-            char buf[64];
-            snprintf(buf, 64, "%.2e", (double)*m_target_value);
-            if (m_value_string_buffer != buf)
+            // 拖拽过程中，更新滑块位置
+            float slider_start_x = m_absolute_pos.x + max_label_w + padding;
+            float slider_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
+            if (slider_w < 10.0f) slider_w = 10.0f;
+            float rel_x = (mouse_pos.x - slider_start_x) / slider_w;
+            OnDrag(std::clamp(rel_x, 0.0f, 1.0f));
+
+            // 如果鼠标释放，则结束拖拽
+            if (mouse_released)
             {
-                m_value_string_buffer = buf;
-                m_value_input->m_cursor_pos = (int)m_value_string_buffer.length();
-                m_value_input->ResetSelection();
+                m_is_dragging = false;
+                ReleaseMouse();
             }
+
+            handled = true; // 拖拽期间，事件被完全消耗
+            return;         // 直接返回，不执行后续逻辑
         }
-        m_last_input_focused = current_input_focused;
+
+        // --- 如果没有在拖拽，则执行正常事件分发 ---
+
+        // 1. 让子元素（输入框）优先处理事件
+        for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+        {
+            (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+        }
+
+        // 如果子元素已经消耗了事件，则滑块自身不进行交互判断
+        if (handled)
+        {
+            m_hovered = false;
+            return;
+        }
+
+        // 2. 如果子元素未处理，则检查滑块轨道区域的交互（开始新的拖拽）
+        float slider_start_x = m_absolute_pos.x + max_label_w + padding;
+        float slider_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
+        if (slider_w < 10.0f) { slider_w = 10.0f; }
+
+        bool mouse_in_slider = (mouse_pos.x >= slider_start_x - 5.0f && mouse_pos.x <= slider_start_x + slider_w + 5.0f &&
+            mouse_pos.y >= m_absolute_pos.y && mouse_pos.y <= m_absolute_pos.y + m_rect.h);
+
+        m_hovered = mouse_in_slider;
+        if (m_hovered && !m_tooltip_key.empty())
+        {
+            UIContext::Get().RequestTooltip(m_tooltip_key);
+        }
+
+        if (mouse_clicked && mouse_in_slider)
+        {
+            m_is_dragging = true;
+            CaptureMouse();
+            handled = true;
+        }
+    }
+
+    void Draw(ImDrawList* dl) override
+    {
+        if (!m_visible || m_alpha <= 0.01f) return;
+        ImFont* font = GetFont();
+        if (font) ImGui::PushFont(font);
+
+        const auto& theme = UIContext::Get().m_theme;
+
+        ImVec4 accent_vec4 = theme.color_accent;
+        if (m_is_rgb)
+        {
+            // [MODIFIED] Get the current text from the component or re-translate
+            std::string current_label = TR(m_i1n_key);
+            if (current_label == "R") accent_vec4 = ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
+            else if (current_label == "G") accent_vec4 = ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
+            else if (current_label == "B") accent_vec4 = ImVec4(0.3f, 0.5f, 1.0f, 1.0f);
+        }
+
+        ImU32 col_accent = GetColorWithAlpha(accent_vec4, 1.0f);
+
+        float h = m_rect.h;
+        float y_center = m_absolute_pos.y + h * 0.5f;
+        float track_x = m_absolute_pos.x + max_label_w + padding;
+        float track_w = m_rect.w - max_label_w - value_box_w - (padding * 2);
+        if (track_w < 10.0f) track_w = 10.0f;
+
+        float track_h = 1.0f;
+        float track_y = y_center - track_h * 0.5f;
+        ImVec4 track_bg_col = accent_vec4;
+        track_bg_col.w = 0.5f;
+        dl->AddRectFilled(
+            ImVec2(track_x, track_y),
+            ImVec2(track_x + track_w, track_y + track_h),
+            GetColorWithAlpha(track_bg_col, 1.0f)
+        );
+
+        float t = GetNormalizedVisualPos();
+        float grab_x = track_x + track_w * t;
+        float grab_w = 6.0f;
+        float grab_h = 14.0f;
+
+        if (m_is_dragging)
+        {
+            grab_w = 8.0f;
+            grab_h = 16.0f;
+            col_accent = GetColorWithAlpha(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f);
+        }
+        else if (m_hovered)
+        {
+            col_accent = GetColorWithAlpha(accent_vec4, 0.9f);
+        }
+        dl->AddRectFilled(
+            ImVec2(grab_x - grab_w * 0.5f, y_center - grab_h * 0.5f),
+            ImVec2(grab_x + grab_w * 0.5f, y_center + grab_h * 0.5f),
+            col_accent,
+            0.0f
+        );
+
+        if (m_is_dragging || m_hovered)
+        {
+            dl->AddRect(
+                ImVec2(grab_x - grab_w * 0.5f - 2, y_center - grab_h * 0.5f - 2),
+                ImVec2(grab_x + grab_w * 0.5f + 2, y_center + grab_h * 0.5f + 2),
+                GetColorWithAlpha(accent_vec4, 0.6f),
+                0.0f,
+                0,
+                1.0f
+            );
+        }
+
+        UIElement::Draw(dl);
+
+        if (font) ImGui::PopFont();
     }
 };
 
-// =================================================================================
-// LinearTechSlider: 线性映射滑块
-// =================================================================================
 template<typename T>
 class LinearTechSlider : public BaseTechSlider<T>
 {
@@ -160,170 +305,128 @@ public:
     T m_min, m_max;
 
     LinearTechSlider(const std::string& label, T* binding, T min_val, T max_val)
-        : BaseTechSlider<T>(label, binding), m_min(min_val), m_max(max_val)
-    {
-        // 绑定轨道回调：线性滑块直接映射位置到数值
-        this->m_track_component->on_value_changed = [this](float norm_val)
-        {
-            this->SetValueFromNormalized(norm_val);
-        };
-    }
+        : BaseTechSlider<T>(label, binding), m_min(min_val), m_max(max_val) {}
 
+    // [新增] 重写基类方法，加入范围限制逻辑
     void SetValueFromParsedInput(double parsed_value) override
     {
-        *this->m_target_value = std::clamp(static_cast<T>(parsed_value), m_min, m_max);
+        T new_val = static_cast<T>(parsed_value);
+        *this->m_target_value = std::clamp(new_val, this->m_min, this->m_max);
     }
 
-    void SyncTrackFromValue() override
+    float GetNormalizedVisualPos() const override
+    {
+        float val = static_cast<float>(*this->m_target_value);
+        float min_f = static_cast<float>(m_min);
+        float max_f = static_cast<float>(m_max);
+        if (std::abs(max_f - min_f) < 0.0001f) return 0.0f;
+        return std::clamp((val - min_f) / (max_f - min_f), 0.0f, 1.0f);
+    }
+
+    float GetNeutralVisualPos() const override { return 0.0f; }
+
+    void OnDrag(float rel_x) override
     {
         float range = static_cast<float>(m_max) - static_cast<float>(m_min);
-        if (std::abs(range) < 1e-6)
-        {
-            this->m_track_component->SetValue(0.0f);
-            return;
-        }
-        float norm = std::clamp((static_cast<float>(*this->m_target_value) - static_cast<float>(m_min)) / range, 0.0f, 1.0f);
-        this->m_track_component->SetValue(norm);
-    }
-
-    void UpdateSyncLogic(float dt) override
-    {
-        // 线性滑块每帧都需要双向检查（为了响应外部数据变更）
-        // 只有当轨道没有被拖拽时，才从数据同步到轨道
-        if (UIContext::Get().m_captured_element != this->m_track_component.get())
-        {
-            SyncTrackFromValue();
-        }
-        this->SyncInputFromValue();
-    }
-
-private:
-    void SetValueFromNormalized(float norm_val)
-    {
-        float range = static_cast<float>(m_max) - static_cast<float>(m_min);
-        float new_val_f = static_cast<float>(m_min) + norm_val * range;
+        float new_val_f = static_cast<float>(m_min) + rel_x * range;
 
         if constexpr (std::is_integral_v<T>)
         {
-            *this->m_target_value = static_cast<T>(std::round(new_val_f));
+            T new_val = static_cast<T>(std::round(new_val_f));
+            *this->m_target_value = std::clamp(new_val, m_min, m_max);
         }
         else
         {
-            *this->m_target_value = static_cast<T>(new_val_f);
+            T new_val = static_cast<T>(new_val_f);
+            *this->m_target_value = std::clamp(new_val, m_min, m_max);
         }
-        *this->m_target_value = std::clamp(*this->m_target_value, m_min, m_max);
     }
 };
 
-// =================================================================================
-// ThrottleTechSlider: 油门/加速度控制滑块
-// =================================================================================
 template<typename T>
 class ThrottleTechSlider : public BaseTechSlider<T>
 {
 public:
-    float m_throttle_val = 0.0f; // -1.0 to 1.0
+    float m_throttle_val = 0.0f;
     T m_feature_a;
     double m_accumulator = 0.0;
 
-    ThrottleTechSlider(const std::string& label, T* binding, T feature_a = 0)
-        : BaseTechSlider<T>(label, binding), m_feature_a(feature_a)
+    ThrottleTechSlider(const std::string& label, T* binding, T feature_size_a = 0)
+        : BaseTechSlider<T>(label, binding), m_feature_a(feature_size_a) {}
+
+    float GetNormalizedVisualPos() const override
     {
-        // 绑定轨道回调：不直接修改 m_target_value，而是更新油门值
-        this->m_track_component->on_value_changed = [this](float norm_val)
-        {
-            // 将 0.0~1.0 映射回 -1.0~1.0
-            m_throttle_val = (norm_val - 0.5f) * 2.0f;
-        };
+        return (m_throttle_val + 1.0f) * 0.5f;
     }
 
-    void SetValueFromParsedInput(double parsed_value) override
+    float GetNeutralVisualPos() const override { return 0.5f; }
+
+    void OnDrag(float rel_x) override
     {
-        *this->m_target_value = static_cast<T>(parsed_value);
+        m_throttle_val = (rel_x - 0.5f) * 2.0f;
     }
 
-    void SyncTrackFromValue() override
+    void Update(float dt, const ImVec2& parent_abs_pos) override
     {
-        // 油门滑块的轨道位置不代表 value，而是代表 m_throttle_val
-        // (m_throttle_val + 1.0) / 2.0  -> 映射回 0.0~1.0
-        float visual_pos = (m_throttle_val + 1.0f) * 0.5f;
-        this->m_track_component->SetValue(visual_pos);
-    }
+        BaseTechSlider<T>::Update(dt, parent_abs_pos);
 
-    void UpdateSyncLogic(float dt) override
-    {
-        // 1. 检测是否正在拖拽轨道
-        // 使用 UIContext 判断 SliderTrack 是否捕获了鼠标
-        bool is_dragging = (UIContext::Get().m_captured_element == this->m_track_component.get());
-
-        // 2. 如果未拖拽，执行阻尼归零逻辑 (完全保留原逻辑)
-        if (!is_dragging)
+        if (!this->m_is_dragging)
         {
             if (std::abs(m_throttle_val) > 0.001f)
             {
-                m_throttle_val *= 0.85f; // 衰减
+                m_throttle_val *= 0.85f;
                 if (std::abs(m_throttle_val) < 0.001f) m_throttle_val = 0.0f;
             }
-            // 归位时，重置累加器
-            if (std::abs(m_throttle_val) < 0.001f)
-            {
-                m_accumulator = 0.0;
-            }
-            // 强制更新轨道显示位置 (回弹动画)
-            SyncTrackFromValue();
+            return;
         }
 
-        // 3. 执行物理计算逻辑 (完全保留原逻辑)
-        if (std::abs(m_throttle_val) > 0.001f)
+        if (std::abs(m_throttle_val) < 0.001f)
         {
-            double val_d = static_cast<double>(*this->m_target_value);
-            double a_d = static_cast<double>(m_feature_a);
+            m_accumulator = 0.0;
+            return;
+        }
 
-            // 非线性速度倍率
-            double speed_mult = 0.1 + 2.4 * pow(m_throttle_val, 2.0);
+        double val_d = static_cast<double>(*this->m_target_value);
+        double a_d = static_cast<double>(m_feature_a);
+        double speed_mult = 0.1+2.4*pow(m_throttle_val, 2.0);
 
-            // 变化率计算
-            double change_rate = sqrt(pow(val_d, 2.0) + pow(a_d, 2.0));
-            double delta = m_throttle_val * dt * speed_mult * change_rate;
+        double change_rate = sqrt(pow(val_d, 2.0) + pow(a_d, 2.0));
+        double delta = m_throttle_val * dt * speed_mult * change_rate;
 
-            if constexpr (std::is_floating_point_v<T>)
+        if constexpr (std::is_floating_point_v<T>)
+        {
+            double new_val = val_d + delta;
+            if (new_val < 0.0 && std::is_unsigned_v<T>) new_val = 0.0;
+            *this->m_target_value = static_cast<T>(new_val);
+        }
+        else
+        {
+            m_accumulator += delta;
+            long long int_change = static_cast<long long>(m_accumulator);
+
+            if (int_change != 0)
             {
-                double new_val = val_d + delta;
-                if (new_val < 0.0 && std::is_unsigned_v<T>) new_val = 0.0;
-                *this->m_target_value = static_cast<T>(new_val);
-            }
-            else
-            {
-                m_accumulator += delta;
-                long long int_change = static_cast<long long>(m_accumulator);
-
-                if (int_change != 0)
+                if constexpr (std::is_unsigned_v<T>)
                 {
-                    if constexpr (std::is_unsigned_v<T>)
+                    if (int_change < 0)
                     {
-                        if (int_change < 0)
-                        {
-                            if (static_cast<long long>(*this->m_target_value) < -int_change)
-                                *this->m_target_value = 0;
-                            else
-                                *this->m_target_value += static_cast<T>(int_change);
-                        }
+                        if (static_cast<long long>(*this->m_target_value) < -int_change)
+                            *this->m_target_value = 0;
                         else
-                        {
                             *this->m_target_value += static_cast<T>(int_change);
-                        }
                     }
                     else
                     {
                         *this->m_target_value += static_cast<T>(int_change);
                     }
-                    m_accumulator -= int_change;
                 }
+                else
+                {
+                    *this->m_target_value += static_cast<T>(int_change);
+                }
+                m_accumulator -= int_change;
             }
         }
-
-        // 4. 同步输入框显示
-        this->SyncInputFromValue();
     }
 };
 

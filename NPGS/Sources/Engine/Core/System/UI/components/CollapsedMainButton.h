@@ -1,5 +1,3 @@
-// --- START OF FILE CollapsedMainButton.h ---
-
 #pragma once
 #include "../ui_framework.h"
 #include "TechText.h"
@@ -16,17 +14,17 @@ public:
     std::function<void()> on_click_callback;
     CollapsedMainButton(const std::string& key1, const std::string& key2);
 
-    // [MODIFIED] 重写 Update 和 Measure
+    // [修正] 确保重写了 Update，用于处理动画和 Alpha 传递
     void Update(float dt, const ImVec2& parent_abs_pos) override;
-    ImVec2 Measure(const ImVec2& available_size) override;
 
-    // Draw 和 HandleMouseEvent 保持不变，因为它们不直接参与布局计算
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
+
+    // [修正] Draw 方法现在是空的，所有绘制由子元素完成
     void Draw(ImDrawList* dl) override;
 
 private:
     std::shared_ptr<TechText> m_symbol;
-    std::shared_ptr<VBox> m_layout_vbox; // 类型改为 VBox 以便访问特定属性
+    std::shared_ptr<UIElement> m_layout_vbox; 
 };
 
 

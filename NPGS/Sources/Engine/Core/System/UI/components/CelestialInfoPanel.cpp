@@ -2,88 +2,81 @@
 #include "../TechUtils.h"
 #include "TechText.h"
 #include "TechDivider.h"
-#include "TechButton.h"
-#include "TechProgressBar.h"
+#include "TechButton.h"      
+#include "TechProgressBar.h" 
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-ImVec2 CelestialInfoPanel::Measure(const ImVec2& available_size)
-{
-    ImVec2 size = UIElement::Measure(available_size);
-
-    // 委托给 m_main_panel，它包含了所有可见内容
-    if (m_main_panel)
-    {
-        ImVec2 content_size = m_main_panel->Measure(available_size);
-
-        if (m_width_policy.type == LengthType::Content) size.x = content_size.x;
-        if (m_height_policy.type == LengthType::Content) size.y = content_size.y;
-    }
-
-    return size;
-}
-
+// [修改] 构造函数实现，接收 closetext
 CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::string& close_key, const std::string& progress_label_key, const std::string& coil_label_key)
 {
-    // [MODIFIED] 自身作为逻辑容器，尺寸由动画控制，不设置策略
+    // 自身作为容器，不阻挡输入，全透明
+    m_rect = { 0, 0, 0, 0 };
     m_visible = true;
     m_block_input = false;
+
+    // [初始化状态] 默认为收起，只能看到把手
     m_is_collapsed = true;
     m_anim_progress = 1.0f;
 
+    auto& theme = UIContext::Get().m_theme;
+
     // =========================================================
-    // 1. 侧边把手 (程序化定位，不受布局系统影响)
+    // 1. 创建侧边把手 (Collapsed Tab)
     // =========================================================
     m_collapsed_btn = std::make_shared<TechButton>(fold_key, TechButton::Style::Vertical);
-    m_collapsed_btn->SetFixedSize(24, 100); // 使用新的API
+    m_collapsed_btn->m_rect = { 0, 0, 24, 100 }; // 窄条设计
     m_collapsed_btn->SetUseGlass(true);
     m_collapsed_btn->on_click = [this]() { this->ToggleCollapse(); };
     AddChild(m_collapsed_btn);
 
     // =========================================================
-    // 2. 主面板背景
+    // 2. 创建主面板背景
     // =========================================================
     m_main_panel = std::make_shared<TechBorderPanel>();
-    m_main_panel->SetFixedSize(PANEL_WIDTH, PANEL_HEIGHT); // 尺寸由动画控制
+    m_main_panel->m_rect = { 0, 0, PANEL_WIDTH, PANEL_HEIGHT };
     m_main_panel->m_use_glass_effect = true;
     m_main_panel->m_thickness = 2.0f;
     AddChild(m_main_panel);
 
-    // --- [NEW] 主面板内部根布局容器 ---
+    // --- 主面板内部布局容器 (无边距，撑满整个面板) ---
     auto root_vbox = std::make_shared<VBox>();
-    root_vbox->SetWidth(Length::Fill());  // 填满主面板
-    root_vbox->SetHeight(Length::Fill());
-    root_vbox->m_padding = 0.0f;          // 内部元素默认无间距
+    root_vbox->m_rect = { 0, 0, PANEL_WIDTH, PANEL_HEIGHT };
+    root_vbox->m_padding = 0.0f;
+    root_vbox->m_fill_h = true;
+    root_vbox->m_fill_v = true;
     m_main_panel->AddChild(root_vbox);
 
     // =========================================================
-    // A. Header 区域 (需要内边距)
+    // A. Header 区域 (放入一个带边距的容器)
     // =========================================================
     {
-        // [MODIFIED] 使用一个带固定宽度的 VBox 容器来实现内边距效果
         auto header_content_box = std::make_shared<VBox>();
-        header_content_box->SetWidth(Length::Fix(PANEL_WIDTH - 30.0f)) // 固定宽度
-            ->SetHeight(Length::Content())               // 高度自适应
-            ->SetAlignment(Alignment::Center, Alignment::Start); // 在 root_vbox 中水平居中
+        // 设置水平边距，使其内容居中
+        header_content_box->m_rect = { 15, 15, PANEL_WIDTH - 30, 0 };
+        header_content_box->m_fill_h = false;
+        header_content_box->m_align_h = Alignment::Center;
         header_content_box->m_padding = 4.0f;
 
         auto header_row = std::make_shared<HBox>();
-        header_row->SetWidth(Length::Fill())      // 填满 header_content_box
-            ->SetHeight(Length::Fix(28.0f));
+        header_row->m_rect.h = 28.0f;
+		//header_row->m_fill_h = true;
 
         m_title_text = std::make_shared<TechText>(TR("ui.celestial.no_target"));
-        m_title_text->SetColor(ThemeColorID::Accent)
-            ->SetWidth(Length::Fix(120.0f)) // 标题固定宽度
-            ->SetAlignment(Alignment::Start, Alignment::Start);
+        m_title_text->SetColor(ThemeColorID::Accent);
         m_title_text->m_font = UIContext::Get().m_font_bold;
+        m_title_text->m_sizing_mode = TechTextSizingMode::AutoHeight;
+        m_title_text->m_align_v = Alignment::Start;
+        m_title_text->m_fill_h = true;
 
+        // [MODIFIED] m_subtitle_text now uses a semantic StyleColor
         m_subtitle_text = std::make_shared<TechText>("");
-        m_subtitle_text->SetColor(ThemeColorID::TextDisabled)
-            ->SetWidth(Length::Fill()) // 副标题填充剩余空间
-            ->SetAlignment(Alignment::Start, Alignment::End);
+        m_subtitle_text->SetColor(ThemeColorID::TextDisabled); // <-- Clean
+		m_subtitle_text->m_sizing_mode = TechTextSizingMode::AutoWidthHeight;
         m_subtitle_text->m_font = UIContext::Get().m_font_regular;
+        m_subtitle_text->m_align_v = Alignment::End;
 
         header_row->AddChild(m_title_text);
         header_row->AddChild(m_subtitle_text);
@@ -91,201 +84,153 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         header_content_box->AddChild(header_row);
 
         auto div = std::make_shared<TechDivider>();
-        div->SetHeight(Length::Fix(8.0f)); // 分割线高度固定
+        div->m_rect.h = 8.0f;
         header_content_box->AddChild(div);
 
+        // 将带边距的 Header 容器加入到根容器中
         root_vbox->AddChild(header_content_box);
     }
 
     // =========================================================
-    // B. Image 预览区域 (全宽)
+    // [新位置] Image 预览区域 (直接加入 root_vbox，实现全宽)
     // =========================================================
     {
         m_preview_image = std::make_shared<Image>(0);
-        m_preview_image->SetWidth(Length::Fill())      // 宽度填满 root_vbox
-            ->SetHeight(Length::Content()); // 高度根据宽高比自动计算
+        m_preview_image->m_fill_h = true;       // 撑满父容器宽度
+        m_preview_image->m_auto_height = true;
         m_preview_image->m_aspect_ratio = 16.0f / 9.0f;
         m_preview_image->m_visible = false;
+        // 直接添加到 root_vbox，它将自动获得全宽
         root_vbox->AddChild(m_preview_image);
     }
 
     // =========================================================
-    // C. 主内容区域 (Tabs, ScrollView, Footer - 需要内边距且填充剩余空间)
+    // B, C, D. 主内容区域 (Tabs, ScrollView, Footer)
+    // (放入另一个带边距的容器)
     // =========================================================
-    {
-        // [MODIFIED] 同样使用一个包装 VBox 来实现内边距和填充
-        auto main_content_box = std::make_shared<VBox>();
-        main_content_box->SetWidth(Length::Fix(PANEL_WIDTH - 30.0f))
-            ->SetHeight(Length::Fill()) // 关键：填充 root_vbox 的所有剩余垂直空间
-            ->SetAlignment(Alignment::Center, Alignment::Start);
-        main_content_box->m_padding = 4.0f;
+    auto main_content_box = std::make_shared<VBox>();
+    // 设置水平边距，顶部不再需要15px的边距
+    main_content_box->m_rect = { 15, 0, PANEL_WIDTH - 30, 0 };
+    main_content_box->m_fill_h = false;
+    main_content_box->m_fill_v = true; // 此容器需要填充剩余的垂直空间
+    main_content_box->m_align_h = Alignment::Center;
+    main_content_box->m_padding = 4.0f;
+    root_vbox->AddChild(main_content_box);
 
-        // Tabs 区域
+    // B. Tabs 区域
+    {
         auto tabs_scroll_view = std::make_shared<HorizontalScrollView>();
-        tabs_scroll_view->SetHeight(Length::Fix(20.0f)); // 固定高度
+        tabs_scroll_view->m_rect.h = 20.0f;
         tabs_scroll_view->m_block_input = true;
 
         m_tabs_container = std::make_shared<HBox>();
-        m_tabs_container->SetWidth(Length::Content()) // 宽度由所有 tab 按钮撑开
-            ->SetHeight(Length::Fill());  // 高度填满滚动区
         m_tabs_container->m_padding = 4.0f;
+        m_tabs_container->m_fill_h = false;
+        m_tabs_container->m_rect.h = 20.0f;
 
         tabs_scroll_view->AddChild(m_tabs_container);
         main_content_box->AddChild(tabs_scroll_view);
+    }
 
-        // Spacer
-        auto spacer = std::make_shared<UIElement>();
-        spacer->SetHeight(Length::Fix(4.0f));
-        main_content_box->AddChild(spacer);
+    auto spacer = std::make_shared<UIElement>();
+    spacer->m_rect.h = 4.0f;
+    main_content_box->AddChild(spacer);
 
-        // 数据滚动区
-        auto scroll_view = std::make_shared<ScrollView>();
-        scroll_view->SetHeight(Length::Fill()); // 关键：填充 main_content_box 的剩余空间
+    // C. 数据滚动区
+    auto scroll_view = std::make_shared<ScrollView>();
+    scroll_view->m_fill_v = true;
 
-        m_content_vbox = std::make_shared<VBox>();
-        m_content_vbox->m_padding = 8.0f;
-        // m_content_vbox 默认 Width=Fill, Height=Content，完美适配 ScrollView
+    m_content_vbox = std::make_shared<VBox>();
+    m_content_vbox->m_padding = 8.0f;
 
-        scroll_view->AddChild(m_content_vbox);
-        main_content_box->AddChild(scroll_view);
+    scroll_view->AddChild(m_content_vbox);
+    main_content_box->AddChild(scroll_view);
 
-        // Footer 区域
+    // D. Footer 区域
+    {
         auto footer_box = std::make_shared<VBox>();
-        footer_box->SetWidth(Length::Fill())
-            ->SetHeight(Length::Content()); // 高度由内容决定
         footer_box->m_padding = 4.0f;
 
-        // --- Footer 内部组件 ---
+        // ... [Footer 内部代码与之前完全相同，此处省略] ...
+        // --- 1. 顶部分割线 ---
         auto sep = std::make_shared<TechDivider>();
-        sep->SetHeight(Length::Fix(8.0f));
+        sep->m_rect.h = 8.0f;
         footer_box->AddChild(sep);
-
+        // --- 2. 进度条相关 ---
         auto prog_label = std::make_shared<TechText>(progress_label_key);
-        prog_label->SetHeight(Length::Fix(16.0f));
+        prog_label->m_rect.h = 16.0f;
         prog_label->m_font = UIContext::Get().m_font_small;
-        footer_box->AddChild(prog_label);
-
         auto progress = std::make_shared<TechProgressBar>("");
-        progress->SetHeight(Length::Fix(6.0f));
+        progress->m_rect.h = 6.0f;
         progress->m_progress = 0.45f;
-        footer_box->AddChild(progress);
-
         auto prog_info = std::make_shared<HBox>();
-        prog_info->SetHeight(Length::Fix(14.0f));
+        prog_info->m_rect.h = 14.0f;
         auto t1 = std::make_shared<TechText>(coil_label_key);
-        t1->SetColor(ThemeColorID::TextDisabled)->SetWidth(Length::Fix(100.0f));
+        t1->SetColor(ThemeColorID::TextDisabled);
         t1->m_font = UIContext::Get().m_font_small;
+        t1->m_rect.w = 100.0f;
         auto t2 = std::make_shared<TechText>("45%");
-        t2->SetColor(ThemeColorID::Text)->SetWidth(Length::Fill())->SetAlignment(Alignment::End, Alignment::Start);
+        t2->SetColor(ThemeColorID::Text);
         t2->m_font = UIContext::Get().m_font_small;
+        t2->m_fill_h = true;
+        t2->m_align_h = Alignment::End;
         prog_info->AddChild(t1);
         prog_info->AddChild(t2);
+        footer_box->AddChild(prog_label);
+        footer_box->AddChild(progress);
         footer_box->AddChild(prog_info);
-
+        // --- 3. 底部关闭按钮区域 ---
         auto sep_btn = std::make_shared<TechDivider>();
-        sep_btn->SetHeight(Length::Fix(14.0f));
+        sep_btn->m_rect.h = 14.0f;
         sep_btn->m_visual_height = 1.0f;
         footer_box->AddChild(sep_btn);
-
         auto close_btn = std::make_shared<TechButton>(close_key, TechButton::Style::Normal);
-        close_btn->SetHeight(Length::Fix(32.0f))->SetWidth(Length::Fill()); // 宽度填满
+        close_btn->m_rect.h = 32.0f;
+        close_btn->m_align_h = Alignment::Stretch;
         close_btn->on_click = [this]() { this->ToggleCollapse(); };
         footer_box->AddChild(close_btn);
-
         auto spacer_btn1 = std::make_shared<UIElement>();
-        spacer_btn1->SetHeight(Length::Fix(8.0f));
+        spacer_btn1->m_rect.h = 8.0f;
         footer_box->AddChild(spacer_btn1);
 
         main_content_box->AddChild(footer_box);
-
-        root_vbox->AddChild(main_content_box);
     }
 }
 
 void CelestialInfoPanel::SetData(const CelestialData& data)
 {
+    // 1. 更新数据模型
     m_current_data = data;
-    m_current_tab_index = m_current_data.empty() ? -1 : 0;
 
+    // 重置 Tab 索引 
+    m_current_tab_index = 0;
+    if (m_current_data.empty()) m_current_tab_index = -1;
+
+    // 2. 重建 Tab 按钮
     if (m_tabs_container)
     {
         m_tabs_container->m_children.clear();
+
         for (int i = 0; i < m_current_data.size(); ++i)
         {
             const auto& page = m_current_data[i];
-            auto btn = std::make_shared<TechButton>(page.name, TechButton::Style::Tab);
-            // [MODIFIED] 按钮尺寸由内容决定，或给个固定大小
-            btn->SetWidth(Length::Fix(90.0f))
-                ->SetHeight(Length::Fill()); // 高度填满 Tab 栏
 
-            btn->on_click = [this, i]() { this->SelectTab(i); };
+            auto btn = std::make_shared<TechButton>(page.name, TechButton::Style::Tab);
+
+            btn->m_fill_h = false;
+            btn->m_rect.w = 90.0f;
+
+            btn->on_click = [this, i]()
+            {
+                this->SelectTab(i);
+            };
             m_tabs_container->AddChild(btn);
         }
     }
+
+    // 3. 刷新选中状态和内容
     SelectTab(m_current_tab_index);
 }
-
-
-void CelestialInfoPanel::RefreshContent()
-{
-    if (!m_content_vbox) return;
-    m_content_vbox->m_children.clear();
-
-    if (m_current_tab_index < 0 || m_current_tab_index >= m_current_data.size()) return;
-    const auto& current_page = m_current_data[m_current_tab_index];
-
-    float row_height = UIContext::Get().m_font_regular->FontSize + 4.0f;
-    float key_width = UIContext::Get().m_font_regular->FontSize * 6.5f;
-
-    for (const auto& group : current_page.groups)
-    {
-        float total_group_height = group.items.size() * row_height;
-
-        auto group_hbox = std::make_shared<HBox>();
-        group_hbox->SetHeight(Length::Fix(total_group_height)); // 高度固定
-        group_hbox->m_padding = 8.0f;
-
-        auto line = std::make_shared<Panel>();
-        line->m_bg_color = StyleColor(ThemeColorID::Accent).WithAlpha(0.5f);
-        line->SetWidth(Length::Fix(2.0f))->SetHeight(Length::Fill()); // 竖线填满 HBox 高度
-        group_hbox->AddChild(line);
-
-        auto content_col = std::make_shared<VBox>();
-        content_col->SetWidth(Length::Fill()); // 填满 HBox 剩余宽度
-        content_col->m_padding = 0.0f;
-
-        for (const auto& item : group.items)
-        {
-            auto row = std::make_shared<HBox>();
-            row->SetHeight(Length::Fix(row_height)); // 行高固定
-
-            auto k = std::make_shared<TechText>(item.key + ":", ThemeColorID::TextDisabled);
-            k->SetWidth(Length::Fix(key_width)) // Key 固定宽度
-                ->SetAlignment(Alignment::Start, Alignment::Center);
-            k->m_font = UIContext::Get().m_font_regular;
-
-            auto v = std::make_shared<TechText>(item.value, ThemeColorID::Text);
-            v->SetWidth(Length::Fill()) // Value 填充剩余宽度
-                ->SetAlignment(Alignment::End, Alignment::Center);
-            v->m_font = UIContext::Get().m_font_regular;
-            if (item.highlight) v->SetColor(ThemeColorID::Accent);
-
-            row->AddChild(k);
-            row->AddChild(v);
-            content_col->AddChild(row);
-        }
-
-        group_hbox->AddChild(content_col);
-        m_content_vbox->AddChild(group_hbox);
-
-        auto spacer = std::make_shared<UIElement>();
-        spacer->SetHeight(Length::Fix(row_height * 0.5f));
-        m_content_vbox->AddChild(spacer);
-    }
-}
-
-
-// [NO CHANGE] Update, SetObjectImage, SetTitle, ToggleCollapse, SelectTab are not affected by layout refactoring
 
 void CelestialInfoPanel::SetObjectImage(ImTextureID texture_id, float img_w, float img_h, ImVec4 Col)
 {
@@ -389,6 +334,80 @@ void CelestialInfoPanel::SelectTab(int index)
         }
     }
     RefreshContent();
+}
+
+void CelestialInfoPanel::RefreshContent()
+{
+    if (!m_content_vbox) return;
+    m_content_vbox->m_children.clear();
+
+    if (m_current_tab_index < 0 || m_current_tab_index >= m_current_data.size()) return;
+
+    const auto& current_page = m_current_data[m_current_tab_index];
+
+    ImFont* target_font = UIContext::Get().m_font_regular;
+    if (!target_font) target_font = ImGui::GetFont();
+    float font_size = target_font->FontSize;
+    float row_height = font_size + 4.0f;
+    float key_width = font_size * 6.5f;
+
+    StyleColor col_line = StyleColor(ThemeColorID::Accent).WithAlpha(0.5f);
+    StyleColor col_key = ThemeColorID::TextDisabled;
+    StyleColor col_val = ThemeColorID::Text;
+    StyleColor col_highlight = ThemeColorID::Accent;
+
+    for (const auto& group : current_page.groups)
+    {
+        float total_group_height = group.items.size() * row_height;
+
+        auto group_hbox = std::make_shared<HBox>();
+        group_hbox->m_padding = 8.0f;
+        group_hbox->m_rect.h = total_group_height;
+
+        auto line = std::make_shared<Panel>();
+        line->m_bg_color = col_line;
+        line->m_rect.w = 2.0f;
+        line->m_align_v = Alignment::Start;
+        line->m_rect.h = total_group_height;
+        group_hbox->AddChild(line);
+
+        auto content_col = std::make_shared<VBox>();
+        content_col->m_padding = 0.0f;
+        content_col->m_rect.h = total_group_height;
+        content_col->m_fill_h = true;
+
+        for (const auto& item : group.items)
+        {
+            auto row = std::make_shared<HBox>();
+            row->m_rect.h = row_height;
+
+            auto k = std::make_shared<TechText>(item.key + ":", col_key);
+            k->m_align_h = Alignment::Start;
+            k->m_align_v = Alignment::Center;
+            k->m_font = target_font;
+            k->m_rect.w = key_width;
+
+            // [MODIFIED] Create TechText with StyleColor, and use SetColor for highlight
+            auto v = std::make_shared<TechText>(item.value, col_val, true);
+            v->m_align_h = Alignment::End;
+            v->m_align_v = Alignment::Center;
+            v->m_fill_h = true;
+            v->m_font = target_font;
+
+            if (item.highlight) v->SetColor(ThemeColorID::Accent);
+
+            row->AddChild(k);
+            row->AddChild(v);
+            content_col->AddChild(row);
+        }
+
+        group_hbox->AddChild(content_col);
+        m_content_vbox->AddChild(group_hbox);
+
+        auto spacer = std::make_shared<UIElement>();
+        spacer->m_rect.h = row_height * 0.5f;
+        m_content_vbox->AddChild(spacer);
+    }
 }
 
 _UI_END

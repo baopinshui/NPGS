@@ -14,8 +14,8 @@ public:
     TechDivider(const StyleColor& color = ThemeColorID::Border) : m_color(color)
     {
         m_block_input = false;
-        SetWidth(Length::Fill());       
-        SetHeight(Length::Fix(1.0f));   
+        m_rect.h = 1.0f;
+        m_rect.w = 10.0f;
     }
 
     void Draw(ImDrawList* dl) override

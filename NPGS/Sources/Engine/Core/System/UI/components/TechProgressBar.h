@@ -22,44 +22,8 @@ public:
         m_color_bg(ImVec4(0.2f, 0.2f, 0.2f, 0.5f)), // A fixed color can still be a default
         m_color_fill(ThemeColorID::Accent),
         m_color_text(ThemeColorID::Text)
-    {
-        SetWidth(Length::Fill());       // 我想填满水平空间
-        SetHeight(Length::Content());   // 我的高度由我的内容（字体）决定
-    }
-    ImVec2 Measure(const ImVec2& available_size) override
-    {
-        float final_w = 0.0f;
-        if (m_width_policy.type == LengthType::Fill)
-        {
-            final_w = available_size.x;
-        }
-        else if (m_width_policy.type == LengthType::Fixed)
-        {
-            final_w = m_width_policy.value;
-        }
-        // Content 宽度对于进度条意义不大，可以视为0
+    {}
 
-        float final_h = 0.0f;
-        if (m_height_policy.type == LengthType::Content)
-        {
-            // 高度由字体大小和 Bar 的最小高度决定
-            float bar_h = 6.0f; // 进度条本身的最小高度
-            float text_h = 0.0f;
-            if (!m_label.empty())
-            {
-                ImFont* font = UIContext::Get().m_font_small;
-                if (!font) font = GetFont();
-                if (font) text_h = font->FontSize + 4.0f;
-            }
-            final_h = text_h + bar_h;
-        }
-        else // Fixed or Fill
-        {
-            final_h = UIElement::Measure(available_size).y;
-        }
-
-        return { final_w, final_h };
-    }
     void Draw(ImDrawList* dl) override
     {
         if (!m_visible || m_alpha <= 0.01f) return;

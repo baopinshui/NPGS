@@ -19,19 +19,8 @@ void PulsarButton::SetIconColor(const ImVec4& color)
     }
 }
 
-ImVec2 PulsarButton::Measure(const ImVec2& available_size)
-{
-    // PulsarButton 无论内部动画多复杂，它在布局流中始终只占据一个固定的“核心”空间
-    // 默认是 40x40，或者是 m_width_policy 指定的值
-    float w = (m_width_policy.type == LengthType::Fixed) ? m_width_policy.value : 40.0f;
-    float h = (m_height_policy.type == LengthType::Fixed) ? m_height_policy.value : 40.0f;
-    return ImVec2(w, h);
-}
-
 void PulsarButton::InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key)
 {
-    m_width_policy = Length::Fix(40.0f);
-    m_height_policy = Length::Fix(40.0f);
     m_rect = { 0, 0, 40, 40 };
     m_block_input = true;
 
@@ -51,18 +40,13 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     AddChild(m_bg_panel);
 
     // --- 2. 状态文本 ---
-    m_text_status = std::make_shared<TechText>(TR(status_key), ThemeColorID::TextHighlight);
-    m_text_status->SetAnimMode(TechTextAnimMode::Hacker); // 保持原有的动画设置
-    // PulsarButton 内部是绝对定位手动排版，所以这里设为 Fixed 比较安全，或者直接不设由 PulsarButton::Update 控制 m_rect
-    m_text_status->SetWidth(Length::Content())->SetHeight(Length::Content());
+    m_text_status = std::make_shared<TechText>(TR(status_key), ThemeColorID::TextHighlight, true);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
 
     // --- 3. 主标签 ---
-    m_text_label = std::make_shared<TechText>(TR(label_key), ThemeColorID::TextHighlight);
-    m_text_label->SetAnimMode(TechTextAnimMode::Hacker);
-    m_text_label->SetWidth(Length::Content())->SetHeight(Length::Content());
+    m_text_label = std::make_shared<TechText>(TR(label_key), ThemeColorID::TextHighlight, true);
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
     AddChild(m_text_label);
@@ -71,7 +55,6 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     if (!stat_label_key.empty())
     {
         m_text_stat_label = std::make_shared<TechText>(TR(stat_label_key) + ":", ThemeColorID::Text);
-        m_text_stat_label->SetWidth(Length::Content())->SetHeight(Length::Content());
         m_text_stat_label->m_font = ctx.m_font_bold;
         m_text_stat_label->m_block_input = false;
         AddChild(m_text_stat_label);
@@ -80,7 +63,6 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     if (!stat_unit_key.empty())
     {
         m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, ThemeColorID::Text);
-        m_text_stat_unit->SetWidth(Length::Content())->SetHeight(Length::Content());
         m_text_stat_unit->m_font = ctx.m_font_bold;
         m_text_stat_unit->m_block_input = false;
         AddChild(m_text_stat_unit);
@@ -97,9 +79,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     }
     else if (stat_value_ptr)
     {
-        m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, ThemeColorID::Accent);
-        m_text_stat_value->SetAnimMode(TechTextAnimMode::Hacker);
-        m_text_stat_value->SetWidth(Length::Content())->SetHeight(Length::Content());
+        m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, ThemeColorID::Accent, true);
         m_text_stat_value->m_font = ctx.m_font_bold;
         m_text_stat_value->m_block_input = false;
         AddChild(m_text_stat_value);
@@ -134,10 +114,9 @@ PulsarButton::PulsarButton(const std::string& status_key, const std::string& lab
     m_id = id;
 
     m_text_icon = std::make_shared<TechText>(icon_char);
-    // [MODIFIED] 使用对齐属性替代手动位置计算（虽然 Update 里会覆盖 m_rect，但这样语义更正确）
-    m_text_icon->SetAlignment(Alignment::Center, Alignment::Center);
-    // 图标大小是固定的
-    m_text_icon->SetWidth(Length::Fix(40.0f))->SetHeight(Length::Fix(40.0f));
+    m_text_icon->m_rect = { 0, 0, 40, 40 };
+    m_text_icon->m_align_h = Alignment::Center;
+    m_text_icon->m_align_v = Alignment::Center;
     m_text_icon->m_block_input = false;
     AddChild(m_text_icon);
 }

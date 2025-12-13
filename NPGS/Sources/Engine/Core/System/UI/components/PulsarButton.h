@@ -59,15 +59,13 @@ public:
     void SetActive(bool active);
     void SetStatus(const std::string& status_key);
     void SetExecutable(bool can_execute);
-    ImVec2 Measure(const ImVec2& available_size) override;
+
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 private:
     void InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key);
     void SetIconColor(const ImVec4& color);
-
- 
 
     // 内部存储 Key，用于 I18n 更新时的手动翻译
     std::string m_status_key;

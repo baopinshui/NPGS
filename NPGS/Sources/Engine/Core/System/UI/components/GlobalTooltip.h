@@ -16,7 +16,6 @@ public:
     GlobalTooltip();
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
-    ImVec2 Measure(const ImVec2& available_size) override;
     // Draw 使用基类逻辑
 
 private:

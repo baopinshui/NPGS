@@ -7,8 +7,6 @@ _UI_BEGIN
 
 NeuralParticleView::NeuralParticleView(int count)
 {
-    m_width_policy = Length::Fill();
-    m_height_policy = Length::Fill();
     m_particles.resize(count);
     // 初始化默认尺寸，防止除以零，会在 Controller 中被覆盖
     m_collapsed_size = ImVec2(80, 80);

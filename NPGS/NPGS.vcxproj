@@ -287,7 +287,6 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\components\NeuralParticleView.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\PulsarButton.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\ScreenVignette.cpp" />
-    <ClCompile Include="Sources\Engine\Core\System\UI\components\SliderTrack.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechButton.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechText.cpp" />
@@ -352,7 +351,6 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\components\NeuralParticleView.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\PulsarButton.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\ScreenVignette.h" />
-    <ClInclude Include="Sources\Engine\Core\System\UI\components\SliderTrack.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechButton.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechProgressBar.h" />

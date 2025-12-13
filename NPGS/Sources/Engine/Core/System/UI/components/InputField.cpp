@@ -22,10 +22,7 @@ InputField::InputField(std::string* target)
 {
     m_block_input = true;
     m_focusable = true;
-
-
-    SetWidth(Length::Fill());       // 我想填满水平空间
-    SetHeight(Length::Content());   // 我的高度由我的字体决定
+    m_rect.h = 20.0f;
 
     
     m_cursor_pos = 0;
@@ -37,33 +34,7 @@ InputField::InputField(std::string* target)
     m_activation_count = 0;
     m_last_show_state = false;
 }
-ImVec2 InputField::Measure(const ImVec2& available_size)
-{
-    float final_w = 0.0f;
-    if (m_width_policy.type == LengthType::Fill)
-    {
-        final_w = available_size.x;
-    }
-    else if (m_width_policy.type == LengthType::Fixed)
-    {
-        final_w = m_width_policy.value;
-    }
-    // Content 宽度对于 InputField 来说，会导致输入时宽度不断变化，体验不佳，一般不用
 
-    float final_h = 0.0f;
-    if (m_height_policy.type == LengthType::Content)
-    {
-        ImFont* font = GetFont();
-        // 高度 = 字体高度 + 下划线空间
-        final_h = (font ? font->FontSize : 13.0f) + 4.0f;
-    }
-    else // Fixed or Fill
-    {
-        final_h = UIElement::Measure(available_size).y;
-    }
-
-    return { final_w, final_h };
-}
 // [新增] 辅助：是否有选区
 bool InputField::HasSelection() const
 {

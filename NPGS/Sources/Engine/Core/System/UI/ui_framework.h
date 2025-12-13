@@ -20,33 +20,9 @@ class UIElement;
 class UIContext; 
 class GlobalTooltip;
 // --- 1. 对齐与布局 ---
-// --- [NEW] 1. 统一的尺寸策略 ---
-enum class LengthType
-{
-    Fixed,      // 固定像素值
-    Fill,       // 填充剩余空间 (value 代表权重)
-    Content     // 自适应内容
-};
+enum class Alignment { Start, Center, End, Stretch };
 
-struct Length
-{
-    LengthType type = LengthType::Fixed;
-    float value = 0.0f;
-
-    Length(LengthType t = LengthType::Fixed, float v = 0.0f) : type(t), value(v) {}
-
-    // 辅助构造函数
-    static Length Fix(float px) { return { LengthType::Fixed, px }; }
-    static Length Fill(float weight = 1.0f) { return { LengthType::Fill, weight }; }
-    static Length Content() { return { LengthType::Content, 0.0f }; }
-};
-
-
-// --- [MODIFIED] 2. 对齐与布局 ---
-// Alignment 现在只负责位置，不再负责尺寸 (移除了 Stretch)
-enum class Alignment { Start, Center, End };
-
-// --- 3. 统一主题管理 (不变) ---
+// --- 2. 统一主题管理 ---
 
 enum class ThemeColorID
 {
@@ -193,17 +169,19 @@ public:
 
 
     // 基础属性
-    Rect m_rect = { 0, 0, 0, 0 };
+    Rect m_rect = { 0, 0, 100, 100 };
     ImVec2 m_absolute_pos = { 0, 0 };
     bool m_visible = true;
     float m_alpha = 1.0f;
     std::string m_id;
     std::string m_tooltip_key;
 
-    Length m_width_policy = Length::Content();  // 默认自适应内容宽度
-    Length m_height_policy = Length::Content(); // 默认自适应内容高度
-    Alignment m_align_h = Alignment::Start;     // 水平对齐 (在父容器中)（调整x方向位置）
-    Alignment m_align_v = Alignment::Start;     // 垂直对齐 (在父容器中)（调整y方向位置）
+    // 布局属性 [新增]
+    Alignment m_align_h = Alignment::Stretch; // 决定x方向居中，靠左右或拉伸
+    Alignment m_align_v = Alignment::Stretch; // 决定y方向居中，靠左右或拉伸
+
+    bool m_fill_v = false; // 在 VBox 中垂直填充剩余空间
+    bool m_fill_h = false; // 在 HBox 中水平填充剩余空间
 
 
     // 交互属性
@@ -232,9 +210,8 @@ public:
     virtual ~UIElement() = default;
 
     // 核心生命周期
-public:
+protected: 
     virtual void UpdateSelf(float dt, const ImVec2& parent_abs_pos);
-    virtual ImVec2 Measure(const ImVec2& available_size);
 public:
     virtual void Update(float dt, const ImVec2& parent_abs_pos);
     virtual void Draw(ImDrawList* draw_list);
@@ -248,12 +225,8 @@ public:
     void RemoveChild(Ptr child);
     virtual void ResetInteraction();
 
-    // [NEW] 功能 API (链式调用)  提示文本与排版
+    // 功能 API
     UIElement* SetTooltip(const std::string& key) { m_tooltip_key = key; return this; }
-    UIElement* SetWidth(const Length& width) { m_width_policy = width; return this; }
-    UIElement* SetHeight(const Length& height) { m_height_policy = height; return this; }
-    UIElement* SetFixedSize(float w, float h) { m_width_policy = Length::Fix(w); m_height_policy = Length::Fix(h); return this; }
-    UIElement* SetAlignment(Alignment h, Alignment v) { m_align_h = h; m_align_v = v; return this; }
     // 新增：绘制毛玻璃背景的辅助函数
     void DrawGlassBackground(ImDrawList* draw_list, const ImVec2& p_min, const ImVec2& p_max, const ImVec4& BackCol= ImVec4(0.0,0.0,0.0,0.6));
     void To(float* property, float target, float duration, EasingType easing = EasingType::EaseOutQuad, TweenCallback on_complete = nullptr);
@@ -261,7 +234,7 @@ public:
 
     virtual ImFont* GetFont() const;
 
-    // 焦点与捕获 API 
+    // 焦点与捕获 API [新增]
     bool IsFocused() const;
     void RequestFocus();
     void CaptureMouse();
@@ -276,13 +249,8 @@ public:
     StyleColor m_bg_color;
 
     bool m_use_glass_effect = false;
-    Panel()
-    {
-        // Panel 默认应该撑满父容器，因为它通常是背景
-        m_width_policy = Length::Fill();
-        m_height_policy = Length::Fill();
-    }
-    ImVec2 Measure(const ImVec2& available_size) override;
+
+    //ImVec4 m_glass_tint = { 0.6f, 0.6f, 0.6f, 1.0f };
     void Draw(ImDrawList* draw_list) override;
 };
 
@@ -296,14 +264,15 @@ public:
     ImVec4 m_tint_col = { 1, 1, 1, 1 };
 
     float m_aspect_ratio = 1.0f; // 宽度 / 高度
+    bool m_auto_height = false;  // 是否根据宽度自动计算高度
 
-    Image(ImTextureID tex_id);
+    Image(ImTextureID tex_id) : m_texture_id(tex_id) { m_block_input = false; }
     void SetOriginalSize(float w, float h)
     {
         if (h > 0.0f) m_aspect_ratio = w / h;
     }
 
-    ImVec2 Measure(const ImVec2& available_size) override;
+    void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
 };
 
@@ -312,14 +281,7 @@ class VBox : public UIElement
 {
 public:
     float m_padding = 10.0f;
-    VBox()
-    {
-        // VBox 默认宽度填满，高度自适应内容
-        m_width_policy = Length::Fill();
-        m_height_policy = Length::Content();
-    }
     void Update(float dt, const ImVec2& parent_abs_pos) override;
-    ImVec2 Measure(const ImVec2& available_size) override;
 };
 
 // --- [新增] 水平布局容器 ---
@@ -327,14 +289,7 @@ class HBox : public UIElement
 {
 public:
     float m_padding = 10.0f;
-    HBox()
-    {
-        // HBox 默认高度填满，宽度自适应内容
-        m_width_policy = Length::Content();
-        m_height_policy = Length::Fill();
-    }
     void Update(float dt, const ImVec2& parent_abs_pos) override;
-    ImVec2 Measure(const ImVec2& available_size) override;
 };
 
 // --- 滚动视图容器 ---
@@ -348,18 +303,10 @@ public:
     float m_smoothing_speed = 15.0f;
     bool m_show_scrollbar = true;
 
-    ScrollView()
-    {
-        // ScrollView 默认应该撑满父容器
-        m_width_policy = Length::Fill();
-        m_height_policy = Length::Fill();
-    }
-
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
     void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
 };
-
 class HorizontalScrollView : public UIElement
 {
 public:
@@ -369,13 +316,6 @@ public:
     float m_scroll_speed = 20.0f;
     float m_smoothing_speed = 15.0f;
     bool m_show_scrollbar = false;
-
-    HorizontalScrollView()
-    {
-        // ScrollView 默认应该撑满父容器
-        m_width_policy = Length::Fill();
-        m_height_policy = Length::Fill();
-    }
 
     void Update(float dt, const ImVec2& parent_abs_pos) override;
     void Draw(ImDrawList* draw_list) override;
