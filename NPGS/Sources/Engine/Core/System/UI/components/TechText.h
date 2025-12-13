@@ -52,7 +52,7 @@ public:
     float m_glow_spread = 1.0f;
 
     // [新增] 尺寸模式
-    TechTextSizingMode m_sizing_mode = TechTextSizingMode::Fixed;
+    TechTextSizingMode m_sizing_mode = TechTextSizingMode::AutoWidthHeight;
 
     // 构造函数更新
     TechText(const std::string& text_or_key,

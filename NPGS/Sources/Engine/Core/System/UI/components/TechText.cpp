@@ -18,7 +18,7 @@ TechText::TechText(const std::string& key_or_text,
 {
     m_block_input = false;
     m_rect.h = 20.0f;
-    m_sizing_mode = TechTextSizingMode::Fixed;
+    m_sizing_mode = TechTextSizingMode::AutoWidthHeight;
     m_current_display_text = TR(m_source_key_or_text);
 
 

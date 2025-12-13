@@ -22,11 +22,14 @@ LogCard::LogCard(LogType type, const std::string& title, const std::string& mess
     ImVec4 msg_col = (type == LogType::Alert) ? ImVec4(1.0f, 0.8f, 0.8f, 1.0f) : theme.color_text_disabled;
 
     m_title_text = std::make_shared<TechText>(title, title_col, true);
+    m_title_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_title_text->m_font = UIContext::Get().m_font_bold;
     m_title_text->m_rect.h = 16.0f;
     AddChild(m_title_text);
 
     m_msg_text = std::make_shared<TechText>(message, msg_col, false);
+    m_msg_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
+
     m_msg_text->m_font = UIContext::Get().m_font_regular;
     m_msg_text->m_rect.h = 14.0f;
     AddChild(m_msg_text);
@@ -114,10 +117,13 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
 
     // 3. 底部静态信息
     m_system_text = std::make_shared<TechText>(syskey, ThemeColorID::TextDisabled, true);
+    m_system_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
+
     m_system_text->m_font = ctx.m_font_regular;
     m_system_text->m_rect.h = 14.0f;
 
     m_autosave_text = std::make_shared<TechText>(savekey, ThemeColorID::TextDisabled, true);
+    m_autosave_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
     m_autosave_text->m_font = ctx.m_font_regular;
     m_autosave_text->m_rect.h = 14.0f;

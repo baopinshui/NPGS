@@ -38,19 +38,22 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
     manage_text->m_color = ThemeColorID::Accent;
     manage_text->m_align_h = Alignment::Center;
     manage_text->m_font = ctx.m_font_small;
-    manage_text->m_rect.h = 16.0f;
     manage_text->m_block_input = false; // 点击穿透
 
+    auto pad = std::make_shared<UIElement>();
+    pad->m_rect.h = 8.0f;
+    pad->m_align_h = Alignment::Stretch;
+    pad->m_block_input = false;
     // 3. "NETWORK" 文本
     auto network_text = std::make_shared<TechText>(key2);
     network_text->m_align_h = Alignment::Center;
     network_text->m_color = ThemeColorID::Accent;
     network_text->m_font = ctx.m_font_small;
-    network_text->m_rect.h = 16.0f;
     network_text->m_block_input = false; // 点击穿透
 
     vbox->AddChild(m_symbol);
     vbox->AddChild(manage_text);
+    vbox->AddChild(pad);
     vbox->AddChild(network_text);
 }
 void CollapsedMainButton::Update(float dt, const ImVec2& parent_abs_pos)

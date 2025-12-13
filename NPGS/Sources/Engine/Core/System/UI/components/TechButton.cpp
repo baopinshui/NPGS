@@ -46,6 +46,8 @@ TechButton::TechButton(const std::string& key_or_text, Style style)
     {
         // [核心修改] 直接将源字符串传给 TechText，它会自己处理
         m_label_component = std::make_shared<TechText>(m_source_text);
+        m_label_component->SetSizing(TechTextSizingMode::Fixed);
+
         m_label_component->m_align_h = Alignment::Center;
         m_label_component->m_align_v = Alignment::Center;
         m_label_component->m_block_input = false;
