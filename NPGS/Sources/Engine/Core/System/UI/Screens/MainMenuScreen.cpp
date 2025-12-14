@@ -21,7 +21,7 @@ void MainMenuScreen::OnEnter()
     bg_panel->m_block_input = true;
     m_ui_root->AddChild(bg_panel);
 
-    m_title = std::make_shared<UI::TechText>("NPGS Project", ThemeColorID::TextHighlight, true, true);
+    m_title = std::make_shared<UI::TechText>("ui.menu.NPGS", ThemeColorID::TextHighlight, true, true);
     m_title->m_font = UIContext::Get().m_font_large;
     m_title->SetSizing(UI::TechTextSizingMode::AutoWidthHeight);
     m_title->m_align_h = UI::Alignment::Center;
@@ -34,6 +34,8 @@ void MainMenuScreen::OnEnter()
     bg_panel->AddChild(m_button_layout);
 
     auto new_game_btn = std::make_shared<UI::TechButton>("ui.menu.new_game");
+
+    new_game_btn->SetTooltip("tooltip.new_game");
     new_game_btn->m_rect.h = 40.0f;
     new_game_btn->on_click = [this]()
     {
