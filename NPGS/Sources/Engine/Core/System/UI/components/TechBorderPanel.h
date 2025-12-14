@@ -21,7 +21,7 @@ public:
     float m_flow_length_ratio = 0.2f; // 总长度占比
     int m_flow_segment_count = 1;     // 分段数量
     float m_flow_randomness = 0.0f;   // 随机性强度
-    bool m_flow_use_gradient = 0;     // 渐变
+    bool m_flow_use_gradient = false;     // 渐变
 
 
 
@@ -29,7 +29,7 @@ public:
 
     void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override;
 
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    void Update(float dt) override;
     void Draw(ImDrawList* draw_list) override;
 
 private:

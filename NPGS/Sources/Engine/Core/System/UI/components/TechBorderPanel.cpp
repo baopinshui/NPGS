@@ -34,25 +34,23 @@ void TechBorderPanel::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down,
 
 }
 
-void TechBorderPanel::Update(float dt, const ImVec2& parent_abs_pos)
+void TechBorderPanel::Update(float dt)
 {
     if (m_visible && m_show_flow_border)
     {
-        // 1. 外层进度 (周期 = T)
         if (m_flow_period > 0.001f)
         {
             m_progress_outer += dt / m_flow_period;
             if (m_progress_outer > 1.0f) m_progress_outer -= 1.0f;
 
-            // 2. 内层进度 (周期 = T / sqrt(2))
-            // 速度 = 1 / 周期 = sqrt(2) / T
             float inner_speed_mult = 1.41421356f;
             m_progress_inner += (dt * inner_speed_mult) / m_flow_period;
             if (m_progress_inner > 1.0f) m_progress_inner -= 1.0f;
         }
     }
 
-    Panel::Update(dt, parent_abs_pos);
+    // 调用基类 Update，它会递归更新子元素
+    Panel::Update(dt);
 }
 
 void TechBorderPanel::Draw(ImDrawList* dl)

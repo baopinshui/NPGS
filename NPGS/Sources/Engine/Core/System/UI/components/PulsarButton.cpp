@@ -21,7 +21,8 @@ void PulsarButton::SetIconColor(const ImVec4& color)
 
 void PulsarButton::InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key)
 {
-    m_rect = { 0, 0, 40, 40 };
+    m_width = Length::Content();
+    m_height = Length::Content();
     m_block_input = true;
 
     m_status_key = status_key;
@@ -184,9 +185,9 @@ void PulsarButton::SetActive(bool active)
 
 void PulsarButton::SetExecutable(bool can_execute) { m_can_execute = can_execute; }
 
-void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
+void PulsarButton::Update(float dt)
 {
-    UpdateSelf(dt, parent_abs_pos);
+    UIElement::Update(dt);
     // --- 0. I18n 更新检查 ---
     // 一旦版本变化，立即更新所有文本组件
     auto& i18n = System::I18nManager::Get();
@@ -272,63 +273,7 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
         To(&m_current_line_len, m_target_line_len, 0.2f, EasingType::EaseOutQuad);
     }
 
-    // --- 4. 动态计算布局与路径 (逻辑不变) ---
-    ImVec2 p_start = { 20.0f, 20.0f };
-    float rel_line_y = 20.0f - 40.0f;
 
-    ImVec2 p_elbow = { 20.0f + 60.0f, rel_line_y };
-    ImVec2 p_end = { 20.0f + 64.0f + m_current_line_len, rel_line_y };
-
-    float dist_1 = std::sqrt(std::pow(p_elbow.x - p_start.x, 2) + std::pow(p_elbow.y - p_start.y, 2));
-    float dist_2 = std::sqrt(std::pow(p_end.x - p_elbow.x, 2) + std::pow(p_end.y - p_elbow.y, 2));
-    float total_dist = dist_1 + dist_2;
-
-    float current_dist_on_path = total_dist * line_prog;
-    ImVec2 icon_current_center = p_start;
-
-    if (current_dist_on_path <= dist_1)
-    {
-        float t_path = (dist_1 > 0.001f) ? (current_dist_on_path / dist_1) : 0.0f;
-        icon_current_center.x = p_start.x + (p_elbow.x - p_start.x) * t_path;
-        icon_current_center.y = p_start.y + (p_elbow.y - p_start.y) * t_path;
-    }
-    else
-    {
-        float t_path = (dist_2 > 0.001f) ? ((current_dist_on_path - dist_1) / dist_2) : 0.0f;
-        icon_current_center.x = p_elbow.x + (p_end.x - p_elbow.x) * t_path;
-        icon_current_center.y = p_elbow.y + (p_end.y - p_elbow.y) * t_path;
-    }
-    icon_current_center = TechUtils::Snap(icon_current_center);
-
-    // --- 6. 更新背景面板 ---
-    if (m_bg_panel)
-    {
-        float base_size = 40.0f;
-        float current_scale = 0.0f;
-
-        if (m_anim_progress < 0.2f)
-        {
-            float t_sub = (m_anim_progress) / 0.2f;
-            current_scale = 1.0f - (0.4f * AnimationUtils::Ease(t_sub, EasingType::EaseInOutQuad));
-        }
-        else if (m_anim_progress < 0.8f)
-        {
-            current_scale = 0.6f;
-        }
-        else
-        {
-            float t_sub = (m_anim_progress - 0.8f) / 0.2f;
-            current_scale = 0.6f + (0.4f * AnimationUtils::Ease(t_sub, EasingType::EaseInOutQuad));
-        }
-
-        current_box_size = base_size * current_scale;
-        m_bg_panel->m_rect.x = icon_current_center.x - current_box_size * 0.5f;
-        m_bg_panel->m_rect.y = icon_current_center.y - current_box_size * 0.5f;
-        m_bg_panel->m_rect.w = current_box_size;
-        m_bg_panel->m_rect.h = current_box_size;
-        m_bg_panel->m_visible = true;
-        m_bg_panel->m_alpha = 1.0f;
-    }
 
     ImVec4 final_action_color;
     if (m_can_execute)
@@ -376,8 +321,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     Rect icon_rect = m_bg_panel->m_rect;
     if (m_text_icon)
     {
-        m_text_icon->m_rect = icon_rect;
-        m_text_icon->m_alpha = 1.0f;
         m_text_icon->m_visible = true;
         if (m_is_active)
         {
@@ -391,8 +334,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
     if (m_image_icon)
     {
-        m_image_icon->m_rect = icon_rect;
-        m_image_icon->m_alpha = 1.0f;
         m_image_icon->m_visible = true;
         if (m_is_active)
         {
@@ -410,14 +351,10 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     float rel_text_x = pulsar_center_offset.x + LAYOUT_TEXT_START_X;
 
     // 状态文本
-    m_text_status->m_rect.x = rel_text_x;
-    m_text_status->m_rect.y = rel_line_y - 18.0f;
     m_text_status->m_alpha = text_alpha;
     m_text_status->m_visible = (text_alpha > 0.01f);
 
     // 主标签
-    m_text_label->m_rect.x = rel_text_x;
-    m_text_label->m_rect.y = rel_line_y;
     m_text_label->m_alpha = text_alpha;
     m_text_label->m_visible = (text_alpha > 0.01f);
     m_text_label->SetColor(final_action_color);
@@ -425,9 +362,6 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     // 统计信息行
     if (m_text_stat_label)
     {
-        float stat_y = rel_line_y + 26.0f;
-        m_text_stat_label->m_rect.x = rel_text_x;
-        m_text_stat_label->m_rect.y = stat_y;
         m_text_stat_label->m_alpha = text_alpha;
         m_text_stat_label->m_visible = (text_alpha > 0.01f);
 
@@ -439,17 +373,12 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
 
         if (m_input_field)
         {
-            m_input_field->m_rect.x = val_x;
-            m_input_field->m_rect.y = stat_y - 0.0f;
-            m_input_field->m_rect.w = 100.0f;
             m_input_field->m_alpha = text_alpha;
             m_input_field->m_visible = (text_alpha > 0.01f);
             m_input_field->m_block_input = m_is_active;
         }
         if (m_text_stat_value)
         {
-            m_text_stat_value->m_rect.x = val_x;
-            m_text_stat_value->m_rect.y = stat_y - 0.0f;
             m_text_stat_value->m_alpha = text_alpha;
             m_text_stat_value->m_visible = (text_alpha > 0.01f);
         }
@@ -463,18 +392,13 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
                 if (lg_font && m_text_stat_value) val_w = lg_font->CalcTextSizeA(lg_font->FontSize, FLT_MAX, 0.0f, m_text_stat_value->m_hacker_effect.m_display_text.c_str()).x;
             }
 
-            m_text_stat_unit->m_rect.x = val_x + val_w + 5.0f;
-            m_text_stat_unit->m_rect.y = stat_y;
             m_text_stat_unit->m_alpha = text_alpha;
             m_text_stat_unit->m_visible = (text_alpha > 0.01f);
         }
     }
 
     if (!m_visible) return;
-    for (auto& child : m_children)
-    {
-        child->Update(dt, m_absolute_pos);
-    }
+ 
 
     m_core_hovered = false;
 
@@ -484,6 +408,167 @@ void PulsarButton::Update(float dt, const ImVec2& parent_abs_pos)
     }
 }
 
+ImVec2 PulsarButton::Measure(ImVec2 available_size)
+{
+    if (!m_visible)
+    {
+        m_desired_size = { 0, 0 };
+        return m_desired_size;
+    }
+
+    // 1. 测量所有子组件，以确保它们的 desired_size 是最新的
+    //    (虽然我们是手动布局，但子组件内部可能需要这个信息)
+    for (auto& child : m_children)
+    {
+        child->Measure(available_size);
+    }
+
+    // 2. 计算 PulsarButton 自身在当前状态下的总尺寸
+    float total_w, total_h;
+
+    // 展开后的终点 X 坐标
+    float end_x = pulsar_center_offset.x + 64.0f + m_current_line_len;
+
+    // 当关闭时，尺寸为 40x40
+    // 当展开时，尺寸为 end_x * 1.0f 宽，大约 100px 高
+    float closed_w = 40.0f, closed_h = 40.0f;
+    float open_w = end_x + 10.0f; // 加一点 padding
+    float open_h = 100.0f;        // 覆盖从脉冲星顶部到统计文本底部
+
+    // 根据动画进度插值计算当前尺寸
+    total_w = closed_w + (open_w - closed_w) * m_anim_progress;
+    total_h = closed_h + (open_h - closed_h) * m_anim_progress;
+
+    m_desired_size = { total_w, total_h };
+    return m_desired_size;
+}
+
+void PulsarButton::Arrange(const Rect& final_rect)
+{
+    // 1. 设置 PulsarButton 自身的位置和大小
+    UIElement::Arrange(final_rect);
+
+    // 2. [从旧 Update 迁移] 动态计算布局与路径
+ // --- 4. 动态计算布局与路径 (逻辑不变) ---
+    ImVec2 p_start = { 20.0f, 20.0f };
+    float rel_line_y = 20.0f - 40.0f;
+
+    ImVec2 p_elbow = { 20.0f + 60.0f, rel_line_y };
+    ImVec2 p_end = { 20.0f + 64.0f + m_current_line_len, rel_line_y };
+
+    float dist_1 = std::sqrt(std::pow(p_elbow.x - p_start.x, 2) + std::pow(p_elbow.y - p_start.y, 2));
+    float dist_2 = std::sqrt(std::pow(p_end.x - p_elbow.x, 2) + std::pow(p_end.y - p_elbow.y, 2));
+    float total_dist = dist_1 + dist_2;
+
+    float current_dist_on_path = total_dist * line_prog;
+    ImVec2 icon_current_center = p_start;
+
+    if (current_dist_on_path <= dist_1)
+    {
+        float t_path = (dist_1 > 0.001f) ? (current_dist_on_path / dist_1) : 0.0f;
+        icon_current_center.x = p_start.x + (p_elbow.x - p_start.x) * t_path;
+        icon_current_center.y = p_start.y + (p_elbow.y - p_start.y) * t_path;
+    }
+    else
+    {
+        float t_path = (dist_2 > 0.001f) ? ((current_dist_on_path - dist_1) / dist_2) : 0.0f;
+        icon_current_center.x = p_elbow.x + (p_end.x - p_elbow.x) * t_path;
+        icon_current_center.y = p_elbow.y + (p_end.y - p_elbow.y) * t_path;
+    }
+    icon_current_center = TechUtils::Snap(icon_current_center);
+    // ... (计算 icon_current_center 的逻辑保持不变) ...
+
+    // 3. [从旧 Update 迁移] 更新背景面板的位置和大小
+    if (m_bg_panel)
+    {
+        float base_size = 40.0f;
+        float current_scale = 0.0f;
+
+        if (m_anim_progress < 0.2f)
+        {
+            float t_sub = (m_anim_progress) / 0.2f;
+            current_scale = 1.0f - (0.4f * AnimationUtils::Ease(t_sub, EasingType::EaseInOutQuad));
+        }
+        else if (m_anim_progress < 0.8f)
+        {
+            current_scale = 0.6f;
+        }
+        else
+        {
+            float t_sub = (m_anim_progress - 0.8f) / 0.2f;
+            current_scale = 0.6f + (0.4f * AnimationUtils::Ease(t_sub, EasingType::EaseInOutQuad));
+        }
+
+        current_box_size = base_size * current_scale;
+
+        m_bg_panel->m_visible = true;
+        m_bg_panel->m_alpha = 1.0f;
+
+        Rect bg_rect;
+        bg_rect.w = current_box_size;
+        bg_rect.h = current_box_size;
+        bg_rect.x = icon_current_center.x - bg_rect.w * 0.5f;
+        bg_rect.y = icon_current_center.y - bg_rect.h * 0.5f;
+        m_bg_panel->Arrange(bg_rect); // [修改] 调用子元素的 Arrange
+    }
+
+
+    // 4. [从旧 Update 迁移] 更新图标的位置和大小
+    // 图标和背景面板位置大小完全一样
+    if (m_bg_panel)
+    {
+        if (m_text_icon) m_text_icon->Arrange(m_bg_panel->m_rect);
+        if (m_image_icon) m_image_icon->Arrange(m_bg_panel->m_rect);
+    }
+
+    // 5. [从旧 Update 迁移] 下方文本位置更新
+    const float LAYOUT_TEXT_START_X = 64.0f;
+    float rel_text_x = pulsar_center_offset.x + LAYOUT_TEXT_START_X;
+
+    // 状态文本
+    if (m_text_status)
+    {
+        Rect status_rect = { rel_text_x, rel_line_y - 18.0f, m_text_status->m_desired_size.x, m_text_status->m_desired_size.y };
+        m_text_status->Arrange(status_rect);
+    }
+
+    // 主标签
+    if (m_text_label)
+    {
+        Rect label_rect = { rel_text_x, rel_line_y, m_text_label->m_desired_size.x, m_text_label->m_desired_size.y };
+        m_text_label->Arrange(label_rect);
+    }
+
+    // 统计信息行
+    if (m_text_stat_label)
+    {
+        float stat_y = rel_line_y + 26.0f;
+        Rect stat_label_rect = { rel_text_x, stat_y, m_text_stat_label->m_desired_size.x, m_text_stat_label->m_desired_size.y };
+        m_text_stat_label->Arrange(stat_label_rect);
+
+        float val_x = rel_text_x + m_text_stat_label->m_desired_size.x + 5.0f;
+
+        if (m_input_field)
+        {
+            Rect input_rect = { val_x, stat_y - 0.0f, 100.0f, m_input_field->m_desired_size.y };
+            m_input_field->Arrange(input_rect);
+        }
+        if (m_text_stat_value)
+        {
+            Rect value_rect = { val_x, stat_y, m_text_stat_value->m_desired_size.x, m_text_stat_value->m_desired_size.y };
+            m_text_stat_value->Arrange(value_rect);
+        }
+        if (m_text_stat_unit)
+        {
+            float val_w = 0.0f;
+            if (m_is_editable) val_w = 100.0f;
+            else if (m_text_stat_value) val_w = m_text_stat_value->m_desired_size.x;
+
+            Rect unit_rect = { val_x + val_w + 5.0f, stat_y, m_text_stat_unit->m_desired_size.x, m_text_stat_unit->m_desired_size.y };
+            m_text_stat_unit->Arrange(unit_rect);
+        }
+    }
+}
 void PulsarButton::Draw(ImDrawList* draw_list)
 {
     if (!m_visible) return;

@@ -48,7 +48,7 @@ public:
     void SetObjectImage(ImTextureID texture_id, float img_w = 0.0f, float img_h = 0.0f, ImVec4 Col = { 1.0f,1.0f,1.0f,1.0f });
 
     void SetTitle(const std::string& title, const std::string& subtitle = "");
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    void Update(float dt) override;
     // 布局常量
     float PANEL_WIDTH = 320.0f;
     float PANEL_HEIGHT = 650.0f;
@@ -70,6 +70,7 @@ private:
     std::shared_ptr<TechButton> m_collapsed_btn;
     // 保存容器指针以便动态修改
     std::shared_ptr<HBox> m_tabs_container;    // 存放 Tab 按钮
+    std::shared_ptr<ScrollView> m_scroll_view; // [新增] 保存 ScrollView 引用
     std::shared_ptr<VBox> m_content_vbox;      // 存放滚动内容
 
     // 数据状态

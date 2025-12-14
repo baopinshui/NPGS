@@ -15,20 +15,21 @@ ImFont * InputField::GetFont() const
     return UIElement::GetFont();
 }
 
-InputField::InputField(std::string* target) 
+InputField::InputField(std::string* target)
     : m_target_string(target),
-    m_text_color(ThemeColorID::Text),   // Default text color is Accent
+    m_text_color(ThemeColorID::Text),
     m_border_color(ThemeColorID::Accent)
 {
     m_block_input = true;
     m_focusable = true;
-    m_rect.h = 20.0f;
 
-    
+    // [修改] 设置默认布局属性
+    m_width = Length::Stretch();    // 默认宽度撑满
+    m_height = Length::Content();   // 默认高度由内容决定
+
+    // 状态初始化 (保持不变)
     m_cursor_pos = 0;
     m_selection_anchor = 0;
-    
-
     m_anim_head = 0.0f;
     m_anim_tail = 0.0f;
     m_activation_count = 0;
@@ -121,24 +122,20 @@ int InputField::GetCharIndexAt(float local_x)
     return best_index;
 }
 
-void InputField::Update(float dt, const ImVec2& parent_abs_pos)
+void InputField::Update(float dt)
 {
+    // --- 焦点和提交逻辑 ---
     bool current_focused = IsFocused();
     if (m_last_frame_focused && !current_focused)
     {
-        // 失去焦点 -> 提交并取消选择
         ResetSelection();
-        if (on_commit && m_target_string)
-        {
-            on_commit(*m_target_string);
-        }
+        if (on_commit && m_target_string) on_commit(*m_target_string);
     }
     m_last_frame_focused = current_focused;
-    UIElement::Update(dt, parent_abs_pos);
 
+    // --- 光标闪烁 ---
     if (IsFocused())
     {
-        // [修改] 如果有选区，不闪烁；否则正常闪烁
         if (HasSelection())
         {
             m_show_cursor = false;
@@ -151,24 +148,20 @@ void InputField::Update(float dt, const ImVec2& parent_abs_pos)
         }
     }
 
-    // [新增] 处理鼠标拖拽选择
-    // 如果已经被点击(m_clicked)且鼠标仍然按下，则视为拖拽
+    // --- 鼠标拖拽选择 ---
     if (m_clicked && ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
         float mouse_x_local = ImGui::GetMousePos().x - m_absolute_pos.x;
         int new_cursor = GetCharIndexAt(mouse_x_local);
-
-        // 只有位置变化时才更新，避免无意义重绘
         if (new_cursor != m_cursor_pos)
         {
             m_cursor_pos = new_cursor;
-            // 拖拽时 m_selection_anchor 保持在 HandleMouseEvent 中按下的那个位置不变
             m_show_cursor = true;
-            m_cursor_blink_timer = 0.0f; // 拖拽时让光标/选区保持常亮
+            m_cursor_blink_timer = 0.0f;
         }
     }
 
-    // 下划线动画逻辑 (保持不变)
+    // --- 下划线动画 ---
     bool should_show = false;
     switch (m_underline_mode)
     {
@@ -204,6 +197,50 @@ void InputField::Update(float dt, const ImVec2& parent_abs_pos)
         m_anim_tail = 0.0f;
         m_activation_count = 0;
     }
+    UIElement::Update(dt);
+}
+
+ImVec2 InputField::Measure(ImVec2 available_size)
+{
+    if (!m_visible)
+    {
+        m_desired_size = { 0, 0 };
+        return m_desired_size;
+    }
+
+    ImFont* font = GetFont();
+    if (!font)
+    {
+        m_desired_size = { 20, 10 }; // Fallback
+        return m_desired_size;
+    }
+
+    // --- 高度计算 ---
+    if (m_height.IsContent())
+    {
+        // 高度 = 字体高度 + 下划线间距 + 下划线厚度(1.0f)
+        m_desired_size.y = font->FontSize + m_underline_spacing + 1.0f;
+    }
+    else // Fixed
+    {
+        m_desired_size.y = m_height.value;
+    }
+
+    // --- 宽度计算 ---
+    if (m_width.IsContent() && m_target_string)
+    {
+        m_desired_size.x = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.f, m_target_string->c_str()).x;
+    }
+    else if (m_width.IsFixed())
+    {
+        m_desired_size.x = m_width.value;
+    }
+    else // Stretch
+    {
+        m_desired_size.x = 0; // Stretch 在 Measure 阶段不贡献宽度
+    }
+
+    return m_desired_size;
 }
 
 void InputField::Draw(ImDrawList* draw_list)
@@ -296,7 +333,7 @@ void InputField::Draw(ImDrawList* draw_list)
     }
 
     // 下划线绘制 (保持不变)
-    float line_y = draw_y + font_size + 2.0f;
+    float line_y = draw_y + font_size + m_underline_spacing;
     int cycle_head = static_cast<int>(std::floor(m_anim_head));
     int cycle_tail = static_cast<int>(std::floor(m_anim_tail));
     float ratio_head = m_anim_head - cycle_head;

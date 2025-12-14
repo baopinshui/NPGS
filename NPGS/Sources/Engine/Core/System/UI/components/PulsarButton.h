@@ -60,7 +60,10 @@ public:
     void SetStatus(const std::string& status_key);
     void SetExecutable(bool can_execute);
 
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    void Update(float dt) override;
+    ImVec2 Measure(ImVec2 available_size) override;
+    void Arrange(const Rect& final_rect) override;
+
     void Draw(ImDrawList* draw_list) override;
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 private:

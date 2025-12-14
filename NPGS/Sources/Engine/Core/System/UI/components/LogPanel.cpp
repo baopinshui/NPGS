@@ -16,44 +16,49 @@ LogCard::LogCard(LogType type, const std::string& title, const std::string& mess
     : m_type(type)
 {
     m_block_input = false;
+    m_width = Length::Stretch();
+    m_height = Length::Fixed(CARD_HEIGHT);
+    m_alpha = 1.0f;
 
     const auto& theme = UIContext::Get().m_theme;
     ImVec4 title_col = (type == LogType::Alert) ? ImVec4(1.0f, 0.2f, 0.2f, 1.0f) : ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
     ImVec4 msg_col = (type == LogType::Alert) ? ImVec4(1.0f, 0.8f, 0.8f, 1.0f) : theme.color_text_disabled;
 
+    // [NEW] 使用VBox来自动布局内部文本，并设置对齐
+    m_content_box = std::make_shared<VBox>();
+    m_content_box->m_padding = 2.0f;
+    m_content_box->m_width = Length::Stretch();
+    m_content_box->m_height = Length::Stretch();
+    m_content_box->m_align_v = Alignment::Center; // 垂直居中整个VBox
+    m_content_box->m_align_h = Alignment::Center; // 水平居中整个VBox
+    AddChild(m_content_box);
+
     m_title_text = std::make_shared<TechText>(title, title_col, true);
-    m_title_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_title_text->m_font = UIContext::Get().m_font_bold;
-    m_title_text->m_rect.h = 16.0f;
-    AddChild(m_title_text);
+    m_title_text->m_width = Length::Stretch(); // 文本宽度撑满
+    m_title_text->m_height = Length::Content();
+    m_content_box->AddChild(m_title_text);
 
     m_msg_text = std::make_shared<TechText>(message, msg_col, false);
-    m_msg_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
-
     m_msg_text->m_font = UIContext::Get().m_font_regular;
-    m_msg_text->m_rect.h = 14.0f;
-    AddChild(m_msg_text);
-
-    m_rect.h = CARD_HEIGHT;
-    m_rect.w = 260.0f;
-    m_alpha = 1.0f;
+    m_msg_text->m_width = Length::Stretch();
+    m_msg_text->m_height = Length::Content();
+    m_content_box->AddChild(m_msg_text);
 }
 
-void LogCard::Update(float dt, const ImVec2& parent_abs_pos)
+void LogCard::Update(float dt)
 {
     if (m_type == LogType::Alert) m_pulse_timer += dt * 5.0f;
+    // 调用基类Update，它会递归更新子元素（如TechText的动画）
+    UIElement::Update(dt);
+}
 
-    // 简单的子元素布局
-    if (m_title_text && m_msg_text)
-    {
-        float content_h = 32.0f;
-        float start_y = (m_rect.h - content_h) * 0.5f-2.0f;
-        m_title_text->m_rect.x = 12.0f;
-        m_title_text->m_rect.y = start_y;
-        m_msg_text->m_rect.x = 12.0f;
-        m_msg_text->m_rect.y = start_y + 18.0f;
-    }
-    UIElement::Update(dt, parent_abs_pos);
+void LogCard::Arrange(const Rect& final_rect)
+{
+    // [NEW] 手动为内容区域添加内边距
+    UIElement::Arrange(final_rect);
+    Rect content_rect = { 12.0f, 11.0f, m_rect.w - 12.0f, m_rect.h-22.0f };
+    m_content_box->Arrange(content_rect);
 }
 
 void LogCard::Draw(ImDrawList* dl)
@@ -96,37 +101,36 @@ void LogCard::Draw(ImDrawList* dl)
 LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
 {
     m_block_input = false;
-    m_rect.w = 260.0f;
+    m_width = Length::Fixed(260.0f);
+    m_height = Length::Content(); // 高度由内容决定
 
-    // No need for 'theme' and 'ctx' local variables for color anymore
-    auto& ctx = UIContext::Get();
-
+    // 子组件全部直接添加到 LogPanel
     m_list_box = std::make_shared<VBox>();
     m_list_box->m_padding = 0.0f;
-    m_list_box->m_fill_h = true;
+    m_list_box->m_width = Length::Stretch();
+    // 高度由子项（LogCard）决定，所以是Content
+    m_list_box->m_height = Length::Content();
     AddChild(m_list_box);
 
-    m_divider = std::make_shared<TechDivider>(
-        StyleColor(ThemeColorID::TextDisabled).WithAlpha(0.5f)
-    );
-    m_divider->m_rect.h = 2.0f;
+    m_divider = std::make_shared<TechDivider>(StyleColor(ThemeColorID::TextDisabled).WithAlpha(0.5f));
+    m_divider->m_height = Length::Fixed(DIVIDER_AREA_HEIGHT); // 分割线占据固定高度区域
     AddChild(m_divider);
 
     m_footer_box = std::make_shared<VBox>();
     m_footer_box->m_padding = 2.0f;
+    m_footer_box->m_width = Length::Stretch();
+    m_footer_box->m_height = Length::Content();
 
-    // 3. 底部静态信息
     m_system_text = std::make_shared<TechText>(syskey, ThemeColorID::TextDisabled, true);
-    m_system_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
-
-    m_system_text->m_font = ctx.m_font_regular;
-    m_system_text->m_rect.h = 14.0f;
+    m_system_text->SetSizing(TechTextSizingMode::AutoHeight); // 自动换行
+    m_system_text->m_width = Length::Stretch(); // 宽度撑满
+    m_system_text->m_height = Length::Content();
 
     m_autosave_text = std::make_shared<TechText>(savekey, ThemeColorID::TextDisabled, true);
     m_autosave_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
-    m_autosave_text->m_font = ctx.m_font_regular;
-    m_autosave_text->m_rect.h = 14.0f;
+    m_autosave_text->m_width = Length::Stretch();
+    m_autosave_text->m_height = Length::Content();
 
     m_footer_box->AddChild(m_system_text);
     m_footer_box->AddChild(m_autosave_text);
@@ -150,23 +154,24 @@ void LogPanel::AddLog(LogType type, const std::string& title, const std::string&
     auto card = std::make_shared<LogCard>(type, title, message);
     m_list_box->AddChild(card);
 
-    // [修正] 使用 += 累加偏移。
-    // 如果动画正在进行中（比如 offset=20），此时又加一条，offset 变为 20+48=68。
-    // 这保证了现有的列表位置在这一帧不会发生任何跳变，继续平滑向上滑动。
+    // 累加向上滑动偏移量，保证新日志从底部平滑进入
     m_slide_offset += LogCard::CARD_HEIGHT;
-    m_is_sliding = true;
 }
 
-void LogPanel::Update(float dt, const ImVec2& parent_abs_pos)
+void LogPanel::Update(float dt)
 {
-    auto& ctx = UIContext::Get();
-
     // 1. 滑动动画 (阻尼衰减)
-    float speed = 10.0f;
-    m_slide_offset += (0.0f - m_slide_offset) * speed * dt;
+    if (std::abs(m_slide_offset) > 0.1f)
+    {
+        float speed = 10.0f;
+        m_slide_offset += (0.0f - m_slide_offset) * std::min(1.0f, speed * dt);
+    }
+    else
+    {
+        m_slide_offset = 0.0f;
+    }
 
-    // 2. [修正后的清理逻辑]：实时检查溢出
-    // 只要有条目超出了 MAX 且已经滑出可视区，就立即清理，无需等待动画完全静止
+    // 2. 清理超出上限且已移出视野的日志
     if (m_list_box)
     {
         float item_h = LogCard::CARD_HEIGHT;
@@ -203,73 +208,72 @@ void LogPanel::Update(float dt, const ImVec2& parent_abs_pos)
         }
     }
 
-    // 3. 绝对布局计算 (保持不变)
+    // 3. 递归更新子元素
+    UIElement::Update(dt);
+}
+
+
+ImVec2 LogPanel::Measure(ImVec2 available_size)
+{
+    if (!m_visible) return { 0, 0 };
+
+    // 测量页脚和分割线以确定它们的固定高度贡献
+    m_divider->Measure(available_size);
+    m_footer_box->Measure(available_size);
+
+    float total_h = LIST_AREA_HEIGHT + m_divider->m_desired_size.y + m_footer_box->m_desired_size.y;
+
+    m_desired_size = { m_width.value, total_h };
+    return m_desired_size;
+}
+
+void LogPanel::Arrange(const Rect& final_rect)
+{
+    // 1. [绝对定位] 计算自身在屏幕左下角的位置
     float margin_left = 20.0f;
     float margin_bottom = 20.0f;
-    float footer_h = 36.0f;
-    float divider_area_h = 10.0f;
+    float my_w = m_desired_size.x;
+    float my_h = m_desired_size.y;
+    float my_x = margin_left;
+    float my_y = UIContext::Get().m_display_size.y - margin_bottom - my_h;
 
-    float total_h = LIST_AREA_HEIGHT + divider_area_h + footer_h;
+    // 2. 使用计算出的位置来设置自身，并让基类处理绝对坐标计算
+    UIElement::Arrange({ my_x, my_y, my_w, my_h });
 
-    m_rect.x = margin_left;
-    m_rect.y = ctx.m_display_size.y - margin_bottom - total_h;
+    // 3. 手动排列子元素
+    float current_y = 0.0f;
 
-    m_absolute_pos.x = parent_abs_pos.x + m_rect.x;
-    m_absolute_pos.y = parent_abs_pos.y + m_rect.y;
+    // A. 排列日志列表 (应用滑动动画)
+    // 列表的实际高度由其内容决定
+    float real_list_h = m_list_box->Measure({ m_rect.w, FLT_MAX }).y;
+    // 计算Y坐标，使其底部对齐到列表区域底部，并应用滑动偏移
+    float list_y = (LIST_AREA_HEIGHT - real_list_h) + m_slide_offset;
+    m_list_box->Arrange({ 0.0f, list_y, m_rect.w, real_list_h });
+    current_y += LIST_AREA_HEIGHT;
 
-    float current_local_y = 0.0f;
+    // B. 排列分割线
+    m_divider->Arrange({ 0.0f, current_y, m_rect.w, m_divider->m_desired_size.y });
+    current_y += m_divider->m_rect.h;
 
-    // [A] 列表区
-    if (m_list_box)
-    {
-        // 先 Update 获取尺寸信息
-        m_list_box->m_rect.w = m_rect.w;
-        m_list_box->Update(dt, m_absolute_pos);
-        float real_list_h = m_list_box->m_rect.h;
-
-        // 底部对齐 + 偏移量
-        m_list_box->m_rect.x = 0.0f;
-        m_list_box->m_rect.y = (LIST_AREA_HEIGHT - real_list_h) + m_slide_offset;
-
-        current_local_y += LIST_AREA_HEIGHT;
-    }
-
-    // [B] 分割线
-    if (m_divider)
-    {
-        m_divider->m_rect.x = 0.0f;
-        m_divider->m_rect.y = current_local_y + (divider_area_h - m_divider->m_rect.h) * 0.5f;
-        m_divider->m_rect.w = m_rect.w;
-        current_local_y += divider_area_h;
-    }
-
-    // [C] 页脚
-    if (m_footer_box)
-    {
-        m_footer_box->m_rect.x = 0.0f;
-        m_footer_box->m_rect.y = current_local_y;
-        m_footer_box->m_rect.w = m_rect.w;
-        m_footer_box->m_rect.h = footer_h;
-    }
-
-    UIElement::Update(dt, parent_abs_pos);
+    // C. 排列页脚
+    m_footer_box->Arrange({ 0.0f, current_y, m_rect.w, m_footer_box->m_desired_size.y });
 }
+
 
 void LogPanel::Draw(ImDrawList* dl)
 {
     if (!m_visible || m_alpha <= 0.01f) return;
 
-    if (m_list_box)
-    {
-        // 裁剪区域固定为列表显示区，超出部分(顶出的旧日志)会被切掉
-        ImVec2 clip_min = m_absolute_pos;
-        ImVec2 clip_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + LIST_AREA_HEIGHT);
+    // [核心] 仅对日志列表区域进行裁剪
+    // 使用 m_absolute_pos，这是在 Arrange 阶段计算好的
+    ImVec2 clip_min = m_absolute_pos;
+    ImVec2 clip_max = ImVec2(m_absolute_pos.x + m_rect.w, m_absolute_pos.y + LIST_AREA_HEIGHT);
 
-        dl->PushClipRect(clip_min, clip_max, true);
-        m_list_box->Draw(dl);
-        dl->PopClipRect();
-    }
+    dl->PushClipRect(clip_min, clip_max, true);
+    if (m_list_box) m_list_box->Draw(dl);
+    dl->PopClipRect();
 
+    // 绘制无需裁剪的页脚和分割线
     if (m_divider) m_divider->Draw(dl);
     if (m_footer_box) m_footer_box->Draw(dl);
 }

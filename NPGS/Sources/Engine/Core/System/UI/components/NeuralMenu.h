@@ -41,7 +41,7 @@ public:
     }
 
     // [新增] 重写 Update，确保子元素的动画被处理
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    void Update(float dt) override;
 
 private:
     void ToggleExpand();
@@ -49,6 +49,7 @@ private:
     // 内部子组件引用
     std::shared_ptr<TechBorderPanel> root_panel;
     std::shared_ptr<NeuralParticleView> bg_view;
+    std::shared_ptr<UIElement> base;
     std::shared_ptr<VBox> main_layout;
     std::shared_ptr<ScrollView> scroll_view;
     std::shared_ptr<VBox> content_vbox;

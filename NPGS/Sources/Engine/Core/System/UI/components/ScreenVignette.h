@@ -5,21 +5,22 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-// A purely visual component that draws a dark, feathered border around the screen.
-// This helps improve UI contrast against bright backgrounds.
+// 一个纯视觉组件，在屏幕周围绘制一个深色的羽化边框。
+// 这有助于提高UI在明亮背景下的对比度。
 class ScreenVignette : public UIElement
 {
 public:
-    // The color of the vignette at the screen edges. Alpha is used for intensity.
+    // Vignette 在屏幕边缘的颜色。Alpha 用于控制强度。
     ImVec4 m_color = { 0.0f, 0.0f, 0.0f, 0.85f };
 
-    // The size of the gradient falloff, from 0.0 (hard edge) to 1.0 (gradient starts from the center).
+    // 渐变衰减的大小，从 0.0 (硬边缘) 到 1.0 (渐变从中心开始)。
     float m_feather = 0.2f;
 
     ScreenVignette();
 
-    // The vignette is drawn fullscreen, ignoring parent layout.
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    // [MODIFIED] 与新的布局系统集成
+    void Update(float dt) override;
+    // Measure 和 Arrange 使用基类默认实现即可
     void Draw(ImDrawList* dl) override;
 };
 

@@ -36,14 +36,25 @@ void GameScreen::OnEnter()
     m_ui_root->AddChild(m_neural_menu_controller);
 
     m_beam_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.fire_beam", "☼", "ui.label.energy", &m_beam_energy, "ui.unit.joules", true, "beam");
-    m_rkkv_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_rkkv", m_context.RKKVID, "ui.label.mass", &m_rkkv_mass, "ui.unit.kg", true, "rkkv");
-    m_VN_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_vn", "⌘", "ui.label.mass", &m_VN_mass, "ui.unit.kg", true, "vn");
-    m_message_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.send_message", "i", "ui.label.weight_time", &m_VN_mass, "ui.unit.years", false, "message");
+    m_beam_button->m_width = Length::Fixed(40.0f);
+    m_beam_button->m_height = Length::Fixed(40.0f);
+    m_beam_button->SetAbsolutePos(50.0f, 360.0f);
 
-    m_beam_button->m_rect = { 50, 360, 40, 40 };
-    m_rkkv_button->m_rect = { 50, 440, 40, 40 };
-    m_VN_button->m_rect = { 50, 520, 40, 40 };
-    m_message_button->m_rect = { 50, 600, 40, 40 };
+    m_rkkv_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_rkkv", m_context.RKKVID, "ui.label.mass", &m_rkkv_mass, "ui.unit.kg", true, "rkkv");
+    m_rkkv_button->m_width = Length::Fixed(40.0f);
+    m_rkkv_button->m_height = Length::Fixed(40.0f);
+    m_rkkv_button->SetAbsolutePos(50.0f, 440.0f);
+
+    m_VN_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_vn", "⌘", "ui.label.mass", &m_VN_mass, "ui.unit.kg", true, "vn");
+    m_VN_button->m_width = Length::Fixed(40.0f);
+    m_VN_button->m_height = Length::Fixed(40.0f);
+    m_VN_button->SetAbsolutePos(50.0f, 520.0f);
+
+    m_message_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.send_message", "i", "ui.label.weight_time", &m_VN_mass, "ui.unit.years", false, "message");
+    m_message_button->m_width = Length::Fixed(40.0f);
+    m_message_button->m_text_label->SetTooltip("tooltip.test");
+    m_message_button->m_height = Length::Fixed(40.0f);
+    m_message_button->SetAbsolutePos(50.0f, 600.0f);
 
     // Setup callbacks (copy-pasted from Application.cpp)
     m_beam_button->on_toggle_callback = [this](bool want_expand)

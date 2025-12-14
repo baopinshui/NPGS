@@ -8,77 +8,64 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
 {
     m_block_input = false;
     m_visible = false;
-    m_alpha = 1.0f;
 
-    auto& ctx = UIContext::Get();
-    // 'theme' is no longer needed here
-
+    // [NEW] 声明自身尺寸模式
     if (m_position == Position::Top) m_max_width = 800.0f;
     else m_max_width = 300.0f;
+    m_width = Length::Fixed(m_max_width);
+    m_height = Length::Content(); // 高度由内容决定
 
-    // 1. Main VBox (unchanged)
+    auto& ctx = UIContext::Get();
+
+    // 1. Main VBox (内容容器)
     m_layout_vbox = std::make_shared<VBox>();
-    m_layout_vbox->m_fill_h = true;
+    m_layout_vbox->m_width = Length::Stretch();  // 撑满 CinematicInfoPanel
+    m_layout_vbox->m_height = Length::Content(); // 高度由内容决定
     m_layout_vbox->m_padding = 4.0f;
     m_layout_vbox->m_block_input = false;
     AddChild(m_layout_vbox);
 
-    // --- Component Initialization ---
+    // --- 组件初始化 (使用新的声明式布局属性) ---
 
-    // [MODIFIED] Title now uses ThemeColorID
+    // 标题
     m_title_text = std::make_shared<TechText>("", ThemeColorID::TextHighlight, true, true);
-    m_title_text->m_glow_intensity = 0.5;
-    m_title_text->m_glow_spread = 2.5;
-    m_title_text->m_font = ctx.m_font_large ? ctx.m_font_large : ctx.m_font_bold;
-    m_title_text->m_align_h = Alignment::Center;
-    m_title_text->m_fill_h = true;
-    m_title_text->m_rect.h = 24.0f;
-    m_title_text->m_align_v = Alignment::Center;
+    m_title_text->SetGlow(true, ThemeColorID::Accent, 2.5f);
+    m_title_text->m_font = ctx.m_font_large;
+    m_title_text->SetSizing(TechTextSizingMode::AutoHeight); // 自动换行
+    m_title_text->m_align_h = Alignment::Center; // 文本内容居中
+    m_title_text->m_width = Length::Stretch();   // 文本框撑满 VBox 宽度
+    m_title_text->m_height = Length::Content();
 
-    // [MODIFIED] Divider is now initialized with a StyleColor.
-    // The conditional logic is much cleaner.
-    if (m_position == Position::Top)
-    {
-        // For the top, we create a divider that defaults to the Accent color
-        m_divider = std::make_shared<TechDivider>(ThemeColorID::Accent);
-        m_divider->m_use_gradient = true;
-    }
-    else
-    {
-        // For the bottom, we create one that defaults to TextDisabled
-        m_divider = std::make_shared<TechDivider>(ThemeColorID::TextDisabled);
-    }
-    m_divider->m_rect.h = 1.0f;
-    m_divider->m_align_h = Alignment::Center;
+    // 分割线
+    m_divider = std::make_shared<TechDivider>(m_position == Position::Top ? ThemeColorID::Accent : ThemeColorID::TextDisabled);
+    m_divider->m_use_gradient = (m_position == Position::Top);
+    m_divider->m_width = Length::Stretch(); // 默认撑满，但会在 Arrange 中被动画覆盖
+    m_divider->m_height = Length::Fixed(1.0f);
+    m_divider->m_align_h = Alignment::Center; // 确保在被动画缩短时保持居中
 
-    // --- Layout Construction ---
+    // --- 布局构建 ---
 
     if (m_position == Position::Top)
     {
-        // Top Layout: Title -> Stats -> Divider
-
-        // Stats Container (unchanged)
+        // Top 布局: 标题 -> 统计 -> 分割线
         m_top_stats_box = std::make_shared<HBox>();
         m_top_stats_box->m_padding = 20.0f;
-        m_top_stats_box->m_fill_h = false;
-        m_top_stats_box->m_align_h = Alignment::Center;
+        m_top_stats_box->m_width = Length::Content();  // HBox 宽度由其子项决定
+        m_top_stats_box->m_height = Length::Content();
+        m_top_stats_box->m_align_h = Alignment::Center; // HBox 自身在 VBox 中居中
         m_top_stats_box->m_block_input = false;
-        m_top_stats_box->m_rect.h = 0.0f;
 
-        // [MODIFIED] The complex 'create_top_stat' lambda is completely gone.
-        // We can now directly and clearly create the TechText components.
         auto setup_stat = [&](std::shared_ptr<TechText>& ptr, const StyleColor& color)
         {
             ptr = std::make_shared<TechText>("", color, true);
-            ptr->SetSizing(TechTextSizingMode::AutoWidthHeight);
+            ptr->SetSizing(TechTextSizingMode::AutoWidthHeight); // 尺寸由文本内容决定
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_top_stats_box->AddChild(ptr);
         };
-
         setup_stat(m_top_stat_1, ThemeColorID::Text);
         setup_stat(m_top_stat_2, ThemeColorID::Text);
-        setup_stat(m_top_stat_3, ThemeColorID::Accent); // The "Reward" stat uses the Accent color.
+        setup_stat(m_top_stat_3, ThemeColorID::Accent);
 
         m_layout_vbox->AddChild(m_title_text);
         m_layout_vbox->AddChild(m_top_stats_box);
@@ -86,24 +73,21 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     }
     else // Position::Bottom
     {
-        // Bottom Layout: Title -> Divider -> Type Text -> Stats
-
-        // [MODIFIED] Type Text now uses ThemeColorID
+        // Bottom 布局: 标题 -> 分割线 -> 类型 -> 统计
         m_bot_type_text = std::make_shared<TechText>("", ThemeColorID::Text, true);
         m_bot_type_text->m_font = ctx.m_font_regular;
+        m_bot_type_text->SetSizing(TechTextSizingMode::AutoHeight);
         m_bot_type_text->m_align_h = Alignment::Center;
-        m_bot_type_text->m_fill_h = true;
-        m_bot_type_text->m_align_v = Alignment::Center;
+        m_bot_type_text->m_width = Length::Stretch();
+        m_bot_type_text->m_height = Length::Content();
 
-        // Stats Container (unchanged)
         m_bot_stats_box = std::make_shared<HBox>();
         m_bot_stats_box->m_padding = 30.0f;
-        m_bot_stats_box->m_fill_h = false;
+        m_bot_stats_box->m_width = Length::Content();
+        m_bot_stats_box->m_height = Length::Content();
         m_bot_stats_box->m_align_h = Alignment::Center;
         m_bot_stats_box->m_block_input = false;
-        m_bot_stats_box->m_rect.h = 0.0f;
 
-        // [MODIFIED] The 'create_bot_stat' lambda is also gone.
         auto setup_stat = [&](std::shared_ptr<TechText>& ptr)
         {
             ptr = std::make_shared<TechText>("", ThemeColorID::TextDisabled, true);
@@ -112,7 +96,6 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
             ptr->m_align_v = Alignment::Center;
             m_bot_stats_box->AddChild(ptr);
         };
-
         setup_stat(m_bot_stat_1);
         setup_stat(m_bot_stat_2);
 
@@ -122,7 +105,6 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_layout_vbox->AddChild(m_bot_stats_box);
     }
 }
-
 
 void CinematicInfoPanel::SetCivilizationData(const std::string& name, const std::string& stat1, const std::string& stat2, const std::string& stat3)
 {
@@ -193,35 +175,12 @@ void CinematicInfoPanel::CheckStateTransition(bool has_content)
     }
 }
 
-void CinematicInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
+void CinematicInfoPanel::Update(float dt)
 {
-    if (!m_visible) return; // 移除 alpha 判断，因为 m_alpha 始终为 1
-
-    auto& ctx = UIContext::Get();
-    ImVec2 display_sz = ctx.m_display_size;
-
-    // 1. Center Horizontally
-    m_rect.w = m_max_width;
-    m_rect.x = (display_sz.x - m_max_width) * 0.5f;
-
-    // 2. Position Vertically based on type
-    if (m_position == Position::Top)
-    {
-        m_rect.y = 10.0f; // Higher up
-        m_rect.h = 120.0f; // Taller to fit Title + Stats
-    }
-    else
-    {
-        m_rect.h = 90.0f;
-        m_rect.y = display_sz.y - m_rect.h - 10.0f; // Higher from bottom
-    }
-
-    // 3. Sync VBox layout
-    m_layout_vbox->m_rect.w = m_rect.w;
-    //m_layout_vbox->m_rect.h = m_rect.h; // Keep commented as per original
+    // Update 函数现在只负责动画逻辑和状态更新，不再关心布局
+    if (!m_visible) return;
 
     // --- 动画逻辑：文字浮现 ---
-    // 如果处于伸展阶段，且横线几乎完全展开 (>0.9)，则触发文字浮现
     if (m_state == State::Expanding && !m_text_anim_triggered && m_anim_progress > 0.9f)
     {
         m_text_anim_triggered = true;
@@ -231,29 +190,73 @@ void CinematicInfoPanel::Update(float dt, const ImVec2& parent_abs_pos)
         });
     }
 
-    // 4. Animate Divider Width
-    float current_line_w = m_max_width * m_anim_progress;
-    m_divider->m_rect.w = current_line_w;
-
-    // 5. Alpha Sync (分离逻辑)
-
-    // 横线：只要面板可见，Alpha 始终为 1 (不随 fade in/out 变暗，只变长度)
-    m_divider->m_alpha = 1.0f;
-
-    // 文字/其他组件：跟随 m_text_alpha
+    // --- Alpha 同步 ---
+    m_divider->m_alpha = 1.0f; // 分割线只受长度影响，不受透明度影响
     for (auto& child : m_layout_vbox->m_children)
     {
-        // 排除 Divider，防止被覆盖
         if (child == m_divider) continue;
-
         child->m_alpha = m_text_alpha;
-
-        // 递归处理子容器 (HBox) 内的元素
         for (auto& sub : child->m_children) sub->m_alpha = m_text_alpha;
     }
 
-    UIElement::Update(dt, parent_abs_pos);
+    // 调用基类 Update 来处理 tweens 和递归更新子元素
+    UIElement::Update(dt);
 }
+
+ImVec2 CinematicInfoPanel::Measure(ImVec2 available_size)
+{
+    if (!m_visible)
+    {
+        m_desired_size = { 0, 0 };
+        return m_desired_size;
+    }
+
+    // 测量内部 VBox 在最大宽度限制下的所需尺寸
+    ImVec2 content_size = m_layout_vbox->Measure({ m_max_width, FLT_MAX });
+
+    // 本面板的期望尺寸是：固定的宽度 + 内容的高度
+    m_desired_size = { m_max_width, content_size.y };
+
+    return m_desired_size;
+}
+
+void CinematicInfoPanel::Arrange(const Rect& final_rect_from_parent)
+{
+    if (!m_visible) return;
+
+    // 1. 计算我们自己的绝对位置和大小，忽略父级给的 Rect
+    // 这是因为我们是屏幕空间的绝对定位元素
+    auto& ctx = UIContext::Get();
+    ImVec2 display_sz = ctx.m_display_size;
+
+    Rect my_final_rect;
+    my_final_rect.w = m_max_width;
+    my_final_rect.h = m_desired_size.y; // 使用 Measure 阶段计算出的高度
+    my_final_rect.x = (display_sz.x - my_final_rect.w) * 0.5f; // 水平居中
+
+    if (m_position == Position::Top)
+    {
+        my_final_rect.y = 10.0f;
+    }
+    else
+    {
+        my_final_rect.y = display_sz.y - my_final_rect.h - 10.0f;
+    }
+
+    // 2. 调用基类 Arrange，让它使用我们计算出的 Rect 来设置自身位置，并自动排列所有子元素
+    UIElement::Arrange(my_final_rect);
+
+    // 3. [动画覆盖] 在自动布局之后，手动修改分割线的宽度和位置
+    float current_line_w = m_max_width * m_anim_progress;
+
+    // a. 修改相对宽度
+    m_divider->m_rect.w = current_line_w;
+    // b. 因为宽度变了，需要重新计算居中的 x 坐标 (相对于本面板)
+    m_divider->m_rect.x = (m_rect.w - current_line_w) * 0.5f;
+    // c. 更新分割线的绝对位置
+    m_divider->m_absolute_pos.x = m_absolute_pos.x + m_divider->m_rect.x;
+}
+
 
 _UI_END
 _SYSTEM_END

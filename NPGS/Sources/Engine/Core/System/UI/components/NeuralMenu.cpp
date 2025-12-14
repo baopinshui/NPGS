@@ -6,65 +6,87 @@ _SYSTEM_BEGIN
 _UI_BEGIN
 
 // --- NeuralMenu Implementation ---
-NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& main_button_key2, const std::string& settings_key, const std::string& close_key )
+NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& main_button_key2, const std::string& settings_key, const std::string& close_key)
 {
+    // --- 1. 设置 NeuralMenu 自身 ---
     // [核心修改]
-    // NeuralMenu 自身现在是 UI 树的一部分。它的 rect 代表了它在屏幕上的位置和大小。
-    m_rect = { 20, 20, m_collapsed_size.x, m_collapsed_size.y };
+    // NeuralMenu 自身的尺寸由动画驱动，因此我们使用 Fixed 类型。
+    // 布局系统将根据 m_width.value 和 m_height.value 进行布局。
+    SetAbsolutePos(20.0f, 20.0f);
+    m_width = Length::Fixed(m_collapsed_size.x);
+    m_height = Length::Fixed(m_collapsed_size.y);
     m_block_input = false; // 自身不阻挡，让子元素(root_panel)处理
 
-    // 1. Root Panel 现在是 NeuralMenu 的子元素，填满父容器
+    // --- 2. 创建并配置子组件 (声明式布局) ---
+
+    // Root Panel: 作为所有内容的容器，应始终填满 NeuralMenu
     root_panel = std::make_shared<TechBorderPanel>();
-    root_panel->m_rect = { 0, 0, m_collapsed_size.x, m_collapsed_size.y };
+    root_panel->m_width = Length::Stretch();
+    root_panel->m_height = Length::Stretch();
     root_panel->m_thickness = 2.0f;
     root_panel->m_use_glass_effect = true;
-    AddChild(root_panel); // [核心修改] 将 panel 作为子元素添加
+    AddChild(root_panel); // 将 panel 作为子元素添加
 
-    // --- 内部组件的创建逻辑不变，只是它们的父级是 root_panel ---
-
-    // 2. Background Particles
+    // Background Particles: 填满 root_panel
     bg_view = std::make_shared<NeuralParticleView>(80);
-    bg_view->m_rect = { 0, 0, m_collapsed_size.x, m_collapsed_size.y };
+    bg_view->m_width = Length::Stretch();
+    bg_view->m_height = Length::Stretch();
     bg_view->SetSizes(m_collapsed_size, m_expanded_size);
     root_panel->AddChild(bg_view);
 
-    // 3. Collapsed View
+    // Collapsed View Button: 填满 root_panel
     collapsed_btn = std::make_shared<CollapsedMainButton>(main_button_key1, main_button_key2);
-    collapsed_btn->m_font = UIContext::Get().m_font_small;
-    collapsed_btn->m_rect = { 0, 0, m_collapsed_size.x, m_collapsed_size.y };
+    collapsed_btn->m_width = Length::Stretch();
+    collapsed_btn->m_height = Length::Stretch();
     collapsed_btn->on_click_callback = [this]() { this->ToggleExpand(); };
     collapsed_btn->m_alpha = 1.0f;
     root_panel->AddChild(collapsed_btn);
 
-    // 4. Expanded View
+    // Expanded View (VBox): 填满 root_panel，但带有 15px 的内边距
+    // [修改] 我们让 VBox 具有固定大小并居中，以模拟内边距效果
+    base = std::make_shared <UIElement>();
+    base->m_width = Length::Fixed(m_expanded_size.x);
+    base->m_height = Length::Fixed(m_expanded_size.y);
+    base->m_visible = false;
+    base->m_block_input = false;
+    root_panel->AddChild(base);
+
     main_layout = std::make_shared<VBox>();
-    main_layout->m_rect = { 15, 15, m_expanded_size.x - 30, m_expanded_size.y - 30 };
+    main_layout->m_width = Length::Fixed(m_expanded_size.x - 30.0f);////////////////////////////////////
+    main_layout->m_height = Length::Fixed(m_expanded_size.y - 30.0f);
+    main_layout->m_align_h = Alignment::Center;
+    main_layout->m_align_v = Alignment::Center;
     main_layout->m_alpha = 0.0f;
     main_layout->m_visible = false;
     main_layout->m_block_input = false;
     main_layout->m_padding = 8.0f;
-    root_panel->AddChild(main_layout);
+    base->AddChild(main_layout);
+    // --- 3. 构建 Expanded View 的内部结构 ---
+    // 这些子组件的布局由它们的父容器 main_layout (VBox) 管理
 
-    const auto& theme = UIContext::Get().m_theme;
-
-    // A. Header Title
-    header_title = std::make_shared<TechText>(settings_key, ThemeColorID::TextHighlight, true);
+    // A. Header Title: 宽度撑满，高度由内容决定
+    header_title = std::make_shared<TechText>(settings_key, ThemeColorID::TextHighlight);
     header_title->SetAnimMode(TechTextAnimMode::Hacker);
-    header_title->m_rect.h = 20.0f;
+    header_title->m_width = Length::Stretch();
+    header_title->m_height = Length::Content(); // 高度自适应
     header_title->m_align_h = Alignment::Start;
     header_title->m_font = UIContext::Get().m_font_bold;
     main_layout->AddChild(header_title);
 
-    // B. Top Divider
+    // B. Top Divider: 宽度撑满，高度固定
     auto sep_top = std::make_shared<TechDivider>();
     main_layout->AddChild(sep_top);
 
-    // C. Scroll Area
+    // C. Scroll Area: 占据所有剩余的垂直空间
     scroll_view = std::make_shared<ScrollView>();
-    scroll_view->m_fill_v = true;
+    scroll_view->m_width = Length::Stretch();
+    scroll_view->m_height = Length::Stretch(1.0f); // Stretch 权重为1，表示占据可用空间
     main_layout->AddChild(scroll_view);
 
+    // C.1. ScrollView 的内容
     content_vbox = std::make_shared<VBox>();
+    content_vbox->m_width = Length::Stretch();
+    content_vbox->m_height = Length::Content(); // 高度由所有滑块决定
     content_vbox->m_padding = 10.0f;
     scroll_view->AddChild(content_vbox);
 
@@ -72,20 +94,21 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
     auto sep_bot = std::make_shared<TechDivider>();
     main_layout->AddChild(sep_bot);
 
-    // E. Footer Button
+    // E. Footer Button: 宽度撑满，高度由内容决定
     auto close_btn = std::make_shared<TechButton>(close_key, TechButton::Style::Normal);
-    close_btn->m_rect.h = 34.0f;
-    close_btn->m_align_h = Alignment::Stretch;
+    close_btn->m_width = Length::Stretch();
+    close_btn->m_height = Length::Fixed(34.0f); // 高度自适应
     close_btn->on_click = [this]() { this->ToggleExpand(); };
     main_layout->AddChild(close_btn);
 }
 
 
-void NeuralMenu::Update(float dt, const ImVec2& parent_abs_pos)
+
+void NeuralMenu::Update(float dt)
 {
-    // 调用基类 Update 即可，它会自动处理动画和子节点的更新
-    UIElement::Update(dt, parent_abs_pos);
+    UIElement::Update(dt);
 }
+
 
 
 void NeuralMenu::ToggleExpand()
@@ -95,54 +118,45 @@ void NeuralMenu::ToggleExpand()
 
     if (m_expanded)
     {
-        collapsed_btn->ResetInteraction();
+        // --- 准备展开 ---
         main_layout->ResetInteraction();
         main_layout->m_visible = true;
         main_layout->m_block_input = true;
-
-        bg_view->SetState(m_expanded, true); 
-        header_title->RestartEffect();
-
-        // [核心修改]
-        // 同时动画化 NeuralMenu 自身 和 它的子元素 root_panel
-        // 这样可以确保组件的包围盒正确更新
-        this->To(&this->m_rect.w, m_expanded_size.x, dur, EasingType::EaseInOutQuad);
-        this->To(&this->m_rect.h, m_expanded_size.y, dur, EasingType::EaseInOutQuad);
-
-        root_panel->To(&root_panel->m_rect.w, m_expanded_size.x, dur, EasingType::EaseInOutQuad);
-        root_panel->To(&root_panel->m_rect.h, m_expanded_size.y, dur, EasingType::EaseInOutQuad);
-
-        bg_view->To(&bg_view->m_rect.w, m_expanded_size.x, dur, EasingType::EaseInOutQuad,
-            [this]() { this->bg_view->SetState(true, false); });
-        bg_view->To(&bg_view->m_rect.h, m_expanded_size.y, dur, EasingType::EaseInOutQuad);
-
-        collapsed_btn->To(&collapsed_btn->m_alpha, 0.0f, dur / 2);
+        base->m_visible = true;
         collapsed_btn->m_block_input = false;
 
+        bg_view->SetState(m_expanded, true);
+        header_title->RestartEffect();
+
+        // [核心修改] 动画逻辑简化
+        // 只需动画化 NeuralMenu 自身的尺寸。
+        // 子元素 root_panel 和 bg_view 因为是 Stretch，会自动跟随变化。
+        To(&m_width.value, m_expanded_size.x, dur, EasingType::EaseInOutQuad);
+        To(&m_height.value, m_expanded_size.y, dur, EasingType::EaseInOutQuad,
+            // 在动画完成时，通知粒子效果停止动画状态
+            [this]() { this->bg_view->SetState(true, false); });
+
+        // Alpha 动画保持不变
+        collapsed_btn->To(&collapsed_btn->m_alpha, 0.0f, dur / 2);
         main_layout->To(&main_layout->m_alpha, 1.0f, dur);
     }
     else
     {
-        // [核心修改] 同时动画化 NeuralMenu 自身
-        this->To(&this->m_rect.w, m_collapsed_size.x, dur, EasingType::EaseInOutQuad);
-        this->To(&this->m_rect.h, m_collapsed_size.y, dur, EasingType::EaseInOutQuad);
-
-        root_panel->To(&root_panel->m_rect.w, m_collapsed_size.x, dur, EasingType::EaseInOutQuad);
-        root_panel->To(&root_panel->m_rect.h, m_collapsed_size.y, dur, EasingType::EaseInOutQuad);
-
-        bg_view->To(&bg_view->m_rect.w, m_collapsed_size.x, dur, EasingType::EaseInOutQuad,
-            [this]() { this->bg_view->SetState(false, false); });
-        bg_view->To(&bg_view->m_rect.h, m_collapsed_size.y, dur, EasingType::EaseInOutQuad);
-
-        collapsed_btn->To(&collapsed_btn->m_alpha, 1.0f, dur);
+        // --- 准备收起 ---
+        main_layout->m_block_input = false;
         collapsed_btn->m_block_input = true;
 
-        main_layout->m_block_input = false;
+        // [核心修改] 动画逻辑简化
+        To(&m_width.value, m_collapsed_size.x, dur, EasingType::EaseInOutQuad);
+        To(&m_height.value, m_collapsed_size.y, dur, EasingType::EaseInOutQuad,
+            [this]() { this->bg_view->SetState(false, false); });
+
+        // Alpha 动画保持不变
+        collapsed_btn->To(&collapsed_btn->m_alpha, 1.0f, dur);
         main_layout->To(&main_layout->m_alpha, 0.0f, dur / 2, EasingType::EaseOutQuad,
-            [this]() { this->main_layout->m_visible = false; });
+            [this]() { this->main_layout->m_visible = false;  this->base->m_visible = false;});
     }
 }
-
 _UI_END
 _SYSTEM_END
 _NPGS_END

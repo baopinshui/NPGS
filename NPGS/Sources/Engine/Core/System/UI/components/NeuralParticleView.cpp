@@ -7,6 +7,8 @@ _UI_BEGIN
 
 NeuralParticleView::NeuralParticleView(int count)
 {
+    m_width = Length::Stretch();
+    m_height = Length::Stretch();
     m_particles.resize(count);
     // 初始化默认尺寸，防止除以零，会在 Controller 中被覆盖
     m_collapsed_size = ImVec2(80, 80);
@@ -42,9 +44,9 @@ void NeuralParticleView::SpawnParticle(Particle& p, float w, float h)
     p.size = (float(rand()) / RAND_MAX) * 1.5f + 1.0f;
 }
 
-void NeuralParticleView::Update(float dt, const ImVec2& parent_abs_pos)
+void NeuralParticleView::Update(float dt)
 {
-    UIElement::Update(dt, parent_abs_pos);
+    UIElement::Update(dt);
 
     // [修复]：使用几何检测代替 m_hovered，解决被按钮遮挡无法检测悬停的问题
     bool visual_hover = false;

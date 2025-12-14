@@ -11,16 +11,16 @@ TechText::TechText(const std::string& key_or_text,
     bool use_hacker_effect,
     bool use_glow,
     const StyleColor& glow_color)
-    : m_source_key_or_text(key_or_text), // 直接保存原始输入
+    : m_source_key_or_text(key_or_text),
     m_color(color),
     m_use_glow(use_glow),
     m_glow_color(glow_color)
 {
     m_block_input = false;
-    m_rect.h = 20.0f;
+    // 不再需要设置 m_rect.h，因为布局系统会处理
     m_sizing_mode = TechTextSizingMode::AutoWidthHeight;
+    // 立即翻译一次以获得初始文本
     m_current_display_text = TR(m_source_key_or_text);
-
 
     if (use_hacker_effect)
     {
@@ -31,8 +31,8 @@ TechText::TechText(const std::string& key_or_text,
     {
         m_anim_mode = TechTextAnimMode::None;
     }
+    SetSizing(TechTextSizingMode::AutoWidthHeight);
 }
-
 
 float CalculateRenderedHeight(ImFont* font, const std::string& text_to_measure, float wrap_w)
 {
@@ -117,6 +117,17 @@ void TechText::SetSourceText(const std::string& new_key_or_text)
     m_local_i18n_version = 0;
 }
 
+TechText* TechText::SetGlow(bool enable, const StyleColor& color , float spread)
+{
+    m_use_glow = enable;
+    // 只有当传入的颜色不是 None 时才覆盖，允许用户只开关辉光而不改变颜色
+    if (color.id != ThemeColorID::None)
+    {
+        m_glow_color = color;
+    }
+    m_glow_spread = spread;
+    return this;
+}
 
 void TechText::RestartEffect()
 {
@@ -132,45 +143,10 @@ void TechText::RestartEffect()
         m_scroll_progress = 0.0f;
     }
 }
-void TechText::RecomputeSize()
+
+void TechText::Update(float dt)
 {
-    // 如果是固定模式，完全不触碰 m_rect，以保持 UI 稳定性
-    if (m_sizing_mode == TechTextSizingMode::Fixed) return;
-
-    ImFont* font = GetFont();
-    // 必须有 font 才能计算，如果没有就稍后重试（Draw时通常会有）
-    if (!font) font = UIContext::Get().m_font_regular;
-    if (!font) font = ImGui::GetFont();
-
-    float font_size = font->FontSize;
-
-    // 获取当前要展示的最终文本（对于 Hacker 模式，为了防止布局抖动，
-    // 建议使用目标文本计算大小，或者如果你希望它抖动，就用 hacker.m_display_text）
-    // 这里为了 UI 稳定，建议使用 m_current_display_text (目标文本)
-    const std::string& text_to_measure = m_current_display_text;
-    if (text_to_measure.empty())
-    {
-        if (m_sizing_mode == TechTextSizingMode::AutoHeight) m_rect.h = 0.0f;
-        else { m_rect.w = 0.0f; m_rect.h = 0.0f; }
-        return;
-    }
-
-    if (m_sizing_mode == TechTextSizingMode::AutoWidthHeight)
-    {
-        ImVec2 sz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text_to_measure.c_str());
-        m_rect.w = sz.x;
-        m_rect.h = sz.y;
-    }
-    else if (m_sizing_mode == TechTextSizingMode::AutoHeight)
-    {
-        // 宽度由外部（如 VBox 或手动设置）决定，我们只算高度
-        // 如果宽度太小（比如刚初始化），可能还没被布局，暂时设个极大值或保持原样
-        float wrap_w = (m_rect.w > 1.0f) ? m_rect.w : 10000.0f;
-        m_rect.h = CalculateRenderedHeight(font, text_to_measure, wrap_w);
-    }
-}
-void TechText::Update(float dt, const ImVec2& parent_abs_pos)
-{
+    // --- 1. 状态更新 ---
     auto& i18n = System::I18nManager::Get();
     if (m_local_i18n_version != i18n.GetVersion())
     {
@@ -198,10 +174,7 @@ void TechText::Update(float dt, const ImVec2& parent_abs_pos)
         m_local_i18n_version = i18n.GetVersion();
     }
 
-    RecomputeSize();
-
-    UIElement::Update(dt, parent_abs_pos);
-
+    // --- 2. 动画逻辑更新 ---
     if (m_anim_mode == TechTextAnimMode::Hacker)
     {
         m_hacker_effect.Update(dt);
@@ -214,8 +187,66 @@ void TechText::Update(float dt, const ImVec2& parent_abs_pos)
             if (m_scroll_progress > 1.0f) m_scroll_progress = 1.0f;
         }
     }
-}
 
+    // --- 3. 调用基类 Update ---
+    // (这只处理 tweens，与我们的文本动画无关，但保持良好实践)
+    UIElement::Update(dt);
+}
+// --- START OF FILE TechText.cpp --- (部分修改)
+
+// 确保 CalculateRenderedHeight 在 TechText::Measure 之前定义或前置声明
+float CalculateRenderedHeight(ImFont* font, const std::string& text_to_measure, float wrap_w);
+
+ImVec2 TechText::Measure(ImVec2 available_size)
+{
+    if (!m_visible)
+    {
+        m_desired_size = { 0, 0 };
+        return m_desired_size;
+    }
+
+    if (m_sizing_mode == TechTextSizingMode::Fixed)
+    {
+        return UIElement::Measure(available_size);
+    }
+
+    ImFont* font = GetFont();
+    if (!font) font = UIContext::Get().m_font_regular ? UIContext::Get().m_font_regular : ImGui::GetFont();
+    if (!font) return { 0, 0 };
+
+    const std::string& text_to_measure = m_current_display_text;
+    if (text_to_measure.empty()) return { 0.0f, 0.0f };
+
+    // [修复 6] 智能测量逻辑
+    if (m_sizing_mode == TechTextSizingMode::AutoWidthHeight)
+    {
+        // 1. 先计算自然宽度（不换行）
+        ImVec2 natural_size = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text_to_measure.c_str());
+
+        // 2. 检查可用宽度限制 (available_size.x)
+        float max_w = (available_size.x > 1.0f && available_size.x < FLT_MAX) ? available_size.x : FLT_MAX;
+
+        if (natural_size.x <= max_w)
+        {
+            // 如果自然宽度小于限制，直接使用自然尺寸
+            m_desired_size = natural_size;
+        }
+        else
+        {
+            // 如果自然宽度超标，则限制宽度并重新计算高度（开启换行）
+            m_desired_size.x = max_w;
+            m_desired_size.y = CalculateRenderedHeight(font, text_to_measure, max_w);
+        }
+    }
+    else // AutoHeight (强制占满宽度模式)
+    {
+        float wrap_w = (available_size.x > 1.0f && available_size.x != FLT_MAX) ? available_size.x : 10000.0f;
+        m_desired_size.x = wrap_w;
+        m_desired_size.y = CalculateRenderedHeight(font, text_to_measure, wrap_w);
+    }
+
+    return m_desired_size;
+}
 // [核心重构] 提取出的绘制单行文本的函数（包含对齐和荧光）
 void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, float offset_y, float alpha_mult)
 {
@@ -261,11 +292,19 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
     }
 
     float wrap_width = -1.0f;
-    if (m_sizing_mode == TechTextSizingMode::AutoHeight)
+    if (m_sizing_mode == TechTextSizingMode::AutoHeight ||
+        m_sizing_mode == TechTextSizingMode::AutoWidthHeight)
     {
-        wrap_width = m_rect.w;
-        if (wrap_width > 0.0f && wrap_width < font_size) wrap_width = font_size;
+        // 只有当宽度有效且不是极小值时才启用换行
+        if (m_rect.w > 1.0f)
+        {
+            // 加一点点容差，防止因浮点数精度问题导致原本刚好放得下的单行文字被换行
+            wrap_width = m_rect.w + 0.1f;
+        }
     }
+
+    // [原有逻辑] 如果字号比宽度还大，强行保护一下防止死循环
+    if (wrap_width > 0.0f && wrap_width < font_size) wrap_width = font_size;
 
     float total_content_height = 0.0f;
     if (m_sizing_mode == TechTextSizingMode::Fixed && m_align_v != Alignment::Start)

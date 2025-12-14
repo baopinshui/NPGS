@@ -1,4 +1,4 @@
-// --- START OF FILE TechText.h --- (修改部分)
+// --- START OF FILE TechText.h --- (修改后)
 
 #pragma once
 #include "../ui_framework.h"
@@ -10,19 +10,13 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-// [新增] 动画模式枚举
-enum class TechTextAnimMode
-{
-    None,
-    Hacker, // 原有的乱码特效
-    Scroll  // [新增] 滚动淡入淡出特效
-};
+enum class TechTextAnimMode { None, Hacker, Scroll };
 
 enum class TechTextSizingMode
 {
-    Fixed,          // [默认] 容器尺寸固定，文本在内部对齐，溢出不改变容器大小
-    AutoWidthHeight,// 容器尺寸完全由文本决定（不换行）
-    AutoHeight      // 容器宽度固定（或由父容器决定），文本自动换行，高度自适应
+    Fixed,
+    AutoWidthHeight,
+    AutoHeight
 };
 
 class TechText : public UIElement
@@ -31,64 +25,64 @@ public:
     StyleColor m_color;
 
     std::string m_source_key_or_text;
-    std::string m_current_display_text; // 当前显示的文本
+    std::string m_current_display_text;
     uint32_t m_local_i18n_version = 0;
 
-    // Hacker 特效相关
     HackerTextHelper m_hacker_effect;
-
-    // [修改] 替换原来的 bool m_use_effect
     TechTextAnimMode m_anim_mode = TechTextAnimMode::None;
 
-    // [新增] Scroll 特效相关状态
-    std::string m_old_text;       // 正在消失的旧文本
-    float m_scroll_progress = 1.0f; // 0.0(开始切换) -> 1.0(完成)
-    float m_scroll_duration = 0.3f; // 动画时长
+    std::string m_old_text;
+    float m_scroll_progress = 1.0f;
+    float m_scroll_duration = 0.3f;
 
-    // 荧光相关
     bool m_use_glow = false;
-    StyleColor  m_glow_color;
+    StyleColor m_glow_color;
     float m_glow_intensity = 1.0f;
     float m_glow_spread = 1.0f;
 
-    // [新增] 尺寸模式
     TechTextSizingMode m_sizing_mode = TechTextSizingMode::AutoWidthHeight;
 
-    // 构造函数更新
     TechText(const std::string& text_or_key,
         const StyleColor& color = ThemeColorID::Text,
         bool use_hacker_effect = false,
         bool use_glow = false,
         const StyleColor& glow_color = ThemeColorID::Accent);
 
-    // 设置模式的辅助函数
+    // --- API (保持不变) ---
     TechText* SetAnimMode(TechTextAnimMode mode);
-    // [新增] 显式设置Key
     void SetSourceText(const std::string& key_or_text);
     TechText* SetColor(const StyleColor& col) { m_color = col; return this; }
-
-    TechText* SetSizing(TechTextSizingMode mode) { m_sizing_mode = mode; return this; }
-    TechText* SetGlow(bool enable, const StyleColor& color = ThemeColorID::None, float spread = 2.0f)
+    TechText* SetSizing(TechTextSizingMode mode)
     {
-        m_use_glow = enable;
-        // 只有当传入的颜色不是 None 时才覆盖，允许用户只开关辉光而不改变颜色
-        if (color.id != ThemeColorID::None)
+        m_sizing_mode = mode;
+        if (mode == TechTextSizingMode::Fixed)
         {
-            m_glow_color = color;
+            // 当用户要求 Fixed 时，我们不知道具体值，可以保留旧值或设为0
+            // 如果 m_width/m_height 之前不是 Fixed，需要给一个默认值
+            if (!m_width.IsFixed()) m_width = Length::Fixed(100.0f);
+            if (!m_height.IsFixed()) m_height = Length::Fixed(20.0f);
         }
-        m_glow_spread = spread;
+        else
+        {
+            // 当用户要求自适应时，将 Length 类型设为 Content
+            m_width = Length::Content();
+            m_height = Length::Content();
+        }
         return this;
     }
+
+    TechText* SetGlow(bool enable, const StyleColor& color = ThemeColorID::None, float spread = 2.0f);
     void RestartEffect();
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+
+    // --- [核心修改] 重写新的生命周期函数 ---
+    void Update(float dt) override; // 不再接收 parent_abs_pos
+    ImVec2 Measure(ImVec2 available_size) override;
+    // Arrange 使用基类实现即可，除非有特殊需求
     void Draw(ImDrawList* dl) override;
 
-
-
-
 private:
-    void RecomputeSize();
-    // [新增] 内部绘制辅助，用于复用发光和对齐逻辑
+    // RecomputeSize 被 Measure 替代，可以移除
+    // void RecomputeSize(); 
     void DrawTextContent(ImDrawList* dl, const std::string& text, float offset_y, float alpha_mult);
 };
 

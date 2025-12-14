@@ -30,7 +30,7 @@ public:
     void SetState(bool expanded, bool animating);
     void SetSizes(ImVec2 collapsed, ImVec2 expanded);
 
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    void Update(float dt) override;
     void Draw(ImDrawList* draw_list) override;
 private:
     void SpawnParticle(Particle& p, float w, float h);

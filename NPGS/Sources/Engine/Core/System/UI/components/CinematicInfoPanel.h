@@ -1,3 +1,5 @@
+// --- START OF FILE CinematicInfoPanel.h ---
+
 #pragma once
 #include "../ui_framework.h"
 #include "TechText.h"
@@ -26,7 +28,10 @@ public:
         const std::string& mass_label,
         const std::string& lum_label);
 
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
+    // [MODIFIED] 更新为新的生命周期函数
+    void Update(float dt) override;
+    ImVec2 Measure(ImVec2 available_size) override;
+    void Arrange(const Rect& final_rect) override;
 
 private:
     Position m_position;

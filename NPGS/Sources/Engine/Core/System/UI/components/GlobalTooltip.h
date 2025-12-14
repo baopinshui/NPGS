@@ -15,8 +15,11 @@ class GlobalTooltip : public UIElement
 public:
     GlobalTooltip();
 
-    void Update(float dt, const ImVec2& parent_abs_pos) override;
-    // Draw 使用基类逻辑
+    // [MODIFIED] 更新核心生命周期函数
+    void Update(float dt) override;
+    ImVec2 Measure(ImVec2 available_size) override;
+    void Arrange(const Rect& final_rect) override;
+    // Draw 使用基类逻辑即可，它会递归调用子项的Draw
 
 private:
     enum class State
@@ -36,17 +39,15 @@ private:
     // 目标状态
     ImVec2 m_target_size = { 0, 0 };
 
-    // [核心修改] 使用可动画的浮点值替代布尔状态
+    // 翻转动画状态
     ImVec2 m_target_pivot = { 0, 0 };         // 目标翻转状态 (0=正常, 1=翻转)
     ImVec2 m_current_pivot_lerp = { 0, 0 };   // 当前用于平滑过渡的插值 (0.0 -> 1.0)
-
 
     // 内部组件
     std::shared_ptr<TechBorderPanel> m_panel;
     std::shared_ptr<TechText> m_text_label;
 
     float m_max_width = 682.0f;
-
     const float m_padding = 12.0f;
 };
 
