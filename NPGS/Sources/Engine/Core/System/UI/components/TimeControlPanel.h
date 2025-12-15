@@ -27,7 +27,6 @@ public:
 
     // [标准布局流程]
     ImVec2 Measure(ImVec2 available_size) override;
-    void Arrange(const Rect& final_rect) override;
 
 private:
     double* m_time_ptr = nullptr;

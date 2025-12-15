@@ -27,6 +27,14 @@ enum class Alignment { Start, Center, End };
 
 enum class LengthType { Fixed, Content, Stretch };
 
+enum class AnchorPoint
+{
+    None, // 默认，参与正常流式布局 (例如拉伸)
+    TopLeft, TopCenter, TopRight,
+    MiddleLeft, Center, MiddleRight,
+    BottomLeft, BottomCenter, BottomRight
+};
+
 struct Length
 {
     LengthType type = LengthType::Fixed;
@@ -159,8 +167,8 @@ public:
     Alignment m_align_h = Alignment::Start;
     Alignment m_align_v = Alignment::Start;
 
-    bool m_use_absolute_pos = false;
-    ImVec2 m_target_pos = { 0.0f, 0.0f };
+    AnchorPoint m_anchor = AnchorPoint::None;
+    ImVec2 m_margin = { 0.0f, 0.0f }; // X: 水平边距, Y: 垂直边距
 
     // [NEW] 缓存的测量结果
     ImVec2 m_desired_size = { 0, 0 };
@@ -218,13 +226,10 @@ public:
     virtual void ResetInteraction();
 
     // 功能 API
-    UIElement* SetAbsolutePos(float x, float y)
+    UIElement* SetAnchor(AnchorPoint anchor, const ImVec2& margin = { 0.0f, 0.0f })
     {
-        m_use_absolute_pos = true;
-        m_target_pos = { x, y };
-        // 为了防止逻辑混淆，设置为 Start，但在 Arrange 中我们会强制覆盖
-        m_align_h = Alignment::Start;
-        m_align_v = Alignment::Start;
+        m_anchor = anchor;
+        m_margin = margin;
         return this;
     }
     UIElement* SetTooltip(const std::string& key) { m_tooltip_key = key; return this; }
@@ -334,6 +339,8 @@ class UIRoot : public UIElement
 {
 public:
     UIRoot();
+
+    void Arrange(const Rect& final_rect) override;
 
     void Update(float dt) override; // 覆盖以实现 Measure/Arrange 调度
     void Draw(ImDrawList* draw_list) override; // 覆盖以绘制 Tooltip

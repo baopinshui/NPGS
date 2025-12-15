@@ -10,7 +10,6 @@ _UI_BEGIN
 NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& main_button_key2, const std::string& settings_key, const std::string& close_key)
 {
     // --- 1. 设置 NeuralMenu 自身 ---
-    SetAbsolutePos(20.0f, 20.0f);
     m_width = Length::Fixed(m_collapsed_size.x);
     m_height = Length::Fixed(m_collapsed_size.y);
     m_block_input = false;

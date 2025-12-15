@@ -33,7 +33,11 @@ void GameScreen::OnEnter()
     auto& ctx = UIContext::Get();
 
     m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("ui.manage", "ui.network", "ui.settings", "ui.close_terminal");
+    m_neural_menu_controller->SetAnchor(UI::AnchorPoint::TopLeft, { 20.0f, 20.0f });
     m_ui_root->AddChild(m_neural_menu_controller);
+
+
+
     m_neural_menu_controller->GetExitButton()->on_click = [this]()
     {
         m_screen_manager->ScreenManager::RequestChangeScreen("MainMenu");// OnExit();
@@ -41,23 +45,23 @@ void GameScreen::OnEnter()
     m_beam_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.fire_beam", "☼", "ui.label.energy", &m_beam_energy, "ui.unit.joules", true, "beam");
     m_beam_button->m_width = Length::Fixed(40.0f);
     m_beam_button->m_height = Length::Fixed(40.0f);
-    m_beam_button->SetAbsolutePos(50.0f, 360.0f);
+    m_beam_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 360.0f-500.0f });
 
     m_rkkv_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_rkkv", m_context.RKKVID, "ui.label.mass", &m_rkkv_mass, "ui.unit.kg", true, "rkkv");
     m_rkkv_button->m_width = Length::Fixed(40.0f);
     m_rkkv_button->m_height = Length::Fixed(40.0f);
-    m_rkkv_button->SetAbsolutePos(50.0f, 440.0f);
+    m_rkkv_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 440.0f - 500.0f });
 
     m_VN_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_vn", "⌘", "ui.label.mass", &m_VN_mass, "ui.unit.kg", true, "vn");
     m_VN_button->m_width = Length::Fixed(40.0f);
     m_VN_button->m_height = Length::Fixed(40.0f);
-    m_VN_button->SetAbsolutePos(50.0f, 520.0f);
+    m_VN_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 520.0f - 500.0f });
 
     m_message_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.send_message", "i", "ui.label.weight_time", &m_VN_mass, "ui.unit.years", false, "message");
     m_message_button->m_width = Length::Fixed(40.0f);
     m_message_button->m_text_label->SetTooltip("tooltip.test");
     m_message_button->m_height = Length::Fixed(40.0f);
-    m_message_button->SetAbsolutePos(50.0f, 600.0f);
+    m_message_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 600.0f - 500.0f });
 
     // Setup callbacks (copy-pasted from Application.cpp)
     m_beam_button->on_toggle_callback = [this](bool want_expand)
@@ -186,17 +190,26 @@ void GameScreen::OnEnter()
     m_ui_root->AddChild(m_message_button);
 
     m_celestial_info = std::make_shared<UI::CelestialInfoPanel>("ui.info", "ui.close_panel", "ui.celestial.progress_label", "ui.celestial.coil_label");
+    // [修改] CelestialInfoPanel 也使用锚点定位
+    m_celestial_info->SetAnchor(UI::AnchorPoint::MiddleRight, { 0.0f, 0.0f });
     m_ui_root->AddChild(m_celestial_info);
 
     m_top_Info = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Top);
     m_bottom_Info = std::make_shared<System::UI::CinematicInfoPanel>(System::UI::CinematicInfoPanel::Position::Bottom);
+    // [修改] 为 CinematicInfoPanel 设置锚点
+    m_top_Info->SetAnchor(UI::AnchorPoint::TopCenter, { 0.0f, 10.0f });
+    m_bottom_Info->SetAnchor(UI::AnchorPoint::BottomCenter, { 0.0f, 10.0f });
     m_ui_root->AddChild(m_top_Info);
     m_ui_root->AddChild(m_bottom_Info);
 
     m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(m_context.GameTime, m_context.TimeRate, "ui.time.pause", "ui.time.resume", "ui.time.reset_speed");
+    // [修改] 为 TimeControlPanel 设置锚点
+    m_time_control_panel->SetAnchor(UI::AnchorPoint::TopRight, { 20.0f, 20.0f });
     m_ui_root->AddChild(m_time_control_panel);
 
     m_log_panel = std::make_shared<System::UI::LogPanel>("ui.log.system_scan", "ui.log.autosave");
+    // [修改] 为 LogPanel 设置锚点
+    m_log_panel->SetAnchor(UI::AnchorPoint::BottomLeft, { 20.0f, 20.0f });
     m_ui_root->AddChild(m_log_panel);
 
     SimulateStarSelectionAndUpdateUI();

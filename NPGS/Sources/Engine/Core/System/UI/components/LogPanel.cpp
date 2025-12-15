@@ -229,18 +229,11 @@ ImVec2 LogPanel::Measure(ImVec2 available_size)
 
 void LogPanel::Arrange(const Rect& final_rect)
 {
-    // 1. [绝对定位] 计算自身在屏幕左下角的位置
-    float margin_left = 20.0f;
-    float margin_bottom = 20.0f;
-    float my_w = m_desired_size.x;
-    float my_h = m_desired_size.y;
-    float my_x = margin_left;
-    float my_y = UIContext::Get().m_display_size.y - margin_bottom - my_h;
+    // [修改] 移除自己计算屏幕左下角位置的逻辑
+    // 1. 使用父级传入的、已经计算好的位置来设置自身
+    UIElement::Arrange(final_rect);
 
-    // 2. 使用计算出的位置来设置自身，并让基类处理绝对坐标计算
-    UIElement::Arrange({ my_x, my_y, my_w, my_h });
-
-    // 3. 手动排列子元素
+    // 2. 手动排列子元素 (这部分逻辑保持不变，因为是内部布局)
     float current_y = 0.0f;
 
     // A. 排列日志列表 (应用滑动动画)

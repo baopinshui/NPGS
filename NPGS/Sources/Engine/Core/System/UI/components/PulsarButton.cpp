@@ -423,23 +423,10 @@ ImVec2 PulsarButton::Measure(ImVec2 available_size)
         child->Measure(available_size);
     }
 
-    // 2. 计算 PulsarButton 自身在当前状态下的总尺寸
-    float total_w, total_h;
-
-    // 展开后的终点 X 坐标
-    float end_x = pulsar_center_offset.x + 64.0f + m_current_line_len;
-
-    // 当关闭时，尺寸为 40x40
-    // 当展开时，尺寸为 end_x * 1.0f 宽，大约 100px 高
     float closed_w = 40.0f, closed_h = 40.0f;
-    float open_w = end_x + 10.0f; // 加一点 padding
-    float open_h = 100.0f;        // 覆盖从脉冲星顶部到统计文本底部
 
-    // 根据动画进度插值计算当前尺寸
-    total_w = closed_w + (open_w - closed_w) * m_anim_progress;
-    total_h = closed_h + (open_h - closed_h) * m_anim_progress;
 
-    m_desired_size = { total_w, total_h };
+    m_desired_size = { closed_w, closed_h };
     return m_desired_size;
 }
 
@@ -647,9 +634,9 @@ void PulsarButton::Draw(ImDrawList* draw_list)
             float line_abs_y = m_absolute_pos.y + rel_line_y;
             float text_abs_x = m_absolute_pos.x + rel_text_x;
 
-            ImVec2 p1 = center_abs;
-            ImVec2 p2 = { center_abs.x + 60.0f, line_abs_y };
-            ImVec2 p3 = { text_abs_x + m_current_line_len, line_abs_y };
+            ImVec2 p1 = TechUtils::Snap(center_abs);
+            ImVec2 p2 = TechUtils::Snap({ center_abs.x + 60.0f, line_abs_y });
+            ImVec2 p3 = TechUtils::Snap({ text_abs_x + m_current_line_len, line_abs_y });
 
             ImVec2 d1 = { p2.x - p1.x, p2.y - p1.y }; float l1 = std::sqrt(d1.x * d1.x + d1.y * d1.y);
             ImVec2 d2 = { p3.x - p2.x, p3.y - p2.y }; float l2 = std::sqrt(d2.x * d2.x + d2.y * d2.y);

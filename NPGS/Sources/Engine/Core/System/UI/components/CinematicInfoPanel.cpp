@@ -224,29 +224,11 @@ void CinematicInfoPanel::Arrange(const Rect& final_rect_from_parent)
 {
     if (!m_visible) return;
 
-    // 1. 计算我们自己的绝对位置和大小，忽略父级给的 Rect
-    // 这是因为我们是屏幕空间的绝对定位元素
-    auto& ctx = UIContext::Get();
-    ImVec2 display_sz = ctx.m_display_size;
+    // [修改] 不再自己计算屏幕位置，直接使用父级（UIRoot）通过锚点计算后传入的 final_rect_from_parent
+    // 1. 调用基类 Arrange，让它使用我们计算出的 Rect 来设置自身位置，并自动排列所有子元素
+    UIElement::Arrange(final_rect_from_parent);
 
-    Rect my_final_rect;
-    my_final_rect.w = m_max_width;
-    my_final_rect.h = m_desired_size.y; // 使用 Measure 阶段计算出的高度
-    my_final_rect.x = (display_sz.x - my_final_rect.w) * 0.5f; // 水平居中
-
-    if (m_position == Position::Top)
-    {
-        my_final_rect.y = 10.0f;
-    }
-    else
-    {
-        my_final_rect.y = display_sz.y - my_final_rect.h - 10.0f;
-    }
-
-    // 2. 调用基类 Arrange，让它使用我们计算出的 Rect 来设置自身位置，并自动排列所有子元素
-    UIElement::Arrange(my_final_rect);
-
-    // 3. [动画覆盖] 在自动布局之后，手动修改分割线的宽度和位置
+    // 2. [动画覆盖] 在自动布局之后，手动修改分割线的宽度和位置
     float current_line_w = m_max_width * m_anim_progress;
 
     // a. 修改相对宽度

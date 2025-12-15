@@ -1,3 +1,5 @@
+// --- START OF FILE CelestialInfoPanel.h ---
+
 #pragma once
 #include "../ui_framework.h"
 #include "TechBorderPanel.h"
@@ -38,9 +40,9 @@ class CelestialInfoPanel : public UIElement
 public:
     // [修改] 构造函数增加 closetext 参数
     CelestialInfoPanel(
-        const std::string& fold_key ,
-        const std::string& close_key ,
-        const std::string& progress_label_key ,
+        const std::string& fold_key,
+        const std::string& close_key,
+        const std::string& progress_label_key,
         const std::string& coil_label_key
     );
     void SetData(const CelestialData& data);
@@ -48,12 +50,18 @@ public:
     void SetObjectImage(ImTextureID texture_id, float img_w = 0.0f, float img_h = 0.0f, ImVec4 Col = { 1.0f,1.0f,1.0f,1.0f });
 
     void SetTitle(const std::string& title, const std::string& subtitle = "");
+
+    // [修改] 更新为新的生命周期函数
     void Update(float dt) override;
+    ImVec2 Measure(ImVec2 available_size) override;
+    void Arrange(const Rect& final_rect) override;
+
     // 布局常量
-    float PANEL_WIDTH = 320.0f;
-    float PANEL_HEIGHT = 650.0f;
-    float TOP_MARGIN = 150.0f;
-    float RIGHT_MARGIN = 20.0f;
+    const float PANEL_WIDTH = 320.0f;
+    const float PANEL_HEIGHT = 650.0f;
+    // [修改] 边距常量由 Anchor 系统处理，可以移除
+    // float TOP_MARGIN = 150.0f;
+    // float RIGHT_MARGIN = 20.0f;
 
 private:
     void ToggleCollapse();

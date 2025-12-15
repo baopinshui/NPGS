@@ -239,30 +239,55 @@ void CelestialInfoPanel::Update(float dt)
 {
     if (!m_visible) return;
 
-    ImVec2 display_sz = UIContext::Get().m_display_size;
-
+    // [修改] 移除所有位置计算代码，只保留动画状态更新
     float speed = 5.0f * dt;
     if (m_is_collapsed) m_anim_progress = std::min(1.0f, m_anim_progress + speed);
     else m_anim_progress = std::max(0.0f, m_anim_progress - speed);
 
-    float t_panel = AnimationUtils::Ease(m_anim_progress, EasingType::EaseInOutQuad);
-    float expanded_x = display_sz.x - PANEL_WIDTH;
-    float collapsed_x = display_sz.x;
-    float current_x = expanded_x + (collapsed_x - expanded_x) * t_panel;
-
-    // [MODIFIED] 使用 SetAbsolutePos 控制位置
-    m_main_panel->SetAbsolutePos(current_x, TOP_MARGIN);
-
-    float btn_w = m_collapsed_btn->m_width.IsFixed() ? m_collapsed_btn->m_width.value : 24.0f;
-    m_collapsed_btn->SetAbsolutePos(current_x - btn_w - 10.0f, TOP_MARGIN + 40.0f);
-
     m_collapsed_btn->m_alpha = AnimationUtils::Ease(m_anim_progress, EasingType::Linear);
-
-    // [MODIFIED] 隐藏并禁用输入，而不是仅设置 block_input
     m_collapsed_btn->m_visible = m_collapsed_btn->m_alpha > 0.1f;
 
     // 调用基类 Update，它会递归更新所有子元素的动画等状态
     UIElement::Update(dt);
+}
+
+ImVec2 CelestialInfoPanel::Measure(ImVec2 available_size)
+{
+    if (!m_visible) return { 0, 0 };
+
+    // 此面板具有固定的逻辑尺寸
+    m_desired_size = { PANEL_WIDTH, PANEL_HEIGHT };
+
+    // 尽管我们有固定尺寸，但仍需测量子元素以确保它们的 desired_size 是最新的，
+    // 以便在 Arrange 阶段正确布局。
+    for (auto& child : m_children)
+    {
+        child->Measure({ PANEL_WIDTH, PANEL_HEIGHT });
+    }
+
+    return m_desired_size;
+}
+
+void CelestialInfoPanel::Arrange(const Rect& final_rect)
+{
+    // 1. 基类方法会根据 final_rect 设置好我们自己的 m_rect 和 m_absolute_pos
+    UIElement::Arrange(final_rect);
+
+    if (!m_visible) return;
+
+    // 2. 在我们自己的坐标系内，根据动画状态排列子元素
+    float t_panel = AnimationUtils::Ease(m_anim_progress, EasingType::EaseInOutQuad);
+    // 计算滑出偏移量：0 表示完全展开，PANEL_WIDTH 表示完全收起
+    float slide_offset = PANEL_WIDTH * t_panel;
+
+    // a. 排列主面板，应用偏移
+    // 注意：这里的坐标是相对于 CelestialInfoPanel 自身的
+    m_main_panel->Arrange({ slide_offset, 0, PANEL_WIDTH, PANEL_HEIGHT });
+
+    // b. 排列折叠按钮，使其位置相对于滑动的主面板
+    float btn_w = m_collapsed_btn->m_width.IsFixed() ? m_collapsed_btn->m_width.value : 24.0f;
+    float btn_h = m_collapsed_btn->m_height.IsFixed() ? m_collapsed_btn->m_height.value : 100.0f;
+    m_collapsed_btn->Arrange({ slide_offset - btn_w - 10.0f, 40.0f, btn_w, btn_h });
 }
 
 void CelestialInfoPanel::ToggleCollapse()

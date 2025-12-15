@@ -109,34 +109,6 @@ ImVec2 TimeControlPanel::Measure(ImVec2 available_size)
     return m_desired_size;
 }
 
-void TimeControlPanel::Arrange(const Rect& incoming_rect)
-{
-    // [关键修正]
-    // 这里我们不直接使用 incoming_rect (父级通常是 UIRoot，传入的是全屏 rect)，
-    // 而是基于屏幕尺寸和自己的 m_desired_size 重新计算一个 "Top-Right" 的 rect。
-
-    ImVec2 display_sz = UIContext::Get().m_display_size;
-    float margin_right = 20.0f;
-    float margin_top = 20.0f;
-
-    // 1. 计算自身在屏幕右上角的绝对位置
-    // 注意：m_desired_size 是刚刚在 Measure 阶段计算出来的
-    float my_x = display_sz.x - m_desired_size.x - margin_right;
-    float my_y = margin_top;
-
-    // 2. 构造修正后的 rect
-    Rect my_rect = { my_x, my_y, m_desired_size.x, m_desired_size.y };
-
-    // 3. 调用基类实现
-    // 基类 UIElement::Arrange 会做以下事情：
-    // a. 将 m_rect 设置为 my_rect
-    // b. 根据 m_parent 计算 m_absolute_pos (由于 parent 是 Root, abs_pos 就等于 my_rect.xy)
-    // c. 遍历 m_children (即我们的 m_main_layout) 并调用它们的 Arrange
-    // 
-    // 因为 m_main_layout 的大小本身就是 m_desired_size，且 Alignment 默认为 Start/Start 或 Stretch，
-    // 它会完美填满这个 rect，无需手动计算 offset。
-    UIElement::Arrange(my_rect);
-}
 
 // -----------------------------------------------------------------------------
 // 业务逻辑

@@ -236,12 +236,6 @@ void UIElement::Arrange(const Rect& final_rect)
 {
     // 记录相对位置
     m_rect = final_rect;
-	// 如果使用绝对位置，则覆盖位置
-    if (m_use_absolute_pos)
-    {
-        m_rect.x = m_target_pos.x;
-        m_rect.y = m_target_pos.y;
-    }
     // 计算绝对位置
     if (m_parent)
     {
@@ -998,6 +992,78 @@ UIRoot::UIRoot()
 }
 
 // [MODIFIED] UIRoot Update 驱动整个布局流程
+void UIRoot::Arrange(const Rect& final_rect)
+{
+    // 1. 设置 UIRoot 自身的位置和大小 (通常是全屏)
+    m_rect = final_rect;
+    m_absolute_pos = { final_rect.x, final_rect.y };
+
+    // 2. 遍历所有直接子元素，并根据其锚点属性进行布局
+    for (auto& child : m_children)
+    {
+        if (!child->m_visible) continue;
+
+        // 获取子元素期望的尺寸 (必须在 Measure 阶段计算好)
+        const ImVec2& desired_size = child->m_desired_size;
+        Rect child_rect = { 0, 0, desired_size.x, desired_size.y };
+
+        // 如果子元素没有设置锚点，则使用默认的拉伸行为
+        if (child->m_anchor == AnchorPoint::None)
+        {
+            // 对于 UIRoot 的子元素，默认行为是撑满全屏
+            child_rect.w = child->m_width.IsStretch() ? m_rect.w : desired_size.x;
+            child_rect.h = child->m_height.IsStretch() ? m_rect.h : desired_size.y;
+            child->Arrange(child_rect);
+            continue; // 处理下一个子元素
+        }
+
+        // --- [NEW] 锚点布局逻辑 ---
+        switch (child->m_anchor)
+        {
+        case AnchorPoint::TopLeft:
+            child_rect.x = child->m_margin.x;
+            child_rect.y = child->m_margin.y;
+            break;
+        case AnchorPoint::TopCenter:
+            child_rect.x = (m_rect.w - desired_size.x) * 0.5f + child->m_margin.x;
+            child_rect.y = child->m_margin.y;
+            break;
+        case AnchorPoint::TopRight:
+            child_rect.x = m_rect.w - desired_size.x - child->m_margin.x;
+            child_rect.y = child->m_margin.y;
+            break;
+        case AnchorPoint::MiddleLeft:
+            child_rect.x = child->m_margin.x;
+            child_rect.y = (m_rect.h - desired_size.y) * 0.5f + child->m_margin.y;
+            break;
+        case AnchorPoint::Center:
+            child_rect.x = (m_rect.w - desired_size.x) * 0.5f + child->m_margin.x;
+            child_rect.y = (m_rect.h - desired_size.y) * 0.5f + child->m_margin.y;
+            break;
+        case AnchorPoint::MiddleRight:
+            child_rect.x = m_rect.w - desired_size.x - child->m_margin.x;
+            child_rect.y = (m_rect.h - desired_size.y) * 0.5f + child->m_margin.y;
+            break;
+        case AnchorPoint::BottomLeft:
+            child_rect.x = child->m_margin.x;
+            child_rect.y = m_rect.h - desired_size.y - child->m_margin.y;
+            break;
+        case AnchorPoint::BottomCenter:
+            child_rect.x = (m_rect.w - desired_size.x) * 0.5f + child->m_margin.x;
+            child_rect.y = m_rect.h - desired_size.y - child->m_margin.y;
+            break;
+        case AnchorPoint::BottomRight:
+            child_rect.x = m_rect.w - desired_size.x - child->m_margin.x;
+            child_rect.y = m_rect.h - desired_size.y - child->m_margin.y;
+            break;
+        default: break;
+        }
+
+        // 3. 将计算好的矩形传递给子元素，让它继续排列自己的子孙
+        child->Arrange(child_rect);
+    }
+}
+
 void UIRoot::Update(float dt)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -1028,7 +1094,7 @@ void UIRoot::Update(float dt)
     UIElement::Update(dt);
 
     // 5. [PASS 2] 测量 (自下而上)
-    Measure(io.DisplaySize);
+    UIElement::Measure(io.DisplaySize);
 
     // 6. [PASS 3] 排列 (自上而下)
     Arrange({ 0, 0, io.DisplaySize.x, io.DisplaySize.y });

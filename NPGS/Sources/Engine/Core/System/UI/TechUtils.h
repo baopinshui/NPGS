@@ -12,12 +12,12 @@ public:
     // 强制像素对齐，解决边缘发虚问题
     static inline ImVec2 Snap(ImVec2 p)
     {
-        return ImVec2(std::floor(p.x) + 0.5f, std::floor(p.y) + 0.5f);
+        return ImVec2(Snap(p.x) , Snap(p.y) );
     }
 
     static inline float Snap(float p)
     {
-        return std::floor(p) + 0.5f;
+        return std::floor(p) + 0.0f;
     }
 
     static ImVec4 LerpColor(const ImVec4& a, const ImVec4& b, float t)
@@ -99,7 +99,7 @@ public:
         dl->Flags = backup_flags;
     }
 
-    static void DrawHardLine(ImDrawList* dl, ImVec2 p1, ImVec2 p2, ImU32 col, float thickness)
+    static void DrawHardLine(ImDrawList* dl, ImVec2 p1, ImVec2 p2, ImU32 col, float thickness=1.0f)
     {
         // 1. 临时关闭抗锯齿，获得绝对硬朗的边缘
         ImDrawListFlags backup_flags = dl->Flags;
