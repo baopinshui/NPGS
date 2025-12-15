@@ -10,6 +10,17 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
+struct IntroAnimState
+{
+    std::shared_ptr<UIElement> element;
+    float delay_time;      // 延迟多久开始闪烁
+    float flicker_duration;// 闪烁持续多久
+    float timer;           // 内部计时器
+    bool is_finished;      // 是否完成
+    float current_flicker_timer = 0.0f;      // 当前闪烁状态已经维持了多久
+    float time_until_next_change = 0.0f;     // 当前闪烁状态应该维持多久（随机生成）
+};
+
 class GameScreen : public IScreen
 {
 public:
@@ -25,7 +36,12 @@ private:
     void OnLanguageChanged();
     void SimulateStarSelectionAndUpdateUI();
     std::string FormatTime(double total_seconds);
+    // [新增] 注册组件参与入场动画的辅助函数
+    void RegisterIntroEffect(std::shared_ptr<UIElement> el, float delay, float duration);
 
+    // [新增] 动画状态列表
+    std::vector<IntroAnimState> m_intro_anim_states;
+    bool m_is_intro_playing = false;
     // UI component pointers
     std::shared_ptr<UI::NeuralMenu> m_neural_menu_controller;
     std::shared_ptr<UI::PulsarButton> m_beam_button;

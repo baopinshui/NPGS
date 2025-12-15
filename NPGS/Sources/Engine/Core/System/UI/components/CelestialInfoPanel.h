@@ -86,8 +86,8 @@ private:
     int m_current_tab_index = 0;
 
     // 状态
-    bool m_is_collapsed = true;   // [修改] 默认为收起状态
-    float m_anim_progress = 1.0f; // [修改] 1.0 表示完全收起 (初始状态)
+    bool m_is_collapsed = false;   // [修改] 默认为收起状态
+    float m_anim_progress = 0.0f; // [修改] 1.0 表示完全收起 (初始状态)
 };
 
 _UI_END

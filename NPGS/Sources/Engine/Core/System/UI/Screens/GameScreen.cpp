@@ -45,23 +45,23 @@ void GameScreen::OnEnter()
     m_beam_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.fire_beam", "☼", "ui.label.energy", &m_beam_energy, "ui.unit.joules", true, "beam");
     m_beam_button->m_width = Length::Fixed(40.0f);
     m_beam_button->m_height = Length::Fixed(40.0f);
-    m_beam_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 360.0f-500.0f });
+    m_beam_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 360.0f-450.0f });
 
     m_rkkv_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_rkkv", m_context.RKKVID, "ui.label.mass", &m_rkkv_mass, "ui.unit.kg", true, "rkkv");
     m_rkkv_button->m_width = Length::Fixed(40.0f);
     m_rkkv_button->m_height = Length::Fixed(40.0f);
-    m_rkkv_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 440.0f - 500.0f });
+    m_rkkv_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 440.0f - 450.0f });
 
     m_VN_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_vn", "⌘", "ui.label.mass", &m_VN_mass, "ui.unit.kg", true, "vn");
     m_VN_button->m_width = Length::Fixed(40.0f);
     m_VN_button->m_height = Length::Fixed(40.0f);
-    m_VN_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 520.0f - 500.0f });
+    m_VN_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 520.0f - 450.0f });
 
     m_message_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.send_message", "i", "ui.label.weight_time", &m_VN_mass, "ui.unit.years", false, "message");
     m_message_button->m_width = Length::Fixed(40.0f);
     m_message_button->m_text_label->SetTooltip("tooltip.test");
     m_message_button->m_height = Length::Fixed(40.0f);
-    m_message_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 600.0f - 500.0f });
+    m_message_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 600.0f - 450.0f });
 
     // Setup callbacks (copy-pasted from Application.cpp)
     m_beam_button->on_toggle_callback = [this](bool want_expand)
@@ -211,6 +211,32 @@ void GameScreen::OnEnter()
     // [修改] 为 LogPanel 设置锚点
     m_log_panel->SetAnchor(UI::AnchorPoint::BottomLeft, { 20.0f, 20.0f });
     m_ui_root->AddChild(m_log_panel);
+    m_intro_anim_states.clear();
+    m_is_intro_playing = true;
+
+    // 辅助 lambda：生成 0.0 ~ 0.5 之间的随机延迟，让它们不同步
+    auto random_delay = []() { return (rand() % 50) / 100.0f; };
+
+    // 注册核心组件
+    // 参数: (元素指针, 延迟时间, 闪烁持续时间)
+
+    // 菜单稍微早一点出现
+    RegisterIntroEffect(m_neural_menu_controller, 0.1f, 0.8f);
+
+    // 按钮组带有不同的随机延迟
+    RegisterIntroEffect(m_beam_button, 0.2f + random_delay(), 1.0f);
+    RegisterIntroEffect(m_rkkv_button, 0.2f + random_delay(), 1.0f);
+    RegisterIntroEffect(m_VN_button, 0.2f + random_delay(), 1.0f);
+    RegisterIntroEffect(m_message_button, 0.2f + random_delay(), 1.0f);
+
+    // 信息面板稍晚一点
+    RegisterIntroEffect(m_celestial_info, 0.5f, 0.6f);
+
+    // 上下电影黑边和时间控制
+    RegisterIntroEffect(m_top_Info, 0.0f, 1.5f);
+    RegisterIntroEffect(m_bottom_Info, 0.0f, 1.5f);
+    RegisterIntroEffect(m_time_control_panel, 0.8f, 0.5f);
+    RegisterIntroEffect(m_log_panel, 1.0f, 0.5f);
 
     SimulateStarSelectionAndUpdateUI();
 
@@ -237,7 +263,25 @@ void GameScreen::OnEnter()
     m_neural_menu_controller->AddThrottle("JetBrightmut", &BlackHoleArgs.JetBrightmut);
     m_neural_menu_controller->AddThrottle("JetSaturation", &BlackHoleArgs.JetSaturation);
     m_neural_menu_controller->AddThrottle("JetShiftMax", &BlackHoleArgs.JetShiftMax);
-    // ... and all other sliders, binding to m_context.BlackHoleArgs->...
+    
+}
+
+void GameScreen::RegisterIntroEffect(std::shared_ptr<UIElement> el, float delay, float duration)
+{
+    if (!el) return;
+
+    // 初始设为不可见
+    el->m_alpha = 0.0f;
+
+    IntroAnimState state;
+    state.element = el;
+    state.delay_time = delay;
+    state.flicker_duration = duration;
+    state.timer = 0.0f;
+    state.is_finished = false;
+    state.current_flicker_timer = 0.0f;
+    state.time_until_next_change = 0.0f; // 设为0确保第一帧立即进行一次判定
+    m_intro_anim_states.push_back(state);
 }
 
 void GameScreen::OnExit()
@@ -248,6 +292,78 @@ void GameScreen::OnExit()
 
 void GameScreen::Update(float dt)
 {
+    if (m_is_intro_playing)
+    {
+        bool all_finished = true;
+        for (auto& state : m_intro_anim_states)
+        {
+            if (state.is_finished) continue;
+
+            state.timer += dt;
+
+            // 1. 等待阶段
+            if (state.timer < state.delay_time)
+            {
+                state.element->m_alpha = 0.0f;
+                all_finished = false;
+            }
+            // 2. 闪烁阶段
+            else if (state.timer < (state.delay_time + state.flicker_duration))
+            {
+                all_finished = false;
+
+                // [核心修改] 累加当前闪烁状态的计时
+                state.current_flicker_timer += dt;
+
+                // 只有当计时超过了设定的间隔，才改变状态
+                // 这样无论 FPS 是 30 还是 144，闪烁的频率都由时间决定
+                if (state.current_flicker_timer >= state.time_until_next_change)
+                {
+                    // 重置计时器
+                    state.current_flicker_timer = 0.0f;
+
+                    // 随机生成下一次状态改变的时间间隔 (0.02s ~ 0.08s)
+                    // 这个范围决定了闪烁的"节奏感"，0.02-0.08 是比较典型的科幻故障频率
+                    state.time_until_next_change =0.1*( 0.02f + (static_cast<float>(rand() % 60) / 1000.0f));
+
+                    // --- 原有的概率计算逻辑 ---
+                    float progress = (state.timer - state.delay_time) / state.flicker_duration;
+
+                    // 增加一点非线性，让最后阶段更稳定
+                    // progress * progress 会让前期更难亮起，后期迅速变亮
+                    float probability = progress * progress;
+
+                    float dice = (rand() % 100) / 100.0f;
+
+                    if (dice < probability)
+                    {
+                        // 亮起：随机亮度 (0.5 ~ 1.0) 模拟电压不稳
+                        state.element->m_alpha = 0.5f + ((rand() % 50) / 100.0f);
+                    }
+                    else
+                    {
+                        // 熄灭
+                        state.element->m_alpha = 0.0f;
+                    }
+                }
+                // 重点：如果 if 条件不满足（时间没到），什么都不做。
+                // 这样 Alpha 值会保持上一帧的状态，直到下一次随机时间点到来。
+                // 这就是 "Sample and Hold" 机制，保证了视觉频率与帧率解耦。
+            }
+            // 3. 完成阶段
+            else
+            {
+                state.element->m_alpha = 1.0f;
+                state.is_finished = true;
+            }
+        }
+
+        if (all_finished)
+        {
+            m_is_intro_playing = false;
+            m_intro_anim_states.clear();
+        }
+    }
     // --- All UI update logic from FApplication's main loop is moved here ---
     if (m_ui_root)
     {
