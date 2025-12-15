@@ -26,7 +26,7 @@ bool Rect::Contains(const ImVec2& p) const
     bool inside = p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h;
 
     // DEBUG 绘制
-    if (true)
+    if (!true)
     {
         ImDrawList* fg_draw = ImGui::GetForegroundDrawList();
         ImU32 col = inside ? IM_COL32(0, 255, 0, 200) : IM_COL32(255, 0, 0, 100);

@@ -34,7 +34,10 @@ void GameScreen::OnEnter()
 
     m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("ui.manage", "ui.network", "ui.settings", "ui.close_terminal");
     m_ui_root->AddChild(m_neural_menu_controller);
-
+    m_neural_menu_controller->GetExitButton()->on_click = [this]()
+    {
+        m_screen_manager->ScreenManager::RequestChangeScreen("MainMenu");// OnExit();
+    };
     m_beam_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.fire_beam", "☼", "ui.label.energy", &m_beam_energy, "ui.unit.joules", true, "beam");
     m_beam_button->m_width = Length::Fixed(40.0f);
     m_beam_button->m_height = Length::Fixed(40.0f);
