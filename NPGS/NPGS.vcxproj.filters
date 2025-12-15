@@ -165,10 +165,19 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\components\ScreenVignette.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\System\UI\Utils\I18nManager.cpp">
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\GlobalTooltip.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Sources\Engine\Core\System\UI\components\GlobalTooltip.cpp">
+    <ClCompile Include="Sources\Engine\Core\System\UI\ScreenManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\Screens\GameScreen.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\Screens\MainMenuScreen.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\I18n\I18nManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -362,10 +371,25 @@
     <ClInclude Include="Sources\Engine\Core\System\UI\components\ScreenVignette.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\System\UI\Utils\I18nManager.h">
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\GlobalTooltip.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Sources\Engine\Core\System\UI\components\GlobalTooltip.h">
+    <ClInclude Include="Sources\Engine\Core\System\UI\AppContext.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\IScreen.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\ScreenManager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\Screens\GameScreen.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\Screens\MainMenuScreen.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\I18n\I18nManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
