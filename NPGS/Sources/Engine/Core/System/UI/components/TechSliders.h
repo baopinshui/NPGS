@@ -253,9 +253,9 @@ void BaseTechSlider<T>::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_dow
 
     // --- 2. 让子元素（输入框）优先处理事件 (与旧版一致) ---
     // 只有没在拖拽时，才允许子元素响应
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    for (size_t i = m_children.size(); i > 0; --i)
     {
-        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+        m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
 

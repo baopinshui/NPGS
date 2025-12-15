@@ -703,9 +703,9 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
 {
     if (!m_visible || m_alpha <= 0.01f) return;
 
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    for (size_t i = m_children.size(); i > 0; --i)
     {
-        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+        m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
     if (handled)

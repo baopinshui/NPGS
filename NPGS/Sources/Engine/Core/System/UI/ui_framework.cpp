@@ -321,9 +321,9 @@ void UIElement::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool 
     }
 
     // 1. 递归子节点
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    for (size_t i = m_children.size(); i > 0; --i)
     {
-        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, external_handled);
+        m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, external_handled);
     }
 
     if (external_handled)
@@ -869,16 +869,18 @@ void ScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool
     {
         m_hovered = false;
         bool dummy_handled = true;
-        for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
-            (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, dummy_handled);
+        for (size_t i = m_children.size(); i > 0; --i)
+        {
+            m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, dummy_handled);
+        }
         return;
     }
 
     m_hovered = true; // 允许滚动
 
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    for (size_t i = m_children.size(); i > 0; --i)
     {
-        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+        m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
     }
 
     if (!handled && m_block_input) handled = true;
@@ -971,13 +973,17 @@ void HorizontalScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_
     {
         m_hovered = false;
         bool dummy = true;
-        for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
-            (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, dummy);
+        for (size_t i = m_children.size(); i > 0; --i)
+        {
+            m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, dummy);
+        }
         return;
     }
     m_hovered = true;
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
-        (*it)->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+    for (size_t i = m_children.size(); i > 0; --i)
+    {
+        m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
+    }
     if (!handled && m_block_input) handled = true;
 }
 
