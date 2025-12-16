@@ -32,7 +32,7 @@ void GameScreen::OnEnter()
 
     auto& ctx = UIContext::Get();
 
-    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("ui.manage", "ui.network", "ui.settings", "ui.close_terminal");
+    m_neural_menu_controller = std::make_shared<UI::NeuralMenu>("i18ntext.ui.manage", "i18ntext.ui.network", "i18ntext.ui.settings", "i18ntext.ui.close_terminal");
     m_neural_menu_controller->SetAnchor(UI::AnchorPoint::TopLeft, { 20.0f, 20.0f });
     m_ui_root->AddChild(m_neural_menu_controller);
 
@@ -42,24 +42,24 @@ void GameScreen::OnEnter()
     {
         m_screen_manager->ScreenManager::RequestChangeScreen("MainMenu");// OnExit();
     };
-    m_beam_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.fire_beam", "☼", "ui.label.energy", &m_beam_energy, "ui.unit.joules", true, "beam");
+    m_beam_button = std::make_shared<UI::PulsarButton>("i18ntext.ui.status.target_locked", "i18ntext.ui.action.fire_beam", "☼", "i18ntext.ui.label.energy", &m_beam_energy, "i18ntext.ui.unit.joules", true, "beam");
     m_beam_button->m_width = Length::Fixed(40.0f);
     m_beam_button->m_height = Length::Fixed(40.0f);
     m_beam_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 360.0f-450.0f });
 
-    m_rkkv_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_rkkv", m_context.RKKVID, "ui.label.mass", &m_rkkv_mass, "ui.unit.kg", true, "rkkv");
+    m_rkkv_button = std::make_shared<UI::PulsarButton>("i18ntext.ui.status.target_locked", "i18ntext.ui.action.launch_rkkv", m_context.RKKVID, "i18ntext.ui.label.mass", &m_rkkv_mass, "i18ntext.ui.unit.kg", true, "rkkv");
     m_rkkv_button->m_width = Length::Fixed(40.0f);
     m_rkkv_button->m_height = Length::Fixed(40.0f);
     m_rkkv_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 440.0f - 450.0f });
 
-    m_VN_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.launch_vn", "⌘", "ui.label.mass", &m_VN_mass, "ui.unit.kg", true, "vn");
+    m_VN_button = std::make_shared<UI::PulsarButton>("i18ntext.ui.status.target_locked", "i18ntext.ui.action.launch_vn", "⌘", "i18ntext.ui.label.mass", &m_VN_mass, "i18ntext.ui.unit.kg", true, "vn");
     m_VN_button->m_width = Length::Fixed(40.0f);
     m_VN_button->m_height = Length::Fixed(40.0f);
     m_VN_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 520.0f - 450.0f });
 
-    m_message_button = std::make_shared<UI::PulsarButton>("ui.status.target_locked", "ui.action.send_message", "i", "ui.label.weight_time", &m_VN_mass, "ui.unit.years", false, "message");
+    m_message_button = std::make_shared<UI::PulsarButton>("i18ntext.ui.status.target_locked", "i18ntext.ui.action.send_message", "i", "i18ntext.ui.label.weight_time", &m_VN_mass, "i18ntext.ui.unit.years", false, "message");
     m_message_button->m_width = Length::Fixed(40.0f);
-    m_message_button->m_text_label->SetTooltip("tooltip.test");
+    m_message_button->m_text_label->SetTooltip("i18ntext.tooltip.test");
     m_message_button->m_height = Length::Fixed(40.0f);
     m_message_button->SetAnchor(UI::AnchorPoint::MiddleLeft, { 50.0f, 600.0f - 450.0f });
 
@@ -111,7 +111,7 @@ void GameScreen::OnEnter()
             m_message_button->SetActive(false);
 
             // 假设 RKKV 总是可以发射
-            m_rkkv_button->SetStatus("ui.status.target_locked");
+            m_rkkv_button->SetStatus("i18ntext.ui.status.target_locked");
             m_rkkv_button->SetExecutable(true);
         }
         else
@@ -124,9 +124,9 @@ void GameScreen::OnEnter()
     m_rkkv_button->on_execute_callback = [this](const std::string& id, const std::string& val)
     {
         SimulateStarSelectionAndUpdateUI();
-        m_log_panel->AddLog(System::UI::LogType::Info, Npgs::System::TR("log.event.scan_result_title"), Npgs::System::TR("log.event.scan_result_desc"));
-        m_log_panel->AddLog(System::UI::LogType::Alert, Npgs::System::TR("log.event.critical_error_title"), Npgs::System::TR("log.event.critical_error_desc"));
-        m_log_panel->SetAutoSaveTime(Npgs::System::TR("ui.log.autosave") + FormatTime(*m_context.GameTime));
+        m_log_panel->AddLog(System::UI::LogType::Info, Npgs::System::TR("i18ntext.log.event.scan_result_title"), Npgs::System::TR("i18ntext.log.event.scan_result_desc"));
+        m_log_panel->AddLog(System::UI::LogType::Alert, Npgs::System::TR("i18ntext.log.event.critical_error_title"), Npgs::System::TR("i18ntext.log.event.critical_error_desc"));
+        m_log_panel->SetAutoSaveTime(Npgs::System::TR("i18ntext.ui.log.autosave") + FormatTime(*m_context.GameTime));
         NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
     };
 
@@ -138,7 +138,7 @@ void GameScreen::OnEnter()
             m_beam_button->SetActive(false);
             m_rkkv_button->SetActive(false);
             m_message_button->SetActive(false);
-            m_VN_button->SetStatus("ui.status.target_locked");
+            m_VN_button->SetStatus("i18ntext.ui.status.target_locked");
             m_VN_button->SetExecutable(true);
         }
         else
@@ -161,7 +161,7 @@ void GameScreen::OnEnter()
             m_beam_button->SetActive(false);
             m_rkkv_button->SetActive(false);
             m_VN_button->SetActive(false);
-            m_message_button->SetStatus("ui.status.target_locked");
+            m_message_button->SetStatus("i18ntext.ui.status.target_locked");
             m_message_button->SetExecutable(true);
         }
         else
@@ -189,7 +189,7 @@ void GameScreen::OnEnter()
     m_ui_root->AddChild(m_VN_button);
     m_ui_root->AddChild(m_message_button);
 
-    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>("ui.info", "ui.close_panel", "ui.celestial.progress_label", "ui.celestial.coil_label");
+    m_celestial_info = std::make_shared<UI::CelestialInfoPanel>("i18ntext.ui.info", "i18ntext.ui.close_panel", "i18ntext.ui.celestial.progress_label", "i18ntext.ui.celestial.coil_label");
     // [修改] CelestialInfoPanel 也使用锚点定位
     m_celestial_info->SetAnchor(UI::AnchorPoint::MiddleRight, { 0.0f, 0.0f });
     m_ui_root->AddChild(m_celestial_info);
@@ -202,12 +202,12 @@ void GameScreen::OnEnter()
     m_ui_root->AddChild(m_top_Info);
     m_ui_root->AddChild(m_bottom_Info);
 
-    m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(m_context.GameTime, m_context.TimeRate, "ui.time.pause", "ui.time.resume", "ui.time.reset_speed");
+    m_time_control_panel = std::make_shared<System::UI::TimeControlPanel>(m_context.GameTime, m_context.TimeRate, "i18ntext.ui.time.pause", "i18ntext.ui.time.resume", "i18ntext.ui.time.reset_speed");
     // [修改] 为 TimeControlPanel 设置锚点
     m_time_control_panel->SetAnchor(UI::AnchorPoint::TopRight, { 20.0f, 20.0f });
     m_ui_root->AddChild(m_time_control_panel);
 
-    m_log_panel = std::make_shared<System::UI::LogPanel>("ui.log.system_scan", "ui.log.autosave");
+    m_log_panel = std::make_shared<System::UI::LogPanel>("i18ntext.ui.log.system_scan", "i18ntext.ui.log.autosave");
     // [修改] 为 LogPanel 设置锚点
     m_log_panel->SetAnchor(UI::AnchorPoint::BottomLeft, { 20.0f, 20.0f });
     m_ui_root->AddChild(m_log_panel);
@@ -383,34 +383,34 @@ void GameScreen::Update(float dt)
     else if (info_phase == 1)
     {
         m_top_Info->SetCivilizationData(
-            Npgs::System::TR("cinematic.title.singularity"),
-            std::vformat(Npgs::System::TR("cinematic.stat.mass_dominated"), std::make_format_args("2.4e30 kg")),
-            std::vformat(Npgs::System::TR("cinematic.stat.star_systems"), std::make_format_args("14201")),
-            std::vformat(Npgs::System::TR("cinematic.stat.reward"), std::make_format_args("1.875e+21"))
+            Npgs::System::TR("i18ntext.cinematic.title.singularity"),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass_dominated"), std::make_format_args("2.4e30 kg")),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.star_systems"), std::make_format_args("14201")),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.reward"), std::make_format_args("1.875e+21"))
         );
 
         m_bottom_Info->SetCelestialData(
             "191981", // ID
-            Npgs::System::TR("cinematic.type.black_hole"),
-            std::vformat(Npgs::System::TR("cinematic.stat.mass"), std::make_format_args("1.91E+36kg")),
-            std::vformat(Npgs::System::TR("cinematic.stat.luminosity"), std::make_format_args("8.10E+30 W"))
+            Npgs::System::TR("i18ntext.cinematic.type.black_hole"),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass"), std::make_format_args("1.91E+36kg")),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.luminosity"), std::make_format_args("8.10E+30 W"))
         );
     }
     // 阶段 2: 文明
     else if (info_phase == 2)
     {
         m_top_Info->SetCivilizationData(
-            Npgs::System::TR("cinematic.title.type2_civ"),
-            std::vformat(Npgs::System::TR("cinematic.stat.output"), std::make_format_args("3.8e26 W")),
-            std::vformat(Npgs::System::TR("cinematic.stat.progress"), std::make_format_args("84.2%")),
-            Npgs::System::TR("cinematic.stat.status_warning")
+            Npgs::System::TR("i18ntext.cinematic.title.type2_civ"),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.output"), std::make_format_args("3.8e26 W")),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.progress"), std::make_format_args("84.2%")),
+            Npgs::System::TR("i18ntext.cinematic.stat.status_warning")
         );
 
         m_bottom_Info->SetCelestialData(
             "000001",
-            Npgs::System::TR("cinematic.type.red_giant"),
-            std::vformat(Npgs::System::TR("cinematic.stat.mass"), std::make_format_args("1.91E+29kg")),
-            std::vformat(Npgs::System::TR("cinematic.stat.luminosity"), std::make_format_args("8.10E+99 W"))
+            Npgs::System::TR("i18ntext.cinematic.type.red_giant"),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass"), std::make_format_args("1.91E+29kg")),
+            std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.luminosity"), std::make_format_args("8.10E+99 W"))
         );
     }
     // Update beam button executable state
@@ -418,12 +418,12 @@ void GameScreen::Update(float dt)
     m_beam_button->SetExecutable(has_target);
     if (has_target)
     {
-        m_beam_button->SetStatus("ui.status.target_locked");
+        m_beam_button->SetStatus("i18ntext.ui.status.target_locked");
         m_beam_button->SetExecutable(true); // <--- 设置为可执行
     }
     else
     {
-        m_beam_button->SetStatus("ui.status.no_target");
+        m_beam_button->SetStatus("i18ntext.ui.status.no_target");
         m_beam_button->SetExecutable(false); // <--- 设置为不可执行
     }
 }
@@ -440,7 +440,7 @@ void GameScreen::Draw()
 void GameScreen::OnLanguageChanged()
 {
     SimulateStarSelectionAndUpdateUI();
-    m_log_panel->SetAutoSaveTime(Npgs::System::TR("ui.log.autosave") + FormatTime(*m_context.GameTime));
+    m_log_panel->SetAutoSaveTime(Npgs::System::TR("i18ntext.ui.log.autosave") + FormatTime(*m_context.GameTime));
 }
 
 std::string GameScreen::FormatTime(double total_seconds)

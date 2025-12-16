@@ -33,7 +33,7 @@ void MainMenuScreen::OnEnter()
     bg_panel->AddChild(main_layout);
 
     // 3. 标题：尺寸自适应，在main_layout中水平居中
-    m_title = std::make_shared<UI::TechText>("ui.menu.NPGS", ThemeColorID::TextHighlight, true, true);
+    m_title = std::make_shared<UI::TechText>("i18ntext.ui.menu.NPGS", ThemeColorID::TextHighlight, true, true);
     m_title->m_font = UIContext::Get().m_font_large;
     m_title->SetSizing(UI::TechTextSizingMode::AutoWidthHeight);
     m_title->m_align_h = UI::Alignment::Center; // 在VBox交叉轴上居中
@@ -48,8 +48,8 @@ void MainMenuScreen::OnEnter()
     main_layout->AddChild(m_button_layout);
 
     // 5. 按钮：宽度撑满父容器(m_button_layout)，高度固定
-    auto new_game_btn = std::make_shared<UI::TechButton>("ui.menu.new_game");
-    new_game_btn->SetTooltip("tooltip.new_game");
+    auto new_game_btn = std::make_shared<UI::TechButton>("i18ntext.ui.menu.new_game");
+    new_game_btn->SetTooltip("i18ntext.tooltip.new_game");
     new_game_btn->m_width = Length::Stretch();
     new_game_btn->m_height = Length::Fixed(40.0f);
     new_game_btn->on_click = [this]()
@@ -58,8 +58,8 @@ void MainMenuScreen::OnEnter()
     };
     m_button_layout->AddChild(new_game_btn);
 
-    auto quit_btn = std::make_shared<UI::TechButton>("ui.menu.quit");
-    quit_btn->SetTooltip("tooltip.test");
+    auto quit_btn = std::make_shared<UI::TechButton>("i18ntext.ui.menu.quit");
+    quit_btn->SetTooltip("i18ntext.tooltip.test");
     quit_btn->m_width = Length::Stretch();
     quit_btn->m_height = Length::Fixed(40.0f);
     quit_btn->on_click = [this]()

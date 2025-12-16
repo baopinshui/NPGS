@@ -37,34 +37,34 @@ CelestialData AstroDataBuilder::BuildDataForStar(const Astro::AStar* star)
     // =======================================================
     {
         InfoPage page;
-        page.name = TR("astro.page.physical");
+        page.name = TR("i18ntext.astro.page.physical");
 
         InfoGroup g_basic;
-        g_basic.items.push_back({ TR("astro.type"), star->GetStellarClass().ToString() });
-        g_basic.items.push_back({ TR("astro.phase"), StarPhaseToString(star->GetEvolutionPhase()), true });
-        g_basic.items.push_back({ TR("astro.progress"), std::to_string(star->GetEvolutionProgress() * 100.0) + "%" });
-        g_basic.items.push_back({ TR("astro.age"), FormatScientific(star->GetAge(), "yr") });
-        g_basic.items.push_back({ TR("astro.lifespan"), FormatScientific(star->GetLifetime(), "yr") });
+        g_basic.items.push_back({ TR("i18ntext.astro.type"), star->GetStellarClass().ToString() });
+        g_basic.items.push_back({ TR("i18ntext.astro.phase"), StarPhaseToString(star->GetEvolutionPhase()), true });
+        g_basic.items.push_back({ TR("i18ntext.astro.progress"), std::to_string(star->GetEvolutionProgress() * 100.0) + "%" });
+        g_basic.items.push_back({ TR("i18ntext.astro.age"), FormatScientific(star->GetAge(), "yr") });
+        g_basic.items.push_back({ TR("i18ntext.astro.lifespan"), FormatScientific(star->GetLifetime(), "yr") });
         page.groups.push_back(g_basic);
 
         InfoGroup g_mass;
-        g_mass.items.push_back({ TR("astro.mass"), FormatScientific(star->GetMass(), "kg") });
-        g_mass.items.push_back({ TR("astro.initial_mass"), FormatScientific(star->GetInitialMass(), "kg") });
+        g_mass.items.push_back({ TR("i18ntext.astro.mass"), FormatScientific(star->GetMass(), "kg") });
+        g_mass.items.push_back({ TR("i18ntext.astro.initial_mass"), FormatScientific(star->GetInitialMass(), "kg") });
         page.groups.push_back(g_mass);
 
         InfoGroup g_energy;
-        g_energy.items.push_back({ TR("astro.luminosity"), FormatScientific(star->GetLuminosity(), "W") });
-        g_energy.items.push_back({ TR("astro.temp_surface"), FormatScientific(star->GetTeff(), "K"), true });
-        g_energy.items.push_back({ TR("astro.temp_core"), FormatScientific(star->GetCoreTemp(), "K") });
-        g_energy.items.push_back({ TR("astro.density_core"), FormatScientific(star->GetCoreDensity(), "kg/m^3") });
+        g_energy.items.push_back({ TR("i18ntext.astro.luminosity"), FormatScientific(star->GetLuminosity(), "W") });
+        g_energy.items.push_back({ TR("i18ntext.astro.temp_surface"), FormatScientific(star->GetTeff(), "K"), true });
+        g_energy.items.push_back({ TR("i18ntext.astro.temp_core"), FormatScientific(star->GetCoreTemp(), "K") });
+        g_energy.items.push_back({ TR("i18ntext.astro.density_core"), FormatScientific(star->GetCoreDensity(), "kg/m^3") });
         page.groups.push_back(g_energy);
 
         InfoGroup g_phys;
-        g_phys.items.push_back({ TR("astro.radius"), FormatScientific(star->GetRadius(), "m") });
-        g_phys.items.push_back({ TR("astro.oblateness"), std::to_string(star->GetOblateness()) });
-        g_phys.items.push_back({ TR("astro.spin"), FormatScientific(star->GetSpin(), "s") });
-        g_phys.items.push_back({ TR("astro.escape_vel"), FormatScientific(star->GetEscapeVelocity(), "m/s") });
-        g_phys.items.push_back({ TR("astro.mag_field"), FormatScientific(star->GetMagneticField(), "T") });
+        g_phys.items.push_back({ TR("i18ntext.astro.radius"), FormatScientific(star->GetRadius(), "m") });
+        g_phys.items.push_back({ TR("i18ntext.astro.oblateness"), std::to_string(star->GetOblateness()) });
+        g_phys.items.push_back({ TR("i18ntext.astro.spin"), FormatScientific(star->GetSpin(), "s") });
+        g_phys.items.push_back({ TR("i18ntext.astro.escape_vel"), FormatScientific(star->GetEscapeVelocity(), "m/s") });
+        g_phys.items.push_back({ TR("i18ntext.astro.mag_field"), FormatScientific(star->GetMagneticField(), "T") });
         page.groups.push_back(g_phys);
 
         data.push_back(page);
@@ -75,19 +75,19 @@ CelestialData AstroDataBuilder::BuildDataForStar(const Astro::AStar* star)
     // =======================================================
     {
         InfoPage page;
-        page.name = TR("astro.page.composition");
+        page.name = TR("i18ntext.astro.page.composition");
 
         InfoGroup g_surface;
-        g_surface.items.push_back({ TR("astro.metallicity"), std::to_string(star->GetFeH()) });
-        g_surface.items.push_back({ TR("astro.surf_h1"), std::to_string(star->GetSurfaceH1()) });
-        g_surface.items.push_back({ TR("astro.surf_z"), std::to_string(star->GetSurfaceZ()) });
-        g_surface.items.push_back({ TR("astro.surf_volatiles"), std::to_string(star->GetSurfaceVolatiles()) });
-        g_surface.items.push_back({ TR("astro.surf_energetic"), std::to_string(star->GetSurfaceEnergeticNuclide()) });
+        g_surface.items.push_back({ TR("i18ntext.astro.metallicity"), std::to_string(star->GetFeH()) });
+        g_surface.items.push_back({ TR("i18ntext.astro.surf_h1"), std::to_string(star->GetSurfaceH1()) });
+        g_surface.items.push_back({ TR("i18ntext.astro.surf_z"), std::to_string(star->GetSurfaceZ()) });
+        g_surface.items.push_back({ TR("i18ntext.astro.surf_volatiles"), std::to_string(star->GetSurfaceVolatiles()) });
+        g_surface.items.push_back({ TR("i18ntext.astro.surf_energetic"), std::to_string(star->GetSurfaceEnergeticNuclide()) });
         page.groups.push_back(g_surface);
 
         InfoGroup g_wind;
-        g_wind.items.push_back({ TR("astro.wind_speed"), FormatScientific(star->GetStellarWindSpeed(), "m/s") });
-        g_wind.items.push_back({ TR("astro.wind_loss_rate"), FormatScientific(star->GetStellarWindMassLossRate(), "kg/s") });
+        g_wind.items.push_back({ TR("i18ntext.astro.wind_speed"), FormatScientific(star->GetStellarWindSpeed(), "m/s") });
+        g_wind.items.push_back({ TR("i18ntext.astro.wind_loss_rate"), FormatScientific(star->GetStellarWindMassLossRate(), "kg/s") });
         page.groups.push_back(g_wind);
 
         data.push_back(page);
@@ -98,7 +98,7 @@ CelestialData AstroDataBuilder::BuildDataForStar(const Astro::AStar* star)
     // =======================================================
     {
         InfoPage page;
-        page.name = TR("astro.page.evolution");
+        page.name = TR("i18ntext.astro.page.evolution");
 
         InfoGroup g_evo;
         g_evo.items.push_back({ TR("astro.formation"), StarFromToString(star->GetStarFrom()) });
@@ -107,9 +107,9 @@ CelestialData AstroDataBuilder::BuildDataForStar(const Astro::AStar* star)
         page.groups.push_back(g_evo);
 
         InfoGroup g_misc;
-        g_misc.items.push_back({ TR("astro.is_single"), star->GetIsSingleStar() ? TR("bool.yes") : TR("bool.no") });
-        g_misc.items.push_back({ TR("astro.has_planets"), star->GetHasPlanets() ? TR("bool.yes") : TR("bool.no") });
-        g_misc.items.push_back({ TR("astro.min_coil_mass"), FormatScientific(star->GetMinCoilMass(), "kg") });
+        g_misc.items.push_back({ TR("i18ntext.astro.is_single"), star->GetIsSingleStar() ? TR("i18ntext.bool.yes") : TR("i18ntext.bool.no") });
+        g_misc.items.push_back({ TR("i18ntext.astro.has_planets"), star->GetHasPlanets() ? TR("i18ntext.bool.yes") : TR("i18ntext.bool.no") });
+        g_misc.items.push_back({ TR("i18ntext.astro.min_coil_mass"), FormatScientific(star->GetMinCoilMass(), "kg") });
         page.groups.push_back(g_misc);
 
         data.push_back(page);
@@ -130,20 +130,20 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = TR("astro.page.physical");
+        page.name = TR("i18ntext.astro.page.physical");
 
         InfoGroup g_type;
-        g_type.items.push_back({ TR("astro.type"), PlanetTypeToString(planet->GetPlanetType()) });
-        g_type.items.push_back({ TR("astro.is_migrated"), planet->GetMigration() ? TR("bool.yes") : TR("bool.no") });
+        g_type.items.push_back({ TR("i18ntext.astro.type"), PlanetTypeToString(planet->GetPlanetType()) });
+        g_type.items.push_back({ TR("i18ntext.astro.is_migrated"), planet->GetMigration() ? TR("i18ntext.bool.yes") : TR("i18ntext.bool.no") });
         page.groups.push_back(g_type);
 
         InfoGroup g_phys;
-        g_phys.items.push_back({ TR("astro.mass_total"), planet->GetMass().str() + " kg" });
-        g_phys.items.push_back({ TR("astro.radius"), FormatScientific(planet->GetRadius(), "m") });
-        g_phys.items.push_back({ TR("astro.temp_balance"), FormatScientific(planet->GetBalanceTemperature(), "K") });
-        g_phys.items.push_back({ TR("astro.spin"), FormatScientific(planet->GetSpin(), "s") });
-        g_phys.items.push_back({ TR("astro.escape_vel"), FormatScientific(planet->GetEscapeVelocity(), "m/s") });
-        g_phys.items.push_back({ TR("astro.age"), FormatScientific(planet->GetAge(), "yr") });
+        g_phys.items.push_back({ TR("i18ntext.astro.mass_total"), planet->GetMass().str() + " kg" });
+        g_phys.items.push_back({ TR("i18ntext.astro.radius"), FormatScientific(planet->GetRadius(), "m") });
+        g_phys.items.push_back({ TR("i18ntext.astro.temp_balance"), FormatScientific(planet->GetBalanceTemperature(), "K") });
+        g_phys.items.push_back({ TR("i18ntext.astro.spin"), FormatScientific(planet->GetSpin(), "s") });
+        g_phys.items.push_back({ TR("i18ntext.astro.escape_vel"), FormatScientific(planet->GetEscapeVelocity(), "m/s") });
+        g_phys.items.push_back({ TR("i18ntext.astro.age"), FormatScientific(planet->GetAge(), "yr") });
         page.groups.push_back(g_phys);
 
         data.push_back(page);
@@ -154,20 +154,20 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = TR("astro.page.composition");
+        page.name = TR("i18ntext.astro.page.composition");
 
         InfoGroup g_mass;
-        g_mass.items.push_back({ TR("astro.mass_atmosphere"), planet->GetAtmosphereMass().str() + " kg" });
-        g_mass.items.push_back({ TR("astro.mass_ocean"), planet->GetOceanMass().str() + " kg" });
-        g_mass.items.push_back({ TR("astro.mass_core"), planet->GetCoreMass().str() + " kg" });
-        g_mass.items.push_back({ TR("astro.mass_crust_mineral"), planet->GetCrustMineralMass().str() + " kg" });
+        g_mass.items.push_back({ TR("i18ntext.astro.mass_atmosphere"), planet->GetAtmosphereMass().str() + " kg" });
+        g_mass.items.push_back({ TR("i18ntext.astro.mass_ocean"), planet->GetOceanMass().str() + " kg" });
+        g_mass.items.push_back({ TR("i18ntext.astro.mass_core"), planet->GetCoreMass().str() + " kg" });
+        g_mass.items.push_back({ TR("i18ntext.astro.mass_crust_mineral"), planet->GetCrustMineralMass().str() + " kg" });
         page.groups.push_back(g_mass);
 
         InfoGroup g_mass_detail;
-        g_mass_detail.items.push_back({ TR("astro.mass_atmo_z"), planet->GetAtmosphereMassZ().str() + " kg" });
-        g_mass_detail.items.push_back({ TR("astro.mass_atmo_volatiles"), planet->GetAtmosphereMassVolatiles().str() + " kg" });
-        g_mass_detail.items.push_back({ TR("astro.mass_atmo_energetic"), planet->GetAtmosphereMassEnergeticNuclide().str() + " kg" });
-        g_mass_detail.items.push_back({ TR("astro.mass_ocean_z"), planet->GetOceanMassZ().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("i18ntext.astro.mass_atmo_z"), planet->GetAtmosphereMassZ().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("i18ntext.astro.mass_atmo_volatiles"), planet->GetAtmosphereMassVolatiles().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("i18ntext.astro.mass_atmo_energetic"), planet->GetAtmosphereMassEnergeticNuclide().str() + " kg" });
+        g_mass_detail.items.push_back({ TR("i18ntext.astro.mass_ocean_z"), planet->GetOceanMassZ().str() + " kg" });
         // ...可以继续添加所有详细成分...
         page.groups.push_back(g_mass_detail);
 
@@ -179,15 +179,15 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = TR("astro.page.orbit");
+        page.name = TR("i18ntext.astro.page.orbit");
 
         InfoGroup g_orbit;
         // 注意：Builder只接收IAstroObject指针，没有轨道上下文。
         // 如需显示轨道数据，需要修改BuildDataForObject的参数，
         // 比如传入一个包含天体和其轨道的结构体。
-        g_orbit.items.push_back({ TR("astro.orbit_sma"), TR("data.not_available") });
-        g_orbit.items.push_back({ TR("astro.orbit_period"), TR("data.not_available") });
-        g_orbit.items.push_back({ TR("astro.orbit_eccentricity"), TR("data.not_available") });
+        g_orbit.items.push_back({ TR("i18ntext.astro.orbit_sma"), TR("i18ntext.data.not_available") });
+        g_orbit.items.push_back({ TR("i18ntext.astro.orbit_period"), TR("i18ntext.data.not_available") });
+        g_orbit.items.push_back({ TR("i18ntext.astro.orbit_eccentricity"), TR("i18ntext.data.not_available") });
         page.groups.push_back(g_orbit);
 
         data.push_back(page);
@@ -198,15 +198,15 @@ CelestialData AstroDataBuilder::BuildDataForPlanet(const Astro::APlanet* planet)
     // =======================================================
     {
         InfoPage page;
-        page.name = TR("astro.page.civilization");
+        page.name = TR("i18ntext.astro.page.civilization");
 
         InfoGroup g_life;
-        g_life.items.push_back({ TR("astro.life_phase"), TR("data.not_available") }); // 需从CivilizationData获取
+        g_life.items.push_back({ TR("i18ntext.astro.life_phase"), TR("i18ntext.data.not_available") }); // 需从CivilizationData获取
         page.groups.push_back(g_life);
 
         InfoGroup g_civ;
-        g_civ.items.push_back({ TR("astro.civ_phase"), TR("data.not_available") }); // 需从CivilizationData获取
-        g_civ.items.push_back({ TR("astro.kardashev_index"), TR("data.not_available") }); // 需从CivilizationData获取
+        g_civ.items.push_back({ TR("i18ntext.astro.civ_phase"), TR("i18ntext.data.not_available") }); // 需从CivilizationData获取
+        g_civ.items.push_back({ TR("i18ntext.astro.kardashev_index"), TR("i18ntext.data.not_available") }); // 需从CivilizationData获取
         page.groups.push_back(g_civ);
 
         data.push_back(page);
@@ -230,23 +230,23 @@ std::string AstroDataBuilder::StarPhaseToString(Astro::AStar::EEvolutionPhase ph
     using EPhase = Astro::AStar::EEvolutionPhase;
     switch (phase)
     {
-    case EPhase::kPrevMainSequence: return          TR("enum.star.prev_ms");
-    case EPhase::kMainSequence: return              TR("enum.star.main_seq");
-    case EPhase::kRedGiant: return                  TR("enum.star.red_giant");
-    case EPhase::kCoreHeBurn: return                TR("enum.star.core_he_burn");
-    case EPhase::kEarlyAgb: return                  TR("enum.star.early_agb");
-    case EPhase::kThermalPulseAgb: return           TR("enum.star.tp_agb");
-    case EPhase::kPostAgb: return                   TR("enum.star.post_agb");
-    case EPhase::kWolfRayet: return                 TR("enum.star.wolf_rayet");
-    case EPhase::kHeliumWhiteDwarf: return          TR("enum.star.he_wd");
-    case EPhase::kCarbonOxygenWhiteDwarf: return    TR("enum.star.co_wd");
-    case EPhase::kOxygenNeonMagnWhiteDwarf: return  TR("enum.star.onemg_wd");
-    case EPhase::kNeutronStar: return               TR("enum.star.neutron_star");
-    case EPhase::kStellarBlackHole: return          TR("enum.star.stellar_bh");
-    case EPhase::kMiddleBlackHole: return           TR("enum.star.middle_bh");
-    case EPhase::kSuperMassiveBlackHole: return     TR("enum.star.supermassive_bh");
-    case EPhase::kNull: return                      TR("enum.unknown");
-    default: return TR("enum.unknown");
+    case EPhase::kPrevMainSequence: return          TR("i18ntext.enum.star.prev_ms");
+    case EPhase::kMainSequence: return              TR("i18ntext.enum.star.main_seq");
+    case EPhase::kRedGiant: return                  TR("i18ntext.enum.star.red_giant");
+    case EPhase::kCoreHeBurn: return                TR("i18ntext.enum.star.core_he_burn");
+    case EPhase::kEarlyAgb: return                  TR("i18ntext.enum.star.early_agb");
+    case EPhase::kThermalPulseAgb: return           TR("i18ntext.enum.star.tp_agb");
+    case EPhase::kPostAgb: return                   TR("i18ntext.enum.star.post_agb");
+    case EPhase::kWolfRayet: return                 TR("i18ntext.enum.star.wolf_rayet");
+    case EPhase::kHeliumWhiteDwarf: return          TR("i18ntext.enum.star.he_wd");
+    case EPhase::kCarbonOxygenWhiteDwarf: return    TR("i18ntext.enum.star.co_wd");
+    case EPhase::kOxygenNeonMagnWhiteDwarf: return  TR("i18ntext.enum.star.onemg_wd");
+    case EPhase::kNeutronStar: return               TR("i18ntext.enum.star.neutron_star");
+    case EPhase::kStellarBlackHole: return          TR("i18ntext.enum.star.stellar_bh");
+    case EPhase::kMiddleBlackHole: return           TR("i18ntext.enum.star.middle_bh");
+    case EPhase::kSuperMassiveBlackHole: return     TR("i18ntext.enum.star.supermassive_bh");
+    case EPhase::kNull: return                      TR("i18ntext.enum.unknown");
+    default: return TR("i18ntext.enum.unknown");
     }
 }
 std::string AstroDataBuilder::StarFromToString(Astro::AStar::EStarFrom from)
@@ -254,16 +254,16 @@ std::string AstroDataBuilder::StarFromToString(Astro::AStar::EStarFrom from)
     using EFrom = Astro::AStar::EStarFrom;
     switch (from)
     {
-    case EFrom::kNormalFrom: return                TR("enum.star_from.normal");
-    case EFrom::kWhiteDwarfMerge: return           TR("enum.star_from.wd_merge");
-    case EFrom::kSlowColdingDown: return           TR("enum.star_from.slow_cooling");
-    case EFrom::kEnvelopeDisperse: return          TR("enum.star_from.envelope_disperse");
-    case EFrom::kElectronCaptureSupernova: return  TR("enum.star_from.ec_supernova");
-    case EFrom::kIronCoreCollapseSupernova: return TR("enum.star_from.fe_core_supernova");
-    case EFrom::kRelativisticJetHypernova: return  TR("enum.star_from.jet_hypernova");
-    case EFrom::kPairInstabilitySupernova: return  TR("enum.star_from.pair_inst_supernova");
-    case EFrom::kPhotondisintegration: return      TR("enum.star_from.photodisintegration");
-    default: return TR("enum.unknown_formation");
+    case EFrom::kNormalFrom: return                TR("i18ntext.enum.star_from.normal");
+    case EFrom::kWhiteDwarfMerge: return           TR("i18ntext.enum.star_from.wd_merge");
+    case EFrom::kSlowColdingDown: return           TR("i18ntext.enum.star_from.slow_cooling");
+    case EFrom::kEnvelopeDisperse: return          TR("i18ntext.enum.star_from.envelope_disperse");
+    case EFrom::kElectronCaptureSupernova: return  TR("i18ntext.enum.star_from.ec_supernova");
+    case EFrom::kIronCoreCollapseSupernova: return TR("i18ntext.enum.star_from.fe_core_supernova");
+    case EFrom::kRelativisticJetHypernova: return  TR("i18ntext.enum.star_from.jet_hypernova");
+    case EFrom::kPairInstabilitySupernova: return  TR("i18ntext.enum.star_from.pair_inst_supernova");
+    case EFrom::kPhotondisintegration: return      TR("i18ntext.enum.star_from.photodisintegration");
+    default: return TR("i18ntext.enum.unknown_formation");
     }
 }
 
@@ -276,15 +276,15 @@ std::string AstroDataBuilder::PredictOutcomeToString(const Astro::AStar* star)
     // 如果恒星已经是残骸，它的结局就是“缓慢熄灭”或“蒸发”
     if (phase >= EPhase::kHeliumWhiteDwarf && phase <= EPhase::kOxygenNeonMagnWhiteDwarf)
     {
-        return TR("enum.outcome.slow_fade");
+        return TR("i18ntext.enum.outcome.slow_fade");
     }
     if (phase == EPhase::kNeutronStar)
     {
-        return TR("enum.outcome.slow_cool");
+        return TR("i18ntext.enum.outcome.slow_cool");
     }
     if (phase >= EPhase::kStellarBlackHole)
     {
-        return TR("enum.outcome.hawking_radiation");
+        return TR("i18ntext.enum.outcome.hawking_radiation");
     }
 
     // 否则，根据初始质量预测
@@ -292,14 +292,14 @@ std::string AstroDataBuilder::PredictOutcomeToString(const Astro::AStar* star)
     const double solarMass = 1.98847e30; // 太阳质量
     const double m_sun = initialMassKg / solarMass;
 
-    if (m_sun < 0.5) return TR("enum.outcome.slow_fade");
-    if (m_sun < 8.0) return TR("enum.outcome.envelope_disperse");
-    if (m_sun < 10.0) return TR("enum.outcome.ec_supernova");
-    if (m_sun < 40.0) return TR("enum.outcome.fe_core_supernova");
-    if (m_sun < 130.0) return TR("enum.outcome.jet_hypernova");
-    if (m_sun < 250.0) return TR("enum.outcome.pair_inst_supernova");
+    if (m_sun < 0.5) return TR("i18ntext.enum.outcome.slow_fade");
+    if (m_sun < 8.0) return TR("i18ntext.enum.outcome.envelope_disperse");
+    if (m_sun < 10.0) return TR("i18ntext.enum.outcome.ec_supernova");
+    if (m_sun < 40.0) return TR("i18ntext.enum.outcome.fe_core_supernova");
+    if (m_sun < 130.0) return TR("i18ntext.enum.outcome.jet_hypernova");
+    if (m_sun < 250.0) return TR("i18ntext.enum.outcome.pair_inst_supernova");
 
-    return TR("enum.outcome.photodisintegration");
+    return TR("i18ntext.enum.outcome.photodisintegration");
 }
 
 // [新增] 预测恒星残骸
@@ -314,13 +314,13 @@ std::string AstroDataBuilder::PredictRemnantToString(const Astro::AStar* star)
     case EPhase::kHeliumWhiteDwarf:
     case EPhase::kCarbonOxygenWhiteDwarf:
     case EPhase::kOxygenNeonMagnWhiteDwarf:
-        return TR("enum.remnant.white_dwarf");
+        return TR("i18ntext.enum.remnant.white_dwarf");
     case EPhase::kNeutronStar:
-        return TR("enum.remnant.neutron_star");
+        return TR("i18ntext.enum.remnant.neutron_star");
     case EPhase::kStellarBlackHole:
     case EPhase::kMiddleBlackHole:
     case EPhase::kSuperMassiveBlackHole:
-        return TR("enum.remnant.black_hole");
+        return TR("i18ntext.enum.remnant.black_hole");
     }
 
     // 否则，根据初始质量预测
@@ -328,10 +328,10 @@ std::string AstroDataBuilder::PredictRemnantToString(const Astro::AStar* star)
     const double solarMass = 1.98847e30;
     const double m_sun = initialMassKg / solarMass;
 
-    if (m_sun < 8.0) return TR("enum.remnant.white_dwarf");
-    if (m_sun < 25.0) return TR("enum.remnant.neutron_star");
+    if (m_sun < 8.0) return TR("i18ntext.enum.remnant.white_dwarf");
+    if (m_sun < 25.0) return TR("i18ntext.enum.remnant.neutron_star");
 
-    return TR("enum.remnant.black_hole");
+    return TR("i18ntext.enum.remnant.black_hole");
 }
 
 std::string AstroDataBuilder::PlanetTypeToString(Astro::APlanet::EPlanetType type)
@@ -339,21 +339,21 @@ std::string AstroDataBuilder::PlanetTypeToString(Astro::APlanet::EPlanetType typ
     using EType = Astro::APlanet::EPlanetType;
     switch (type)
     {
-    case EType::kRocky: return TR("enum.planet.rocky");
-    case EType::kTerra: return TR("enum.planet.terra");
-    case EType::kIcePlanet: return TR("enum.planet.ice");
-    case EType::kChthonian: return TR("enum.planet.chthonian");
-    case EType::kOceanic: return TR("enum.planet.oceanic");
-    case EType::kSubIceGiant: return TR("enum.planet.sub_ice_giant");
-    case EType::kIceGiant: return TR("enum.planet.ice_giant");
-    case EType::kGasGiant: return TR("enum.planet.gas_giant");
-    case EType::kHotSubIceGiant: return TR("enum.planet.hot_sub_ice_giant");
-    case EType::kHotIceGiant: return TR("enum.planet.hot_ice_giant");
-    case EType::kHotGasGiant: return TR("enum.planet.hot_gas_giant");
-    case EType::kRockyAsteroidCluster: return TR("enum.planet.rocky_asteroid");
-    case EType::kRockyIceAsteroidCluster: return TR("enum.planet.rocky_ice_asteroid");
-    case EType::kArtificalOrbitalStructureCluster: return TR("enum.planet.artificial_cluster");
-    default: return TR("enum.unknown");
+    case EType::kRocky:                                  return TR("i18ntext.enum.planet.rocky");
+    case EType::kTerra:                                  return TR("i18ntext.enum.planet.terra");
+    case EType::kIcePlanet:                              return TR("i18ntext.enum.planet.ice");
+    case EType::kChthonian:                              return TR("i18ntext.enum.planet.chthonian");
+    case EType::kOceanic:                                return TR("i18ntext.enum.planet.oceanic");
+    case EType::kSubIceGiant:                            return TR("i18ntext.enum.planet.sub_ice_giant");
+    case EType::kIceGiant:                               return TR("i18ntext.enum.planet.ice_giant");
+    case EType::kGasGiant:                               return TR("i18ntext.enum.planet.gas_giant");
+    case EType::kHotSubIceGiant:                         return TR("i18ntext.enum.planet.hot_sub_ice_giant");
+    case EType::kHotIceGiant:                            return TR("i18ntext.enum.planet.hot_ice_giant");
+    case EType::kHotGasGiant:                            return TR("i18ntext.enum.planet.hot_gas_giant");
+    case EType::kRockyAsteroidCluster:                   return TR("i18ntext.enum.planet.rocky_asteroid");
+    case EType::kRockyIceAsteroidCluster:                return TR("i18ntext.enum.planet.rocky_ice_asteroid");
+    case EType::kArtificalOrbitalStructureCluster:       return TR("i18ntext.enum.planet.artificial_cluster");
+    default: return TR("i18ntext.enum.unknown");
     }
 }
 

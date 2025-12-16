@@ -61,7 +61,7 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         top_spacer->m_height = Length::Fixed(15.0f);
         header_container->AddChild(top_spacer);
 
-        m_title_text = std::make_shared<TechText>(TR("ui.celestial.no_target"));
+        m_title_text = std::make_shared<TechText>(TR("i18ntext.ui.celestial.no_target"));
         m_title_text->SetSizing(TechTextSizingMode::AutoHeight); // 自动换行
         m_title_text->SetColor(ThemeColorID::Accent);
         m_title_text->m_font = UIContext::Get().m_font_bold;

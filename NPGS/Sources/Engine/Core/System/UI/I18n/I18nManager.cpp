@@ -70,14 +70,7 @@ void I18nManager::SetLanguage(Language lang)
 static bool IsI18nKey(const std::string& key)
 {
     if (key.empty() || key.find('.') == std::string::npos) return false;
-    return key.rfind("ui.", 0) == 0 ||
-        key.rfind("astro.", 0) == 0 ||
-        key.rfind("log.", 0) == 0 ||
-        key.rfind("enum.", 0) == 0 ||
-        key.rfind("cinematic.", 0) == 0 ||
-        key.rfind("bool.", 0) == 0 ||
-        key.rfind("tooltip.", 0) == 0 ||
-        key.rfind("data.", 0) == 0;
+    return key.rfind("i18ntext.", 0) == 0;
 }
 
 std::string I18nManager::Get(const std::string& key) const
