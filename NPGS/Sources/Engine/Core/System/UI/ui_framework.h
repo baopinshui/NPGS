@@ -19,7 +19,7 @@ _UI_BEGIN
 class UIElement;
 class UIContext;
 class GlobalTooltip;
-
+class UIRoot;
 // --- 1. 对齐与布局 ---
 
 // [NEW] 仅在当前元素尺寸小于容器分配的交叉轴尺寸时生效
@@ -156,7 +156,13 @@ public:
     ImVec2 m_absolute_pos = { 0, 0 };
     bool m_visible = true;
     float m_alpha = 1.0f;
-    std::string m_id;
+private:
+    std::string m_name="";
+public:
+    std::string m_cached_id;
+    bool m_id_dirty = true;
+   
+
     std::string m_tooltip_key;
 
     // [NEW] 布局属性
@@ -182,6 +188,7 @@ public:
     // 资源
     ImFont* m_font = nullptr;
 
+    UIRoot* m_root = nullptr;
     UIElement* m_parent = nullptr;
     std::vector<Ptr> m_children;
 
@@ -198,11 +205,9 @@ public:
 
     virtual ~UIElement() = default;
 
-    // 核心生命周期
-protected:
+
     virtual void UpdateSelf(float dt);
 
-public:
     // [MODIFIED] Update 不再负责布局计算，只负责动画和状态更新
     virtual void Update(float dt);
 
@@ -219,7 +224,11 @@ public:
     // 事件处理
     virtual void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled);
     virtual bool HandleKeyboardEvent();
-
+    // ID 和命名管理 API
+    void SetName(const std::string& name);
+    const std::string& GetName() const { return m_name; }
+    std::string& GetID();
+    void InvalidateIDCache();
     // 层级管理
     void AddChild(Ptr child);
     void RemoveChild(Ptr child);
@@ -335,10 +344,49 @@ public:
 };
 
 // --- 根元素 ---
+
+
+/*
+如果使用无名容器，必须保证其内部的具名子元素在最近的一个具名祖先下是唯一的
+
+
+id系统查找示例：
+void GameScreen::SomeLogicFunction()
+{
+    if (auto rkkv_button = m_ui_root->FindElementByID("rkkvButton"))
+    {
+        // 我们可以安全地转换类型，因为我们知道这个ID对应的是什么
+        if (auto pulsar_btn = dynamic_cast<PulsarButton*>(rkkv_button))
+        {
+            pulsar_btn->SetStatus("i18ntext.ui.status.reloading");
+        }
+    }
+
+    // 甚至可以找到复合组件内部的子部件
+    if (auto rkkv_label = m_ui_root->FindElementByID("rkkvButton.label"))
+    {
+        if (auto tech_text = dynamic_cast<TechText*>(rkkv_label))
+        {
+            // 直接修改内部文本组件的颜色
+            tech_text->SetColor(ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
+        }
+    }
+}
+*/
 class UIRoot : public UIElement
 {
 public:
     UIRoot();
+
+    UIElement* FindElementByID(const std::string& id);
+
+    template<typename T>
+    T* FindElementAs(const std::string& id)
+    {
+        return dynamic_cast<T*>(FindElementByID(id));
+    }
+
+    void MarkIDMapDirty();
 
     void Arrange(const Rect& final_rect) override;
 
@@ -349,6 +397,11 @@ public:
     void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
 private:
     std::shared_ptr<GlobalTooltip> m_tooltip;
+    std::unordered_map<std::string, UIElement*> m_id_map;
+    bool m_id_map_dirty = true;
+
+    void RebuildIDMap();
+    void BuildIDMapRecursive(UIElement* element);
 };
 
 _UI_END

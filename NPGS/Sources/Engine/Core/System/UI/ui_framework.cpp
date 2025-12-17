@@ -89,19 +89,92 @@ void UIContext::ReleaseCapture() { m_captured_element = nullptr; }
 
 // --- UIElement Implementation ---
 
+// [NEW] ID Management Implementation
+void UIElement::SetName(const std::string& name)
+{
+    if (m_name != name)
+    {
+        m_name = name;
+        InvalidateIDCache(); // 名字变了，ID缓存必须失效
+    }
+}
+
+std::string& UIElement::GetID() 
+{
+    if (m_id_dirty)
+    {
+        // 如果父节点存在，ID路径基于父节点
+        if (m_parent)
+        {
+            const std::string& parent_id = m_parent->GetID();
+
+            // 规则：如果自身 name 为空，则为“透明”容器，ID直接继承父ID
+            if (m_name.empty())
+            {
+                m_cached_id = parent_id;
+            }
+            else
+            {
+                // 如果父ID为空（例如父节点是根或也是透明容器），则不加点
+                if (parent_id.empty())
+                {
+                    m_cached_id = m_name;
+                }
+                else
+                {
+                    m_cached_id = parent_id + "." + m_name;
+                }
+            }
+        }
+        else // 如果没有父节点，ID就是自己的名字
+        {
+            m_cached_id = m_name;
+        }
+
+        m_id_dirty = false; // 计算完毕，清除脏标记
+    }
+    return m_cached_id;
+}
+
+void UIElement::InvalidateIDCache()
+{
+    // 标记自己为脏
+    m_id_dirty = true;
+    if (m_root)
+    {
+        m_root->MarkIDMapDirty();
+    }
+    // 递归标记所有子节点为脏，因为它们的父路径已经改变
+    for (auto& child : m_children)
+    {
+        child->InvalidateIDCache();
+    }
+}
+
+
+// [MODIFIED] AddChild
 void UIElement::AddChild(Ptr child)
 {
     child->m_parent = this;
+    child->m_root = this->m_root;
     m_children.push_back(child);
+
+    // [NEW] 子元素的父节点变了，其ID路径需要重新计算
+    child->InvalidateIDCache();
 }
 
+// [MODIFIED] RemoveChild
 void UIElement::RemoveChild(Ptr child)
 {
     if (!child) return;
     auto it = std::find(m_children.begin(), m_children.end(), child);
     if (it != m_children.end())
     {
+        (*it)->InvalidateIDCache();
+
         (*it)->m_parent = nullptr;
+        (*it)->m_root = nullptr; // [新增] 解除与根节点的关联
+
         m_children.erase(it);
     }
 }
@@ -994,6 +1067,7 @@ UIRoot::UIRoot()
     m_rect = { 0, 0, io.DisplaySize.x, io.DisplaySize.y };
     m_block_input = false;
     m_visible = true;
+    m_root = this;
     m_tooltip = std::make_shared<GlobalTooltip>();
 }
 
@@ -1130,6 +1204,58 @@ void UIRoot::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mou
     if (mouse_clicked && !handled && focused_before) ctx.ClearFocus();
 }
 
+void UIRoot::MarkIDMapDirty()
+{
+    m_id_map_dirty = true;
+}
+
+void UIRoot::BuildIDMapRecursive(UIElement* element)
+{
+    // 1. 获取当前元素的完整ID
+    const std::string& id = element->GetID();
+
+    // 2. 只有非空ID才会被添加到映射表中
+    // 这自然地处理了“透明”的匿名排版容器
+    if (!element->GetName().empty() && !id.empty())
+    {
+        // [健壮性检查] 在开发模式下，检查ID是否重复
+        if (m_id_map.count(id))
+        {
+             NpgsCoreWarn("Duplicate UI ID detected: {}", id);
+        }
+        m_id_map[id] = element;
+    }
+
+    // 3. 递归遍历所有子元素
+    for (auto& child : element->m_children)
+    {
+        BuildIDMapRecursive(child.get());
+    }
+}
+
+void UIRoot::RebuildIDMap()
+{
+    m_id_map.clear();
+    BuildIDMapRecursive(this); // 从根节点开始递归构建
+    m_id_map_dirty = false;    // 重建完成，清除脏标记
+}
+
+UIElement* UIRoot::FindElementByID(const std::string& id)
+{
+    // 如果映射表是脏的，先重建它
+    if (m_id_map_dirty)
+    {
+        RebuildIDMap();
+    }
+
+    auto it = m_id_map.find(id);
+    if (it != m_id_map.end())
+    {
+        return it->second;
+    }
+
+    return nullptr;
+}
 _UI_END
 _SYSTEM_END
 _NPGS_END
