@@ -2,6 +2,8 @@
 
 #include "../IScreen.h"
 #include "../neural_ui.h"
+#include "../UIFactory.h"
+#include "../UILoader.h" 
 
 #include "../../../../../Program/DataStructures.h"
 #include <string>
@@ -40,6 +42,7 @@ private:
     // [新增] 注册组件参与入场动画的辅助函数
 
     void RegisterIntroEffect(const std::shared_ptr<UIElement>& el, float delay, float duration);
+    void RegisterUIComponents();
     // [新增] 动画状态列表
     std::vector<IntroAnimState> m_intro_anim_states;
     bool m_is_intro_playing = false;

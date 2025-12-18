@@ -1,0 +1,95 @@
+{
+  "type": "UIRoot",
+  "name": "gameScreenRoot",
+  "children": [
+    {
+      "type": "NeuralMenu",
+      "name": "neuralMenu",
+      "properties": {
+        "anchor": "TopLeft",
+        "margin": [ 20.0, 20.0 ]
+      }
+    },
+    {
+      "type": "PulsarButton",
+      "name": "beamButton",
+      "properties": {
+        "width": { "type": "Fixed", "value": 40.0 },
+        "height": { "type": "Fixed", "value": 40.0 },
+        "anchor": "MiddleLeft",
+        "margin": [ 50.0, -90.0 ]
+      }
+    },
+    {
+      "type": "PulsarButton",
+      "name": "rkkvButton",
+      "properties": {
+        "width": { "type": "Fixed", "value": 40.0 },
+        "height": { "type": "Fixed", "value": 40.0 },
+        "anchor": "MiddleLeft",
+        "margin": [ 50.0, -10.0 ]
+      }
+    },
+    {
+      "type": "PulsarButton",
+      "name": "vnButton",
+      "properties": {
+        "width": { "type": "Fixed", "value": 40.0 },
+        "height": { "type": "Fixed", "value": 40.0 },
+        "anchor": "MiddleLeft",
+        "margin": [ 50.0, 70.0 ]
+      }
+    },
+    {
+      "type": "PulsarButton",
+      "name": "messageButton",
+      "properties": {
+        "width": { "type": "Fixed", "value": 40.0 },
+        "height": { "type": "Fixed", "value": 40.0 },
+        "anchor": "MiddleLeft",
+        "margin": [ 50.0, 150.0 ],
+        "tooltip": "i18ntext.tooltip.test"
+      }
+    },
+    {
+      "type": "CelestialInfoPanel",
+      "name": "celestialInfoPanel",
+      "properties": {
+        "anchor": "MiddleRight",
+        "margin": [ 0.0, 0.0 ]
+      }
+    },
+    {
+      "type": "CinematicInfoPanel_Top",
+      "name": "topCinematicInfo",
+      "properties": {
+        "anchor": "TopCenter",
+        "margin": [ 0.0, 10.0 ]
+      }
+    },
+    {
+      "type": "CinematicInfoPanel_Bottom",
+      "name": "bottomCinematicInfo",
+      "properties": {
+        "anchor": "BottomCenter",
+        "margin": [ 0.0, 10.0 ]
+      }
+    },
+    {
+      "type": "TimeControlPanel",
+      "name": "timeControlPanel",
+      "properties": {
+        "anchor": "TopRight",
+        "margin": [ 20.0, 20.0 ]
+      }
+    },
+    {
+      "type": "LogPanel",
+      "name": "logPanel",
+      "properties": {
+        "anchor": "BottomLeft",
+        "margin": [ 20.0, 20.0 ]
+      }
+    }
+  ]
+}

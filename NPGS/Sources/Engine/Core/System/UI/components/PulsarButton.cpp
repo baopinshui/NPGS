@@ -152,7 +152,193 @@ PulsarButton::PulsarButton(const std::string& status_key, const std::string& lab
     m_image_icon->m_tint_col = UIContext::Get().m_theme.color_text;
     AddChild(m_image_icon);
 }
+// --- PulsarButton.cpp 新增部分 ---
 
+void PulsarButton::UpdateCommonData(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable)
+{
+    auto& ctx = UIContext::Get();
+
+    // 1. 更新 Status
+    m_status_key = status_key;
+    if (m_text_status)
+    {
+        m_text_status->SetSourceText(TR(m_status_key));
+    }
+
+    // 2. 更新 Label
+    m_label_key = label_key;
+    if (m_text_label)
+    {
+        m_text_label->SetSourceText(TR(m_label_key));
+    }
+
+    // 3. 更新 Stat Label
+    m_stat_label_key = stat_label_key;
+    if (m_stat_label_key.empty())
+    {
+        if (m_text_stat_label)
+        {
+            RemoveChild(m_text_stat_label);
+            m_text_stat_label = nullptr; // 重要：置空指针以便后续判断
+        }
+    }
+    else
+    {
+        if (!m_text_stat_label)
+        {
+            m_text_stat_label = std::make_shared<TechText>(TR(m_stat_label_key) + ":", ThemeColorID::Text);
+            m_text_stat_label->SetName("statLabel");
+            m_text_stat_label->SetSizing(TechTextSizingMode::AutoWidthHeight);
+            m_text_stat_label->m_font = ctx.m_font_bold;
+            m_text_stat_label->m_block_input = false;
+            AddChild(m_text_stat_label);
+        }
+        else
+        {
+            m_text_stat_label->SetSourceText(TR(m_stat_label_key) + ":");
+        }
+    }
+
+    // 4. 更新 Stat Unit
+    if (stat_unit_key.empty())
+    {
+        if (m_text_stat_unit)
+        {
+            RemoveChild(m_text_stat_unit);
+            m_text_stat_unit = nullptr;
+        }
+    }
+    else
+    {
+        if (!m_text_stat_unit)
+        {
+            m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, ThemeColorID::Text);
+            m_text_stat_unit->SetName("statUnit");
+            m_text_stat_unit->SetSizing(TechTextSizingMode::AutoWidthHeight);
+            m_text_stat_unit->m_font = ctx.m_font_bold;
+            m_text_stat_unit->m_block_input = false;
+            AddChild(m_text_stat_unit);
+        }
+        else
+        {
+            m_text_stat_unit->SetSourceText(stat_unit_key);
+        }
+    }
+
+    // 5. 更新 Value (处理 Editable 模式切换)
+    bool mode_changed = (m_is_editable != is_editable);
+    m_is_editable = is_editable;
+    m_stat_value_ptr = stat_value_ptr;
+
+    // 如果模式改变，或者当前需要的组件不存在（且有数据指针），则需要重建
+    if (mode_changed || (m_is_editable && !m_input_field && m_stat_value_ptr) || (!m_is_editable && !m_text_stat_value && m_stat_value_ptr))
+    {
+        // 先清理旧的组件
+        if (m_input_field)
+        {
+            RemoveChild(m_input_field);
+            m_input_field = nullptr;
+        }
+        if (m_text_stat_value)
+        {
+            RemoveChild(m_text_stat_value);
+            m_text_stat_value = nullptr;
+        }
+
+        // 根据新模式创建组件
+        if (m_stat_value_ptr)
+        {
+            if (m_is_editable)
+            {
+                m_input_field = std::make_shared<InputField>(m_stat_value_ptr);
+                m_input_field->SetName("statValueInput");
+                m_input_field->m_font = ctx.m_font_bold;
+                m_input_field->m_text_color = ThemeColorID::Accent;
+                m_input_field->m_border_color = ThemeColorID::Accent;
+                AddChild(m_input_field);
+            }
+            else
+            {
+                m_text_stat_value = std::make_shared<TechText>(*m_stat_value_ptr, ThemeColorID::Accent, true);
+                m_text_stat_value->SetName("statValue");
+                m_text_stat_value->SetSizing(TechTextSizingMode::AutoWidthHeight);
+                m_text_stat_value->m_font = ctx.m_font_bold;
+                m_text_stat_value->m_block_input = false;
+                AddChild(m_text_stat_value);
+            }
+        }
+    }
+    else
+    {
+        // 模式未变，仅更新数据绑定
+        if (m_input_field) m_input_field->m_target_string = m_stat_value_ptr;
+        if (m_text_stat_value && m_stat_value_ptr) m_text_stat_value->SetSourceText(*m_stat_value_ptr);
+    }
+}
+
+void PulsarButton::SetData(const std::string& status_key, const std::string& label_key, const std::string& icon_char, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable)
+{
+    UpdateCommonData(status_key, label_key, stat_label_key, stat_value_ptr, stat_unit_key, is_editable);
+
+    // 切换到 Text Icon 模式
+    if (m_image_icon)
+    {
+        RemoveChild(m_image_icon);
+        m_image_icon = nullptr;
+    }
+
+    if (!m_text_icon)
+    {
+        m_text_icon = std::make_shared<TechText>(icon_char);
+        m_text_icon->SetName("icon");
+        m_text_icon->SetSizing(TechTextSizingMode::Fixed);
+        m_text_icon->m_rect = { 0, 0, 40, 40 };
+        m_text_icon->m_align_h = Alignment::Center;
+        m_text_icon->m_align_v = Alignment::Center;
+        m_text_icon->m_block_input = false;
+        AddChild(m_text_icon);
+    }
+    else
+    {
+        m_text_icon->SetSourceText(icon_char);
+    }
+
+    // 刷新颜色
+    const auto& theme = UIContext::Get().m_theme;
+    ImVec4 col = m_is_active ? (m_label_hovered ? theme.color_accent : theme.color_text_highlight) : (m_hovered ? theme.color_accent : theme.color_text);
+    SetIconColor(col);
+}
+
+void PulsarButton::SetData(const std::string& status_key, const std::string& label_key, ImTextureID icon_texture, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable)
+{
+    UpdateCommonData(status_key, label_key, stat_label_key, stat_value_ptr, stat_unit_key, is_editable);
+
+    // 切换到 Image Icon 模式
+    if (m_text_icon)
+    {
+        RemoveChild(m_text_icon);
+        m_text_icon = nullptr;
+    }
+
+    if (!m_image_icon)
+    {
+        m_image_icon = std::make_shared<Image>(icon_texture);
+        m_image_icon->SetName("icon");
+        m_image_icon->m_rect = { 0, 0, 40, 40 };
+        m_image_icon->m_block_input = false;
+        m_image_icon->m_tint_col = UIContext::Get().m_theme.color_text;
+        AddChild(m_image_icon);
+    }
+    else
+    {
+        m_image_icon->m_texture_id = icon_texture;
+    }
+
+    // 刷新颜色
+    const auto& theme = UIContext::Get().m_theme;
+    ImVec4 col = m_is_active ? (m_label_hovered ? theme.color_accent : theme.color_text_highlight) : (m_hovered ? theme.color_accent : theme.color_text);
+    SetIconColor(col);
+}
 void PulsarButton::SetStatus(const std::string& status_key)
 {
     if (m_status_key == status_key) return;

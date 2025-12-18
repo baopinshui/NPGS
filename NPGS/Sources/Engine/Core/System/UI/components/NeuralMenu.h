@@ -35,6 +35,7 @@ public:
     {
         // 确保添加到设置页面的滚动视图容器中
         auto slider = std::make_shared<LinearTechSlider<T>>(name, ptr, min, max);
+        slider->SetName(name);
         m_settings_content_box->AddChild(slider);
     }
 
@@ -42,6 +43,7 @@ public:
     void AddThrottle(const std::string& name, T* ptr, T feature_a = 0)
     {
         auto slider = std::make_shared<ThrottleTechSlider<T>>(name, ptr, feature_a);
+        slider->SetName(name);
         m_settings_content_box->AddChild(slider);
     }
 
@@ -50,7 +52,6 @@ public:
     // [新增] 获取退出按钮以绑定回调
     std::shared_ptr<TechButton> GetExitButton() { return m_exit_btn; }
 
-private:
     void ToggleExpand();
     void SwitchPage(); // 切换 Info/Settings
     void CreateInfoRow(std::shared_ptr<VBox> parent, const std::string& label, const std::string& value, const StyleColor& val_color = ThemeColorID::Text);

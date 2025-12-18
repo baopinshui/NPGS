@@ -194,6 +194,10 @@ void UILoader::ApplyProperties(UIElement* element, const json& props)
         if (props.contains("barHeight")) pbar->m_bar_height = props["barHeight"];
         if (props.contains("labelSpacing")) pbar->m_label_spacing = props["labelSpacing"];
     }
+    if (auto* pbtn = dynamic_cast<PulsarButton*>(element))
+    {
+        if (props.contains("canExecute")) pbtn->SetExecutable(props["canExecute"]);
+    }
 }
 // --- Helper Implementations ---
 Length UILoader::ParseLength(const json& node)
@@ -257,15 +261,24 @@ ImFont* UILoader::ParseFont(const std::string& font_name)
     if (font_name == "subtitle") return ctx.m_font_subtitle;
     return ctx.m_font_regular;
 }
-
 ImTextureID UILoader::ParseTexture(const std::string& texture_name)
 {
     // Placeholder: In a real engine, this would query an asset manager.
     // For now, we return 0, assuming textures are set from code later.
+    // [修改] 对于 GameScreen，我们知道某些纹理是存在的，可以尝试从 AppContext 获取
+    if (texture_name == "RKKV_ICON")
+    {
+        // 警告：UILoader 不应该直接访问 AppContext。这是一个临时的 hack。
+        // 更好的做法是 UILoader 查询一个 AssetManager，
+        // 而 AssetManager 在启动时由 Application 填充了 AppContext 中的纹理。
+        // 由于我们没有 AssetManager，这里只能假设有某种全局访问方式。
+        // 目前，我们还是返回0，让C++代码在加载后手动设置。
+        NpgsCoreWarn("UILoader: Texture lookup for '{}' is not fully implemented. Texture will be set via code.", texture_name);
+        return 0;
+    }
     NpgsCoreWarn("UILoader: Texture lookup for '{}' is not implemented. Returning null.", texture_name);
     return 0;
 }
-
 AnchorPoint UILoader::ParseAnchorPoint(const json& node)
 {
     std::string val = node;

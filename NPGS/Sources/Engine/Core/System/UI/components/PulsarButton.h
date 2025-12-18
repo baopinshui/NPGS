@@ -53,7 +53,25 @@ public:
         const std::string& stat_unit_key,
         bool is_editable
     );
+    void SetData(
+        const std::string& status_key,
+        const std::string& label_key,
+        const std::string& icon_char,
+        const std::string& stat_label_key,
+        std::string* stat_value_ptr,
+        const std::string& stat_unit_key,
+        bool is_editable
+    );
 
+    void SetData(
+        const std::string& status_key,
+        const std::string& label_key,
+        ImTextureID icon_texture,
+        const std::string& stat_label_key,
+        std::string* stat_value_ptr,
+        const std::string& stat_unit_key,
+        bool is_editable
+    );
     void SetActive(bool active);
     void SetStatus(const std::string& status_key);
     void SetExecutable(bool can_execute);
@@ -65,6 +83,14 @@ public:
     void Draw(ImDrawList* draw_list) override;
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 private:
+    void UpdateCommonData(
+        const std::string& status_key,
+        const std::string& label_key,
+        const std::string& stat_label_key,
+        std::string* stat_value_ptr,
+        const std::string& stat_unit_key,
+        bool is_editable
+    );
     void InitCommon(const std::string& status_key, const std::string& label_key, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key);
     void SetIconColor(const ImVec4& color);
 
