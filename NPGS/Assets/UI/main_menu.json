@@ -1,0 +1,76 @@
+{
+  "type": "UIRoot",
+  "name": "mainMenu",
+  "children": [
+    {
+      "type": "Panel",
+      "properties": {
+        "width": { "type": "Stretch" },
+        "height": { "type": "Stretch" },
+        "useGlassEffect": true,
+        "bgColor": { "custom": [0, 0, 0, 0.4] },
+        "blockInput": true
+      },
+      "children": [
+        {
+          "type": "VBox",
+          "properties": {
+            "width": { "type": "Content" },
+            "height": { "type": "Content" },
+            "alignH": "Center",
+            "alignV": "Center",
+            "padding": 50.0
+          },
+          "children": [
+            {
+              "type": "TechText",
+              "name": "titleText",
+              "properties": {
+                "sourceText": "i18ntext.ui.menu.NPGS",
+                "font": "large",
+                "sizingMode": "AutoWidthHeight",
+                "alignH": "Center",
+                "color": { "id": "TextHighlight" },
+                "useGlow": true
+              }
+            },
+            {
+              "type": "VBox",
+              "name": "buttonLayout",
+              "properties": {
+                "width": { "type": "Fixed", "value": 300 },
+                "height": { "type": "Content" },
+                "padding": 15.0,
+                "alignH": "Center"
+              },
+              "children": [
+                {
+                  "type": "TechButton",
+                  "name": "newGameButton",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.menu.new_game",
+                    "tooltip": "i18ntext.tooltip.new_game",
+                    "width": { "type": "Stretch" },
+                    "height": { "type": "Fixed", "value": 40.0 },
+                    "onClick": "action.startGame"
+                  }
+                },
+                {
+                  "type": "TechButton",
+                  "name": "quitButton",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.menu.quit",
+                    "tooltip": "i18ntext.tooltip.test",
+                    "width": { "type": "Stretch" },
+                    "height": { "type": "Fixed", "value": 40.0 },
+                    "onClick": "action.quitGame"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -294,6 +294,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\ScreenManager.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\Screens\GameScreen.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\Screens\MainMenuScreen.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\UILoader.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\ui_framework.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\I18n\I18nManager.cpp" />
@@ -368,6 +369,8 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\Screens\MainMenuScreen.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\TechUtils.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\neural_ui.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\UIFactory.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\UILoader.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\UITool\AstroDataBuilder.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\ui_framework.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\I18n\I18nManager.h" />
