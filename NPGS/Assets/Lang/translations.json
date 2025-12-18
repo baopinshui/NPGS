@@ -1,13 +1,25 @@
 {
-  "i18ntext":{
+  "i18ntext": {
     "tooltip": {
       "test": {
         "en": "You're right, but \"Genshin Impact\" is an open-world adventure game independently developed by miHoYo. The game takes place in a fantasy world called \"Teyvat,\" where those chosen by the gods are granted \"Visions\" to harness elemental power. You will play as a mysterious character known as the \"Traveler,\" who embarks on a journey of freedom, encountering companions with diverse personalities and unique abilities. Together, you will defeat formidable enemies, reunite with lost family members—and gradually uncover the truth behind \"Genshin Impact.\"",
         "zh": "    豫章故郡，洪都新府。星分翼轸，地接衡庐。襟三江而带五湖，控蛮荆而引瓯越。物华天宝，龙光射牛斗之墟；人杰地灵，徐孺下陈蕃之榻。雄州雾列，俊采星驰。台隍枕夷夏之交，宾主尽东南之美。都督阎公之雅望，棨戟遥临；宇文新州之懿范，襜帷暂驻。十旬休假，胜友如云；千里逢迎，高朋满座。腾蛟起凤，孟学士之词宗；紫电青霜，王将军之武库。家君作宰，路出名区；童子何知，躬逢胜饯。\n    时维九月，序属三秋。潦水尽而寒潭清，烟光凝而暮山紫。俨骖騑于上路，访风景于崇阿。临帝子之长洲，得天人之旧馆。层峦耸翠，上出重霄；飞阁流丹，下临无地。鹤汀凫渚，穷岛屿之萦回；桂殿兰宫，即冈峦之体势。\n    披绣闼，俯雕甍，山原旷其盈视，川泽纡其骇瞩。闾阎扑地，钟鸣鼎食之家；舸舰迷津，青雀黄龙之舳。云销雨霁，彩彻区明。落霞与孤鹜齐飞，秋水共长天一色。渔舟唱晚，响穷彭蠡之滨，雁阵惊寒，声断衡阳之浦。\n    遥襟甫畅，逸兴遄飞。爽籁发而清风生，纤歌凝而白云遏。睢园绿竹，气凌彭泽之樽；邺水朱华，光照临川之笔。四美具，二难并。穷睇眄于中天，极娱游于暇日。天高地迥，觉宇宙之无穷；兴尽悲来，识盈虚之有数。望长安于日下，目吴会于云间。地势极而南溟深，天柱高而北辰远。关山难越，谁悲失路之人；萍水相逢，尽是他乡之客。怀帝阍而不见，奉宣室以何年？\n    嗟乎！时运不齐，命途多舛。冯唐易老，李广难封。屈贾谊于长沙，非无圣主；窜梁鸿于海曲，岂乏明时？所赖君子见机，达人知命。老当益壮，宁移白首之心？穷且益坚，不坠青云之志。酌贪泉而觉爽，处涸辙以犹欢。北海虽赊，扶摇可接；东隅已逝，桑榆非晚。孟尝高洁，空余报国之情；阮籍猖狂，岂效穷途之哭！\n    勃，三尺微命，一介书生。无路请缨，等终军之弱冠；有怀投笔，慕宗悫之长风。舍簪笏于百龄，奉晨昏于万里。非谢家之宝树，接孟氏之芳邻。他日趋庭，叨陪鲤对；今兹捧袂，喜托龙门。杨意不逢，抚凌云而自惜；钟期既遇，奏流水以何惭？\n    呜乎！胜地不常，盛筵难再；兰亭已矣，梓泽丘墟。临别赠言，幸承恩于伟饯；登高作赋，是所望于群公。敢竭鄙怀，恭疏短引；一言均赋，四韵俱成。请洒潘江，各倾陆海云尔：\n    滕王高阁临江渚，佩玉鸣鸾罢歌舞。\n    画栋朝飞南浦云，珠帘暮卷西山雨。\n    闲云潭影日悠悠，物换星移几度秋。\n    阁中帝子今何在？槛外长江空自流。\nの∮"
       },
-      "new_game":{
+      "new_game": {
         "en": "New Game",
         "zh": "来吧。"
+      },
+      "mode_god": {
+        "en": "Real-time info, no light delay. Control any civilization.",
+        "zh": "信息实时显示，没有光速延迟；随意控制任何文明。"
+      },
+      "mode_evo": {
+        "en": "Light delay enabled. Play as a specific ASI in a single star system.",
+        "zh": "信息有光速延迟；作为某一ASI，控制单个恒星系统。"
+      },
+      "gen_standard": {
+        "en": "Typical stars in the thin disk of the Orion Arm, similar to the Sun's neighborhood.",
+        "zh": "银河系旋臂偏外侧、thin disk中的典型恒星情况。类似太阳系附近的情况。"
       }
     },
     "ui": {
@@ -15,18 +27,18 @@
         "en": "MANAGE",
         "zh": "管理"
       },
-      "menu":{
-        "NPGS":{
-        "en": "VON NEUMANN PROBE IN GALAXY",
-        "zh": "达尔文黎明————标题没想好，，，"
+      "menu": {
+        "NPGS": {
+          "en": "VON NEUMANN PROBE IN GALAXY",
+          "zh": "达尔文黎明————标题没想好，，，"
         },
-        "new_game":{
-        "en": "New Game",
-        "zh": "NPGS，启动"
+        "new_game": {
+          "en": "New Game",
+          "zh": "NPGS，启动"
         },
-        "quit":{
-        "en": "Quit",
-        "zh": "退出"
+        "quit": {
+          "en": "Quit",
+          "zh": "退出"
         }
       },
       "network": {
@@ -35,7 +47,23 @@
       },
       "settings": {
         "en": "> SETTINGS",
-        "zh": "> 设置"
+        "zh": "> 设置",
+        "tab_general": {
+          "en": "General",
+          "zh": "常规"
+        },
+        "tab_graphics": {
+          "en": "Graphics",
+          "zh": "图像"
+        },
+        "tab_sound": {
+          "en": "Sound",
+          "zh": "声音"
+        },
+        "tab_controls": {
+          "en": "Controls",
+          "zh": "控制"
+        }
       },
       "close_terminal": {
         "en": "CLOSE TERMINAL",
@@ -146,6 +174,108 @@
           "en": "yr",
           "zh": "年"
         }
+      },
+      "main_menu": {
+        "title": {
+          "en": "VON NEUMANN PROBE IN GALAXY",
+          "zh": "啮星者",
+          "en_flavor": "before the absence of hydrogen",
+          "zh_flavor": "举目无氢之前"
+        },
+        "btn_new_sim": {
+          "en": "NEW SIMULATION",
+          "zh": "新的模拟",
+          "en_flavor": "NEW UNIVERSE",
+          "zh_flavor": "创造世界"
+        },
+        "btn_load": {
+          "en": "LOAD SAVE",
+          "zh": "读取存档",
+          "en_flavor": "LOAD UNIVERSE",
+          "zh_flavor": "读取世界"
+        },
+        "btn_settings": {
+          "en": "SETTINGS",
+          "zh": "设置",
+          "en_flavor": "COSMIC LAWS",
+          "zh_flavor": "调校法则"
+        },
+        "btn_exit": {
+          "en": "EXIT",
+          "zh": "退出",
+          "en_flavor": "SEAL UNIVERSE",
+          "zh_flavor": "终止模拟"
+        },
+        "common_back": {
+          "en": "BACK",
+          "zh": "返回"
+        }
+      },
+      "new_game": {
+        "mode_label": {
+          "en": "Mode:",
+          "zh": "模式:"
+        },
+        "mode_god": {
+          "en": "Omniscient View",
+          "zh": "全视视角",
+          "en_flavor": "God Mode",
+          "zh_flavor": "上帝模式"
+        },
+        "mode_evo": {
+          "en": "Local View",
+          "zh": "局域视角",
+          "en_flavor": "Evolution Mode",
+          "zh_flavor": "演进模式"
+        },
+        "generator_label": {
+          "en": "Star Map Generator:",
+          "zh": "星图生成模型:",
+          "en_flavor": "Galaxy Blueprint Weaver:",
+          "zh_flavor": "星河塑造蓝图:"
+        },
+        "gen_standard": {
+          "en": "Standard",
+          "zh": "标准",
+          "en_flavor": "Orion Arm",
+          "zh_flavor": "猎户旋臂"
+        },
+        "gen_pocket": {
+          "en": "Pocket Milky Way",
+          "zh": "微缩银河"
+        },
+        "gen_cluster": {
+          "en": "Globular Cluster",
+          "zh": "球状星团"
+        },
+        "gen_nuclear": {
+          "en": "Nuclear Star Cluster",
+          "zh": "核星团"
+        },
+        "btn_start": {
+          "en": "ENTRY",
+          "zh": "开始模拟",
+          "en_flavor": "CREATE UNIVERSE",
+          "zh_flavor": "启动时空"
+        }
+      },
+      "tooltip": {
+        "mode_god": {
+          "en": "Real-time info, no light delay. Control any civilization.",
+          "zh": "信息实时显示，没有光速延迟；随意控制任何文明。"
+        },
+        "mode_evo": {
+          "en": "Light delay enabled. Play as a specific ASI in a single star system.",
+          "zh": "信息有光速延迟；作为某一ASI，控制单个恒星系统。"
+        },
+        "gen_standard": {
+          "en": "Typical stars in the thin disk of the Orion Arm, similar to the Sun's neighborhood.",
+          "zh": "银河系旋臂偏外侧、thin disk中的典型恒星情况。类似太阳系附近的情况。"
+        }
+      },
+      "common_back": {
+        "en": "BACK",
+        "zh": "返回"
       }
     },
     "log": {

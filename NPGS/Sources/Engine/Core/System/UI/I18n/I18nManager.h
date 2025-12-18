@@ -11,7 +11,7 @@ _SYSTEM_BEGIN
 class I18nManager
 {
 public:
-    enum class Language { English, Chinese };
+    enum class Language { English, Chinese, EnglishFlavor, ChineseFlavor };
 
     static I18nManager& Get() { static I18nManager instance; return instance; }
 

@@ -12,37 +12,38 @@ _SYSTEM_BEGIN
 void ParseJsonRecursive(
     const json& j,
     const std::string& parent_key,
-    const std::string& lang_code, // 新增参数：当前需要加载的语言代码 ("en", "zh")
+    const std::string& lang_code, // e.g., "en", "zh", "en_flavor", "zh_flavor"
     std::unordered_map<std::string, std::string>& dictionary)
 {
-    // 遍历当前JSON对象的所有键值对
     for (auto& [key, value] : j.items())
     {
-        // 构造完整的键名
         std::string current_key = parent_key.empty() ? key : parent_key + "." + key;
 
-        // --- 逻辑判断 ---
         if (value.is_object())
         {
-            // 判断这个 object 是 "翻译对象" 还是 "结构对象"
-            // 我们通过检查它是否包含当前语言代码的键来实现
-            if (value.contains(lang_code))
+            // 判断是否是翻译节点（包含 "en" 和 "zh" 键）
+            if (value.contains("en") && value.contains("zh"))
             {
-                // 这是一个 "翻译对象" (如: { "en": "...", "zh": "..." })
-                // 检查对应语言的值是否为字符串
-                if (value[lang_code].is_string())
+                // 是翻译节点，提取对应语言的文本
+                if (value.contains(lang_code) && value[lang_code].is_string())
                 {
-                    // 提取该语言的翻译并存入字典，然后停止对该分支的递归
                     dictionary[current_key] = value[lang_code].get<std::string>();
+                }
+                else
+                {
+                    // 如果风味语言不存在，则回退到标准语言
+                    if (lang_code == "en_flavor" && value.contains("en"))
+                        dictionary[current_key] = value["en"].get<std::string>();
+                    else if (lang_code == "zh_flavor" && value.contains("zh"))
+                        dictionary[current_key] = value["zh"].get<std::string>();
                 }
             }
             else
             {
-                // 这是一个 "结构对象" (如: "time": { ... }), 继续递归深入
+                // 是结构节点，继续递归
                 ParseJsonRecursive(value, current_key, lang_code, dictionary);
             }
         }
-        // 我们只处理 object 类型的值，因为所有翻译现在都封装在 object 中
     }
 }
 
@@ -104,15 +105,19 @@ void I18nManager::LoadDictionary()
 {
     m_dictionary.clear();
 
+    // 将枚举映射到最终JSON文件中的键名
     std::string lang_code;
-    if (m_current_lang == Language::English) lang_code = "en";
-    else if (m_current_lang == Language::Chinese) lang_code = "zh";
+    switch (m_current_lang)
+    {
+    case Language::English:       lang_code = "en"; break;
+    case Language::Chinese:       lang_code = "zh"; break;
+    case Language::EnglishFlavor: lang_code = "en_flavor"; break;
+    case Language::ChineseFlavor: lang_code = "zh_flavor"; break;
+    }
 
     if (lang_code.empty()) return;
 
-    // 所有翻译现在都在同一个文件里
     const std::string filename = "Assets/Lang/translations.json";
-
     std::ifstream ifs(filename);
     if (!ifs.is_open())
     {
@@ -122,15 +127,12 @@ void I18nManager::LoadDictionary()
 
     try
     {
-        // 解析JSON
         json data = json::parse(ifs);
-
-        // 调用递归函数填充字典，传入当前需要加载的语言代码
         ParseJsonRecursive(data, "", lang_code, m_dictionary);
     }
     catch (json::parse_error& e)
     {
-        m_dictionary["error.parsing"] = "JSON parse error in " + filename + ": " + e.what();
+        m_dictionary["error.parsing"] = "JSON parse error: " + std::string(e.what());
     }
 }
 

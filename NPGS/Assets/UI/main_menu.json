@@ -1,69 +1,286 @@
 {
   "type": "UIRoot",
-  "name": "mainMenu",
+  "name": "mainMenuRoot",
   "children": [
     {
       "type": "Panel",
       "properties": {
         "width": { "type": "Stretch" },
         "height": { "type": "Stretch" },
-        "useGlassEffect": true,
-        "bgColor": { "custom": [0, 0, 0, 0.4] },
-        "blockInput": true
+        "bgColor": { "custom": [ 0, 0, 0, 0.6 ] },
+        "useGlassEffect": true
       },
       "children": [
         {
-          "type": "VBox",
+          "type": "Panel",
+          "name": "mainLevelPanel",
           "properties": {
+            "anchor": "Center",
             "width": { "type": "Content" },
             "height": { "type": "Content" },
-            "alignH": "Center",
-            "alignV": "Center",
-            "padding": 50.0
+            "visible": true
           },
           "children": [
             {
-              "type": "TechText",
-              "name": "titleText",
-              "properties": {
-                "sourceText": "i18ntext.ui.menu.NPGS",
-                "font": "large",
-                "sizingMode": "AutoWidthHeight",
-                "alignH": "Center",
-                "color": { "id": "TextHighlight" },
-                "useGlow": true
-              }
-            },
-            {
               "type": "VBox",
-              "name": "buttonLayout",
+              "name": "mainButtonsBox",
               "properties": {
-                "width": { "type": "Fixed", "value": 300 },
+                "width": {
+                  "type": "Fixed",
+                  "value": 400.0
+                },
                 "height": { "type": "Content" },
-                "padding": 15.0,
-                "alignH": "Center"
+                "padding": 20.0
               },
               "children": [
                 {
-                  "type": "TechButton",
-                  "name": "newGameButton",
+                  "type": "TechText",
                   "properties": {
-                    "sourceText": "i18ntext.ui.menu.new_game",
-                    "tooltip": "i18ntext.tooltip.new_game",
-                    "width": { "type": "Stretch" },
-                    "height": { "type": "Fixed", "value": 40.0 },
-                    "onClick": "action.startGame"
+                    "sourceText": "i18ntext.ui.main_menu.title",
+                    "font": "large",
+                    "color": { "id": "Accent" },
+                    "useGlow": true,
+                    "alignH": "Center"
                   }
                 },
                 {
                   "type": "TechButton",
-                  "name": "quitButton",
+                  "name": "btnNewGame",
                   "properties": {
-                    "sourceText": "i18ntext.ui.menu.quit",
-                    "tooltip": "i18ntext.tooltip.test",
-                    "width": { "type": "Stretch" },
-                    "height": { "type": "Fixed", "value": 40.0 },
-                    "onClick": "action.quitGame"
+                    "sourceText": "i18ntext.ui.main_menu.btn_new_sim",
+                    "onClick": "action.menu.toNewGame",
+                    "height": {
+                      "type": "Fixed",
+                      "value": 50.0
+                    }
+                  }
+                },
+                {
+                  "type": "TechButton",
+                  "name": "btnLoadGame",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.main_menu.btn_load",
+                    "onClick": "action.menu.toLoadGame",
+                    "height": {
+                      "type": "Fixed",
+                      "value": 50.0
+                    }
+                  }
+                },
+                {
+                  "type": "TechButton",
+                  "name": "btnSettings",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.main_menu.btn_settings",
+                    "onClick": "action.menu.toSettings",
+                    "height": {
+                      "type": "Fixed",
+                      "value": 50.0
+                    }
+                  }
+                },
+                {
+                  "type": "TechButton",
+                  "name": "btnExit",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.main_menu.btn_exit",
+                    "onClick": "action.quitGame",
+                    "height": {
+                      "type": "Fixed",
+                      "value": 50.0
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "TechBorderPanel",
+          "name": "newGamePanel",
+          "properties": {
+            "visible": false,
+            "anchor": "Center",
+            "width": {
+              "type": "Fixed",
+              "value": 800.0
+            },
+            "height": {
+              "type": "Fixed",
+              "value": 700.0
+            },
+            "thickness": 2.0,
+            "showFlowBorder": true,
+            "glassColor": { "custom": [ 0.05, 0.05, 0.05, 0.9 ] }
+          },
+          "children": [
+            {
+              "type": "VBox",
+              "properties": { "padding": 20.0 },
+              "children": [
+                {
+                  "type": "TechText",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.main_menu.btn_new_sim",
+                    "font": "bold",
+                    "color": { "id": "TextHighlight" }
+                  }
+                },
+                { "type": "TechDivider" },
+                {
+                  "type": "HBox",
+                  "properties": {
+                    "height": { "type": "Content" },
+                    "alignV": "Center"
+                  },
+                  "children": [
+                    {
+                      "type": "TechText",
+                      "properties": {
+                        "sourceText": "i18ntext.ui.new_game.mode_label",
+                        "width": {
+                          "type": "Fixed",
+                          "value": 120.0
+                        }
+                      }
+                    },
+                    {
+                      "type": "TechButton",
+                      "name": "btnModeGod",
+                      "properties": {
+                        "sourceText": "i18ntext.ui.new_game.mode_god",
+                        "tooltip": "i18ntext.ui.tooltip.mode_god",
+                        "selected": true,
+                        "onClick": "action.newgame.selectGodMode"
+                      }
+                    },
+                    {
+                      "type": "TechButton",
+                      "name": "btnModeEvo",
+                      "properties": {
+                        "sourceText": "i18ntext.ui.new_game.mode_evo",
+                        "tooltip": "i18ntext.ui.tooltip.mode_evo",
+                        "onClick": "action.newgame.selectEvoMode"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "TechDivider",
+                  "properties": { "margin": [ 0, 10 ] }
+                },
+                {
+                  "type": "TechText",
+                  "properties": { "sourceText": "i18ntext.ui.new_game.generator_label" }
+                },
+                {
+                  "type": "ScrollView",
+                  "properties": {
+                    "height": {
+                      "type": "Fixed",
+                      "value": 450.0
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "VBox",
+                      "properties": { "padding": 5 },
+                      "children": [
+                        {
+                          "type": "TechButton",
+                          "name": "btnGenStandard",
+                          "properties": {
+                            "sourceText": "i18ntext.ui.new_game.gen_standard",
+                            "tooltip": "i18ntext.ui.tooltip.gen_standard",
+                            "style": "Tab",
+                            "selected": true,
+                            "onClick": "action.newgame.selectGenStandard"
+                          }
+                        },
+                        {
+                          "type": "TechButton",
+                          "name": "btnGenPocket",
+                          "properties": {
+                            "sourceText": "i18ntext.ui.new_game.gen_pocket",
+                            "style": "Tab",
+                            "onClick": "action.newgame.selectGenPocket"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "HBox",
+                  "properties": {
+                    "alignH": "End",
+                    "height": { "type": "Content" },
+                    "margin": [ 0, 20 ]
+                  },
+                  "children": [
+                    {
+                      "type": "TechButton",
+                      "properties": {
+                        "sourceText": "i18ntext.ui.main_menu.common_back",
+                        "onClick": "action.menu.backToMain",
+                        "width": {
+                          "type": "Fixed",
+                          "value": 150.0
+                        }
+                      }
+                    },
+                    {
+                      "type": "TechButton",
+                      "properties": {
+                        "sourceText": "i18ntext.ui.new_game.btn_start",
+                        "onClick": "action.startGame",
+                        "colorBg": { "id": "Accent" },
+                        "colorText": { "custom": [ 0, 0, 0, 1 ] },
+                        "width": {
+                          "type": "Fixed",
+                          "value": 200.0
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "TechBorderPanel",
+          "name": "settingsPanel",
+          "properties": {
+            "visible": false,
+            "anchor": "Center",
+            "width": {
+              "type": "Fixed",
+              "value": 900.0
+            },
+            "height": {
+              "type": "Fixed",
+              "value": 700.0
+            }
+          },
+          "children": [
+            {
+              "type": "VBox",
+              "properties": { "padding": 20.0 },
+              "children": [
+                {
+                  "type": "TechText",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.main_menu.btn_settings",
+                    "font": "bold"
+                  }
+                },
+                { "type": "TechDivider" },
+                {
+                  "type": "TechButton",
+                  "properties": {
+                    "sourceText": "i18ntext.ui.main_menu.common_back",
+                    "onClick": "action.menu.backToMain"
                   }
                 }
               ]
