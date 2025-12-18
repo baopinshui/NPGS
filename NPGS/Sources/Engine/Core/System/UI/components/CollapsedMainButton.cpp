@@ -35,6 +35,7 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
 
     // a. "◈" 符号
     m_symbol = std::make_shared<TechText>("◈");
+    m_symbol->SetName("symbol"); // <-- NAME ASSIGNED
     m_symbol->m_font = ctx.m_font_large;
     m_symbol->m_align_h = Alignment::Center; // 在 VBox 的主轴交叉轴上居中
     m_symbol->m_width = Length::Content();   // 宽度由内容决定
@@ -42,13 +43,14 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
     m_symbol->m_block_input = false;
 
     // b. "MANAGE" 文本
-    auto manage_text = std::make_shared<TechText>(key1);
-    manage_text->m_color = ThemeColorID::Accent;
-    manage_text->m_font = ctx.m_font_small;
-    manage_text->m_align_h = Alignment::Center;
-    manage_text->m_width = Length::Content();
-    manage_text->m_height = Length::Content();
-    manage_text->m_block_input = false;
+    auto m_text_top = std::make_shared<TechText>(key1);
+    m_text_top->SetName("label_top"); // <-- NAME ASSIGNED
+    m_text_top->m_color = ThemeColorID::Accent;
+    m_text_top->m_font = ctx.m_font_small;
+    m_text_top->m_align_h = Alignment::Center;
+    m_text_top->m_width = Length::Content();
+    m_text_top->m_height = Length::Content();
+    m_text_top->m_block_input = false;
 
     // c. 间距元素
     auto pad = std::make_shared<UIElement>();
@@ -57,19 +59,20 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
     pad->m_block_input = false;
 
     // d. "NETWORK" 文本
-    auto network_text = std::make_shared<TechText>(key2);
-    network_text->m_color = ThemeColorID::Accent;
-    network_text->m_font = ctx.m_font_small;
-    network_text->m_align_h = Alignment::Center;
-    network_text->m_width = Length::Content();
-    network_text->m_height = Length::Content();
-    network_text->m_block_input = false;
+    auto m_text_bottom = std::make_shared<TechText>(key2);
+    m_text_bottom->SetName("label_bottom"); // <-- NAME ASSIGNED
+    m_text_bottom->m_color = ThemeColorID::Accent;
+    m_text_bottom->m_font = ctx.m_font_small;
+    m_text_bottom->m_align_h = Alignment::Center;
+    m_text_bottom->m_width = Length::Content();
+    m_text_bottom->m_height = Length::Content();
+    m_text_bottom->m_block_input = false;
 
     // --- 4. 组装层级 ---
     vbox->AddChild(m_symbol);
-    vbox->AddChild(manage_text);
+    vbox->AddChild(m_text_top);
     vbox->AddChild(pad);
-    vbox->AddChild(network_text);
+    vbox->AddChild(m_text_bottom);
 }
 
 void CollapsedMainButton::Update(float dt)

@@ -18,25 +18,27 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
     // 1. 创建侧边把手 (Collapsed Tab)
     // =========================================================
     m_collapsed_btn = std::make_shared<TechButton>(fold_key, TechButton::Style::Vertical);
+    m_collapsed_btn->SetName("foldButton"); // [命名] 关键交互按钮
     m_collapsed_btn->m_width = Length::Fixed(24.0f);
     m_collapsed_btn->m_height = Length::Fixed(100.0f);
     m_collapsed_btn->SetUseGlass(true);
     m_collapsed_btn->on_click = [this]() { this->ToggleCollapse(); };
-    AddChild(m_collapsed_btn); // 位置在 Update 中用 SetAbsolutePos 设置
+    AddChild(m_collapsed_btn);
 
     // =========================================================
     // 2. 创建主面板背景
     // =========================================================
     m_main_panel = std::make_shared<TechBorderPanel>();
+    m_main_panel->SetName("mainPanel"); // [命名] 复合组件的主体，方便整体控制
     m_main_panel->m_width = Length::Fixed(PANEL_WIDTH);
     m_main_panel->m_height = Length::Fixed(PANEL_HEIGHT);
     m_main_panel->m_use_glass_effect = true;
     m_main_panel->m_thickness = 2.0f;
-    AddChild(m_main_panel); // 位置在 Update 中用 SetAbsolutePos 设置
+    AddChild(m_main_panel);
 
     // --- 主面板内部布局容器 (撑满整个面板) ---
-    auto root_vbox = std::make_shared<VBox>();
-    root_vbox->m_width = Length::Stretch(); // 默认撑满父级
+    auto root_vbox = std::make_shared<VBox>(); // 纯布局容器，无需命名
+    root_vbox->m_width = Length::Stretch();
     root_vbox->m_height = Length::Stretch();
     root_vbox->m_padding = 0.0f;
     m_main_panel->AddChild(root_vbox);
@@ -44,25 +46,26 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
     // =========================================================
     // A. Header 区域 (使用带内边距的容器)
     // =========================================================
-    auto header_container = std::make_shared<VBox>();
-    header_container->m_width = Length::Stretch();
-    header_container->m_height = Length::Content(); // 高度由内容决定
-    header_container->m_padding = 4.0f;
-    // [新方法] 使用另一个Panel作为带边距的包装器
-    auto header_wrapper = std::make_shared<Panel>();
+    auto header_wrapper = std::make_shared<Panel>(); // 纯布局容器 (用于居中)，无需命名
     header_wrapper->m_width = Length::Fixed(PANEL_WIDTH - 30.0f);
     header_wrapper->m_height = Length::Content();
-    header_wrapper->m_align_h = Alignment::Center; // 在父VBox中水平居中
-    header_wrapper->AddChild(header_container);
+    header_wrapper->m_align_h = Alignment::Center;
     root_vbox->AddChild(header_wrapper);
+
+    auto header_container = std::make_shared<VBox>(); // 纯布局容器，无需命名
+    header_container->m_width = Length::Stretch();
+    header_container->m_height = Length::Content();
+    header_container->m_padding = 4.0f;
+    header_wrapper->AddChild(header_container);
     {
         // 顶部留白
-        auto top_spacer = std::make_shared<UIElement>();
+        auto top_spacer = std::make_shared<UIElement>(); // 纯布局元素，无需命名
         top_spacer->m_height = Length::Fixed(15.0f);
         header_container->AddChild(top_spacer);
 
         m_title_text = std::make_shared<TechText>(TR("i18ntext.ui.celestial.no_target"));
-        m_title_text->SetSizing(TechTextSizingMode::AutoHeight); // 自动换行
+        m_title_text->SetName("title"); // [命名] 显示动态数据 (天体名称)
+        m_title_text->SetSizing(TechTextSizingMode::AutoHeight);
         m_title_text->SetColor(ThemeColorID::Accent);
         m_title_text->m_font = UIContext::Get().m_font_bold;
         m_title_text->m_width = Length::Stretch();
@@ -70,15 +73,16 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         header_container->AddChild(m_title_text);
 
         m_subtitle_text = std::make_shared<TechText>("");
+        m_subtitle_text->SetName("subtitle"); // [命名] 显示动态数据 (天体类型)
         m_subtitle_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
         m_subtitle_text->SetColor(ThemeColorID::TextDisabled);
         m_subtitle_text->m_font = UIContext::Get().m_font_regular;
         m_subtitle_text->m_width = Length::Content();
         m_subtitle_text->m_height = Length::Content();
-        m_subtitle_text->m_align_h = Alignment::End; // 在父容器中右对齐
+        m_subtitle_text->m_align_h = Alignment::End;
         header_container->AddChild(m_subtitle_text);
 
-        auto div = std::make_shared<TechDivider>();
+        auto div = std::make_shared<TechDivider>(); // 装饰性元素，无需命名
         div->m_height = Length::Fixed(8.0f);
         header_container->AddChild(div);
     }
@@ -87,8 +91,9 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
     // B. Image 预览区域
     // =========================================================
     m_preview_image = std::make_shared<Image>(0);
+    m_preview_image->SetName("previewImage"); // [命名] 显示动态图片，且需要控制可见性
     m_preview_image->m_width = Length::Fixed(PANEL_WIDTH);
-    m_preview_image->m_height = Length::Content(); // 高度由 Measure 根据宽高比计算
+    m_preview_image->m_height = Length::Content();
     m_preview_image->m_aspect_ratio = 16.0f / 9.0f;
     m_preview_image->m_visible = false;
     root_vbox->AddChild(m_preview_image);
@@ -96,93 +101,97 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
     // =========================================================
     // C. 主内容区域 (Tabs, ScrollView, Footer), 填充剩余空间
     // =========================================================
-    auto main_content_box = std::make_shared<VBox>();
+    auto main_content_box = std::make_shared<VBox>(); // 纯布局容器，无需命名
     main_content_box->m_width = Length::Fixed(PANEL_WIDTH - 30.0f);
-    main_content_box->m_height = Length::Stretch(1.0f); // 关键：填充剩余垂直空间
+    main_content_box->m_height = Length::Stretch(1.0f);
     main_content_box->m_align_h = Alignment::Center;
     main_content_box->m_padding = 4.0f;
     root_vbox->AddChild(main_content_box);
     {
         // Tabs 区域
-        auto tabs_scroll_view = std::make_shared<HorizontalScrollView>();
+        auto tabs_scroll_view = std::make_shared<HorizontalScrollView>(); // 纯布局容器，无需命名
         tabs_scroll_view->m_height = Length::Fixed(20.0f);
         tabs_scroll_view->m_width = Length::Stretch();
         main_content_box->AddChild(tabs_scroll_view);
 
         m_tabs_container = std::make_shared<HBox>();
+        m_tabs_container->SetName("tabs"); // [命名] 用于动态添加/删除 Tab 按钮
         m_tabs_container->m_height = Length::Stretch();
-        m_tabs_container->m_width = Length::Content(); // 宽度由子按钮决定
+        m_tabs_container->m_width = Length::Content();
         m_tabs_container->m_padding = 4.0f;
         tabs_scroll_view->AddChild(m_tabs_container);
 
-
-        auto pad = std::make_shared<UIElement>();
+        auto pad = std::make_shared<UIElement>(); // 纯布局元素，无需命名
         pad->m_height = Length::Fixed(4.0f);
         main_content_box->AddChild(pad);
 
         // 数据滚动区
         m_scroll_view = std::make_shared<ScrollView>();
-        m_scroll_view->m_height = Length::Stretch(1.0f); // 关键：填充 VBox 中的剩余空间
+        m_scroll_view->SetName("dataScrollView"); // [命名] 主要功能区域，可能需要外部控制
+        m_scroll_view->m_height = Length::Stretch(1.0f);
         main_content_box->AddChild(m_scroll_view);
 
         m_content_vbox = std::make_shared<VBox>();
+        m_content_vbox->SetName("content"); // [命名] 关键容器，用于动态添加/删除信息行
         m_content_vbox->m_width = Length::Stretch();
-        m_content_vbox->m_height = Length::Content(); // 高度由内容决定
+        m_content_vbox->m_height = Length::Content();
         m_content_vbox->m_padding = 8.0f;
         m_scroll_view->AddChild(m_content_vbox);
 
         // Footer 区域
-        auto footer_box = std::make_shared<VBox>();
+        auto footer_box = std::make_shared<VBox>(); // 纯布局容器，无需命名
         footer_box->m_width = Length::Stretch();
-        footer_box->m_height = Length::Content(); // 高度由内容决定
+        footer_box->m_height = Length::Content();
         footer_box->m_padding = 4.0f;
         main_content_box->AddChild(footer_box);
         {
-            auto sep = std::make_shared<TechDivider>();
+            auto sep = std::make_shared<TechDivider>(); // 装饰性元素，无需命名
             sep->m_height = Length::Fixed(8.0f);
             footer_box->AddChild(sep);
 
             auto prog_label = std::make_shared<TechText>(progress_label_key);
+            prog_label->SetName("progressLabel"); // [命名] 进度条的标签，可能与进度条一起显示/隐藏
             prog_label->m_font = UIContext::Get().m_font_small;
             prog_label->m_height = Length::Content();
             footer_box->AddChild(prog_label);
 
             auto progress = std::make_shared<TechProgressBar>("");
+            progress->SetName("progressBar"); // [命名] 核心动态数据显示组件
             progress->m_height = Length::Fixed(6.0f);
             progress->m_progress = 0.45f;
             footer_box->AddChild(progress);
 
-            auto prog_info = std::make_shared<HBox>();
+            auto prog_info = std::make_shared<HBox>(); // 纯布局容器，无需命名
             prog_info->m_height = Length::Fixed(14.0f);
-            auto t1 = std::make_shared<TechText>(coil_label_key);
+            auto t1 = std::make_shared<TechText>(coil_label_key); // 静态标签，可以不命名
             t1->SetColor(ThemeColorID::TextDisabled);
             t1->m_font = UIContext::Get().m_font_small;
             t1->m_width = Length::Fixed(100.0f);
             auto t2 = std::make_shared<TechText>("45%");
+            t2->SetName("progressPercentage"); // [命名] 显示动态的百分比文本
             t2->SetColor(ThemeColorID::Text);
             t2->m_font = UIContext::Get().m_font_small;
-            t2->m_width = Length::Stretch(); // 撑满剩余宽度
+            t2->m_width = Length::Stretch();
             t2->m_align_h = Alignment::End;
             prog_info->AddChild(t1);
             prog_info->AddChild(t2);
             footer_box->AddChild(prog_info);
 
-            auto sep_btn = std::make_shared<TechDivider>();
+            auto sep_btn = std::make_shared<TechDivider>(); // 装饰性元素，无需命名
             sep_btn->m_height = Length::Fixed(14.0f);
             sep_btn->m_visual_height = 1.0f;
             footer_box->AddChild(sep_btn);
 
             auto close_btn = std::make_shared<TechButton>(close_key, TechButton::Style::Normal);
+            close_btn->SetName("closeButton"); // [命名] 关键交互按钮
             close_btn->m_height = Length::Fixed(32.0f);
-            close_btn->m_width = Length::Stretch(); // 撑满
+            close_btn->m_width = Length::Stretch();
             close_btn->on_click = [this]() { this->ToggleCollapse(); };
             footer_box->AddChild(close_btn);
 
-
-            auto pad = std::make_shared<UIElement>();
-            pad->m_height = Length::Fixed(8.0f);
-            footer_box->AddChild(pad);
-
+            auto final_pad = std::make_shared<UIElement>(); // 纯布局元素，无需命名
+            final_pad->m_height = Length::Fixed(8.0f);
+            footer_box->AddChild(final_pad);
         }
     }
 }

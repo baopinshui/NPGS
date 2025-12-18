@@ -49,6 +49,7 @@ public:
         if (initial_label == "R" || initial_label == "G" || initial_label == "B") m_is_rgb = true;
 
         m_label_component = std::make_shared<TechText>(m_i1n_key);
+		m_label_component->SetName("label");
         m_label_component->SetSizing(TechTextSizingMode::AutoHeight);
         m_label_component->m_align_v = Alignment::Center;
         m_label_component->m_block_input = false;
@@ -57,6 +58,7 @@ public:
         AddChild(m_label_component);
 
         m_value_input = std::make_shared<InputField>(&m_value_string_buffer);
+		m_value_input->SetName("valueInput");
         m_value_input->m_underline_mode = UnderlineDisplayMode::OnHoverOrFocus;
         m_value_input->m_width = Length::Fixed(value_box_w);
         m_value_input->m_height = Length::Content();

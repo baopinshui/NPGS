@@ -23,6 +23,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
     AddChild(root_panel);
 
     bg_view = std::make_shared<NeuralParticleView>(80);
+    bg_view->SetName("particleView");
     bg_view->m_width = Length::Stretch();
     bg_view->m_height = Length::Stretch();
     bg_view->SetSizes(m_collapsed_size, m_expanded_size);
@@ -30,6 +31,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // --- 3. 收起状态按钮 ---
     collapsed_btn = std::make_shared<CollapsedMainButton>(main_button_key1, main_button_key2);
+    collapsed_btn->SetName("collapsedButton");
     collapsed_btn->m_width = Length::Stretch();
     collapsed_btn->m_height = Length::Stretch();
     collapsed_btn->on_click_callback = [this]() { this->ToggleExpand(); };
@@ -64,6 +66,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // 标题
     header_title = std::make_shared<TechText>(settings_key, ThemeColorID::TextHighlight);
+    header_title->SetName("title");
     header_title->SetAnimMode(TechTextAnimMode::Hacker);
     header_title->m_width = Length::Stretch(1.0f); // 占据左侧空间
     header_title->m_align_v = Alignment::Center;
@@ -72,6 +75,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // 切换按钮 (INFO / CUSTOM)
     page_toggle_btn = std::make_shared<TechButton>(" INFO ", TechButton::Style::Tab);
+    page_toggle_btn->SetName("pageToggleButton");
     page_toggle_btn->m_width = Length::Fixed(60.0f);
     page_toggle_btn->m_height = Length::Stretch();
     page_toggle_btn->SetFont(UIContext::Get().m_font_small); // 用小字体
@@ -86,6 +90,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // B1. 信息页面容器 (Info Page)
     m_page_info_container = std::make_shared<VBox>();
+    m_page_info_container->SetName("infoPage");
     m_page_info_container->m_width = Length::Stretch();
     m_page_info_container->m_height = Length::Stretch(1.0f);
     m_page_info_container->m_padding = 4.0f;
@@ -99,6 +104,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // B2. 设置页面容器 (Settings Page)
     m_page_settings_container = std::make_shared<VBox>();
+    m_page_settings_container->SetName("settingsPage");
     m_page_settings_container->m_width = Length::Stretch();
     m_page_settings_container->m_height = Length::Stretch(1.0f);
     m_page_settings_container->m_visible = false; // 默认隐藏
@@ -106,12 +112,14 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
 
     // 滚动视图用于放置大量滑块
     auto scroll_view = std::make_shared<ScrollView>();
+    scroll_view->SetName("settingsScroll");
     scroll_view->m_width = Length::Stretch();
     scroll_view->m_height = Length::Stretch(1.0f);
     m_page_settings_container->AddChild(scroll_view);
 
     // 滑块的实际父容器
     m_settings_content_box = std::make_shared<VBox>();
+    m_settings_content_box->SetName("settingsContent");
     m_settings_content_box->m_width = Length::Stretch();
     m_settings_content_box->m_height = Length::Content();
     m_settings_content_box->m_padding = 10.0f;
@@ -124,6 +132,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
     m_settings_content_box->AddChild(spacer);
 
     m_exit_btn = std::make_shared<TechButton>("ui.menu.quit_game", TechButton::Style::Normal);
+    m_exit_btn->SetName("exitButton");
     m_exit_btn->m_width = Length::Stretch();
     m_exit_btn->m_height = Length::Fixed(30.0f);
     m_exit_btn->m_color_bg = ImVec4(0.3f, 0.0f, 0.0f, 0.5f); // 红色背景警示
@@ -136,6 +145,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
     main_layout->AddChild(sep_bot);
 
     m_close_menu_btn = std::make_shared<TechButton>(close_key, TechButton::Style::Normal);
+    m_close_menu_btn->SetName("closeButton");
     m_close_menu_btn->m_width = Length::Stretch();
     m_close_menu_btn->m_height = Length::Fixed(34.0f);
     m_close_menu_btn->on_click = [this]() { this->ToggleExpand(); };

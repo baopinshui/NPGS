@@ -34,12 +34,14 @@ LogCard::LogCard(LogType type, const std::string& title, const std::string& mess
     AddChild(m_content_box);
 
     m_title_text = std::make_shared<TechText>(title, title_col, true);
+    m_title_text->SetName("title"); // << NAME ADDED
     m_title_text->m_font = UIContext::Get().m_font_bold;
     m_title_text->m_width = Length::Stretch(); // 文本宽度撑满
     m_title_text->m_height = Length::Content();
     m_content_box->AddChild(m_title_text);
 
     m_msg_text = std::make_shared<TechText>(message, msg_col, false);
+    m_msg_text->SetName("message"); // << NAME ADDED
     m_msg_text->m_font = UIContext::Get().m_font_regular;
     m_msg_text->m_width = Length::Stretch();
     m_msg_text->m_height = Length::Content();
@@ -106,6 +108,7 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
 
     // 子组件全部直接添加到 LogPanel
     m_list_box = std::make_shared<VBox>();
+    m_list_box->SetName("logList"); // << NAME ADDED
     m_list_box->m_padding = 0.0f;
     m_list_box->m_width = Length::Stretch();
     // 高度由子项（LogCard）决定，所以是Content
@@ -122,11 +125,13 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
     m_footer_box->m_height = Length::Content();
 
     m_system_text = std::make_shared<TechText>(syskey, ThemeColorID::TextDisabled, true);
+    m_system_text->SetName("systemStatus"); // << NAME ADDED
     m_system_text->SetSizing(TechTextSizingMode::AutoHeight); // 自动换行
     m_system_text->m_width = Length::Stretch(); // 宽度撑满
     m_system_text->m_height = Length::Content();
 
     m_autosave_text = std::make_shared<TechText>(savekey, ThemeColorID::TextDisabled, true);
+    m_autosave_text->SetName("autosaveStatus"); // << NAME ADDED
     m_autosave_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
     m_autosave_text->m_width = Length::Stretch();

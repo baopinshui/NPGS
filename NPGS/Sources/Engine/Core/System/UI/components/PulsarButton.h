@@ -13,7 +13,7 @@ class PulsarButton : public UIElement
 {
 public:
     using OnToggleCallback = std::function<void(bool is_expanding)>;
-    using OnExecuteCallback = std::function<void(const std::string& id, const std::string& current_value)>;
+    using OnExecuteCallback = std::function<void(const std::string& name, const std::string& current_value)>;
 
     OnToggleCallback on_toggle_callback;
     OnExecuteCallback on_execute_callback;
@@ -41,8 +41,7 @@ public:
         const std::string& stat_label_key,
         std::string* stat_value_ptr,
         const std::string& stat_unit_key,
-        bool is_editable,
-        const std::string& id = ""
+        bool is_editable
     );
 
     PulsarButton(
@@ -52,8 +51,7 @@ public:
         const std::string& stat_label_key,
         std::string* stat_value_ptr,
         const std::string& stat_unit_key,
-        bool is_editable,
-        const std::string& id = ""
+        bool is_editable
     );
 
     void SetActive(bool active);

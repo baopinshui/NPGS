@@ -16,9 +16,6 @@ public:
     void Update(float dt) override;
     void Draw() override;
 
-private:
-    std::shared_ptr<UI::TechText> m_title;
-    std::shared_ptr<UI::VBox> m_button_layout;
 };
 
 _UI_END

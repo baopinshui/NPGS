@@ -5,7 +5,7 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_ptr, const std::string& pause_key, const std::string& resume_key, const std::string& reset_key)
+TimeControlPanel::TimeControlPanel( double* current_time_ptr, double* time_scale_ptr, const std::string& pause_key, const std::string& resume_key, const std::string& reset_key)
     : m_time_ptr(current_time_ptr), m_scale_ptr(time_scale_ptr), m_pause_key(pause_key), m_resume_key(resume_key)
 {
     if (m_scale_ptr) m_visual_target_scale = *m_scale_ptr;
@@ -34,6 +34,7 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
 
     // --- 第一行：时间显示 ---
     m_text_display = std::make_shared<TechText>("T+00000000.00.00 00:00:00", theme.color_text_highlight, false, true);
+    m_text_display->SetName("timeDisplay"); // NAME ADDED
     m_text_display->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_text_display->m_font = ctx.m_font_subtitle;
     m_text_display->m_glow_intensity = 0.5f;
@@ -52,6 +53,7 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
 
     // [A] 暂停/继续按钮
     m_pause_btn = std::make_shared<TechButton>(pause_key, TechButton::Style::Normal);
+    m_pause_btn->SetName("pauseButton"); // NAME ADDED
     m_pause_btn->m_width = Length::Fixed(30.0f);
     m_pause_btn->m_height = Length::Fixed(30.0f);
     m_pause_btn->SetPadding({ 0, 0 });
@@ -68,6 +70,7 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
 
     // [B] 油门滑条
     m_speed_slider = std::make_shared<ThrottleTechSlider<double>>("", &m_visual_target_scale);
+    m_speed_slider->SetName("speedSlider"); // NAME ADDED
     m_speed_slider->m_width = Length::Fixed(220.0f);
     m_speed_slider->m_height = Length::Fixed(30.0f);
     m_speed_slider->max_label_w = 0.0f;
@@ -75,6 +78,7 @@ TimeControlPanel::TimeControlPanel(double* current_time_ptr, double* time_scale_
 
     // [C] 重置按钮
     m_1x_btn = std::make_shared<TechButton>(reset_key, TechButton::Style::Normal);
+    m_1x_btn->SetName("resetButton"); // NAME ADDED
     m_1x_btn->m_width = Length::Fixed(30.0f);
     m_1x_btn->m_height = Length::Fixed(30.0f);
     m_1x_btn->SetPadding({ 0, 0 });

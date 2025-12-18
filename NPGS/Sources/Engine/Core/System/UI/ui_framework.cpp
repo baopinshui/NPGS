@@ -1,7 +1,7 @@
 #include "ui_framework.h"
 #include "TechUtils.h"
 #include "components/GlobalTooltip.h"
-
+#define _DEBUG
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
@@ -26,14 +26,17 @@ bool Rect::Contains(const ImVec2& p) const
     bool inside = p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h;
 
     // DEBUG 绘制
-    if (!true)
+#ifdef _DEBUG
+    if (true)
     {
         ImDrawList* fg_draw = ImGui::GetForegroundDrawList();
         ImU32 col = inside ? IM_COL32(0, 255, 0, 200) : IM_COL32(255, 0, 0, 100);
         fg_draw->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), col);
         if (inside) fg_draw->AddLine(ImVec2(x, y), ImVec2(x + w, y + h), col);
     }
+#endif
     return inside;
+
 }
 
 // --- StyleColor ---
@@ -1238,6 +1241,42 @@ void UIRoot::RebuildIDMap()
     m_id_map.clear();
     BuildIDMapRecursive(this); // 从根节点开始递归构建
     m_id_map_dirty = false;    // 重建完成，清除脏标记
+#ifdef _DEBUG // 建议只在 Debug 模式下开启，避免 Release 刷屏
+    if (true) // 控制开关
+    {
+        // 提取所有 Key 以便排序（unordered_map 本身是乱序的，不便阅读）
+        std::vector<std::string> sorted_keys;
+        sorted_keys.reserve(m_id_map.size());
+        for (const auto& kv : m_id_map)
+        {
+            sorted_keys.push_back(kv.first);
+        }
+
+        // 字母排序，这样 "Menu" 和 "Menu.Button" 会挨在一起显示
+        std::sort(sorted_keys.begin(), sorted_keys.end());
+
+        NpgsCoreInfo("========= UI ID MAP REBUILT (Total: {}) =========", m_id_map.size());
+        for (const auto& key : sorted_keys)
+        {
+            UIElement* el = m_id_map[key];
+
+            // 获取组件的具体类型名 (例如 class NPGS::UI::Button)
+            // 注意：typeid().name() 的输出格式依赖编译器
+            std::string type_name = typeid(*el).name();
+
+            // 简单的清理一下类型名显示 (可选，针对 MSVC 去掉 "class " 前缀)
+            size_t class_prefix = type_name.find("class ");
+            if (class_prefix != std::string::npos) type_name = type_name.substr(class_prefix + 6);
+
+            NpgsCoreInfo("  ID: {:<40} | Type: {:<15} | Ptr: {}",
+                key,
+                type_name,
+                (void*)el
+            );
+        }
+        NpgsCoreInfo("=================================================");
+    }
+#endif
 }
 
 UIElement* UIRoot::FindElementByID(const std::string& id)

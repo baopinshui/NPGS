@@ -34,6 +34,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
 
     // 0. 创建背景面板 
     m_bg_panel = std::make_shared<TechBorderPanel>();
+    m_bg_panel->SetName("background"); // [新增] 命名背景
     m_bg_panel->m_rect = { 0, 0, 40, 40 };
     m_bg_panel->m_use_glass_effect = true;
     m_bg_panel->m_thickness = 2.0f;
@@ -42,6 +43,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
 
     // --- 2. 状态文本 ---
     m_text_status = std::make_shared<TechText>(TR(status_key), ThemeColorID::TextHighlight, true);
+    m_text_status->SetName("status"); // [新增] 命名状态文本
     m_text_status->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
@@ -49,6 +51,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
 
     // --- 3. 主标签 ---
     m_text_label = std::make_shared<TechText>(TR(label_key), ThemeColorID::TextHighlight, true);
+    m_text_label->SetName("label"); // [新增] 命名主标签
     m_text_label->SetSizing(TechTextSizingMode::AutoWidthHeight);
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
@@ -58,6 +61,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     if (!stat_label_key.empty())
     {
         m_text_stat_label = std::make_shared<TechText>(TR(stat_label_key) + ":", ThemeColorID::Text);
+        m_text_stat_label->SetName("statLabel"); // [新增] 命名统计标签
         m_text_stat_label->SetSizing(TechTextSizingMode::AutoWidthHeight);
 
         m_text_stat_label->m_font = ctx.m_font_bold;
@@ -68,6 +72,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     if (!stat_unit_key.empty())
     {
         m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, ThemeColorID::Text);
+        m_text_stat_unit->SetName("statUnit"); // [新增] 命名统计单位
         m_text_stat_unit->SetSizing(TechTextSizingMode::AutoWidthHeight);
 
         m_text_stat_unit->m_font = ctx.m_font_bold;
@@ -79,6 +84,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     if (m_is_editable && stat_value_ptr)
     {
         m_input_field = std::make_shared<InputField>(stat_value_ptr);
+        m_input_field->SetName("statValueInput"); // [新增] 命名输入字段
         m_input_field->m_font = ctx.m_font_bold;
         m_input_field->m_text_color = ThemeColorID::Accent;
         m_input_field->m_border_color = ThemeColorID::Accent;
@@ -87,6 +93,7 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     else if (stat_value_ptr)
     {
         m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, ThemeColorID::Accent, true);
+        m_text_stat_value->SetName("statValue"); // [新增] 命名统计数值
         m_text_stat_value->SetSizing(TechTextSizingMode::AutoWidthHeight);
 
         m_text_stat_value->m_font = ctx.m_font_bold;
@@ -116,13 +123,14 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     }
 }
 
-PulsarButton::PulsarButton(const std::string& status_key, const std::string& label_key, const std::string& icon_char, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable, const std::string& id)
+PulsarButton::PulsarButton(const std::string& status_key, const std::string& label_key, const std::string& icon_char, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable)
     : m_is_editable(is_editable)
 {
     InitCommon(status_key, label_key, stat_label_key, stat_value_ptr, stat_unit_key);
-    m_id = id;
+
 
     m_text_icon = std::make_shared<TechText>(icon_char);
+    m_text_icon->SetName("icon"); // [新增] 命名图标
     m_text_icon->SetSizing(TechTextSizingMode::Fixed);
     m_text_icon->m_rect = { 0, 0, 40, 40 };
     m_text_icon->m_align_h = Alignment::Center;
@@ -131,13 +139,14 @@ PulsarButton::PulsarButton(const std::string& status_key, const std::string& lab
     AddChild(m_text_icon);
 }
 
-PulsarButton::PulsarButton(const std::string& status_key, const std::string& label_key, ImTextureID icon_texture, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable, const std::string& id)
+PulsarButton::PulsarButton(const std::string& status_key, const std::string& label_key, ImTextureID icon_texture, const std::string& stat_label_key, std::string* stat_value_ptr, const std::string& stat_unit_key, bool is_editable)
     : m_is_editable(is_editable)
 {
     InitCommon(status_key, label_key, stat_label_key, stat_value_ptr, stat_unit_key);
-    m_id = id;
+
 
     m_image_icon = std::make_shared<Image>(icon_texture);
+    m_image_icon->SetName("icon"); // [新增] 命名图标
     m_image_icon->m_rect = { 0, 0, 40, 40 };
     m_image_icon->m_block_input = false;
     m_image_icon->m_tint_col = UIContext::Get().m_theme.color_text;
@@ -775,7 +784,7 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
             {
                 std::string val = "";
                 if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
-                on_execute_callback(m_id, val);
+                on_execute_callback(GetName(), val);
             }
         }
     }

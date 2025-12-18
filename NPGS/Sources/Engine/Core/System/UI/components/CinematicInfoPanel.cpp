@@ -29,6 +29,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
 
     // 标题
     m_title_text = std::make_shared<TechText>("", ThemeColorID::TextHighlight, true, true);
+    m_title_text->SetName("title"); // [ADD]
     m_title_text->SetGlow(true, ThemeColorID::Accent, 2.5f);
     m_title_text->m_font = ctx.m_font_large;
     m_title_text->SetSizing(TechTextSizingMode::AutoHeight); // 自动换行
@@ -38,6 +39,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
 
     // 分割线
     m_divider = std::make_shared<TechDivider>(m_position == Position::Top ? ThemeColorID::Accent : ThemeColorID::TextDisabled);
+    m_divider->SetName("divider"); // [ADD]
     m_divider->m_use_gradient = (m_position == Position::Top);
     m_divider->m_width = Length::Stretch(); // 默认撑满，但会在 Arrange 中被动画覆盖
     m_divider->m_height = Length::Fixed(1.0f);
@@ -55,17 +57,18 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_top_stats_box->m_align_h = Alignment::Center; // HBox 自身在 VBox 中居中
         m_top_stats_box->m_block_input = false;
 
-        auto setup_stat = [&](std::shared_ptr<TechText>& ptr, const StyleColor& color)
+        auto setup_stat = [&](std::shared_ptr<TechText>& ptr, const StyleColor& color, const std::string& name)
         {
             ptr = std::make_shared<TechText>("", color, true);
+            ptr->SetName(name); // [ADD]
             ptr->SetSizing(TechTextSizingMode::AutoWidthHeight); // 尺寸由文本内容决定
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_top_stats_box->AddChild(ptr);
         };
-        setup_stat(m_top_stat_1, ThemeColorID::Text);
-        setup_stat(m_top_stat_2, ThemeColorID::Text);
-        setup_stat(m_top_stat_3, ThemeColorID::Accent);
+        setup_stat(m_top_stat_1, ThemeColorID::Text, "stat1");
+        setup_stat(m_top_stat_2, ThemeColorID::Text, "stat2");
+        setup_stat(m_top_stat_3, ThemeColorID::Accent, "stat3");
 
         m_layout_vbox->AddChild(m_title_text);
         m_layout_vbox->AddChild(m_top_stats_box);
@@ -75,6 +78,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     {
         // Bottom 布局: 标题 -> 分割线 -> 类型 -> 统计
         m_bot_type_text = std::make_shared<TechText>("", ThemeColorID::Text, true);
+        m_bot_type_text->SetName("type"); // [ADD]
         m_bot_type_text->m_font = ctx.m_font_regular;
         m_bot_type_text->SetSizing(TechTextSizingMode::AutoHeight);
         m_bot_type_text->m_align_h = Alignment::Center;
@@ -88,16 +92,17 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_bot_stats_box->m_align_h = Alignment::Center;
         m_bot_stats_box->m_block_input = false;
 
-        auto setup_stat = [&](std::shared_ptr<TechText>& ptr)
+        auto setup_stat = [&](std::shared_ptr<TechText>& ptr, const std::string& name) // [MODIFY] Add name parameter
         {
             ptr = std::make_shared<TechText>("", ThemeColorID::TextDisabled, true);
+            ptr->SetName(name); // [ADD]
             ptr->SetSizing(TechTextSizingMode::AutoWidthHeight);
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
             m_bot_stats_box->AddChild(ptr);
         };
-        setup_stat(m_bot_stat_1);
-        setup_stat(m_bot_stat_2);
+        setup_stat(m_bot_stat_1, "stat1");
+        setup_stat(m_bot_stat_2, "stat2");
 
         m_layout_vbox->AddChild(m_title_text);
         m_layout_vbox->AddChild(m_divider);
