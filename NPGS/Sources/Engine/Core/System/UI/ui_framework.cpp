@@ -2,6 +2,7 @@
 #include "TechUtils.h"
 #include "components/GlobalTooltip.h"
 #define _DEBUG
+
 _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN

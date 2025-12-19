@@ -684,9 +684,10 @@ void main()
             
             DeltaPhi   = RayStep / DistanceToBlackHole * DeltaPhiRate;
         
-            RayPos    += RayDir * RayStep;
+            
             RayDir     = normalize(RayDir + (DeltaPhi + DeltaPhi * DeltaPhi * DeltaPhi / 3.0) *
                          cross(cross(RayDir, NormalizedPosToBlackHole), RayDir) / CosTheta);  // 更新方向，里面的 (dthe + DeltaPhi ^ 3 / 3) 是 tan(dthe)
+            RayPos    += RayDir * RayStep;
             StepLength = RayStep;
         //    lucheng+=RayStep;
             ++Count;

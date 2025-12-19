@@ -368,11 +368,14 @@ void CelestialInfoPanel::RefreshContent()
             row->m_align_v = Alignment::Center; // 子元素垂直居中
 
             auto k = std::make_shared<TechText>(item.key + ":", ThemeColorID::TextDisabled);
+            k->m_width = Length::Content();
+            k->SetSizing(TechTextSizingMode::AutoWidthHeight);
             k->m_font = target_font;
             k->m_width = Length::Fixed(key_width);
 
             auto v = std::make_shared<TechText>(item.value, ThemeColorID::Text, true);
             v->m_font = target_font;
+            v->SetSizing(TechTextSizingMode::AutoHeight);
             v->m_width = Length::Stretch();
             v->m_align_h = Alignment::End;
             if (item.highlight) v->SetColor(ThemeColorID::Accent);
