@@ -29,7 +29,7 @@ FGameArgs GameArgs{};
 FBlackHoleArgs BlackHoleArgs{};
 FMatrices Matrices;
 FLightMaterial LightMaterial;
-
+float cfov = 60.0f;
 _NPGS_BEGIN
 
 namespace Art = Runtime::Asset;
@@ -599,7 +599,7 @@ void FApplication::ExecuteMainRender()
         _uiRenderer->EndFrame();
         // Uniform update
         // --------------
-
+        _FreeCamera->SetFov(cfov);
         {
             float Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
             if (FrameCount == 0)
@@ -1308,7 +1308,7 @@ bool FApplication::InitializeWindow()
         return false;
     }
 
-    _FreeCamera = std::make_unique<SysSpa::FCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 0.2, 2.5, 60.0);
+    _FreeCamera = std::make_unique<SysSpa::FCamera>(glm::vec3(0.0f, 0.0f, 0.0f), 0.2, 2.5, cfov);
     _FreeCamera->SetCameraMode(true);
     return true;
 }

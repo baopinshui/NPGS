@@ -107,3 +107,4 @@ extern FGameArgs GameArgs;
 extern FBlackHoleArgs BlackHoleArgs;
 extern FMatrices Matrices;
 extern FLightMaterial LightMaterial;
+extern float cfov;
