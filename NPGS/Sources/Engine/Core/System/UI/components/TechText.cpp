@@ -238,6 +238,15 @@ ImVec2 TechText::Measure(ImVec2 available_size)
             m_desired_size.y = CalculateRenderedHeight(font, text_to_measure, max_w);
         }
     }
+    else if (m_sizing_mode == TechTextSizingMode::ForceAutoWidthHeight)
+    {
+        // 1. 先计算自然宽度（不换行）
+        ImVec2 natural_size = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text_to_measure.c_str());
+
+            // 如果自然宽度小于限制，直接使用自然尺寸
+            m_desired_size = natural_size;
+        
+    }
     else // AutoHeight (强制占满宽度模式)
     {
         float wrap_w = (available_size.x > 1.0f && available_size.x != FLT_MAX) ? available_size.x : 10000.0f;

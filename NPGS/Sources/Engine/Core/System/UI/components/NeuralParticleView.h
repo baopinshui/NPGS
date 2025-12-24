@@ -32,8 +32,10 @@ public:
 
     void Update(float dt) override;
     void Draw(ImDrawList* draw_list) override;
+    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled) override;
 private:
     void SpawnParticle(Particle& p, float w, float h);
+    bool m_is_hovered = false;
 };
 
 _UI_END

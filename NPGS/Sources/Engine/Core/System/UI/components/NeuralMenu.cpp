@@ -34,7 +34,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
     collapsed_btn->SetName("collapsedButton");
     collapsed_btn->m_width = Length::Stretch();
     collapsed_btn->m_height = Length::Stretch();
-    collapsed_btn->on_click_callback = [this]() { this->ToggleExpand(); };
+    collapsed_btn->on_click = [this]() { this->ToggleExpand(); };
     collapsed_btn->m_alpha = 1.0f;
     root_panel->AddChild(collapsed_btn);
 

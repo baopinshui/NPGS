@@ -16,6 +16,7 @@ enum class TechTextSizingMode
 {
     Fixed,
     AutoWidthHeight,
+    ForceAutoWidthHeight,
     AutoHeight
 };
 

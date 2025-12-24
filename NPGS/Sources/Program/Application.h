@@ -94,7 +94,7 @@ private:
 
     std::unique_ptr<System::Spatial::FCamera> _FreeCamera;
     bool _bLeftMousePressedInWorld = false;
-    bool _bIsRotatingCamera = false;
+    bool _bIsDraggingInWorld = false;
     double CurrentTime = 0.0;
     double RealityTime = 0.0;
     double GameTime = 0.0;

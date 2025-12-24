@@ -588,6 +588,7 @@ void FApplication::ExecuteMainRender()
         // =========================================================================
         // [修改] 游戏主循环中的 UI 处理
         // =========================================================================
+        ui_ctx.SetInputBlocked(_bIsDraggingInWorld);
         m_screen_manager->Update(_DeltaTime);
         m_screen_manager->ApplyPendingChanges();
         m_screen_manager->Draw();
@@ -1386,7 +1387,7 @@ void FApplication::ProcessInput()
             _DragStartX = currX;
             _DragStartY = currY;
 
-            _bIsRotatingCamera = true;
+            _bIsDraggingInWorld = true;
             glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
             // 标记 FirstMouse，让 Case C 在下一帧重置坐标基准
@@ -1399,7 +1400,7 @@ void FApplication::ProcessInput()
         if (_bLeftMousePressedInWorld)
         {
             _bLeftMousePressedInWorld = false;
-            _bIsRotatingCamera = false;
+            _bIsDraggingInWorld = false;
 
             glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
@@ -1414,7 +1415,7 @@ void FApplication::ProcessInput()
     }
     // [Case C]: 持续按住并拖动
     // 只有在冷却完毕，且确实处于旋转模式下才执行
-    else if (_bLeftMousePressedInWorld && _bIsRotatingCamera && s_FrameCooldown == 0)
+    else if (_bLeftMousePressedInWorld && _bIsDraggingInWorld && s_FrameCooldown == 0)
     {
         if (_bFirstMouse)
         {

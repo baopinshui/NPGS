@@ -1,7 +1,7 @@
 #include "ui_framework.h"
 #include "TechUtils.h"
 #include "components/GlobalTooltip.h"
-//#define _DEBUG
+#define _DEBUG
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
@@ -397,7 +397,39 @@ void UIElement::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool 
         return;
     }
 
-    // 1. 递归子节点
+    UIContext& ctx = UIContext::Get();
+    bool is_captured_by_me = (ctx.m_captured_element == this);
+
+    // --- 分支 A: 处理被捕获状态 (正在进行点击/拖拽交互) ---
+    if (is_captured_by_me)
+    {
+        external_handled = true; // 独占事件
+
+        // 计算物理包含关系
+        Rect abs_rect = { m_absolute_pos.x, m_absolute_pos.y, m_rect.w, m_rect.h };
+        bool inside = abs_rect.Contains(mouse_pos);
+
+        // 更新 Hover 状态：只有按住且指在内部时才算 Hover
+        m_hovered = inside;
+
+        // 处理释放逻辑
+        if (mouse_released)
+        {
+            // [核心逻辑] 只有在释放且处于 Hover 状态时，才算一次有效的点击
+            if (inside)
+            {
+                OnClick(); // 触发虚函数
+            }
+
+            ctx.ReleaseCapture(); // 释放捕获
+            m_clicked = false;    // 复位状态
+        }
+        return;
+    }
+
+    // --- 分支 B: 未被捕获 (常规递归与判定) ---
+
+    // 1. 递归子节点 (自底向上，让子节点先吃掉事件)
     for (size_t i = m_children.size(); i > 0; --i)
     {
         m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, external_handled);
@@ -410,35 +442,39 @@ void UIElement::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool 
         return;
     }
 
+    // 2. 自身命中测试
     Rect abs_rect = { m_absolute_pos.x, m_absolute_pos.y, m_rect.w, m_rect.h };
     bool inside = abs_rect.Contains(mouse_pos);
 
-    UIContext& ctx = UIContext::Get();
-    if (ctx.m_captured_element == this) inside = true;
     if (mouse_released) m_clicked = false;
 
     if (inside)
     {
         if (!m_tooltip_key.empty()) ctx.RequestTooltip(m_tooltip_key);
+
+        // 只有 block_input 为 true 的元素才响应点击
         if (m_block_input)
         {
             m_hovered = true;
-            external_handled = true;
+            external_handled = true; // 标记事件已被处理
+
             if (mouse_clicked)
             {
                 m_clicked = true;
                 if (m_focusable) ctx.SetFocus(this);
+
+                // [关键] 按下时开启捕获，进入分支 A 的逻辑循环
+                ctx.SetCapture(this);
             }
         }
         else
         {
-            m_hovered = true;
+            m_hovered = true; // 仅仅是悬停，不阻挡事件
         }
     }
     else
     {
         m_hovered = false;
-        if (mouse_released) m_clicked = false;
     }
 }
 
@@ -453,6 +489,13 @@ ImFont* UIElement::GetFont() const
 ImU32 UIElement::GetColorWithAlpha(const ImVec4& col, float global_alpha) const
 {
     return ImGui::ColorConvertFloat4ToU32(ImVec4(col.x, col.y, col.z, col.w * m_alpha * global_alpha));
+}
+void UIElement::OnClick()
+{
+    if (on_click)
+    {
+        on_click();
+    }
 }
 bool UIElement::IsFocused() const { return UIContext::Get().m_focused_element == this; }
 void UIElement::RequestFocus() { UIContext::Get().SetFocus(this); }
@@ -1159,13 +1202,32 @@ void UIRoot::Update(float dt)
     m_rect = { 0, 0, io.DisplaySize.x, io.DisplaySize.y };
     UIElement* focused_element_before_events = ctx.m_focused_element;
     // 2. 鼠标事件处理
+        // [核心修改开始] --------------------------------------------------
+    ImVec2 effective_mouse_pos = io.MousePos;
+    bool effective_mouse_down = io.MouseDown[0];
+    bool effective_mouse_clicked = io.MouseClicked[0];
+    bool effective_mouse_released = io.MouseReleased[0];
 
+    // 如果输入被引擎逻辑（如摄像机旋转）阻塞，欺骗 UI 认为鼠标在无限远且未按下
+    if (ctx.m_input_blocked)
+    {
+        effective_mouse_pos = ImVec2(-10000.0f, -10000.0f);
+        effective_mouse_down = false;
+        effective_mouse_clicked = false;
+        // released 保持原样或设为 true 有助于清理之前的点击状态，
+        // 但设为 false 通常安全，因为 down 已经是 false 了。
+        effective_mouse_released = false;
+
+        // 额外安全措施：如果正在捕获，强制释放
+        if (ctx.m_captured_element) ctx.ReleaseCapture();
+    }
+    // [核心修改结束] --------------------------------------------------
     bool is_handled = false;
     UIElement* captured = ctx.m_captured_element;
     if (captured)
-        captured->HandleMouseEvent(io.MousePos, io.MouseDown[0], io.MouseClicked[0], io.MouseReleased[0], is_handled);
+        captured->HandleMouseEvent(effective_mouse_pos, effective_mouse_down, effective_mouse_clicked, effective_mouse_released, is_handled);
     else
-        HandleMouseEvent(io.MousePos, io.MouseDown[0], io.MouseClicked[0], io.MouseReleased[0], is_handled);
+        HandleMouseEvent(effective_mouse_pos, effective_mouse_down, effective_mouse_clicked, effective_mouse_released, is_handled);
 
     if (is_handled) io.WantCaptureMouse = true;
 

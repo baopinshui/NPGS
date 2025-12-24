@@ -101,6 +101,7 @@ class UIContext
 public:
     static UIContext& Get() { static UIContext instance; return instance; }
 
+    bool m_input_blocked = false;
     UIElement* m_focused_element = nullptr;
     UIElement* m_captured_element = nullptr;
     std::string m_tooltip_candidate_key;
@@ -119,6 +120,7 @@ public:
     ImVec2 m_display_size = { 1920, 1080 };
 
     void NewFrame();
+    void SetInputBlocked(bool blocked) { m_input_blocked = blocked; }
     void RequestTooltip(const std::string& key);
     void UpdateTooltipLogic(float dt);
     ImVec4 GetThemeColor(ThemeColorID id) const;
@@ -151,6 +153,8 @@ public:
     using Ptr = std::shared_ptr<UIElement>;
     using TweenCallback = std::function<void()>;
 
+    std::function<void()> on_click;
+
     // 基础属性
     Rect m_rect = { 0, 0, 100, 100 };
     ImVec2 m_absolute_pos = { 0, 0 };
@@ -158,6 +162,7 @@ public:
     float m_alpha = 1.0f;
 private:
     std::string m_name="";
+
 public:
     std::string m_cached_id;
     bool m_id_dirty = true;
@@ -247,7 +252,7 @@ public:
     ImU32 GetColorWithAlpha(const ImVec4& col, float global_alpha) const;
 
     virtual ImFont* GetFont() const;
-
+    virtual void OnClick();
     bool IsFocused() const;
     void RequestFocus();
     void CaptureMouse();

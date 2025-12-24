@@ -898,6 +898,7 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
 {
     if (!m_visible || m_alpha <= 0.01f) return;
 
+    // 1. 子元素优先 (例如 InputField)
     for (size_t i = m_children.size(); i > 0; --i)
     {
         m_children[i - 1]->HandleMouseEvent(mouse_pos, mouse_down, mouse_clicked, mouse_released, handled);
@@ -906,10 +907,14 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
     if (handled)
     {
         m_hovered = false;
+        m_core_hovered = false;
         m_label_hovered = false;
         return;
     }
 
+    // --- 2. 准备热区数据 (使用原先的设计) ---
+
+    // A. 核心区域 (Core)
     const float closed_w = 40.0f;
     const float closed_h = 40.0f;
     const float open_w = pulsar_radius;
@@ -917,77 +922,148 @@ void PulsarButton::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bo
 
     float current_w = closed_w + (open_w - closed_w) * m_anim_progress;
     float current_h = closed_h + (open_h - closed_h) * m_anim_progress;
-
     ImVec2 center = { m_absolute_pos.x + 20.0f, m_absolute_pos.y + 20.0f };
     Rect core_hit_rect = { center.x - current_w * 0.5f, center.y - current_h * 0.5f, current_w, current_h };
 
-    m_label_hovered = false;
-    bool is_action_area = false;
+    // B. 操作区域 (Action Area) - 分别计算 Icon 和 Label 的矩形
+    Rect icon_abs_rect = { 0,0,0,0 };
+    Rect label_abs_rect = { 0,0,0,0 };
+    bool action_area_active = (m_is_active && m_anim_progress > 0.8f);
 
-    if (m_is_active && m_anim_progress > 0.8f)
+    if (action_area_active)
     {
-        Rect icon_abs_rect = { 0,0,0,0 };
+        // 计算 Icon 矩形
         if (m_bg_panel)
         {
             icon_abs_rect = { m_bg_panel->m_absolute_pos.x, m_bg_panel->m_absolute_pos.y, m_bg_panel->m_rect.w, m_bg_panel->m_rect.h };
         }
 
-        Rect label_abs_rect = { 0,0,0,0 };
+        // 计算 Label 矩形 (保留原有的 Padding 逻辑)
         if (m_text_label)
         {
             ImFont* font = UIContext::Get().m_font_bold;
             ImVec2 txt_sz = { 100, 20 };
             if (font) txt_sz = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, m_text_label->m_current_display_text.c_str());
 
-            label_abs_rect = { m_text_label->m_absolute_pos.x - 10.0f, m_text_label->m_absolute_pos.y - 5.0f, txt_sz.x + 20.0f, txt_sz.y + 10.0f };
-        }
-
-        if (icon_abs_rect.Contains(mouse_pos) || label_abs_rect.Contains(mouse_pos))
-        {
-            is_action_area = true;
+            label_abs_rect = { m_text_label->m_absolute_pos.x - 5.0f, m_text_label->m_absolute_pos.y - 5.0f, txt_sz.x + 10.0f, txt_sz.y + 10.0f };
         }
     }
 
-    bool inside_core = core_hit_rect.Contains(mouse_pos);
-    if (!handled && inside_core)
+    // 定义检测是否在 Action 区域内的 Helper Lambda
+    // 逻辑：只要在 Icon 内 或者 在 Label 内，就算命中
+    auto IsInActionArea = [&](const ImVec2& p) -> bool
     {
-        m_core_hovered = true;
-    }
+        if (!action_area_active) return false;
+        return icon_abs_rect.Contains(p) || label_abs_rect.Contains(p);
+    };
 
-    if (is_action_area && m_block_input)
+    // --- 3. 状态判定逻辑 ---
+
+    UIContext& ctx = UIContext::Get();
+    bool is_captured_by_me = (ctx.m_captured_element == this);
+
+    // [逻辑分支 A]：已被捕获 (正在拖拽/按住中)
+    if (is_captured_by_me)
     {
-        m_hovered = true;
-        handled = true;
-        if (m_can_execute)
-        {
-            m_label_hovered = true;
-        }
+        handled = true; // 独占输入
 
-        if (mouse_clicked)
+        // 重置悬停状态，重新计算
+        m_core_hovered = false;
+        m_label_hovered = false;
+        m_hovered = false;
+
+        bool is_inside_target = false;
+
+        // 根据之前锁定的目标，只判定该目标是否悬停
+        if (m_interaction_target == InteractionTarget::Core)
         {
-            m_clicked = true;
-            if (m_can_execute && on_execute_callback)
+            if (core_hit_rect.Contains(mouse_pos))
             {
-                std::string val = "";
-                if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
-                on_execute_callback(GetName(), val);
+                m_core_hovered = true;
+                m_hovered = true;
+                is_inside_target = true;
             }
         }
+        else if (m_interaction_target == InteractionTarget::Action)
+        {
+            // 使用 Helper 检查是否在 Icon 或 Label 内
+            if (IsInActionArea(mouse_pos))
+            {
+                m_label_hovered = true;
+                m_hovered = true;
+                is_inside_target = true;
+            }
+        }
+
+        // 释放处理
+        if (mouse_released)
+        {
+            if (is_inside_target)
+            {
+                // 触发逻辑
+                if (m_interaction_target == InteractionTarget::Core)
+                {
+                    if (on_toggle_callback) on_toggle_callback(!m_is_active);
+                    else SetActive(!m_is_active);
+                }
+                else if (m_interaction_target == InteractionTarget::Action && m_can_execute)
+                {
+                    if (on_execute_callback)
+                    {
+                        std::string val = "";
+                        if (m_input_field && m_input_field->m_target_string) val = *m_input_field->m_target_string;
+                        on_execute_callback(GetName(), val);
+                    }
+                }
+            }
+
+            // 复位状态
+            ctx.ReleaseCapture();
+            m_interaction_target = InteractionTarget::None;
+            m_clicked = false;
+        }
+        return;
     }
-    else if (inside_core && m_block_input)
+
+    // [逻辑分支 B]：未被捕获 (常规悬停与点击检测)
+
+    bool hit_core = core_hit_rect.Contains(mouse_pos);
+    bool hit_action = IsInActionArea(mouse_pos); // 使用 Helper
+
+    // 更新悬停状态 (视觉反馈)
+    m_core_hovered = hit_core;
+    m_label_hovered = hit_action && m_can_execute;
+
+    if (hit_core || hit_action)
     {
         m_hovered = true;
-        handled = true;
-        if (mouse_clicked)
+
+        if (m_block_input)
         {
-            m_clicked = true;
-            if (on_toggle_callback) on_toggle_callback(!m_is_active);
-            else SetActive(!m_is_active);
+            handled = true;
+
+            if (mouse_clicked)
+            {
+                m_clicked = true;
+                // 确定交互目标并捕获
+                if (hit_core)
+                {
+                    m_interaction_target = InteractionTarget::Core;
+                    ctx.SetCapture(this);
+                }
+                else if (hit_action)
+                {
+                    m_interaction_target = InteractionTarget::Action;
+                    ctx.SetCapture(this);
+                }
+            }
         }
     }
     else
     {
         m_hovered = false;
+        m_core_hovered = false;
+        m_label_hovered = false;
     }
 
     if (mouse_released) m_clicked = false;

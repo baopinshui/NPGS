@@ -48,24 +48,10 @@ void NeuralParticleView::Update(float dt)
 {
     UIElement::Update(dt);
 
-    // [修复]：使用几何检测代替 m_hovered，解决被按钮遮挡无法检测悬停的问题
-    bool visual_hover = false;
-    if (m_parent)
-    {
-        ImVec2 p_min = m_parent->m_absolute_pos;
-        ImVec2 p_max = ImVec2(p_min.x + m_parent->m_rect.w, p_min.y + m_parent->m_rect.h);
-        Rect parent_rect = { p_min.x,p_min.y, m_parent->m_rect.w, m_parent->m_rect.h };
-        visual_hover = parent_rect.Contains(ImGui::GetIO().MousePos);
-    }
-    // [修复]：严格还原 menu.cpp 的速度逻辑
-    // menu.cpp: const bool effective_hover = expanded ? false : hovered;
-    // menu.cpp: float speed_multiplier = effective_hover ? 3.5f : (expanded ? 1.2f : 1.9f);
 
-    // 注意：这里用 m_rect.w > 100 作为判断是否展开的辅助依据，因为 m_is_expanded 只是目标状态
-    // 如果正在动画中或者已经展开，视为 "expanded"
     bool is_visually_expanded = m_is_expanded || m_is_animating || (m_rect.w > 150.0f);
 
-    bool effective_hover = is_visually_expanded ? false : visual_hover;
+    bool effective_hover = is_visually_expanded ? false : m_is_hovered;
     float speed_multiplier = effective_hover ? 3.5f : (is_visually_expanded ? 1.2f : 1.9f);
 
     // [移植核心逻辑 1]：计算当前应该激活多少粒子
@@ -198,21 +184,14 @@ void NeuralParticleView::Draw(ImDrawList* dl)
 
     // [修复 Start] ==========================================
     // 不依赖 m_parent->m_hovered，直接进行几何范围检测
-    bool hovered = false;
-    if (m_parent)
-    {
-        ImVec2 p_min = m_parent->m_absolute_pos;
-        ImVec2 p_max = ImVec2(p_min.x + m_parent->m_rect.w, p_min.y + m_parent->m_rect.h);
-        Rect parent_rect = { p_min.x,p_min.y, m_parent->m_rect.w, m_parent->m_rect.h };
-        hovered = parent_rect.Contains(ImGui::GetIO().MousePos);
-    }
+
     // === 逻辑对齐 HTML ===
 // JS: const baseConnectDist = isExpanded ? 100 : 50;
     float base_dist = m_is_expanded ? 100.0f : 50.0f;
 
     // 定义“高亮”状态：只有在悬停 且 未展开 时触发增强效果
     // JS: (hovered && !isExpanded)
-    bool is_highlight_state = (hovered && !m_is_expanded);
+    bool is_highlight_state = (m_is_hovered && !m_is_expanded);
 
     // 计算最大连接距离
     // JS: const connectDist = (hovered && !isExpanded) ? baseConnectDist * 1.2 : baseConnectDist;
@@ -301,6 +280,20 @@ void NeuralParticleView::Draw(ImDrawList* dl)
     {
         if (p.active)
             dl->AddCircleFilled(ImVec2(offset.x + p.x, offset.y + p.y), p.size, particle_col);
+    }
+}
+void NeuralParticleView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& handled)
+{
+
+    if (m_parent && m_visible && m_alpha > 0.01f)
+    {
+        Rect parent_rect = { m_parent->m_absolute_pos.x, m_parent->m_absolute_pos.y, m_parent->m_rect.w, m_parent->m_rect.h };
+
+        m_is_hovered = parent_rect.Contains(mouse_pos);
+    }
+    else
+    {
+        m_is_hovered = false;
     }
 }
 _UI_END

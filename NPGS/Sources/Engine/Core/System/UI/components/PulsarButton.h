@@ -83,6 +83,8 @@ public:
     void Draw(ImDrawList* draw_list) override;
     void HandleMouseEvent(const ImVec2& p, bool down, bool click, bool release, bool& handled) override;
 private:
+    enum class InteractionTarget { None, Core, Action };
+    InteractionTarget m_interaction_target = InteractionTarget::None;
     void UpdateCommonData(
         const std::string& status_key,
         const std::string& label_key,

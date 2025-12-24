@@ -14,7 +14,6 @@ class TechButton : public UIElement
 public:
     enum class Style { Normal, Tab, Vertical, Invisible };
 
-    std::function<void()> on_click;
 
     bool m_selected = false;
     bool m_use_glass = false;
@@ -48,7 +47,6 @@ public:
     ImVec2 Measure(ImVec2 available_size) override;
     // Arrange 使用基类的实现，因为它会正确地居中我们的 m_label_component
     void Draw(ImDrawList* dl) override;
-    void HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool mouse_clicked, bool mouse_released, bool& external_handled) override;
 
 private:
     std::string m_current_display_text; // 仅用于 Vertical 模式

@@ -132,7 +132,7 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
 
     m_autosave_text = std::make_shared<TechText>(savekey, ThemeColorID::TextDisabled, true);
     m_autosave_text->SetName("autosaveStatus"); // << NAME ADDED
-    m_autosave_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
+    m_autosave_text->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
     m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
     m_autosave_text->m_width = Length::Stretch();
     m_autosave_text->m_height = Length::Content();

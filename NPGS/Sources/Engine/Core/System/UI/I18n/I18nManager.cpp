@@ -118,9 +118,15 @@ std::string I18nManager::Get(const std::string& key) const
     if (!IsI18nKey(key)) return key;
 
     auto it = m_dictionary.find(key);
-    if (it != m_dictionary.end()) return it->second;
-
-    return "!" + key + "!";
+    if (it != m_dictionary.end())
+    {
+        if (it->second.empty())
+        {
+            return "key:" + key+"的value为空";
+        }
+        return it->second;
+    }
+    return "key:"+key+"缺失";
 }
 
 std::string I18nManager::Get(const char* key) const
