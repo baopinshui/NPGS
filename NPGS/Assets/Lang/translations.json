@@ -1,4 +1,24 @@
 {
+  "_meta": {
+    "languages": [
+      {
+        "code": "en",
+        "name": "English"
+      },
+      {
+        "code": "zh",
+        "name": "简体中文"
+      },
+      {
+        "code": "en_flavor",
+        "name": "English (Flavor)"
+      },
+      {
+        "code": "zh_flavor",
+        "name": "简体中文 (中二)"
+      }
+    ]
+  },
   "i18ntext": {
     "tooltip": {
       "test": {

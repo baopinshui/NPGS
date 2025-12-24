@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <memory>
 #include <functional>
@@ -11,14 +12,19 @@ _SYSTEM_BEGIN
 class I18nManager
 {
 public:
-    enum class Language { English, Chinese, EnglishFlavor, ChineseFlavor };
+    struct LanguageInfo
+    {
+        std::string code;
+        std::string name;
+    };
 
     static I18nManager& Get() { static I18nManager instance; return instance; }
 
     // 加载/切换语言
-    void SetLanguage(Language lang);
-    Language GetCurrentLanguage() const { return m_current_lang; }
+    void SetLanguage(const std::string& lang_code);
+    const std::string& GetCurrentLanguageCode() const { return m_current_lang_code; }
 
+    const std::vector<LanguageInfo>& GetAvailableLanguages() const { return m_available_languages; }
     // 核心查找函数
     std::string Get(const std::string& key) const;
 
@@ -35,8 +41,11 @@ public:
 private:
     I18nManager();
     void LoadDictionary();
+    void LoadAvailableLanguages(); // [新增] 加载语言列表的私有函数
 
-    Language m_current_lang = Language::English;
+    std::string m_current_lang_code; // [修改]
+    std::vector<LanguageInfo> m_available_languages; // [新增]
+
     std::unordered_map<std::string, std::string> m_dictionary;
     std::unordered_map<void*, Callback> m_callbacks;
     uint32_t m_version = 1;

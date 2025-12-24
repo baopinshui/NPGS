@@ -234,15 +234,36 @@ void GameScreen::OnEnter()
         };
         message_button->on_execute_callback = [this](const std::string& id, const std::string& val)
         {
-            if (System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::English)
+            auto& i18n = System::I18nManager::Get();
+            const auto& available_languages = i18n.GetAvailableLanguages();
+
+            // 确保至少有两种语言可供切换
+            if (available_languages.size() < 2)
             {
-                System::I18nManager::Get().SetLanguage(System::I18nManager::Language::Chinese);
+                return; // 或者记录一条日志
             }
-            else if (System::I18nManager::Get().GetCurrentLanguage() == System::I18nManager::Language::Chinese)
+
+            const std::string& current_lang_code = i18n.GetCurrentLanguageCode();
+
+            // 2. 查找当前语言在列表中的索引
+            size_t current_index = 0;
+            for (size_t i = 0; i < available_languages.size(); ++i)
             {
-                System::I18nManager::Get().SetLanguage(System::I18nManager::Language::English);
+                if (available_languages[i].code == current_lang_code)
+                {
+                    current_index = i;
+                    break;
+                }
             }
+
+            // 3. 计算下一个语言的索引，使用取模运算实现循环
+            size_t next_index = (current_index + 1) % available_languages.size();
+
+            // 4. 获取下一个语言的 code 并设置
+            const std::string& next_lang_code = available_languages[next_index].code;
+            i18n.SetLanguage(next_lang_code);
             NpgsCoreInfo("传输意识至目标，用时: {}", val);
+            NpgsCoreInfo("切换语言至{}", next_lang_code);
         };
     }
 

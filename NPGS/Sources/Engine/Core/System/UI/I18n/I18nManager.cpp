@@ -49,19 +49,58 @@ void ParseJsonRecursive(
 
 I18nManager::I18nManager()
 {
-    // 默认加载英文
-    SetLanguage(Language::English);
+    // 构造时首先加载语言列表
+    LoadAvailableLanguages();
+    // 默认加载第一个可用语言，或者一个固定的默认值
+    if (!m_available_languages.empty())
+    {
+        SetLanguage(m_available_languages[0].code);
+    }
+    else
+    {
+        SetLanguage("en"); // 回退方案
+    }
 }
 
-void I18nManager::SetLanguage(Language lang)
+void I18nManager::LoadAvailableLanguages()
 {
-    if (m_current_lang == lang && !m_dictionary.empty()) return;
+    m_available_languages.clear();
+    const std::string filename = "Assets/Lang/translations.json";
+    std::ifstream ifs(filename);
+    if (!ifs.is_open()) return;
 
-    m_current_lang = lang;
+    try
+    {
+        json data = json::parse(ifs);
+        if (data.contains("_meta") && data["_meta"].contains("languages"))
+        {
+            for (const auto& lang_obj : data["_meta"]["languages"])
+            {
+                if (lang_obj.contains("code") && lang_obj.contains("name"))
+                {
+                    m_available_languages.push_back({
+                        lang_obj["code"].get<std::string>(),
+                        lang_obj["name"].get<std::string>()
+                        });
+                }
+            }
+        }
+    }
+    catch (json::parse_error& e)
+    {
+        // 处理解析错误
+    }
+}
+
+// [核心修改] 更新 SetLanguage 函数
+void I18nManager::SetLanguage(const std::string& lang_code)
+{
+    if (m_current_lang_code == lang_code && !m_dictionary.empty()) return;
+
+    m_current_lang_code = lang_code;
     LoadDictionary();
-    m_version++; // 版本号递增，通知所有静态UI更新
+    m_version++;
 
-    // 通知所有监听者
     for (auto const& [key, val] : m_callbacks)
     {
         if (val) val();
@@ -104,16 +143,7 @@ void I18nManager::UnregisterCallback(void* observer)
 void I18nManager::LoadDictionary()
 {
     m_dictionary.clear();
-
-    // 将枚举映射到最终JSON文件中的键名
-    std::string lang_code;
-    switch (m_current_lang)
-    {
-    case Language::English:       lang_code = "en"; break;
-    case Language::Chinese:       lang_code = "zh"; break;
-    case Language::EnglishFlavor: lang_code = "en_flavor"; break;
-    case Language::ChineseFlavor: lang_code = "zh_flavor"; break;
-    }
+    const std::string& lang_code = m_current_lang_code; // 直接使用成员变量
 
     if (lang_code.empty()) return;
 
@@ -128,7 +158,11 @@ void I18nManager::LoadDictionary()
     try
     {
         json data = json::parse(ifs);
-        ParseJsonRecursive(data, "", lang_code, m_dictionary);
+        // [修改] 传递 lang_code 和 i18ntext 子对象给递归函数
+        if (data.contains("i18ntext"))
+        {
+            ParseJsonRecursive(data["i18ntext"], "i18ntext", lang_code, m_dictionary);
+        }
     }
     catch (json::parse_error& e)
     {
