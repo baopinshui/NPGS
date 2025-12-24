@@ -51,7 +51,7 @@ void GameScreen::RegisterUIComponents()
 
     factory.Register("CelestialInfoPanel", []()
     {
-        return std::make_shared<UI::CelestialInfoPanel>("", "", "", "");
+        return std::make_shared<UI::CelestialInfoPanel>("i18ntext.ui.info", "i18ntext.ui.close_panel", "", "");
     });
 
     factory.Register("CinematicInfoPanel_Top", []()
@@ -267,13 +267,6 @@ void GameScreen::OnEnter()
         };
     }
 
-    // 连接 CelestialInfoPanel
-    if (auto celestial_info = m_ui_root->FindElementAs<UI::CelestialInfoPanel>("gameScreenRoot.celestialInfoPanel"))
-    {
-        // 它的构造函数key也是静态的，可以在这里重新设置
-        celestial_info->SetTitle("i18ntext.ui.info", "i18ntext.ui.close_panel"); // 假设它有SetTitle之类的
-        // 其他动态数据在Update或SimulateStarSelectionAndUpdateUI中设置
-    }
 
     // --- 3. 注册入场动画 ---
     m_intro_anim_states.clear();

@@ -9,7 +9,6 @@ _NPGS_BEGIN
 _SYSTEM_BEGIN
 _UI_BEGIN
 
-// [修改] 构造函数实现，接收 closetext
 CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::string& close_key, const std::string& progress_label_key, const std::string& coil_label_key)
 {
     m_block_input = false; // 自身作为透明容器不拦截输入
