@@ -782,7 +782,7 @@ void HBox::Arrange(const Rect& final_rect)
 
 void ScrollView::Update(float dt)
 {
-    UIElement::Update(dt); // 更新子元素动画等
+    UpdateSelf(dt);
     if (!m_visible) return;
 
     // 处理滚动动画
@@ -800,6 +800,22 @@ void ScrollView::Update(float dt)
     else m_scroll_y += diff * std::min(1.0f, m_smoothing_speed * dt);
 
     m_scroll_y = std::clamp(m_scroll_y, 0.0f, max_scroll);
+    float view_min_y = m_absolute_pos.y;
+    float view_max_y = view_min_y + m_rect.h;
+
+    for (auto& child : m_children)
+    {
+        // 计算子元素在屏幕上的垂直范围
+        float child_min_y = child->m_absolute_pos.y;
+        float child_max_y = child_min_y + child->m_rect.h;
+
+        // AABB 相交测试：只有当子元素在可视范围内时才更新逻辑
+        // child_bottom > view_top && child_top < view_bottom
+        if (child_max_y >= view_min_y && child_min_y <= view_max_y)
+        {
+            child->Update(dt);
+        }
+    }
 }
 
 ImVec2 ScrollView::Measure(ImVec2 available_size)
@@ -903,7 +919,7 @@ void ScrollView::HandleMouseEvent(const ImVec2& mouse_pos, bool mouse_down, bool
 
 void HorizontalScrollView::Update(float dt)
 {
-    UIElement::Update(dt);
+    UpdateSelf(dt);
     if (!m_visible) return;
 
     float max_scroll = std::max(0.0f, m_content_width - m_rect.w);
@@ -922,6 +938,21 @@ void HorizontalScrollView::Update(float dt)
     else m_scroll_x += diff * std::min(1.0f, m_smoothing_speed * dt);
 
     m_scroll_x = std::clamp(m_scroll_x, 0.0f, max_scroll);
+    float view_min_x = m_absolute_pos.x;
+    float view_max_x = view_min_x + m_rect.w;
+
+    for (auto& child : m_children)
+    {
+        // 计算子元素在屏幕上的水平范围
+        float child_min_x = child->m_absolute_pos.x;
+        float child_max_x = child_min_x + child->m_rect.w;
+
+        // AABB 相交测试：只有当子元素在可视范围内时才更新逻辑
+        if (child_max_x >= view_min_x && child_min_x <= view_max_x)
+        {
+            child->Update(dt);
+        }
+    }
 }
 
 ImVec2 HorizontalScrollView::Measure(ImVec2 available_size)

@@ -330,69 +330,108 @@ void CelestialInfoPanel::SelectTab(int index)
     }
 }
 
+// --- START OF FILE CelestialInfoPanel.cpp --- (仅包含修改后的 RefreshContent 函数)
+
 void CelestialInfoPanel::RefreshContent()
 {
     if (!m_content_vbox) return;
     m_content_vbox->m_children.clear();
 
-    if (m_current_tab_index < 0) return;
+    if (m_current_tab_index < 0 || m_current_tab_index >= m_current_data.size()) return;
 
     const auto& current_page = m_current_data[m_current_tab_index];
 
     ImFont* target_font = UIContext::Get().m_font_regular ? UIContext::Get().m_font_regular : ImGui::GetFont();
-    float row_height = target_font->FontSize + 4.0f;
-    float key_width = target_font->FontSize * 6.5f;
+    if (!target_font) return;
+
+    const float available_content_width = PANEL_WIDTH - 30.0f - 2.0f - 8.0f;
+    const float hbox_padding = 8.0f;
+
+    // [核心修正] 增加一个安全边距，防止因浮点精度等问题导致的临界布局失败
+    const float SAFETY_MARGIN = 5.0f; // 5个像素的缓冲
 
     for (const auto& group : current_page.groups)
     {
         auto group_hbox = std::make_shared<HBox>();
         group_hbox->m_padding = 8.0f;
         group_hbox->m_height = Length::Content();
+        group_hbox->m_width = Length::Stretch();
 
         auto line = std::make_shared<Panel>();
         line->m_bg_color = StyleColor(ThemeColorID::Accent).WithAlpha(0.5f);
         line->m_width = Length::Fixed(2.0f);
-        line->m_height = Length::Stretch(); // 撑满 HBox 高度
+        line->m_height = Length::Stretch();
         group_hbox->AddChild(line);
 
         auto content_col = std::make_shared<VBox>();
-        content_col->m_padding = 0.0f;
+        content_col->m_padding = 8.0f;
         content_col->m_width = Length::Stretch();
         content_col->m_height = Length::Content();
 
         for (const auto& item : group.items)
         {
-            auto row = std::make_shared<HBox>();
-            row->m_height = Length::Fixed(row_height);
-            row->m_align_v = Alignment::Center; // 子元素垂直居中
+            std::string key_text = item.key + ":";
+            ImVec2 key_size = target_font->CalcTextSizeA(target_font->FontSize, FLT_MAX, 0.0f, key_text.c_str());
+            ImVec2 value_size = target_font->CalcTextSizeA(target_font->FontSize, FLT_MAX, 0.0f, item.value.c_str());
 
-            auto k = std::make_shared<TechText>(item.key + ":", ThemeColorID::TextDisabled);
-            k->m_width = Length::Content();
-            k->SetSizing(TechTextSizingMode::AutoWidthHeight);
+            float required_width = key_size.x + value_size.x + hbox_padding;
+
+            auto k = std::make_shared<TechText>(key_text, ThemeColorID::TextDisabled);
             k->m_font = target_font;
-            k->m_width = Length::Fixed(key_width);
 
             auto v = std::make_shared<TechText>(item.value, ThemeColorID::Text, true);
             v->m_font = target_font;
-            v->SetSizing(TechTextSizingMode::AutoHeight);
-            v->m_width = Length::Stretch();
-            v->m_align_h = Alignment::End;
             if (item.highlight) v->SetColor(ThemeColorID::Accent);
 
-            row->AddChild(k);
-            row->AddChild(v);
-            content_col->AddChild(row);
+            // [核心修正] 在判断时使用安全边距
+            if (required_width < available_content_width - SAFETY_MARGIN)
+            {
+                // [模式A: 单行 HBox] - 空间足够
+                auto row_hbox = std::make_shared<HBox>();
+                row_hbox->m_padding = hbox_padding;
+                row_hbox->m_height = Length::Content();
+                row_hbox->m_align_v = Alignment::Center;
+
+                k->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
+                v->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
+
+                k->m_width = Length::Content();
+                v->m_width = Length::Stretch();
+                v->m_align_h = Alignment::End;
+
+                row_hbox->AddChild(k);
+                row_hbox->AddChild(v);
+                content_col->AddChild(row_hbox);
+            }
+            else
+            {
+                // [模式B: 多行 VBox] - 空间不足或处于临界状态
+                auto row_vbox = std::make_shared<VBox>();
+                row_vbox->m_padding = 0.0f;
+                row_vbox->m_width = Length::Stretch();
+                row_vbox->m_height = Length::Content();
+
+                k->SetSizing(TechTextSizingMode::AutoHeight);
+                v->SetSizing(TechTextSizingMode::AutoHeight);
+
+                k->m_width = Length::Stretch();
+                k->m_align_h = Alignment::Start;
+
+                v->m_width = Length::Stretch();
+                v->m_align_h = Alignment::End;
+
+                row_vbox->AddChild(k);
+                row_vbox->AddChild(v);
+                content_col->AddChild(row_vbox);
+            }
         }
 
         group_hbox->AddChild(content_col);
         m_content_vbox->AddChild(group_hbox);
 
-
-
         auto pad = std::make_shared<UIElement>();
-        pad->m_height = Length::Fixed(row_height * 0.5f);
+        pad->m_height = Length::Fixed(12.0f);
         m_content_vbox->AddChild(pad);
-
     }
 }
 

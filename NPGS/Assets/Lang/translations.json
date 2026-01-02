@@ -313,7 +313,7 @@
           "zh": ">> [严重错误]"
         },
         "critical_error_desc": {
-          "en": "System integrity compromised!",
+          "en": "System integrity compromised!qwertyuiop",
           "zh": "系统完整性受损！"
         },
         "beam_fired_title": {

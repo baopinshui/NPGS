@@ -10,8 +10,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     m_visible = false;
 
     // [NEW] 声明自身尺寸模式
-    if (m_position == Position::Top) m_max_width = 800.0f;
-    else m_max_width = 300.0f;
+    m_max_width = 800.0f;
     m_width = Length::Fixed(m_max_width);
     m_height = Length::Content(); // 高度由内容决定
 
@@ -41,7 +40,8 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     m_divider = std::make_shared<TechDivider>(m_position == Position::Top ? ThemeColorID::Accent : ThemeColorID::TextDisabled);
     m_divider->SetName("divider"); // [ADD]
     m_divider->m_use_gradient = (m_position == Position::Top);
-    m_divider->m_width = Length::Stretch(); // 默认撑满，但会在 Arrange 中被动画覆盖
+    if (m_position == Position::Top) m_divider->m_width = Length::Stretch();
+    else m_divider->m_width = Length::Stretch(0.375);
     m_divider->m_height = Length::Fixed(1.0f);
     m_divider->m_align_h = Alignment::Center; // 确保在被动画缩短时保持居中
 
@@ -235,7 +235,8 @@ void CinematicInfoPanel::Arrange(const Rect& final_rect_from_parent)
 
     // 2. [动画覆盖] 在自动布局之后，手动修改分割线的宽度和位置
     float current_line_w = m_max_width * m_anim_progress;
-
+    if (m_position == Position::Top) current_line_w *= 1.0;
+    else current_line_w *= 0.375;
     // a. 修改相对宽度
     m_divider->m_rect.w = current_line_w;
     // b. 因为宽度变了，需要重新计算居中的 x 坐标 (相对于本面板)

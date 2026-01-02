@@ -217,6 +217,16 @@ ImVec2 TechText::Measure(ImVec2 available_size)
     const std::string& text_to_measure = m_current_display_text;
     if (text_to_measure.empty()) return { 0.0f, 0.0f };
 
+    // [修改点] 确定换行的最大宽度限制
+// 如果组件显式设置了固定宽度，优先使用该宽度作为限制
+    float max_w = available_size.x;
+    if (m_width.IsFixed())
+    {
+        max_w = m_width.value;
+    }
+    // 保护性检查，防止极小宽度导致死循环或除零
+    if (max_w < 1.0f) max_w = FLT_MAX;
+
     // [修复 6] 智能测量逻辑
     if (m_sizing_mode == TechTextSizingMode::AutoWidthHeight)
     {
@@ -230,6 +240,7 @@ ImVec2 TechText::Measure(ImVec2 available_size)
         {
             // 如果自然宽度小于限制，直接使用自然尺寸
             m_desired_size = natural_size;
+            if (m_width.IsFixed()) m_desired_size.x = m_width.value;
         }
         else
         {

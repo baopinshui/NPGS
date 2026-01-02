@@ -14,25 +14,28 @@ _UI_BEGIN
 
 enum class LogType { Info, Alert };
 
-// LogCard: 固定高度，仅负责渲染内容
 class LogCard : public UIElement
 {
 public:
     LogCard(LogType type, const std::string& title, const std::string& message);
 
-    // [MODIFIED] 使用新的生命周期函数
     void Update(float dt) override;
+    ImVec2 Measure(ImVec2 available_size) override;
     void Arrange(const Rect& final_rect) override;
     void Draw(ImDrawList* dl) override;
 
-    static constexpr float CARD_HEIGHT = 58.0f;
+    static constexpr float BASE_HEIGHT = 58.0f;
 
 private:
     LogType m_type;
-    std::shared_ptr<VBox> m_content_box; // [NEW] 使用VBox进行内部布局
+    std::shared_ptr<VBox> m_content_box;
     std::shared_ptr<TechText> m_title_text;
     std::shared_ptr<TechText> m_msg_text;
-    float m_pulse_timer = 0.0f; // 仅用于 Alert 闪烁
+    float m_pulse_timer = 0.0f;
+
+    float m_current_height = BASE_HEIGHT;
+    float m_target_height = BASE_HEIGHT;
+    const float m_expand_speed = 15.0f;
 };
 
 class LogPanel : public UIElement
@@ -44,27 +47,30 @@ public:
     void SetSystemStatus(const std::string& text);
     void SetAutoSaveTime(const std::string& text);
 
-    // [MODIFIED] 使用新的生命周期函数
+    // 生命周期重写
     void Update(float dt) override;
     ImVec2 Measure(ImVec2 available_size) override;
     void Arrange(const Rect& final_rect) override;
     void Draw(ImDrawList* dl) override;
 
 private:
-    std::shared_ptr<VBox> m_list_box;
+    std::shared_ptr<ScrollView> m_scroll_view;
+    std::shared_ptr<VBox> m_list_content;
+    std::shared_ptr<UIElement> m_top_spacer;
+
     std::shared_ptr<VBox> m_footer_box;
     std::shared_ptr<TechDivider> m_divider;
 
     std::shared_ptr<TechText> m_system_text;
     std::shared_ptr<TechText> m_autosave_text;
-    const size_t MAX_LOG_COUNT = 4;
-    // 列表可视区域固定高度
-    const float LIST_AREA_HEIGHT = MAX_LOG_COUNT * LogCard::CARD_HEIGHT;
-    const float DIVIDER_AREA_HEIGHT = 10.0f;
 
-    // 滑动控制
-    float m_slide_offset = 0.0f;
-    // [REMOVED] m_is_sliding is no longer needed
+    bool m_auto_scroll = true;
+
+    // 视觉补偿偏移量 (渲染层面的偏移)
+    float m_visual_offset_y = 0.0f;
+
+    const float LIST_VISIBLE_HEIGHT = 4.0f * LogCard::BASE_HEIGHT;
+    const float DIVIDER_AREA_HEIGHT = 10.0f;
 };
 
 _UI_END
