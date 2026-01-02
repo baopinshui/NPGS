@@ -420,7 +420,7 @@ void GameScreen::Update(float dt)
     }
 
     // Update beam button executable state
-    if (auto beam_button = m_ui_root->FindElementAs<UI::PulsarButton>("beamButton"))
+    if (auto beam_button = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.beamButton"))
     {
         bool has_target = (int(0.33 * *m_context.RealityTime) % 2 == 1);
         if (has_target)

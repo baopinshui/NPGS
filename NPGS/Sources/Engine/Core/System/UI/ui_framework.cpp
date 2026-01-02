@@ -1,7 +1,7 @@
 #include "ui_framework.h"
 #include "TechUtils.h"
 #include "components/GlobalTooltip.h"
-#define _DEBUG // 用于开启调试功能，如绘制边框
+//#define _DEBUG // 用于开启调试功能，如绘制边框
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN

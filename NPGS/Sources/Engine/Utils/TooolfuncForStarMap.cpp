@@ -289,52 +289,48 @@ std::string dToScStr(double value) {
 //void renderTextureWithColor(GLRenderer* renderer, Texture* texture, SDL_Color color, SDL_Rect destRect) {
 //    renderer->Draw(texture, { destRect.x,destRect.y }, { destRect.w,destRect.h }, 0, { color.r / 255.0,color.g / 255.0 ,color.b / 255.0 ,color.a / 255.0 });
 //}
-
-double CalTimeFromTheta(double theta, double e) {
-    theta = fmod(theta, 2 * PI);
-    if (theta < 0) {
-        theta += 2 * PI;
-    }
-    double tt = tan(0.5 * theta);
-    double x = 0;
-    if (theta > PI) { x = PI; }
-    if (std::isnan(tt)) { tt = 114514; }
-    double result = (2 * (atan(sqrt((1 - e) / (1 + e)) * tt) + x) - (e * sqrt(1 - e * e) * sin(theta)) / (1 + e * cos(theta))) / (2 * PI);
-    if (result > 1) { result -= 1; }
-    return result;
+// ==========================================
+double NormalizeAngle(double angle)
+{
+    angle = fmod(angle, 2 * PI);
+    if (angle < 0) angle += 2 * PI;
+    return angle;
 }
 
-double CalThetaFromTime(double time, double e) {
-    time = fmod(time, 1);
-    if (time < 0) {
-        time += 1;
+double CalThetaFromTime(double time, double e)
+{
+    time = fmod(time, 1.0);
+    if (time < 0) time += 1.0;
+
+    double M = time * 2 * PI;
+
+    // 1. 求解开普勒方程 M = E - e*sin(E)
+    // 对于高离心率，初始猜测很重要，这里使用简单的 M 作为猜测
+    double E = M;
+    if (e > 0.8) E = PI; 
+
+    for (int i = 0; i < 50; ++i)
+    {
+        double f = E - e * sin(E) - M;
+        // 导数 f'(E) = 1 - e*cos(E)
+        double df = 1.0 - e * cos(E);
+
+        double delta = f / df;
+        E -= delta;
+
+        if (std::abs(delta) < 1e-14) break;
     }
-    int step = 0;
-    double y;
-    double dyx;
-    double theta = PI;
-    y = CalTimeFromTheta(theta, e) - time;
-    dyx = pow((1 - e * e), 1.5) / pow((1 + e * cos(theta)), 2) / 2 / PI;
-    theta -= y / dyx;
-    theta = fmod(theta, 2 * PI);
-    if (theta < 0) {
-        theta += 2 * PI;
-    }
-    while (y > 0.0000001 || y < -0.0000001) {
-        step += 1;
-        y = CalTimeFromTheta(theta, e) - time;
-        dyx = pow((1 - e * e), 1.5) / pow((1 + e * cos(theta)), 2);
-        theta -= y / dyx;
-        theta = fmod(theta, 2 * PI);
-        if (theta < 0) {
-            theta += 2 * PI;
-        }
-    }
-    // std::cout << step << std::endl;
-    return theta;
+
+    // 2. 解析转换 E -> Theta
+    // tan(theta/2) = sqrt((1+e)/(1-e)) * tan(E/2)
+    double sqrt_term = sqrt((1 + e) / (1 - e));
+    double tan_half_theta = sqrt_term * tan(E / 2);
+    double theta = 2 * atan(tan_half_theta);
+
+    return NormalizeAngle(theta);
 }
 
-glm::dvec3 CalPlanetPos(double time, double theta, double phi, double a, double e, double orbit_theta) {
+glm::dvec3 CalPlanetPos(double time, double theta, double phi, double a, double e, double orbit_theta) {//theta和phi轨道平面法向量球面坐标参数，orbit_theta是近点方向
     double rt = CalThetaFromTime(time, e) + orbit_theta;
     return a * (1 - e * e) / (1 + e * cos(rt - orbit_theta)) * vec90rotate(rt, theta, phi);
 
