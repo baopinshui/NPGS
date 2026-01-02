@@ -62,7 +62,9 @@ void LogCard::Update(float dt)
     if (m_hovered)
     {
         m_msg_text->SetSizing(TechTextSizingMode::AutoHeight);
-        m_content_box->m_align_v = Alignment::Start;
+
+        m_content_box->m_align_v = Alignment::Start;    
+        m_msg_text->m_width = Length::Stretch();
         ImVec2 full_size = m_content_box->Measure({ safe_width - content_padding_x, FLT_MAX });
         m_target_height = std::max(BASE_HEIGHT, full_size.y + content_padding_y);
     }
