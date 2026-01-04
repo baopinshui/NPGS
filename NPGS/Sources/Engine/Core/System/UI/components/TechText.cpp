@@ -31,6 +31,8 @@ TechText::TechText(const std::string& key_or_text,
     {
         m_anim_mode = TechTextAnimMode::None;
     }
+
+
     SetSizing(TechTextSizingMode::AutoWidthHeight);
 }
 
@@ -197,73 +199,112 @@ void TechText::Update(float dt)
 // 确保 CalculateRenderedHeight 在 TechText::Measure 之前定义或前置声明
 float CalculateRenderedHeight(ImFont* font, const std::string& text_to_measure, float wrap_w);
 
+// 确保 CalculateRenderedHeight 在此前已声明
+// float CalculateRenderedHeight(ImFont* font, const std::string& text_to_measure, float wrap_w);
+
 ImVec2 TechText::Measure(ImVec2 available_size)
 {
     if (!m_visible)
     {
-        m_desired_size = { 0, 0 };
+        m_desired_size = { 0.0f, 0.0f };
         return m_desired_size;
     }
 
+    // [保留旧行为] SizingMode::Fixed
+    // 旧逻辑：SetSizing(Fixed) 会将 m_width/m_height 设为 Fixed 值。
+    // 这里如果处于 Fixed 模式，直接调用基类 Measure，基类会直接返回 m_width.value。
+    // 即使现在 SetSizing 不修改 m_width，如果用户意图是 Fixed 模式，通常也会配合设置固定尺寸。
     if (m_sizing_mode == TechTextSizingMode::Fixed)
     {
         return UIElement::Measure(available_size);
     }
 
+    // --- 1. 准备资源 ---
     ImFont* font = GetFont();
     if (!font) font = UIContext::Get().m_font_regular ? UIContext::Get().m_font_regular : ImGui::GetFont();
-    if (!font) return { 0, 0 };
+    // 保护性检查：如果依然没有字体，返回0
+    if (!font) return { 0.0f, 0.0f };
 
     const std::string& text_to_measure = m_current_display_text;
     if (text_to_measure.empty()) return { 0.0f, 0.0f };
 
-    // [修改点] 确定换行的最大宽度限制
-// 如果组件显式设置了固定宽度，优先使用该宽度作为限制
-    float max_w = available_size.x;
+    float font_size = font->FontSize;
+
+    // --- 2. 确定宽度限制 (Limit Width) ---
+    // 这是为了解决 "旧行为" 与 "新功能" 的核心冲突点。
+    // 旧逻辑隐式地使用 available_size 作为限制（因为 m_width 总是 Content）。
+    // 新逻辑：
+    // - 如果 m_width 是 Fixed，限制就是固定的像素值。
+    // - 如果 m_width 是 Stretch/Content，限制就是父容器给的 available_size。
+
+    float limit_width = available_size.x;
     if (m_width.IsFixed())
     {
-        max_w = m_width.value;
+        limit_width = m_width.value;
     }
-    // 保护性检查，防止极小宽度导致死循环或除零
-    if (max_w < 1.0f) max_w = FLT_MAX;
 
-    // [修复 6] 智能测量逻辑
+    // 保护性检查：防止 limit_width 为 0 或负数导致死循环，同时保留 FLT_MAX 的语义
+    if (limit_width < 1.0f) limit_width = FLT_MAX;
+
+
+    // --- 3. 根据模式计算内容尺寸 (Content Size) ---
+    // 这里只计算“内容实际上想要多大”，不考虑 m_width 的强制覆盖（最后一步再覆盖）。
+
+    ImVec2 content_size = { 0.0f, 0.0f };
+
     if (m_sizing_mode == TechTextSizingMode::AutoWidthHeight)
     {
-        // 1. 先计算自然宽度（不换行）
-        ImVec2 natural_size = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text_to_measure.c_str());
+        // [旧行为保留]
+        // 逻辑：优先使用自然宽度，如果自然宽度超过了限制 (limit_width)，则换行。
+        // 对于旧代码 (m_width=Content)，limit_width 就是 available_size，行为完全一致。
 
-        // 2. 检查可用宽度限制 (available_size.x)
-        float max_w = (available_size.x > 1.0f && available_size.x < FLT_MAX) ? available_size.x : FLT_MAX;
+        ImVec2 natural_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text_to_measure.c_str());
 
-        if (natural_size.x <= max_w)
+        if (natural_size.x <= limit_width)
         {
-            // 如果自然宽度小于限制，直接使用自然尺寸
-            m_desired_size = natural_size;
-            if (m_width.IsFixed()) m_desired_size.x = m_width.value;
+            // 自然宽度够小，不需要换行
+            content_size = natural_size;
         }
         else
         {
-            // 如果自然宽度超标，则限制宽度并重新计算高度（开启换行）
-            m_desired_size.x = max_w;
-            m_desired_size.y = CalculateRenderedHeight(font, text_to_measure, max_w);
+            // 自然宽度超标，强制限制宽度并换行计算高度
+            content_size.x = limit_width;
+            content_size.y = CalculateRenderedHeight(font, text_to_measure, limit_width);
         }
     }
     else if (m_sizing_mode == TechTextSizingMode::ForceAutoWidthHeight)
     {
-        // 1. 先计算自然宽度（不换行）
-        ImVec2 natural_size = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text_to_measure.c_str());
-
-            // 如果自然宽度小于限制，直接使用自然尺寸
-            m_desired_size = natural_size;
-        
+        // [旧行为保留]
+        // 逻辑：不管限制多小，强制不换行，直接返回文字自然长度。
+        content_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text_to_measure.c_str());
     }
-    else // AutoHeight (强制占满宽度模式)
+    else // TechTextSizingMode::AutoHeight
     {
-        float wrap_w = (available_size.x > 1.0f && available_size.x != FLT_MAX) ? available_size.x : 10000.0f;
-        m_desired_size.x = wrap_w;
-        m_desired_size.y = CalculateRenderedHeight(font, text_to_measure, wrap_w);
+        // [旧行为保留 + 新功能支持]
+        // 逻辑：强制占满 limit_width，并根据此宽度计算高度。
+        // - 旧情况 (Content): limit_width = available_size，占满父容器宽度，符合 AutoHeight 语义。
+        // - 新情况 (Fixed): limit_width = 200，在 200px 处换行。
+        // - 新情况 (Stretch): limit_width = available_size，占满。
+
+        // 特殊处理：如果 limit_width 是无限大（例如在无限滚动的容器中），强制占满没有意义，退化为自然宽度。
+        if (limit_width >= 10000.0f)
+        {
+            content_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text_to_measure.c_str());
+        }
+        else
+        {
+            content_size.x = limit_width;
+            content_size.y = CalculateRenderedHeight(font, text_to_measure, limit_width);
+        }
     }
+
+    // --- 4. 应用最终约束 (Final Layout Constraints) ---
+    // 这是支持 Fixed+AutoHeight 的关键步骤。
+    // 如果用户显式设置了 Fixed Width，那么 Measure 的返回值 X 必须是那个固定值。
+    // (虽然上面的计算步骤已经使用了 limit_width，但显式赋值能保证 float 精度一致性，且逻辑更清晰)
+
+    m_desired_size.x = m_width.IsFixed() ? m_width.value : content_size.x;
+    m_desired_size.y = m_height.IsFixed() ? m_height.value : content_size.y;
 
     return m_desired_size;
 }
@@ -410,8 +451,8 @@ void TechText::DrawTextContent(ImDrawList* dl, const std::string& text_to_draw, 
 
                 // ... (计算 draw_pos x坐标代码不变) ...
                 float line_x = m_absolute_pos.x;
-                if (m_align_h == Alignment::Center) line_x += (m_rect.w - line_sz.x) * 0.5f;
-                else if (m_align_h == Alignment::End) line_x += (m_rect.w - line_sz.x);
+                if (m_text_align_h == Alignment::Center) line_x += (m_rect.w - line_sz.x) * 0.5f;
+                else if (m_text_align_h == Alignment::End) line_x += (m_rect.w - line_sz.x);
                 ImVec2 draw_pos(line_x, current_y);
 
                 // 3. 绘制辉光

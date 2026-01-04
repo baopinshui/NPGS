@@ -36,6 +36,8 @@ TimeControlPanel::TimeControlPanel( double* current_time_ptr, double* time_scale
     m_text_display = std::make_shared<TechText>("T+00000000.00.00 00:00:00", theme.color_text_highlight, false, true);
     m_text_display->SetName("timeDisplay"); // NAME ADDED
     m_text_display->SetSizing(TechTextSizingMode::AutoWidthHeight);
+    m_text_display->m_width = Length::Content();
+    m_text_display->m_height = Length::Content();
     m_text_display->m_font = ctx.m_font_subtitle;
     m_text_display->m_glow_intensity = 0.5f;
     m_text_display->m_glow_spread = 2.5f;

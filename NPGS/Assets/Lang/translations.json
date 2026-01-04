@@ -313,7 +313,7 @@
           "zh": ">> [严重错误]"
         },
         "critical_error_desc": {
-          "en": "System integrity compromised!qwertyuiop",
+          "en": "System integrity compromised!qwerty这是一句超tm长的log文本，别问我英文里哪来中文，测试完记得删了，别问我英文里哪来中文，测试完记得删了————fromRKKV",
           "zh": "系统完整性受损！"
         },
         "beam_fired_title": {

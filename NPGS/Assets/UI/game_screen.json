@@ -24,8 +24,14 @@
       "type": "PulsarButton",
       "name": "rkkvButton",
       "properties": {
-        "width": { "type": "Fixed", "value": 40.0 },
-        "height": { "type": "Fixed", "value": 40.0 },
+        "width": {
+          "type": "Fixed",
+          "value": 40.0
+        },
+        "height": {
+          "type": "Fixed",
+          "value": 40.0
+        },
         "anchor": "MiddleLeft",
         "margin": [ 50.0, -10.0 ]
       }

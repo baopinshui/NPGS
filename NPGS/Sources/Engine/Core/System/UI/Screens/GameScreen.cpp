@@ -190,6 +190,10 @@ void GameScreen::OnEnter()
             }
             NpgsCoreInfo("LAUNCHING RKKV projectile. Mass: {}", val);
         };
+
+        if (auto clickable_text = m_ui_root->FindElementAs<UI::TechText>("gameScreenRoot.rkkvButton.label")) {
+            clickable_text->SetTooltip("i18ntext.tooltip.test");
+        }
     }
 
     if (auto vn_button = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.vnButton"))

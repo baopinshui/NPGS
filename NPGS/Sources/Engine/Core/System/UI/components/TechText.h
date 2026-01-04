@@ -41,6 +41,7 @@ public:
     float m_glow_intensity = 1.0f;
     float m_glow_spread = 1.0f;
 
+    Alignment m_text_align_h = Alignment::Start;
     TechTextSizingMode m_sizing_mode = TechTextSizingMode::AutoWidthHeight;
 
     TechText(const std::string& text_or_key,
@@ -51,24 +52,12 @@ public:
 
     // --- API (保持不变) ---
     TechText* SetAnimMode(TechTextAnimMode mode);
+    TechText* SetTextAlign(Alignment align) { m_text_align_h = align; return this; }
     void SetSourceText(const std::string& key_or_text);
     TechText* SetColor(const StyleColor& col) { m_color = col; return this; }
     TechText* SetSizing(TechTextSizingMode mode)
     {
         m_sizing_mode = mode;
-        if (mode == TechTextSizingMode::Fixed)
-        {
-            // 当用户要求 Fixed 时，我们不知道具体值，可以保留旧值或设为0
-            // 如果 m_width/m_height 之前不是 Fixed，需要给一个默认值
-            if (!m_width.IsFixed()) m_width = Length::Fixed(100.0f);
-            if (!m_height.IsFixed()) m_height = Length::Fixed(20.0f);
-        }
-        else
-        {
-            // 当用户要求自适应时，将 Length 类型设为 Content
-            m_width = Length::Content();
-            m_height = Length::Content();
-        }
         return this;
     }
 

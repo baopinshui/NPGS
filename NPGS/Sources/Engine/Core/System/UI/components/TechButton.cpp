@@ -58,6 +58,7 @@ TechButton::TechButton(const std::string& key_or_text, Style style)
         m_label_component->m_align_v = Alignment::Center;
         m_label_component->m_width = Length::Content();  // 明确子组件尺寸由内容决定
         m_label_component->m_height = Length::Content();
+        m_label_component->SetTextAlign(Alignment::Center);
         m_label_component->m_block_input = false;
         AddChild(m_label_component);
     }

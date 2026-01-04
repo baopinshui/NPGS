@@ -33,6 +33,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
     m_title_text->m_font = ctx.m_font_large;
     m_title_text->SetSizing(TechTextSizingMode::AutoHeight); // 自动换行
     m_title_text->m_align_h = Alignment::Center; // 文本内容居中
+    m_title_text->SetTextAlign(Alignment::Center);
     m_title_text->m_width = Length::Stretch();   // 文本框撑满 VBox 宽度
     m_title_text->m_height = Length::Content();
 
@@ -62,8 +63,11 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
             ptr = std::make_shared<TechText>("", color, true);
             ptr->SetName(name); // [ADD]
             ptr->SetSizing(TechTextSizingMode::AutoWidthHeight); // 尺寸由文本内容决定
+            ptr->m_width = Length::Content();
+            ptr->m_height = Length::Content();
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
+            ptr->SetTextAlign(Alignment::Center);
             m_top_stats_box->AddChild(ptr);
         };
         setup_stat(m_top_stat_1, ThemeColorID::Text, "stat1");
@@ -82,6 +86,7 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
         m_bot_type_text->m_font = ctx.m_font_regular;
         m_bot_type_text->SetSizing(TechTextSizingMode::AutoHeight);
         m_bot_type_text->m_align_h = Alignment::Center;
+        m_bot_type_text->SetTextAlign(Alignment::Center);
         m_bot_type_text->m_width = Length::Stretch();
         m_bot_type_text->m_height = Length::Content();
 
@@ -97,8 +102,11 @@ CinematicInfoPanel::CinematicInfoPanel(Position pos) : m_position(pos)
             ptr = std::make_shared<TechText>("", ThemeColorID::TextDisabled, true);
             ptr->SetName(name); // [ADD]
             ptr->SetSizing(TechTextSizingMode::AutoWidthHeight);
+            ptr->m_width = Length::Content();
+            ptr->m_height = Length::Content();
             ptr->m_font = ctx.m_font_bold;
             ptr->m_align_v = Alignment::Center;
+            ptr->SetTextAlign(Alignment::Center);
             m_bot_stats_box->AddChild(ptr);
         };
         setup_stat(m_bot_stat_1, "stat1");

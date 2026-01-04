@@ -45,6 +45,8 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     m_text_status = std::make_shared<TechText>(TR(status_key), ThemeColorID::TextHighlight, true);
     m_text_status->SetName("status"); // [新增] 命名状态文本
     m_text_status->SetSizing(TechTextSizingMode::AutoWidthHeight);
+    m_text_status->m_width = Length::Content();
+    m_text_status->m_height = Length::Content();
     m_text_status->m_font = ctx.m_font_bold;
     m_text_status->m_block_input = false;
     AddChild(m_text_status);
@@ -53,6 +55,8 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
     m_text_label = std::make_shared<TechText>(TR(label_key), ThemeColorID::TextHighlight, true);
     m_text_label->SetName("label"); // [新增] 命名主标签
     m_text_label->SetSizing(TechTextSizingMode::AutoWidthHeight);
+    m_text_label->m_width = Length::Content();
+    m_text_label->m_height = Length::Content();
     m_text_label->m_font = ctx.m_font_bold;
     m_text_label->m_block_input = false;
     AddChild(m_text_label);
@@ -63,6 +67,8 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
         m_text_stat_label = std::make_shared<TechText>(TR(stat_label_key) + ":", ThemeColorID::Text);
         m_text_stat_label->SetName("statLabel"); // [新增] 命名统计标签
         m_text_stat_label->SetSizing(TechTextSizingMode::AutoWidthHeight);
+        m_text_stat_label->m_width = Length::Content();
+        m_text_stat_label->m_height = Length::Content();
 
         m_text_stat_label->m_font = ctx.m_font_bold;
         m_text_stat_label->m_block_input = false;
@@ -74,6 +80,8 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
         m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, ThemeColorID::Text);
         m_text_stat_unit->SetName("statUnit"); // [新增] 命名统计单位
         m_text_stat_unit->SetSizing(TechTextSizingMode::AutoWidthHeight);
+        m_text_stat_unit->m_width = Length::Content();
+        m_text_stat_unit->m_height = Length::Content();
 
         m_text_stat_unit->m_font = ctx.m_font_bold;
         m_text_stat_unit->m_block_input = false;
@@ -95,6 +103,8 @@ void PulsarButton::InitCommon(const std::string& status_key, const std::string& 
         m_text_stat_value = std::make_shared<TechText>(*stat_value_ptr, ThemeColorID::Accent, true);
         m_text_stat_value->SetName("statValue"); // [新增] 命名统计数值
         m_text_stat_value->SetSizing(TechTextSizingMode::AutoWidthHeight);
+        m_text_stat_value->m_width = Length::Content();
+        m_text_stat_value->m_height = Length::Content();
 
         m_text_stat_value->m_font = ctx.m_font_bold;
         m_text_stat_value->m_block_input = false;
@@ -135,6 +145,7 @@ PulsarButton::PulsarButton(const std::string& status_key, const std::string& lab
     m_text_icon->m_rect = { 0, 0, 40, 40 };
     m_text_icon->m_align_h = Alignment::Center;
     m_text_icon->m_align_v = Alignment::Center;
+    m_text_icon->SetTextAlign(Alignment::Center);
     m_text_icon->m_block_input = false;
     AddChild(m_text_icon);
 }
@@ -189,6 +200,8 @@ void PulsarButton::UpdateCommonData(const std::string& status_key, const std::st
             m_text_stat_label = std::make_shared<TechText>(TR(m_stat_label_key) + ":", ThemeColorID::Text);
             m_text_stat_label->SetName("statLabel");
             m_text_stat_label->SetSizing(TechTextSizingMode::AutoWidthHeight);
+            m_text_stat_label->m_width = Length::Content();
+            m_text_stat_label->m_height = Length::Content();
             m_text_stat_label->m_font = ctx.m_font_bold;
             m_text_stat_label->m_block_input = false;
             AddChild(m_text_stat_label);
@@ -215,6 +228,8 @@ void PulsarButton::UpdateCommonData(const std::string& status_key, const std::st
             m_text_stat_unit = std::make_shared<TechText>(stat_unit_key, ThemeColorID::Text);
             m_text_stat_unit->SetName("statUnit");
             m_text_stat_unit->SetSizing(TechTextSizingMode::AutoWidthHeight);
+            m_text_stat_unit->m_width = Length::Content();
+            m_text_stat_unit->m_height = Length::Content();
             m_text_stat_unit->m_font = ctx.m_font_bold;
             m_text_stat_unit->m_block_input = false;
             AddChild(m_text_stat_unit);
@@ -262,6 +277,8 @@ void PulsarButton::UpdateCommonData(const std::string& status_key, const std::st
                 m_text_stat_value = std::make_shared<TechText>(*m_stat_value_ptr, ThemeColorID::Accent, true);
                 m_text_stat_value->SetName("statValue");
                 m_text_stat_value->SetSizing(TechTextSizingMode::AutoWidthHeight);
+                m_text_stat_value->m_width = Length::Content();
+                m_text_stat_value->m_height = Length::Content();
                 m_text_stat_value->m_font = ctx.m_font_bold;
                 m_text_stat_value->m_block_input = false;
                 AddChild(m_text_stat_value);

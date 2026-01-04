@@ -65,6 +65,8 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         m_title_text = std::make_shared<TechText>(TR("i18ntext.ui.celestial.no_target"));
         m_title_text->SetName("title"); // [命名] 显示动态数据 (天体名称)
         m_title_text->SetSizing(TechTextSizingMode::AutoHeight);
+        m_title_text->m_width = Length::Content();
+        m_title_text->m_height = Length::Content();
         m_title_text->SetColor(ThemeColorID::Accent);
         m_title_text->m_font = UIContext::Get().m_font_bold;
         m_title_text->m_width = Length::Stretch();
@@ -74,6 +76,8 @@ CelestialInfoPanel::CelestialInfoPanel(const std::string& fold_key, const std::s
         m_subtitle_text = std::make_shared<TechText>("");
         m_subtitle_text->SetName("subtitle"); // [命名] 显示动态数据 (天体类型)
         m_subtitle_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
+        m_subtitle_text->m_width = Length::Content();
+        m_subtitle_text->m_height = Length::Content();
         m_subtitle_text->SetColor(ThemeColorID::TextDisabled);
         m_subtitle_text->m_font = UIContext::Get().m_font_regular;
         m_subtitle_text->m_width = Length::Content();
@@ -330,7 +334,6 @@ void CelestialInfoPanel::SelectTab(int index)
     }
 }
 
-// --- START OF FILE CelestialInfoPanel.cpp --- (仅包含修改后的 RefreshContent 函数)
 
 void CelestialInfoPanel::RefreshContent()
 {
@@ -394,10 +397,15 @@ void CelestialInfoPanel::RefreshContent()
 
                 k->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
                 v->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
+                v->m_width = Length::Content();
+                v->m_height = Length::Content();
+                k->m_width = Length::Content();
+                k->m_height = Length::Content();
 
                 k->m_width = Length::Content();
                 v->m_width = Length::Stretch();
                 v->m_align_h = Alignment::End;
+                v->SetTextAlign(Alignment::End);
 
                 row_hbox->AddChild(k);
                 row_hbox->AddChild(v);
@@ -413,12 +421,17 @@ void CelestialInfoPanel::RefreshContent()
 
                 k->SetSizing(TechTextSizingMode::AutoHeight);
                 v->SetSizing(TechTextSizingMode::AutoHeight);
+                v->m_width = Length::Content();
+                v->m_height = Length::Content();
+                k->m_width = Length::Content();
+                k->m_height = Length::Content();
 
                 k->m_width = Length::Stretch();
                 k->m_align_h = Alignment::Start;
 
                 v->m_width = Length::Stretch();
                 v->m_align_h = Alignment::End;
+                v->SetTextAlign(Alignment::End);
 
                 row_vbox->AddChild(k);
                 row_vbox->AddChild(v);

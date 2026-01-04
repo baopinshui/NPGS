@@ -62,16 +62,15 @@ void LogCard::Update(float dt)
     if (m_hovered)
     {
         m_msg_text->SetSizing(TechTextSizingMode::AutoHeight);
-
-        m_content_box->m_align_v = Alignment::Start;    
         m_msg_text->m_width = Length::Stretch();
+  
         ImVec2 full_size = m_content_box->Measure({ safe_width - content_padding_x, FLT_MAX });
         m_target_height = std::max(BASE_HEIGHT, full_size.y + content_padding_y);
     }
     else
     {
         m_msg_text->SetSizing(TechTextSizingMode::AutoWidthHeight);
-        m_content_box->m_align_v = Alignment::Center;
+        m_msg_text->m_width = Length::Content();
         m_target_height = BASE_HEIGHT;
     }
 
@@ -187,12 +186,13 @@ LogPanel::LogPanel(const std::string& syskey, const std::string& savekey)
 
     m_system_text = std::make_shared<TechText>(syskey, ThemeColorID::TextDisabled, true);
     m_system_text->SetSizing(TechTextSizingMode::AutoHeight);
-    m_system_text->m_width = Length::Stretch();
-
+    m_system_text->m_width = Length::Stretch(); 
+    m_system_text->m_height = Length::Content();
     m_autosave_text = std::make_shared<TechText>(savekey, ThemeColorID::TextDisabled, true);
     m_autosave_text->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
     m_autosave_text->SetAnimMode(TechTextAnimMode::Scroll);
     m_autosave_text->m_width = Length::Stretch();
+    m_autosave_text->m_height = Length::Content();
 
     m_footer_box->AddChild(m_system_text);
     m_footer_box->AddChild(m_autosave_text);
