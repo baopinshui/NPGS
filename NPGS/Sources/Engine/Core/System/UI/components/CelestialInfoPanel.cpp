@@ -4,6 +4,7 @@
 #include "TechDivider.h"
 #include "TechButton.h"      
 #include "TechProgressBar.h" 
+#include "TechInteractivePanel.h"
 
 _NPGS_BEGIN
 _SYSTEM_BEGIN
@@ -366,7 +367,7 @@ void CelestialInfoPanel::RefreshContent()
         line->m_height = Length::Stretch();
         group_hbox->AddChild(line);
 
-        auto content_col = std::make_shared<VBox>();
+        auto content_col = std::make_shared<TechInteractivePanel>();
         content_col->m_padding = 8.0f;
         content_col->m_width = Length::Stretch();
         content_col->m_height = Length::Content();
@@ -394,6 +395,7 @@ void CelestialInfoPanel::RefreshContent()
                 row_hbox->m_padding = hbox_padding;
                 row_hbox->m_height = Length::Content();
                 row_hbox->m_align_v = Alignment::Center;
+                row_hbox->m_block_input = false;
 
                 k->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
                 v->SetSizing(TechTextSizingMode::ForceAutoWidthHeight);
@@ -418,6 +420,7 @@ void CelestialInfoPanel::RefreshContent()
                 row_vbox->m_padding = 0.0f;
                 row_vbox->m_width = Length::Stretch();
                 row_vbox->m_height = Length::Content();
+                row_vbox->m_block_input = false;
 
                 k->SetSizing(TechTextSizingMode::AutoHeight);
                 v->SetSizing(TechTextSizingMode::AutoHeight);

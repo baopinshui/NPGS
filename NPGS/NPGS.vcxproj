@@ -289,6 +289,7 @@ spirv-cross-cpp.lib
     <ClCompile Include="Sources\Engine\Core\System\UI\components\ScreenVignette.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechButton.cpp" />
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\TechInteractivePanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TechText.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\components\TimeControlPanel.cpp" />
     <ClCompile Include="Sources\Engine\Core\System\UI\ScreenManager.cpp" />
@@ -358,6 +359,7 @@ spirv-cross-cpp.lib
     <ClInclude Include="Sources\Engine\Core\System\UI\components\ScreenVignette.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechBorderPanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechButton.h" />
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TechInteractivePanel.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechProgressBar.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechSliders.h" />
     <ClInclude Include="Sources\Engine\Core\System\UI\components\TechText.h" />

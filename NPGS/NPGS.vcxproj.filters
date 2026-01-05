@@ -183,6 +183,9 @@
     <ClCompile Include="Sources\Engine\Core\System\UI\UILoader.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Sources\Engine\Core\System\UI\components\TechInteractivePanel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sources\stdafx.h">
@@ -399,6 +402,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Sources\Engine\Core\System\UI\UILoader.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Sources\Engine\Core\System\UI\components\TechInteractivePanel.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
