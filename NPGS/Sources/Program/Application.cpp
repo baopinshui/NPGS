@@ -671,7 +671,7 @@ void FApplication::ExecuteMainRender()
             }//else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
            // }
            // _FreeCamera->ProcessMouseMovement(10, 0);
-
+            std::cout << glm::length(_FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)) / Rs << std::endl;;
 
             
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
@@ -1604,7 +1604,7 @@ void FApplication::RenderDebugUI()
 
         // 显示相机信息
         auto cameraPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
-        ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
+        ImGui::Text("Camera Position: (%.13f, %.13f, %.13f)",
             cameraPos.x, cameraPos.y, cameraPos.z);
         ImGui::Text("Camera FOV: %.1f", _FreeCamera->GetCameraZoom());
 
