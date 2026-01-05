@@ -295,14 +295,18 @@ float Hamiltonian(vec4 X, vec4 P, float a,float fade) {
 }
 
 // 哈密顿量的梯度 (数值差分)
-vec4 GradHamiltonian(vec4 X, vec4 P, float a,float fade) {
-    const float eps = 0.005; // 差分步长，根据场景尺度调整
-    float H0 = Hamiltonian(X, P, a,fade);
+vec4 GradHamiltonian(vec4 X, vec4 P, float a, float fade) {
+    // 动态 epsilon：在远处使用较大的差分步长以避免浮点精度问题
+    // 距离越远，坐标数值越大，需要的 epsilon 越大
+    float dist = length(X.xyz);
+    float eps = max(0.005, dist * 0.005); 
+    
+    float H0 = Hamiltonian(X, P, a, fade);
     return vec4(
-        Hamiltonian(X + vec4(eps,0,0,0), P, a,fade) - H0,
-        Hamiltonian(X + vec4(0,eps,0,0), P, a,fade) - H0,
-        Hamiltonian(X + vec4(0,0,eps,0), P, a,fade) - H0,
-        Hamiltonian(X + vec4(0,0,0,eps), P, a,fade) - H0
+        Hamiltonian(X + vec4(eps,0,0,0), P, a, fade) - H0,
+        Hamiltonian(X + vec4(0,eps,0,0), P, a, fade) - H0,
+        Hamiltonian(X + vec4(0,0,eps,0), P, a, fade) - H0,
+        Hamiltonian(X + vec4(0,0,0,eps), P, a, fade) - H0
     ) / eps;
 }
 
@@ -567,8 +571,8 @@ void main()
     float Fov    = tan(iFovRadians / 2.0);
 
     // --- 0. 物理参数准备 ---
-    float Zx = 1.0 + pow(1.0 - pow(iSpin, 2), 0.333333333333333) * (pow(1.0 + pow(iSpin, 2), 0.333333333333333) + pow(1.0 - iSpin, 0.333333333333333)); 
-    float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpin, 2) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(iSpin, 2) + Zx * Zx)))) / 2.0;    
+    float Zx = 1.0 + pow(1.0 - pow(000, 2), 0.333333333333333) * (pow(1.0 + pow(000, 2), 0.333333333333333) + pow(1.0 - 000, 0.333333333333333)); 
+    float RmsRatio = (3.0 + sqrt(3.0 * pow(000, 2) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(000, 2) + Zx * Zx)))) / 2.0;    
     float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); 
     const float kPhysicsFactor = 1.52491e30; 
     float DiskArgument = kPhysicsFactor * (iMu / AccretionEffective) * (iAccretionRate / iBlackHoleMassSol);
@@ -581,7 +585,8 @@ void main()
 
     // 物理自旋参数 a = J/M. 单位 M=0.5 (Rs=1.0) -> a = iSpin * 0.5
     float PhysicalSpinA = iSpin * CONST_M;
-
+    float EventHorizonR = 0.5 + sqrt(max(0.0, 0.25 - PhysicalSpinA * PhysicalSpinA));
+    float TerminationR = EventHorizonR * 0.98;
     // --- 1. 相机光线生成 (World Space / Kerr-Schild Background) ---
     // 抖动 UV
     vec2 Jitter = vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)), RandomStep(FragUv, fract(iTime * 1.0))) / iResolution;
@@ -687,7 +692,6 @@ void main()
     // --- 4. 循环变量准备 ---
     vec3 LastRayPos = RayPosWorld;
     vec3 LastRayDir = RayDirWorld; // 用于多普勒计算和背景采样
-    float SingularR = 0.9;         // 略小于视界半径
     int Count = 0;
     
     // --- 5. 光线追踪主循环 (Geodesic Integration) ---
@@ -706,9 +710,11 @@ void main()
         }
         
         // 落入检查: 进入视界
-        if (DistanceToBlackHole < SingularR && abs(iSpin)<=1.0) {
+        float CurrentKerrR = KerrSchildRadius(CurrentPos, PhysicalSpinA);
+        
+        if (CurrentKerrR < 0.9*TerminationR && abs(iSpin)<=1.0) {
             bShouldContinueMarchRay = false;
-            bWaitCalBack = false; // 落入黑洞，无背景
+            bWaitCalBack = false; // 确实落入黑洞
             break;
         }
         
@@ -727,23 +733,34 @@ void main()
         }
 
         // 5.2 步长计算 (RayStep) - 保持原有逻辑以匹配吸积盘细节
-        float RayStep = 0.0;
-        if (Count == 0) {
-            RayStep = RandomStep(FragUv, fract(iTime * 1.0)); // 起步抖动
-        } else {
-            RayStep = 1.0;
-        }
+         float RayStep = 1.0;
         
-        // 动态步长逻辑
-        RayStep *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / max(10.0 , SmallStepBoundary) - 1.0)), 1.0);
+        // 1. 计算到奇环 (Ring Singularity) 的特征距离
+        // 在你的代码中自旋轴为 Y，奇环位于 XZ 平面，半径为 PhysicalSpinA
+        float rho = length(X.xz);
+        float distToRing = sqrt(X.y * X.y + pow(rho - abs(PhysicalSpinA), 2.0));
+        
+        // 2. 基础步长缩放因子 (远场线性增长，近场高精度)
+        // 使用 distToRing 代替 DistanceToBlackHole 以适配裸奇环几何
+        float baseScaleNear = min(1.0 + 0.25 * max(distToRing - 12.0, 0.0), distToRing);
+        float baseScaleFar  = distToRing;
 
-        if (DistanceToBlackHole >= 2.0 * SmallStepBoundary) {
-            RayStep *= DistanceToBlackHole;
-        } else if (DistanceToBlackHole >= 1.0 * SmallStepBoundary) {
-            RayStep *= ((1.0+0.25*max(DistanceToBlackHole-12.0,0.0)) * (2.0 * SmallStepBoundary - DistanceToBlackHole) +
-                        DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
-        } else {
-            RayStep *= min(1.0+0.25*max(DistanceToBlackHole-12.0,0.0), DistanceToBlackHole);
+        // 3. 构建 C2 连续的平滑过渡函数 (Quintic Smoothstep: 6t^5 - 15t^4 + 10t^3)
+        // 避免在边界处 (SmallStepBoundary) 出现光线断层
+        float t = clamp((distToRing - SmallStepBoundary) / SmallStepBoundary, 0.0, 1.0);
+        float smoothT = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+        
+        // 混合近场逻辑与远场逻辑
+        RayStep = mix(baseScaleNear, baseScaleFar, smoothT);
+
+        // 4. 吸积盘细节权重 (自适应噪声频率)
+        // 保证在吸积盘区域步长足够小以捕捉体积云噪声，同时保持平滑
+        float diskWeight = 0.15 + 0.25 * clamp(0.5 * (0.5 * distToRing / max(10.0, SmallStepBoundary) - 1.0), 0.0, 1.0);
+        RayStep *= diskWeight;
+
+        // 5. 起步抖动 (抗锯齿)
+        if (Count == 0) {
+            RayStep *= RandomStep(FragUv, fract(iTime * 1.0));
         }
         
         // 5.3 物理积分 (Hamiltonian Step)
@@ -751,7 +768,15 @@ void main()
         // 对于光子，在远场 |dx/dlambda| ≈ 1，所以 dLambda ≈ dLocalDistance
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
 
-        float dLambda = RayStep;
+        mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA,GravityFade);
+        vec4 V_contra = g_inv * P_cov;
+        
+        // B. 获取空间坐标速度的模长 |dx/dlambda|
+        float V_coord_mag = length(V_contra.xyz);
+        
+        // C. 换算仿射步长：dlambda = dL_desired / |dx/dlambda|
+        // 这样可以确保无论度规如何畸变，空间位移始终约等于 RayStep
+        float dLambda = RayStep / max(V_coord_mag, 1e-8);
         
         vec3 PreStepPos = X.xyz;
         StepGeodesic(X, P_cov, dLambda, PhysicalSpinA,GravityFade);

@@ -113,7 +113,7 @@ void GameScreen::OnEnter()
         menu->AddLinear("B", &ctx.m_theme.color_accent.z, 0.0f, 1.0f);
         menu->AddThrottle("Fov", &cfov);
         menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol);
-        menu->AddThrottle("Spin", &BlackHoleArgs.Spin);
+        menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);
         menu->AddThrottle("Mu", &BlackHoleArgs.Mu);
         menu->AddThrottle("AccretionRate", &BlackHoleArgs.AccretionRate);
         menu->AddThrottle("InterRadiusLy", &BlackHoleArgs.InterRadiusRs);
