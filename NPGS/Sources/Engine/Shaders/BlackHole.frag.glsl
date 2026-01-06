@@ -278,14 +278,14 @@ mat4 GetKerrMetric(vec4 X, float a,float fade) {
     float ly = X.y / r;
     float lz = (r * X.z - a * X.x) * denom;
     
-    vec4 l_up = vec4(lx, ly, lz, -1.0); // Outgoing null vector convention? 
+    vec4 l_down = vec4(lx, ly, lz, 1.0); // Outgoing null vector convention? 
     // Usually standard KS form is written with l_mu = (1, ...) or similar. 
     // With metric (-+++) or (+---), standard is l is null.
     // In (+,+,+,-), eta(l,l) = lx^2+ly^2+lz^2 - (-1)^2 = 1 - 1 = 0. Correct.
     
     float f = (2.0 * CONST_M * r * r2) / (r2 * r2 + a2 * X.y * X.y)*fade;
     
-    return MINKOWSKI_METRIC + f * outerProduct(l_up, l_up);
+    return MINKOWSKI_METRIC + f * outerProduct(l_down, l_down);
 }
 
 // 哈密顿量 H = 0.5 * g^uv p_u p_v
@@ -296,28 +296,60 @@ float Hamiltonian(vec4 X, vec4 P, float a,float fade) {
 
 // 哈密顿量的梯度 (数值差分)
 vec4 GradHamiltonian(vec4 X, vec4 P, float a, float fade) {
-    // 动态 epsilon：在远处使用较大的差分步长以避免浮点精度问题
-    // 距离越远，坐标数值越大，需要的 epsilon 越大
-    float dist = length(X.xyz);
-    float eps = max(0.005, dist * 0.005); 
+    float r = KerrSchildRadius(X.xyz, a);
+    // 动态 epsilon：靠近黑洞时需要更小的采样间距
+    float eps = max(0.005, r * 0.005); 
     
-    float H0 = Hamiltonian(X, P, a, fade);
-    return vec4(
-        Hamiltonian(X + vec4(eps,0,0,0), P, a, fade) - H0,
-        Hamiltonian(X + vec4(0,eps,0,0), P, a, fade) - H0,
-        Hamiltonian(X + vec4(0,0,eps,0), P, a, fade) - H0,
-        Hamiltonian(X + vec4(0,0,0,eps), P, a, fade) - H0
-    ) / eps;
+    vec4 G;
+    float invTwoEps = 0.5 / eps; // 预计算 1/(2*eps)
+    
+    G.x = (Hamiltonian(X + vec4(eps, 0.0, 0.0, 0.0), P, a, fade) - Hamiltonian(X - vec4(eps, 0.0, 0.0, 0.0), P, a, fade)) * invTwoEps;
+    G.y = (Hamiltonian(X + vec4(0.0, eps, 0.0, 0.0), P, a, fade) - Hamiltonian(X - vec4(0.0, eps, 0.0, 0.0), P, a, fade)) * invTwoEps;
+    G.z = (Hamiltonian(X + vec4(0.0, 0.0, eps, 0.0), P, a, fade) - Hamiltonian(X - vec4(0.0, 0.0, eps, 0.0), P, a, fade)) * invTwoEps;
+    G.w = 0.0;
+    return G;
 }
 
-void StepGeodesic(inout vec4 X, inout vec4 P, float dt, float a,float fade) {
-    // p_new = p_old - dt * dH/dx
-    P = P - dt * GradHamiltonian(X, P, a,fade);
-    
-    // x_new = x_old + dt * dH/dp
-    // dH/dp = g^uv p_v
-    mat4 g_inv = GetInverseKerrMetric(X, a,fade);
-    X = X + dt * (g_inv * P);
+void StepGeodesic(inout vec4 X, inout vec4 P, float dt, float a, float fade) {
+    // --- 第一步：动量更新 ---
+    vec4 gradH = GradHamiltonian(X, P, a, fade);
+    P = P - dt * gradH;
+
+    // --- 第二步：第一次修正 (保证位移前的速度矢量是 null 的) ---
+    // 使用旧位置 X 的度规进行修正
+    mat4 g_inv_old = GetInverseKerrMetric(X, a, fade);
+    {
+        float A = g_inv_old[3][3];
+        float B = 2.0 * dot(vec3(g_inv_old[0][3], g_inv_old[1][3], g_inv_old[2][3]), P.xyz);
+        float C = dot(P.xyz, mat3(g_inv_old) * P.xyz);
+        float disc = B * B - 4.0 * A * C;
+        if (disc >= 0.0) {
+            float sqrtDisc = sqrt(disc);
+            float pt1 = (-B - sqrtDisc) / (2.0 * A);
+            float pt2 = (-B + sqrtDisc) / (2.0 * A);
+            P.w = (abs(pt1 - P.w) < abs(pt2 - P.w)) ? pt1 : pt2;
+        }
+    }
+
+    // --- 第三步：位置更新 ---
+    // 使用刚才修正过的动量 P 来移动位置，此时速度 v^u = g^uv * P_v 是严格 null 的
+    X = X + dt * (g_inv_old * P);
+
+    // --- 第四步：第二次修正 (保证落点物理状态) ---
+    // 使用新位置 X_new 的度规进行最终修正
+    mat4 g_inv_new = GetInverseKerrMetric(X, a, fade);
+    {
+        float A = g_inv_new[3][3];
+        float B = 2.0 * dot(vec3(g_inv_new[0][3], g_inv_new[1][3], g_inv_new[2][3]), P.xyz);
+        float C = dot(P.xyz, mat3(g_inv_new) * P.xyz);
+        float disc = B * B - 4.0 * A * C;
+        if (disc >= 0.0) {
+            float sqrtDisc = sqrt(disc);
+            float pt1 = (-B - sqrtDisc) / (2.0 * A);
+            float pt2 = (-B + sqrtDisc) / (2.0 * A);
+            P.w = (abs(pt1 - P.w) < abs(pt2 - P.w)) ? pt1 : pt2;
+        }
+    }
 }
 // -----------------------------------------------------------------------------
 // 吸积盘与喷流 (保留原有逻辑，仅适配输入)
@@ -767,19 +799,25 @@ void main()
         // 将 RayStep 用作仿射参数步长 dLambda
         // 对于光子，在远场 |dx/dlambda| ≈ 1，所以 dLambda ≈ dLocalDistance
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
-
-        mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA,GravityFade);
+        mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, GravityFade);
         vec4 V_contra = g_inv * P_cov;
         
-        // B. 获取空间坐标速度的模长 |dx/dlambda|
-        float V_coord_mag = length(V_contra.xyz);
+        // 【核心修复】
+        // 原代码: float dLambda = RayStep / max(V_coord_mag, 1e-8);
+        // 问题: 视界附近 V_contra.w (时间流速) 远大于空间速度。只除以空间速度会导致 dLambda 过大，
+        // 进而导致 dt = dLambda * V_contra.w 爆炸。巨大的 dt 会导致动量更新 (P_new = P_old - dt * GradH) 产生巨大误差。
         
-        // C. 换算仿射步长：dlambda = dL_desired / |dx/dlambda|
-        // 这样可以确保无论度规如何畸变，空间位移始终约等于 RayStep
-        float dLambda = RayStep / max(V_coord_mag, 1e-8);
-        
+        // 修复: 使用 4D 速度分量的总和或长度来限制步长。
+        // 这确保了 Δx 和 Δt 都不会超过 RayStep 的数量级。
+        float V_4d_Sum = length(V_contra.xyz) + abs(V_contra.w);
+        float dLambda = 2.0*RayStep / max(V_4d_Sum, 1e-8);
+
+        // 记录积分前的位置
         vec3 PreStepPos = X.xyz;
-        StepGeodesic(X, P_cov, dLambda, PhysicalSpinA,GravityFade);
+        
+        // 执行辛积分 (或原有的 Euler 积分，但现在 dLambda 安全了)
+        StepGeodesic(X, P_cov, dLambda, PhysicalSpinA, GravityFade);
+        
         vec3 PostStepPos = X.xyz;
         
         // 5.4 计算几何步长和瞬时方向 (用于吸积盘函数)
