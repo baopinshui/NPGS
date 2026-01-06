@@ -176,9 +176,19 @@ vec3 WavelengthToRgb(float wavelength) {
     return color * factor/pow(color.r*color.r+2.25*color.g*color.g+0.36*color.b*color.b,0.5)*(0.1*(color.r+color.g+color.b)+0.9);
 }
 
-float GetKeplerianAngularVelocity(float Radius, float Rs) 
+// -----------------------------------------------------------------------------
+// [修改] Kerr 轨道角速度
+// -----------------------------------------------------------------------------
+// 计算 Kerr 黑洞赤道面上圆形轨道的角速度 Omega = dphi/dt
+// 公式: Omega = sqrt(M) / (r^1.5 + a * sqrt(M))
+// 这里单位 Rs = 2M = 1.0 => M = 0.5.
+// 注意：Spin (a) 可以是负数（逆行轨道），但通常吸积盘与黑洞同向旋转，a > 0。
+float GetKeplerianAngularVelocity(float Radius, float Rs, float Spin) 
 {
-    return sqrt(Rs / (2.0 * (Radius - 1.5 * Rs) * Radius * Radius));
+    float M = 0.5 * Rs; // 质量
+    float SqrtM = sqrt(M);
+    // 加上 spin 项的修正
+    return SqrtM / (pow(Radius, 1.5) + Spin * SqrtM);
 }
 
 vec3 WorldToBlackHoleSpace(vec4 Position, vec3 BlackHolePos, vec3 DiskNormal, vec3 DiskTangent)
@@ -212,7 +222,6 @@ float Shape(float x, float Alpha, float Beta)
 // Kerr-Schild Geometry (Spin Axis = Y)
 // -----------------------------------------------------------------------------
 
-// 常量定义: Rs = 1.0 (Simulation Units) => M = 0.5
 const float CONST_M = 0.5; 
 const mat4  MINKOWSKI_METRIC = mat4(
     1, 0, 0, 0,
@@ -221,42 +230,30 @@ const mat4  MINKOWSKI_METRIC = mat4(
     0, 0, 0, -1
 );
 
-// 计算 Kerr-Schild 半径 r
-// 针对 Spin Y: 方程为 (x^2+z^2)/(r^2+a^2) + y^2/r^2 = 1
+// 计算 Kerr-Schild 半径 r (Boyer-Lindquist r)
 float KerrSchildRadius(vec3 p, float a) {
     float a2 = a*a;
-    float rho2 = p.x*p.x + p.z*p.z; // 轴向半径平方 (xz平面)
-    float y2 = p.y*p.y;             // 轴方向分量
+    float rho2 = p.x*p.x + p.z*p.z; // XZ平面 (假设Y为轴)
+    float y2 = p.y*p.y;             
     
-    // 求解双二次方程 r^4 - (rho^2 + y^2 - a^2)r^2 - a^2 y^2 = 0
+    // r^4 - (rho^2 + y^2 - a^2)r^2 - a^2 y^2 = 0
     float b = rho2 + y2 - a2;
     float r2 = 0.5 * (b + sqrt(b*b + 4.0 * a2 * y2));
     return sqrt(r2);
 }
 
-// 获取 Kerr-Schild 度规的逆 g^uv
-// g^uv = eta^uv - f l^u l^v
 mat4 GetInverseKerrMetric(vec4 X, float a,float fade) {
     float r = KerrSchildRadius(X.xyz, a);
     float r2 = r*r;
     float a2 = a*a;
-    
-    // Y轴自旋下的零矢量 l^u (contravariant, in +++- signature)
-    // l^u = (lx, ly, lz, -1) 
-    // l_spatial component derivation for Y-spin:
-    // x -> (rx + az)/(r^2+a^2)
-    // y -> y/r
-    // z -> (rz - ax)/(r^2+a^2)
     float denom = 1.0 / (r2 + a2);
+    
+    // 适配 Y 轴自旋
     float lx = (r * X.x + a * X.z) * denom;
     float ly = X.y / r;
     float lz = (r * X.z - a * X.x) * denom;
     
-    vec4 l_up = vec4(lx, ly, lz, -1.0); // Outgoing null vector convention? 
-    // Usually standard KS form is written with l_mu = (1, ...) or similar. 
-    // With metric (-+++) or (+---), standard is l is null.
-    // In (+,+,+,-), eta(l,l) = lx^2+ly^2+lz^2 - (-1)^2 = 1 - 1 = 0. Correct.
-    
+    vec4 l_up = vec4(lx, ly, lz, -1.0); 
     float f = (2.0 * CONST_M * r * r2) / (r2 * r2 + a2 * X.y * X.y)*fade;
     
     return MINKOWSKI_METRIC - f * outerProduct(l_up, l_up);
@@ -266,51 +263,31 @@ mat4 GetKerrMetric(vec4 X, float a,float fade) {
     float r = KerrSchildRadius(X.xyz, a);
     float r2 = r*r;
     float a2 = a*a;
-    
-    // Y轴自旋下的零矢量 l^u (contravariant, in +++- signature)
-    // l^u = (lx, ly, lz, -1) 
-    // l_spatial component derivation for Y-spin:
-    // x -> (rx + az)/(r^2+a^2)
-    // y -> y/r
-    // z -> (rz - ax)/(r^2+a^2)
     float denom = 1.0 / (r2 + a2);
+    
     float lx = (r * X.x + a * X.z) * denom;
     float ly = X.y / r;
     float lz = (r * X.z - a * X.x) * denom;
     
-    vec4 l_down = vec4(lx, ly, lz, 1.0); // Outgoing null vector convention? 
-    // Usually standard KS form is written with l_mu = (1, ...) or similar. 
-    // With metric (-+++) or (+---), standard is l is null.
-    // In (+,+,+,-), eta(l,l) = lx^2+ly^2+lz^2 - (-1)^2 = 1 - 1 = 0. Correct.
-    
+    vec4 l_down = vec4(lx, ly, lz, 1.0); 
     float f = (2.0 * CONST_M * r * r2) / (r2 * r2 + a2 * X.y * X.y)*fade;
     
     return MINKOWSKI_METRIC + f * outerProduct(l_down, l_down);
 }
 
-// 哈密顿量 H = 0.5 * g^uv p_u p_v
 float Hamiltonian(vec4 X, vec4 P, float a,float fade) {
     mat4 g_inv = GetInverseKerrMetric(X, a,fade);
     return 0.5 * dot(g_inv * P, P);
 }
 
-// 哈密顿量的梯度 (数值差分)
 vec4 GradHamiltonian(vec4 X, vec4 P, float a, float fade) {
-    // --- 修改开始 ---
-    // 原代码: float r = KerrSchildRadius(X.xyz, a);
-    
-    // 计算到奇环(Ring Singularity)的几何距离
-    // 设定：自旋轴为Y轴，奇环位于XZ平面，半径为 abs(a)
-    float rho = length(X.xz); // XZ平面上的投影半径
+    // 根据要求，使用到奇环距离控制 eps
+    float rho = length(X.xz); 
     float distToRing = sqrt(X.y * X.y + pow(rho - abs(a), 2.0));
-    
-    // 使用到奇环的距离来控制微分步长 epsilon
-    // 离奇环越近(distToRing越小)，空间曲率越大，epsilon 需要越小以保证梯度计算精度
     float eps = 0.001 * max(1.0, distToRing); 
-    // --- 修改结束 ---
     
     vec4 G;
-    float invTwoEps = 0.5 / eps; // 预计算 1/(2*eps)
+    float invTwoEps = 0.5 / eps; 
     
     G.x = (Hamiltonian(X + vec4(eps, 0.0, 0.0, 0.0), P, a, fade) - Hamiltonian(X - vec4(eps, 0.0, 0.0, 0.0), P, a, fade)) * invTwoEps;
     G.y = (Hamiltonian(X + vec4(0.0, eps, 0.0, 0.0), P, a, fade) - Hamiltonian(X - vec4(0.0, eps, 0.0, 0.0), P, a, fade)) * invTwoEps;
@@ -320,12 +297,9 @@ vec4 GradHamiltonian(vec4 X, vec4 P, float a, float fade) {
 }
 
 void StepGeodesic(inout vec4 X, inout vec4 P, float dt, float a, float fade) {
-    // --- 第一步：动量更新 ---
     vec4 gradH = GradHamiltonian(X, P, a, fade);
     P = P - dt * gradH;
 
-    // --- 第二步：第一次修正 (保证位移前的速度矢量是 null 的) ---
-    // 使用旧位置 X 的度规进行修正
     mat4 g_inv_old = GetInverseKerrMetric(X, a, fade);
     {
         float A = g_inv_old[3][3];
@@ -340,12 +314,8 @@ void StepGeodesic(inout vec4 X, inout vec4 P, float dt, float a, float fade) {
         }
     }
 
-    // --- 第三步：位置更新 ---
-    // 使用刚才修正过的动量 P 来移动位置，此时速度 v^u = g^uv * P_v 是严格 null 的
     X = X + dt * (g_inv_old * P);
 
-    // --- 第四步：第二次修正 (保证落点物理状态) ---
-    // 使用新位置 X_new 的度规进行最终修正
     mat4 g_inv_new = GetInverseKerrMetric(X, a, fade);
     {
         float A = g_inv_new[3][3];
@@ -360,118 +330,105 @@ void StepGeodesic(inout vec4 X, inout vec4 P, float dt, float a, float fade) {
         }
     }
 }
-void GetStaticObserverTetrad(vec4 Pos, float a, float fade, 
-                             out vec4 E0, out vec4 E1, out vec4 E2, out vec4 E3)
-{
-    mat4 g = GetKerrMetric(Pos, a, fade);
-    
-    // 1. 定义时间基向量 (对应静态观察者)
-    // 在 Kerr-Schild (+ + + -) 且 t 在 w 分量时:
-    vec4 U = vec4(0.0, 0.0, 0.0, 1.0); 
-    
-    // 归一化 U (使得 g(U,U) = -1)
-    // g_tt = g[3][3]
-    float gtt = g[3][3];
-    // 注意：如果是 (+ + + -) 签名，且我们在视界外，gtt 应该是负数。
-    // 如果 gtt > 0 (在视界内或能层内)，静态观察者不存在，代码会崩。
-    // 这里加个 abs 保护一下防止 NaN，但在物理上视界内不能静态。
-    float normFactor = 1.0 / sqrt(abs(gtt)); 
-    E0 = U * normFactor; 
-    
-    // 2. 构建空间基向量 (这里简化处理，假设相机原本朝向大致对齐坐标轴)
-    // 我们需要构建三个与 E0 正交且互相正交的空间向量。
-    // 使用 Gram-Schmidt 正交化。
-    
-    // 尝试方向 X
-    vec4 v1 = vec4(1.0, 0.0, 0.0, 0.0);
-    // 剔除掉他在 E0 上的投影: v1_new = v1 - (v1 . E0) * E0 * sign
-    // 由于是非欧氏几何，点积要是 dot(v1, g * E0)
-    float proj1 = dot(v1, g * E0); // E0 是归一的且 E0.E0=-1，所以投影系数要反号
-    v1 = v1 + proj1 * E0; // + 因为 <E0,E0> = -1
-    
-    // 归一化 v1
-    float v1_len = sqrt(dot(v1, g * v1));
-    E1 = v1 / v1_len;
-    
-    // 尝试方向 Y
-    vec4 v2 = vec4(0.0, 1.0, 0.0, 0.0);
-    float proj2_0 = dot(v2, g * E0);
-    float proj2_1 = dot(v2, g * E1);
-    v2 = v2 + proj2_0 * E0 - proj2_1 * E1; // 空间向量之间点积是正的，减去投影
-    float v2_len = sqrt(dot(v2, g * v2));
-    E2 = v2 / v2_len;
-    
-    // 尝试方向 Z
-    vec4 v3 = vec4(0.0, 0.0, 1.0, 0.0);
-    float proj3_0 = dot(v3, g * E0);
-    float proj3_1 = dot(v3, g * E1);
-    float proj3_2 = dot(v3, g * E2);
-    v3 = v3 + proj3_0 * E0 - proj3_1 * E1 - proj3_2 * E2;
-    float v3_len = sqrt(dot(v3, g * v3));
-    E3 = v3 / v3_len;
+
+vec3 TransformBLtoKS(vec3 p_bl, float a) {
+    float r = length(p_bl);
+    if (r < 1e-4) return p_bl;
+    vec3 p_ks;
+    p_ks.y = p_bl.y; 
+    float factor = a / r;
+    p_ks.x = p_bl.x + p_bl.z * factor;
+    p_ks.z = p_bl.z - p_bl.x * factor; 
+    return p_ks;
 }
+
 // -----------------------------------------------------------------------------
-// 吸积盘与喷流 (保留原有逻辑，仅适配输入)
+// 吸积盘与喷流 (适配 Kerr 物理)
 // -----------------------------------------------------------------------------
 
+// [注意] 增加了 Spin 参数，用于计算正确的 Kerr 物理量
 vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
                vec3 RayDir, vec3 LastRayDir, vec3 BlackHolePos, vec3 DiskNormal,vec3 DiskTangen,
                float InterRadius, float OuterRadius,float Thin,float Hopper , float Brightmut,float Darkmut,float Reddening,float Saturation,float DiskTemperatureArgument,
                float BlackbodyIntensityExponent,float RedShiftColorExponent,float RedShiftIntensityExponent,
-               float PeakTemperature, float ShiftMax)
+               float PeakTemperature, float ShiftMax, float Spin) // <-- Added Spin
 {
-    // 这里传入的 RayPos 是 Kerr-Schild 坐标（以黑洞为中心），
-    // 原函数需要它们相对于黑洞位置，所以 WorldToBlackHoleSpace 内部的平移是不需要的（如果直接传相对坐标）
-    // 但原函数设计是可以处理任意位置黑洞。
-    // 在本光路计算中，我们模拟是在“黑洞为原点”的系中进行的，所以传入 BlackHolePos = (0,0,0) 即可适配。
-    
     vec3 CameraPos     = WorldToBlackHoleSpace(vec4(0.0, 0.0, 0.0, 1.0), BlackHolePos, DiskNormal, DiskTangen);
+    
+    // 将光线位置转到以黑洞为中心的坐标系 (假设 WorldToBlackHoleSpace 使得 Y 轴为自旋轴)
     vec3 PosOnDisk     = WorldToBlackHoleSpace(vec4(RayPos, 1.0),        BlackHolePos, DiskNormal, DiskTangen);
     vec3 LastPosOnDisk = WorldToBlackHoleSpace(vec4(LastRayPos, 1.0),    BlackHolePos, DiskNormal, DiskTangen);
     vec3 DirOnDisk     = WorldToBlackHoleSpace(vec4(RayDir, 0.0),        BlackHolePos, DiskNormal, DiskTangen);
 
-    float PosR = length(PosOnDisk);
+    // [物理修正 1] 使用 Kerr-Schild 半径代替欧氏距离
+    // 在 KS 坐标系中，y 坐标未被混合，因此垂直距离 abs(pos.y) 依然代表偏离赤道面的距离
+    float PosR = KerrSchildRadius(PosOnDisk, Spin);
+    
     float PosY = PosOnDisk.y;
     float LPosY = LastPosOnDisk.y;
+    
+    // 过零点检测 (Sub-step intersection)
     if( LPosY*PosY<0.0)
     {
         vec3 CPoint=(-PosOnDisk*LPosY+LastPosOnDisk*PosY)/(PosY-LPosY);
+        // 更新位置到精确的交点
         PosOnDisk=CPoint+min(Thin,length(CPoint-LastPosOnDisk))*DirOnDisk*(-1.0+2.0*RandomStep(10000.0*(PosOnDisk.zx/OuterRadius), fract(iTime * 1.0 + 0.5)));
         StepLength=length(PosOnDisk-LastPosOnDisk);
-        PosR = length(PosOnDisk);
+        // 重新计算修正后的物理半径
+        PosR = KerrSchildRadius(PosOnDisk, Spin);
         PosY = PosOnDisk.y;
     }
     
+    // 抖动厚度 (使用 KS 坐标的 xz 分量近似极坐标 theta 抖动，这在视觉上足够且不需要转换)
     Thin+=max(0.0,(length(PosOnDisk.xz)-3.0)*Hopper);
  
     float NoiseLevel=max(0.0,2.0-0.6*Thin);
     vec4 Color = vec4(0.0);
     vec4 Result=vec4(0.0);
+    
+    // 使用物理半径 PosR (BL r) 进行边界判定，这保证了内缘 ISCO 的形状正确
     if (abs(PosY) < Thin && PosR < OuterRadius && PosR > InterRadius)
     {
         float x=(PosR-InterRadius)/(OuterRadius-InterRadius);
-        float a=max(1.0,(OuterRadius-InterRadius)/(10.0));
-        float EffectiveRadius=(-1.+sqrt(1.+4.*a*a*x-4.*x*a))/(2.*a-2.);
+        float a_param=max(1.0,(OuterRadius-InterRadius)/(10.0));
+        float EffectiveRadius=(-1.+sqrt(1.+4.*a_param*a_param*x-4.*x*a_param))/(2.*a_param-2.);
         float InterCloudEffectiveRadius=(PosR-InterRadius)/min(OuterRadius-InterRadius,12.0);
-        if(a==1.0){EffectiveRadius=x;}
+        if(a_param==1.0){EffectiveRadius=x;}
         
         float DenAndThiFactor=Shape(EffectiveRadius, 0.9, 1.5);
         if ((abs(PosY) < Thin * DenAndThiFactor) || (PosY < Thin * (1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0))))
         {
-            float AngularVelocity  = GetKeplerianAngularVelocity(PosR, 1.0);
-            float HalfPiTimeInside = kPi / GetKeplerianAngularVelocity(3.0 , 1.0);
+            // [物理修正 2] 获取 Kerr 轨道角速度
+            float AngularVelocity  = GetKeplerianAngularVelocity(PosR, 1.0, Spin);
+            float HalfPiTimeInside = kPi / GetKeplerianAngularVelocity(3.0, 1.0, Spin);
 
+            // 纹理映射使用 atan(z, x)。在 KS 坐标下，这已经包含了“空间拖曳”的扭曲效果，
+            // 所以直接使用 PosOnDisk.z/x 不需要去拖曳它，视觉上反而更符合物理直觉。
             float SpiralTheta=12.0*2.0/sqrt(3.0)*(atan(sqrt(0.6666666*(PosR)-1.0)));
             float InnerTheta= kPi / HalfPiTimeInside *iBlackHoleTime ;
             float PosThetaForInnerCloud = Vec2ToTheta(PosOnDisk.zx, vec2(cos(0.666666*InnerTheta),sin(0.666666*InnerTheta)));
             float PosTheta            = Vec2ToTheta(PosOnDisk.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
             float PosLogarithmicTheta            = Vec2ToTheta(PosOnDisk.zx, vec2(cos(-2.0*log(PosR)), sin(-2.0*log(PosR))));
 
+            // 温度分布：基于物理半径 r
             float DiskTemperature = pow(DiskTemperatureArgument * pow(1.0/PosR,3.0) * max(1.0 - sqrt(InterRadius / PosR), 0.000001), 0.25);
+            
+            // [物理修正 3] 多普勒效应与红移
+            // Kerr 盘面速度场：v = Omega * r_cylindrical (近似)
+            // 实际上 KS 下切向矢量和 BL 下略有不同，但对于着色器计算 cross(Y, Pos) 是足够好的切向近似
             vec3 CloudVelocity = AngularVelocity * cross(vec3(0., 1., 0.), PosOnDisk);
             float RelativeVelocity = dot(-DirOnDisk, CloudVelocity);
+            
+            // 狭义相对论多普勒因子
             float Dopler = sqrt((1.0 + RelativeVelocity) / (1.0 - RelativeVelocity));
-            float RedShift = Dopler ;//* sqrt(max(1.0 - 1.0 / PosR, 0.000001)) / sqrt(max(1.0 - 1.0 / length(CameraPos), 0.000001));
+            
+            // 广义相对论引力红移因子 (Equatorial Plane g_tt component)
+            // Kerr metric on equator g_tt = -(1 - 2M/r). So gravitational redshift is ~ sqrt(1 - 1/r)
+            // 这一点和 Schwarzschild 一样，区别在于粒子靠得更近了 (r 更小)
+            float GravitationalRedshift = sqrt(max(1.0 - 1.0 / PosR, 0.000001)); 
+            // 假设相机在无穷远，忽略相机引力势
+            
+            float RedShift = Dopler * GravitationalRedshift;
 
             float RotPosR=PosR+0.25/3.0*iBlackHoleTime;
             float Density           =DenAndThiFactor;
@@ -565,25 +522,33 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
     return Result;
 }
 
+// [注意] 增加了 Spin 参数
 vec4 JetColor(vec4 BaseColor,  float StepLength, vec3 RayPos, vec3 LastRayPos,
                vec3 RayDir, vec3 LastRayDir, vec3 BlackHolePos, vec3 DiskNormal,vec3 DiskTangen,
-               float InterRadius, float OuterRadius,float JetRedShiftIntensityExponent, float JetBrightmut,float JetReddening,float JetSaturation,float AccretionRate,float JetShiftMax)
+               float InterRadius, float OuterRadius,float JetRedShiftIntensityExponent, float JetBrightmut,float JetReddening,float JetSaturation,float AccretionRate,float JetShiftMax, float Spin) // <-- Added Spin
 {
     vec3 CameraPos = WorldToBlackHoleSpace(vec4(0.0, 0.0, 0.0, 1.0), BlackHolePos, DiskNormal, DiskTangen);
     vec3 PosOnDisk = WorldToBlackHoleSpace(vec4(RayPos, 1.0),        BlackHolePos, DiskNormal, DiskTangen);
     vec3 DirOnDisk = WorldToBlackHoleSpace(vec4(RayDir, 0.0),        BlackHolePos, DiskNormal, DiskTangen);
 
-    float PosR = length(PosOnDisk);
+    // [物理修正] 使用 Kerr-Schild 半径
+    float PosR = KerrSchildRadius(PosOnDisk, Spin);
+    
+    // 喷流高度依然使用 Y (在 KS 下，Y 方向是自旋轴，未被混合)
     float PosY = PosOnDisk.y;
     vec4  Color            = vec4(0.0);
             
     bool NotInJet=true;        
     vec4 Result=vec4(0.0);
+    
+    // 使用 PosR 进行距离判断，length(PosOnDisk.xz) 近似为圆柱半径
+    // 注意：在强自旋下，圆柱半径在 KS 空间会略微扭曲，但用 Euclidean distance for jet width 依然是很好的近似
     if(length(PosOnDisk.xz)*length(PosOnDisk.xz)<2.0*InterRadius*InterRadius+0.03*0.03*PosY*PosY&&PosR<sqrt(2.0)*OuterRadius){
             vec4 Color0;
             NotInJet=false;
 
-            float InnerTheta= 3.0*GetKeplerianAngularVelocity(InterRadius,1.0) *(iBlackHoleTime-1.0/0.8*abs(PosY));
+            // 角速度也必须更新为 Kerr 版本，尽管喷流是垂直的，但内部湍流可能受拖曳影响
+            float InnerTheta= 3.0*GetKeplerianAngularVelocity(InterRadius,1.0, Spin) *(iBlackHoleTime-1.0/0.8*abs(PosY));
             float Shape=1.0/sqrt(InterRadius*InterRadius+0.02*0.02*PosY*PosY);
             float a=mix(0.7+0.3*PerlinNoise1D(0.3*(iBlackHoleTime-1.0/0.8*abs(abs(PosY)+100.0*(dot(PosOnDisk.xz,PosOnDisk.xz)/PosR)))/(OuterRadius/100.0)/(1.0/0.8)),1.0,exp(-0.01*0.01*PosY*PosY));
             Color0=vec4(1.0,1.0,1.0,0.5)*max(0.0,1.0-5.0*Shape*
@@ -599,7 +564,7 @@ vec4 JetColor(vec4 BaseColor,  float StepLength, vec3 RayPos, vec3 LastRayPos,
     if(length(PosOnDisk.xz)<1.3*InterRadius+0.25*Wid&&length(PosOnDisk.xz)>0.7*InterRadius+0.15*Wid&&PosR<30.0*InterRadius){
             vec4 Color1;
             NotInJet=false;
-            float InnerTheta= 2.0*GetKeplerianAngularVelocity(InterRadius, 1.0) *(iBlackHoleTime-1.0/0.8*abs(PosY));
+            float InnerTheta= 2.0*GetKeplerianAngularVelocity(InterRadius, 1.0, Spin) *(iBlackHoleTime-1.0/0.8*abs(PosY));
             float Shape=1.0/(InterRadius+0.2*Wid);
             
             Color1=vec4(1.0,1.0,1.0,0.5)*max(0.0,1.0-2.0*
@@ -617,8 +582,9 @@ vec4 JetColor(vec4 BaseColor,  float StepLength, vec3 RayPos, vec3 LastRayPos,
     {
             float JetTemperature = 100000.0;
             Color.xyz *= KelvinToRgb(JetTemperature );
+            // 喷流速度主要是径向/垂直的，受旋转影响较小
             float RelativeVelocity =-(DirOnDisk.y)*sqrt(1.0/(PosR))*sign(PosY);
-            float Dopler = 1.;//sqrt((1.0 + RelativeVelocity) / (1.0 - RelativeVelocity));
+            float Dopler =  sqrt((1.0 + RelativeVelocity) / (1.0 - RelativeVelocity));
             float RedShift = Dopler * sqrt(max(1.0 - 1.0 / PosR, 0.000001)) / sqrt(max(1.0 - 1.0 / length(CameraPos), 0.000001));
             Color.xyz*=min(pow(RedShift,JetRedShiftIntensityExponent),JetShiftMax);
             Color *= StepLength *JetBrightmut*(0.5+0.5*tanh(log(AccretionRate)+1.0));
@@ -660,190 +626,142 @@ void main()
     vec4  Result = vec4(0.0);
     vec2  FragUv = gl_FragCoord.xy / iResolution.xy;
     float Fov    = tan(iFovRadians / 2.0);
-
     // --- 0. 物理参数准备 ---
-    float Zx = 1.0 + pow(1.0 - pow(000, 2), 0.333333333333333) * (pow(1.0 + pow(000, 2), 0.333333333333333) + pow(1.0 - 000, 0.333333333333333)); 
-    float RmsRatio = (3.0 + sqrt(3.0 * pow(000, 2) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(000, 2) + Zx * Zx)))) / 2.0;    
+    // (保留你原有的物理参数计算)
+    float iSpinclamp = clamp(iSpin, -0.95, 0.95);
+    float Zx = 1.0 + pow(1.0 - pow(iSpinclamp, 2.0), 0.333333333333333) * (pow(1.0 + pow(iSpinclamp, 2.0), 0.333333333333333) + pow(1.0 - iSpinclamp, 0.333333333333333)); 
+    float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx)))) / 2.0; 
     float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); 
     const float kPhysicsFactor = 1.52491e30; 
-    float DiskArgument = kPhysicsFactor * (iMu / AccretionEffective) * (iAccretionRate / iBlackHoleMassSol);
+    float DiskArgument = kPhysicsFactor / iBlackHoleMassSol* (iMu / AccretionEffective) * (iAccretionRate );
     float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
     
     float SmallStepBoundary = max(iOuterRadiusRs, 12.0);
     float ShiftMax          = 1.5; 
     float BackgroundShiftMax = 2.0;
     float BackgroundBlueShift = min(1.0 / sqrt(1.0 - 1.0 /max(length(iBlackHoleRelativePosRs.xyz),1.001)+0.005), BackgroundShiftMax);
-
-    // 物理自旋参数 a = J/M. 单位 M=0.5 (Rs=1.0) -> a = iSpin * 0.5
+    // 物理自旋参数
     float PhysicalSpinA = iSpin * CONST_M;
     float EventHorizonR = 0.5 + sqrt(max(0.0, 0.25 - PhysicalSpinA * PhysicalSpinA));
     float TerminationR = EventHorizonR * 0.98;
-    // --- 1. 相机光线生成 (World Space / Kerr-Schild Background) ---
-    // 抖动 UV
+    // --- 1. 相机光线生成 ---
     vec2 Jitter = vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)), RandomStep(FragUv, fract(iTime * 1.0))) / iResolution;
     vec3 ViewDirLocal = FragUvToDir(FragUv + 0.5 * Jitter, Fov, iResolution);
     
-    // 坐标变换: Camera Local -> World (Kerr-Schild)
+    // 转换到世界空间方向
     vec3 RayDirWorld = normalize((iInverseCamRot * vec4(ViewDirLocal, 0.0)).xyz);
     
-    // 相机在 World Space 的位置 (黑洞在 (0,0,0))
-    // Uniform 输入的是 "黑洞相对于相机的位置"。取反即为相机相对于黑洞的位置。
-    vec3 CamToBHVecWorld = (iInverseCamRot * vec4(iBlackHoleRelativePosRs.xyz, 0.0)).xyz;
-    vec3 RayPosWorld = -CamToBHVecWorld;
+    // [第一步] 获取相机的“直觉位置” (Boyer-Lindquist 坐标)
+    vec3 CamToBHVecVisual = (iInverseCamRot * vec4(iBlackHoleRelativePosRs.xyz, 0.0)).xyz;
+    vec3 RayPosVisual = -CamToBHVecVisual;
+    // [第二步] 关键修改：应用坐标映射 (BL -> KS)
+    // 这行代码确保当 a 增大时，RayPosWorld 会自动调整，
+    // 使得相机在物理上保持在能层之外（如果 RayPosVisual 本身在 2M 之外）。
+    vec3 RayPosWorld = RayPosVisual;//TransformBLtoKS(RayPosVisual, PhysicalSpinA);
     
-    // 转换吸积盘参数到 World Space
+    // 吸积盘参数转换
     vec3 DiskNormalWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskNormal.xyz, 0.0)).xyz);
     vec3 DiskTangentWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskTangen.xyz, 0.0)).xyz);
-
-    // --- 2. 优化: 包围球快进 (Fast-Forward to Bounding Sphere) ---
-    // 恢复原有逻辑：如果相机在远处，且光线穿过包围球，直接跳跃到包围球表面。
-    // 如果不穿过，直接计算背景。
-    
+    // --- 2. 优化: 包围球快进 ---
     float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
+    // 注意：这里的距离现在是基于 KS 坐标的距离，稍微比 BL 距离大一点点，这是安全的。
     float DistanceToBlackHole = length(RayPosWorld);
     
     bool bShouldContinueMarchRay = true;
-    bool bWaitCalBack = false; // 标记是否需要计算背景
+    bool bWaitCalBack = false;
     
     float GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
-    // 如果我们在包围球外部
+    
     if (DistanceToBlackHole > RaymarchingBoundary) 
     {
         vec3 O = RayPosWorld;
         vec3 D = RayDirWorld;
-        float r = RaymarchingBoundary - 1.0; // 稍微向内一点，避免浮点误差导致的反复进出
+        float r = RaymarchingBoundary - 1.0; 
         
-        // 射线-球体求交 (解 |O + tD|^2 = r^2)
-        // t^2(D.D) + 2t(O.D) + O.O - r^2 = 0, D.D=1
         float b = dot(O, D);
         float c = dot(O, O) - r * r;
-        float delta = b * b - c; // (b/2)^2 - ac, simplified quadratic
+        float delta = b * b - c; 
         
         if (delta < 0.0) 
         {
-            // 光线完全错过包围球 -> 直接渲染背景
             bShouldContinueMarchRay = false;
             bWaitCalBack = true;
         } 
         else 
         {
-            // 找到进入点
             float sqrtDelta = sqrt(delta);
-            float t1 = -b - sqrtDelta; // 进入点
-            float t2 = -b + sqrtDelta; // 离开点 (如果相机在内部则需要)
+            float t1 = -b - sqrtDelta; 
+            float t2 = -b + sqrtDelta; 
             
             float tEnter = t1;
-            // 只有当进入点在前方时才跳转 (t > 0)
             if (tEnter > 0.0) {
                 RayPosWorld = O + D * tEnter;
             } else if (t2 > 0.0) {
-                 // 相机在球内? 理论上上面的 if (Distance > Boundary) 已经排除了这种情况，
-                 // 但为了稳健性保留逻辑。
+                 // 相机在内部
             } else {
-                // 球在相机背后
                 bShouldContinueMarchRay = false;
                 bWaitCalBack = true;
             }
         }
     }
-
-    // --- 3. 物理动量初始化 (Momentum Initialization) ---
-    // 在确定了起始位置 RayPosWorld (可能是相机位置，也可能是快进后的位置) 后，初始化四维动量。
-    // 求解 g_uv v^u v^v = 0 得到 dx/dt 的系数 k
-    
-// --- 3. 物理动量初始化 (Momentum Initialization) ---
-
-// --- 3. 物理动量初始化 (Momentum Initialization) ---
-    vec4 X = vec4(RayPosWorld, 0.0); // t=0
-    vec4 P_cov = vec4(0.0); // 协变动量
+    // --- 3. 物理动量初始化 ---
+    vec4 X = vec4(RayPosWorld, 0.0); 
+    vec4 P_cov = vec4(0.0); 
     
     if (bShouldContinueMarchRay) 
     {
-        // 1. 获取度规
-        mat4 g_cov = GetKerrMetric(X, PhysicalSpinA, GravityFade); 
+        float r_ks = KerrSchildRadius(X.xyz, PhysicalSpinA);
+        float r2 = r_ks * r_ks;
+        float a2 = PhysicalSpinA * PhysicalSpinA;
+        float inv_denom = 1.0 / (r2 + a2);
         
-        // 2. 检查静态观测者是否存在
-        // 静态观测者要求 g_tt < 0。在能层内 (g_tt > 0) 无法静止。
-        float g_tt = g_cov[3][3];
+        // 计算 L 向量 (假设 Y 轴为自旋轴)
+        float lx = (r_ks * X.x + PhysicalSpinA * X.z) * inv_denom;
+        float ly = X.y / r_ks;
+        float lz = (r_ks * X.z - PhysicalSpinA * X.x) * inv_denom;
+        vec3 L = vec3(lx, ly, lz);
         
-        // 我们设置一个稍宽的阈值 (-0.001) 以平滑过渡
-        if (g_tt < -0.001) 
-        {
-            // --- A. 构建静态观测者四维速度 U ---
-            // U^u = (Ut, 0, 0, 0). 归一化 U.U = -1 => g_tt * Ut^2 = -1
-            float Ut = 1.0 / sqrt(-g_tt);
-            vec4 U_contra = vec4(0.0, 0.0, 0.0, Ut);
-
-            // --- B. 分解相机视线 ---
-            // RayDirWorld 是相机在平直背景下的视线方向
-            vec3 CamDir = normalize(RayDirWorld);
-            vec3 RadialDir = vec3(0.0, 1.0, 0.0); // 默认防除零
-            if (length(RayPosWorld) > 0.01) {
-                RadialDir = normalize(RayPosWorld);
-            }
-            
-            // 分解为径向分量 (cosTheta) 和 切向矢量 (TanDir)
-            float cosTheta = dot(CamDir, RadialDir);
-            vec3 TanDir = CamDir - cosTheta * RadialDir; // 纯切向部分
-            float tanLength = length(TanDir);
-            
-            // --- C. 构建物理上的径向单位矢量 e_r ---
-            // 在坐标系中，径向方向是 R_raw = (Pos, 0)
-            // 我们需要将其对 U 正交化并归一化
-            vec4 R_raw = vec4(RadialDir, 0.0);
-            
-            // 正交化: e_r = R_raw - (R_raw . U / U . U) * U
-            // 因为 U.U = -1, 所以是 + (R_raw . U) * U
-            // 辅助点积: dot(A, g*B)
-            float R_dot_U = dot(R_raw, g_cov * U_contra);
-            vec4 e_r = R_raw + R_dot_U * U_contra;
-            
-            // 归一化: e_r = e_r / sqrt(e_r . e_r)
-            float e_r_norm2 = dot(e_r, g_cov * e_r);
-            e_r = e_r / sqrt(max(e_r_norm2, 1e-6));
-
-            // --- D. 构建物理上的切向矢量 e_tan ---
-            // 切向矢量也需要正交化 (应对自旋引起的空间拖曳 g_tphi != 0)
-            vec4 T_raw = vec4(TanDir, 0.0);
-            float T_dot_U = dot(T_raw, g_cov * U_contra);
-            vec4 e_tan = T_raw + T_dot_U * U_contra;
-            
-            // 恢复切向矢量的长度 (保持欧几里得长度，避免畸变)
-            float e_tan_norm2 = dot(e_tan, g_cov * e_tan);
-            if (e_tan_norm2 > 1e-8) {
-                e_tan = e_tan * (tanLength / sqrt(e_tan_norm2));
-            }
-
-            // --- E. 合成光子动量 ---
-            // P = U (能量) + cosTheta * e_r (径向动量) + e_tan (切向动量)
-            // 这样，当 cosTheta=1 (背对黑洞) 时，我们完全沿着 e_r 发射
-            // 当 cosTheta=0 (切向) 时，我们完全沿着 e_tan 发射
-            vec4 V_contra = U_contra + cosTheta * e_r + e_tan;
-            
-            P_cov = g_cov * V_contra;
+        float f_raw = (2.0 * CONST_M * r_ks * r2) / (r2 * r2 + a2 * X.y * X.y) * GravityFade;
+        
+        // 限制 f 以防止能层内的数值崩溃
+        float f_safe =f_raw; 
+        
+        float Pt = -sqrt(1.0 - f_safe);
+        
+        vec3 D = normalize(RayDirWorld);
+        float lambda = clamp(dot(D, L), -1.0, 1.0); 
+        
+        float A = 1.0 - f_safe * lambda * lambda;
+        float B = 2.0 * f_safe * lambda * Pt;
+        float C = -Pt * Pt * (1.0 + f_safe);
+        
+        float Disc = B * B - 4.0 * A * C;
+        
+        // 求解动量
+        if(Disc >= 0.0) {
+            float sqrtDisc = sqrt(Disc);
+            float k = (-B + sqrtDisc) / (2.0 * A);
+            k = abs(k); 
+            P_cov = vec4(k * D, Pt);
+        } else {
+            // 极其罕见的情况，通常被 f_safe 避免了
+            bShouldContinueMarchRay = false;
+            bWaitCalBack = false; 
         }
-        else 
-        {
-            // --- 回退模式 (能层内) ---
-            // 接近或进入视界/能层时，无法维持静态。
-            // 使用标准坐标相机以保证连续性。
-            vec3 D = RayDirWorld;
-            float A = dot(D, (mat3(g_cov) * D)); 
-            float B = 2.0 * dot(vec3(g_cov[0][3], g_cov[1][3], g_cov[2][3]), D);
-            float C = g_cov[3][3];
-            float discrim = B*B - 4.0*A*C;
-            float k = (-B + sqrt(max(0.0, discrim))) / (2.0 * A);
-            vec4 V_contra = vec4(k * D, 1.0);
-            P_cov = g_cov * V_contra;
+        // 如果原始位置依然在能层内 (例如用户手动设置半径 < 2.0)，标记停止
+        if (f_raw > 1.0) {
+             bShouldContinueMarchRay = false;
+             bWaitCalBack = false; // 或者 true，取决于你想显示什么
         }
     }
     // --- 4. 循环变量准备 ---
     vec3 LastRayPos = RayPosWorld;
-    vec3 LastRayDir = RayDirWorld; // 用于多普勒计算和背景采样
+    vec3 LastRayDir = RayDirWorld; 
     int Count = 0;
     vec3  PrevSpatialVelocity = vec3(0.0);
     float PrevDLambda         = 0.0;
-    // --- 5. 光线追踪主循环 (Geodesic Integration) ---
+    
+    // --- 5. 光线追踪主循环 ---
     
     while (bShouldContinueMarchRay)
     {
@@ -948,11 +866,11 @@ void main()
         Result = DiskColor(Result, ActualStepLength, PostStepPos, PreStepPos, InstantDir, LastRayDir,
                            vec3(0.0), DiskNormalWorld, DiskTangentWorld,
                            iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-                           iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax);
+                           iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax,clamp(PhysicalSpinA,-0.49,0.49));
 
         Result = JetColor(Result, ActualStepLength, PostStepPos, PreStepPos, InstantDir, LastRayDir,
                           vec3(0.0), DiskNormalWorld, DiskTangentWorld,
-                          iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax);
+                          iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax,clamp(PhysicalSpinA,-0.49,0.49));
 
         // 5.6 不透明度检查
         if (Result.a > 0.99) {

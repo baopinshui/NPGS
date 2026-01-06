@@ -672,7 +672,28 @@ void FApplication::ExecuteMainRender()
            // }
            // _FreeCamera->ProcessMouseMovement(10, 0);
             std::cout << glm::length(_FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)) / Rs << std::endl;;
+            // 1. 获取位置向量和距离比值 r_norm
+            glm::vec3 pos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
+            float r = glm::length(pos);
+            float r_norm = r / Rs;
 
+            // 2. 获取无量纲自旋 a_star
+            float a_star = BlackHoleArgs.Spin;
+
+            // 3. 计算 cos(theta)。由于自转轴是 Y，cos(theta) = pos.y / |pos|
+            // 注意防止除以 0
+            float cosTheta = (r > 1e-6f) ? (pos.y / r) : 0.0f;
+            float cos2Theta = cosTheta * cosTheta;
+
+            // 4. 计算静态极限面和外视界的边界值 (已归一化到 Rs)
+            float a2 = a_star * a_star;
+            float static_limit = 0.5f * (1.0f + std::sqrt(1.0f - a2 * cos2Theta));
+            float horizon = 0.5f * (1.0f + std::sqrt(1.0f - a2));
+
+            // 5. 判断是否在能层内 (在视界之外，且在静态极限面之内)
+            bool isInErgosphere = (r_norm < static_limit) && (r_norm > horizon);
+
+            std::cout << (isInErgosphere ? "True" : "False") << std::endl;
             
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
