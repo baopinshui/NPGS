@@ -296,9 +296,18 @@ float Hamiltonian(vec4 X, vec4 P, float a,float fade) {
 
 // 哈密顿量的梯度 (数值差分)
 vec4 GradHamiltonian(vec4 X, vec4 P, float a, float fade) {
-    float r = KerrSchildRadius(X.xyz, a);
-    // 动态 epsilon：靠近黑洞时需要更小的采样间距
-    float eps = max(0.005, r * 0.005); 
+    // --- 修改开始 ---
+    // 原代码: float r = KerrSchildRadius(X.xyz, a);
+    
+    // 计算到奇环(Ring Singularity)的几何距离
+    // 设定：自旋轴为Y轴，奇环位于XZ平面，半径为 abs(a)
+    float rho = length(X.xz); // XZ平面上的投影半径
+    float distToRing = sqrt(X.y * X.y + pow(rho - abs(a), 2.0));
+    
+    // 使用到奇环的距离来控制微分步长 epsilon
+    // 离奇环越近(distToRing越小)，空间曲率越大，epsilon 需要越小以保证梯度计算精度
+    float eps = 0.001 * max(1.0, distToRing); 
+    // --- 修改结束 ---
     
     vec4 G;
     float invTwoEps = 0.5 / eps; // 预计算 1/(2*eps)
@@ -350,6 +359,56 @@ void StepGeodesic(inout vec4 X, inout vec4 P, float dt, float a, float fade) {
             P.w = (abs(pt1 - P.w) < abs(pt2 - P.w)) ? pt1 : pt2;
         }
     }
+}
+void GetStaticObserverTetrad(vec4 Pos, float a, float fade, 
+                             out vec4 E0, out vec4 E1, out vec4 E2, out vec4 E3)
+{
+    mat4 g = GetKerrMetric(Pos, a, fade);
+    
+    // 1. 定义时间基向量 (对应静态观察者)
+    // 在 Kerr-Schild (+ + + -) 且 t 在 w 分量时:
+    vec4 U = vec4(0.0, 0.0, 0.0, 1.0); 
+    
+    // 归一化 U (使得 g(U,U) = -1)
+    // g_tt = g[3][3]
+    float gtt = g[3][3];
+    // 注意：如果是 (+ + + -) 签名，且我们在视界外，gtt 应该是负数。
+    // 如果 gtt > 0 (在视界内或能层内)，静态观察者不存在，代码会崩。
+    // 这里加个 abs 保护一下防止 NaN，但在物理上视界内不能静态。
+    float normFactor = 1.0 / sqrt(abs(gtt)); 
+    E0 = U * normFactor; 
+    
+    // 2. 构建空间基向量 (这里简化处理，假设相机原本朝向大致对齐坐标轴)
+    // 我们需要构建三个与 E0 正交且互相正交的空间向量。
+    // 使用 Gram-Schmidt 正交化。
+    
+    // 尝试方向 X
+    vec4 v1 = vec4(1.0, 0.0, 0.0, 0.0);
+    // 剔除掉他在 E0 上的投影: v1_new = v1 - (v1 . E0) * E0 * sign
+    // 由于是非欧氏几何，点积要是 dot(v1, g * E0)
+    float proj1 = dot(v1, g * E0); // E0 是归一的且 E0.E0=-1，所以投影系数要反号
+    v1 = v1 + proj1 * E0; // + 因为 <E0,E0> = -1
+    
+    // 归一化 v1
+    float v1_len = sqrt(dot(v1, g * v1));
+    E1 = v1 / v1_len;
+    
+    // 尝试方向 Y
+    vec4 v2 = vec4(0.0, 1.0, 0.0, 0.0);
+    float proj2_0 = dot(v2, g * E0);
+    float proj2_1 = dot(v2, g * E1);
+    v2 = v2 + proj2_0 * E0 - proj2_1 * E1; // 空间向量之间点积是正的，减去投影
+    float v2_len = sqrt(dot(v2, g * v2));
+    E2 = v2 / v2_len;
+    
+    // 尝试方向 Z
+    vec4 v3 = vec4(0.0, 0.0, 1.0, 0.0);
+    float proj3_0 = dot(v3, g * E0);
+    float proj3_1 = dot(v3, g * E1);
+    float proj3_2 = dot(v3, g * E2);
+    v3 = v3 + proj3_0 * E0 - proj3_1 * E1 - proj3_2 * E2;
+    float v3_len = sqrt(dot(v3, g * v3));
+    E3 = v3 / v3_len;
 }
 // -----------------------------------------------------------------------------
 // 吸积盘与喷流 (保留原有逻辑，仅适配输入)
@@ -692,40 +751,98 @@ void main()
     // 在确定了起始位置 RayPosWorld (可能是相机位置，也可能是快进后的位置) 后，初始化四维动量。
     // 求解 g_uv v^u v^v = 0 得到 dx/dt 的系数 k
     
+// --- 3. 物理动量初始化 (Momentum Initialization) ---
+
+// --- 3. 物理动量初始化 (Momentum Initialization) ---
     vec4 X = vec4(RayPosWorld, 0.0); // t=0
     vec4 P_cov = vec4(0.0); // 协变动量
     
     if (bShouldContinueMarchRay) 
     {
-        // 获取正度规 g_uv
-        mat4 g = GetKerrMetric(X, PhysicalSpinA,GravityFade); 
+        // 1. 获取度规
+        mat4 g_cov = GetKerrMetric(X, PhysicalSpinA, GravityFade); 
         
-        vec3 D = RayDirWorld;
+        // 2. 检查静态观测者是否存在
+        // 静态观测者要求 g_tt < 0。在能层内 (g_tt > 0) 无法静止。
+        float g_tt = g_cov[3][3];
         
-        // 解方程: g_00 + 2*k*g_0i*D^i + k^2*g_ij*D^i*D^j = 0
-        // 注意 GLSL 矩阵是列主序，下标访问是 [col][row]
-        // g_tt = g[3][3], g_ti = g[i][3] (或者 g[3][i] 对称), g_ij = g[j][i]
-        
-        // A = g_ij D^i D^j
-        float A = dot(D, (mat3(g) * D)); 
-        // B = 2 * g_ti D^i (注意 g 的第4列 g[3] 对应 t, 包含了 (gtx, gty, gtz, gtt))
-        float B = 2.0 * dot(vec3(g[0][3], g[1][3], g[2][3]), D);
-        // C = g_tt
-        float C = g[3][3];
-        
-        float discrim = B*B - 4.0*A*C;
-        // 如果判别式<0，说明此处无法形成零测地线（非常罕见，除非在能层内且方向极端），取max防止NaN
-        float k = (-B + sqrt(max(0.0, discrim))) / (2.0 * A);
-        
-        vec4 V_contra = vec4(k * D, 1.0); // v^u = (k*dir, 1.0)
-        P_cov = g * V_contra; // p_u = g_uv v^v
+        // 我们设置一个稍宽的阈值 (-0.001) 以平滑过渡
+        if (g_tt < -0.001) 
+        {
+            // --- A. 构建静态观测者四维速度 U ---
+            // U^u = (Ut, 0, 0, 0). 归一化 U.U = -1 => g_tt * Ut^2 = -1
+            float Ut = 1.0 / sqrt(-g_tt);
+            vec4 U_contra = vec4(0.0, 0.0, 0.0, Ut);
+
+            // --- B. 分解相机视线 ---
+            // RayDirWorld 是相机在平直背景下的视线方向
+            vec3 CamDir = normalize(RayDirWorld);
+            vec3 RadialDir = vec3(0.0, 1.0, 0.0); // 默认防除零
+            if (length(RayPosWorld) > 0.01) {
+                RadialDir = normalize(RayPosWorld);
+            }
+            
+            // 分解为径向分量 (cosTheta) 和 切向矢量 (TanDir)
+            float cosTheta = dot(CamDir, RadialDir);
+            vec3 TanDir = CamDir - cosTheta * RadialDir; // 纯切向部分
+            float tanLength = length(TanDir);
+            
+            // --- C. 构建物理上的径向单位矢量 e_r ---
+            // 在坐标系中，径向方向是 R_raw = (Pos, 0)
+            // 我们需要将其对 U 正交化并归一化
+            vec4 R_raw = vec4(RadialDir, 0.0);
+            
+            // 正交化: e_r = R_raw - (R_raw . U / U . U) * U
+            // 因为 U.U = -1, 所以是 + (R_raw . U) * U
+            // 辅助点积: dot(A, g*B)
+            float R_dot_U = dot(R_raw, g_cov * U_contra);
+            vec4 e_r = R_raw + R_dot_U * U_contra;
+            
+            // 归一化: e_r = e_r / sqrt(e_r . e_r)
+            float e_r_norm2 = dot(e_r, g_cov * e_r);
+            e_r = e_r / sqrt(max(e_r_norm2, 1e-6));
+
+            // --- D. 构建物理上的切向矢量 e_tan ---
+            // 切向矢量也需要正交化 (应对自旋引起的空间拖曳 g_tphi != 0)
+            vec4 T_raw = vec4(TanDir, 0.0);
+            float T_dot_U = dot(T_raw, g_cov * U_contra);
+            vec4 e_tan = T_raw + T_dot_U * U_contra;
+            
+            // 恢复切向矢量的长度 (保持欧几里得长度，避免畸变)
+            float e_tan_norm2 = dot(e_tan, g_cov * e_tan);
+            if (e_tan_norm2 > 1e-8) {
+                e_tan = e_tan * (tanLength / sqrt(e_tan_norm2));
+            }
+
+            // --- E. 合成光子动量 ---
+            // P = U (能量) + cosTheta * e_r (径向动量) + e_tan (切向动量)
+            // 这样，当 cosTheta=1 (背对黑洞) 时，我们完全沿着 e_r 发射
+            // 当 cosTheta=0 (切向) 时，我们完全沿着 e_tan 发射
+            vec4 V_contra = U_contra + cosTheta * e_r + e_tan;
+            
+            P_cov = g_cov * V_contra;
+        }
+        else 
+        {
+            // --- 回退模式 (能层内) ---
+            // 接近或进入视界/能层时，无法维持静态。
+            // 使用标准坐标相机以保证连续性。
+            vec3 D = RayDirWorld;
+            float A = dot(D, (mat3(g_cov) * D)); 
+            float B = 2.0 * dot(vec3(g_cov[0][3], g_cov[1][3], g_cov[2][3]), D);
+            float C = g_cov[3][3];
+            float discrim = B*B - 4.0*A*C;
+            float k = (-B + sqrt(max(0.0, discrim))) / (2.0 * A);
+            vec4 V_contra = vec4(k * D, 1.0);
+            P_cov = g_cov * V_contra;
+        }
     }
-    
     // --- 4. 循环变量准备 ---
     vec3 LastRayPos = RayPosWorld;
     vec3 LastRayDir = RayDirWorld; // 用于多普勒计算和背景采样
     int Count = 0;
-    
+    vec3  PrevSpatialVelocity = vec3(0.0);
+    float PrevDLambda         = 0.0;
     // --- 5. 光线追踪主循环 (Geodesic Integration) ---
     
     while (bShouldContinueMarchRay)
@@ -744,7 +861,7 @@ void main()
         // 落入检查: 进入视界
         float CurrentKerrR = KerrSchildRadius(CurrentPos, PhysicalSpinA);
         
-        if (CurrentKerrR < 0.9*TerminationR && abs(iSpin)<=1.0) {
+        if (CurrentKerrR < TerminationR && abs(iSpin)<=1.0) {
             bShouldContinueMarchRay = false;
             bWaitCalBack = false; // 确实落入黑洞
             break;
@@ -874,7 +991,7 @@ void main()
         }
         
         // 6.2 混合背景
-        Result += 0.7 * TexColor * (1.0 - Result.a);
+        Result += 0.9999 * TexColor * (1.0 - Result.a);
     }
 
     // --- 7. 色调映射与 TAA (保留原逻辑) ---
