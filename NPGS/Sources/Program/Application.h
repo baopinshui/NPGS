@@ -93,6 +93,7 @@ private:
 
 
     std::unique_ptr<System::Spatial::FCamera> _FreeCamera;
+    glm::vec3 LastCameraWorldPos = glm::vec3(0.0f); // 用于记录上一帧位置
     bool _bLeftMousePressedInWorld = false;
     bool _bIsDraggingInWorld = false;
     double CurrentTime = 0.0;

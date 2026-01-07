@@ -237,7 +237,9 @@ void FApplication::ExecuteMainRender()
     AssetManager->AddAsset<Art::FTextureCube>(
         "Background", TextureAllocationCreateInfo, "UNSkybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
         vk::ImageCreateFlagBits::eMutableFormat, true, false);
-
+    AssetManager->AddAsset<Art::FTextureCube>(
+        "Antiground", TextureAllocationCreateInfo, "Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        vk::ImageCreateFlagBits::eMutableFormat, true, false);
 	AssetManager->AddAsset<Art::FTexture2D>(
 		"RKKV", TextureAllocationCreateInfo, "ButtonMap/rkkv0.png", vk::Format::eR8G8B8A8Unorm,
 		vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
@@ -264,6 +266,7 @@ void FApplication::ExecuteMainRender()
     auto* GaussBlurShader = AssetManager->GetAsset<Art::FShader>("GaussBlur");
     auto* BlendShader = AssetManager->GetAsset<Art::FShader>("Blend");
     auto* Background = AssetManager->GetAsset<Art::FTextureCube>("Background");
+    auto* Antiground = AssetManager->GetAsset<Art::FTextureCube>("Antiground");
     auto* RKKV = AssetManager->GetAsset<Art::FTexture2D>("RKKV");
     auto* stage0 = AssetManager->GetAsset<Art::FTexture2D>("stage0");
     auto* stage1 = AssetManager->GetAsset<Art::FTexture2D>("stage1");
@@ -282,7 +285,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,
@@ -331,6 +334,10 @@ void FApplication::ExecuteMainRender()
         ImageInfos.clear();
         ImageInfos.push_back(Background->CreateDescriptorImageInfo(Sampler));
         BlackHoleShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Antiground->CreateDescriptorImageInfo(Sampler));
+        BlackHoleShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
         ImageInfos.clear();
         ImageInfos.push_back(BlackHoleImageInfo);
@@ -601,6 +608,8 @@ void FApplication::ExecuteMainRender()
         // Uniform update
         // --------------
         _FreeCamera->SetFov(cfov);
+
+
         {
             float Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
             if (FrameCount == 0)
@@ -618,6 +627,7 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
                 BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+                BlackHoleArgs.UniverseSign = 1.0;
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
                 BlackHoleArgs.Spin = 0.0f;
@@ -678,7 +688,33 @@ void FApplication::ExecuteMainRender()
             // 注意：Shader中 Rs=1.0 对应 M=0.5。这里我们保持量纲一致，用真实的 Rs。
             float M = 0.5f * Rs;
             float a = BlackHoleArgs.Spin * M; // 物理自旋量 a = J/M
+            float a2 = a * a;
 
+            // 获取当前帧相机世界坐标
+            glm::vec3 currentPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
+            if (LastCameraWorldPos.y * currentPos.y < 0.0f&& FrameCount>0)
+            {
+                // 1. 计算与 Y=0 平面的交点插值系数 t
+                // y_last + t * (y_curr - y_last) = 0  =>  t = y_last / (y_last - y_curr)
+                float denom = LastCameraWorldPos.y - currentPos.y;
+                if (std::abs(denom) > 1e-9f)
+                {
+                    float t = LastCameraWorldPos.y / denom;
+
+                    // 2. 计算交点在 XZ 平面上的投影半径平方
+                    float intersectX = LastCameraWorldPos.x + t * (currentPos.x - LastCameraWorldPos.x);
+                    float intersectZ = LastCameraWorldPos.z + t * (currentPos.z - LastCameraWorldPos.z);
+                    float rho2 = intersectX * intersectX + intersectZ * intersectZ;
+
+                    // 3. 判定：如果交点在奇环半径 a 之内，翻转宇宙符号
+                    if (rho2 < a2)
+                    {
+                        BlackHoleArgs.UniverseSign *= -1.0f;
+                    }
+                }
+            }
+            // 更新上一帧位置记录
+            LastCameraWorldPos = currentPos;
             // 3. 从 KS 坐标 (x,y,z) 求解 BL 半径 r
             // 假设 Y 轴为自旋轴，方程为: r^4 - (R^2 - a^2)r^2 - a^2*y^2 = 0
             float x2 = pos.x * pos.x;
@@ -691,7 +727,7 @@ void FApplication::ExecuteMainRender()
 
             // 解一元二次方程求 r^2 (取正根)
             float r2 = 0.5f * (b + std::sqrt(b * b + 4.0f * c));
-            float r = std::sqrt(r2);
+            float r = std::sqrt(r2) * BlackHoleArgs.UniverseSign;
 
             // 4. 计算度规函数 f (shader 中的 f_raw)
             // 静止界限的定义是 g_tt = -1 + f = 0 => f = 1
