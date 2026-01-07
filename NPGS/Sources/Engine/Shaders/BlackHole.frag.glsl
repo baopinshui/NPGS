@@ -633,7 +633,7 @@ void main()
     float Fov    = tan(iFovRadians / 2.0);
     // --- 0. 物理参数准备 ---
     // (保留你原有的物理参数计算)
-    float iSpinclamp = clamp(iSpin, -0.95, 0.95);
+    float iSpinclamp = clamp(iSpin, -0.095, 0.095);
     float Zx = 1.0 + pow(1.0 - pow(iSpinclamp, 2.0), 0.333333333333333) * (pow(1.0 + pow(iSpinclamp, 2.0), 0.333333333333333) + pow(1.0 - iSpinclamp, 0.333333333333333)); 
     float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx)))) / 2.0; 
     float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); 
@@ -856,11 +856,15 @@ if (bShouldContinueMarchRay)
 
         // 5.2 步长计算 (RayStep) - 保持原有逻辑以匹配吸积盘细节
          float RayStep = 1.0;
-        
+        // 0. 起步抖动 (抗锯齿)
+        if (Count == 0) {
+            RayStep *= RandomStep(FragUv, fract(iTime * 1.0));
+        }
         // 1. 计算到奇环 (Ring Singularity) 的特征距离
         // 在你的代码中自旋轴为 Y，奇环位于 XZ 平面，半径为 PhysicalSpinA
         float rho = length(X.xz);
-        float distToRing = sqrt(X.y * X.y + pow(rho - abs(PhysicalSpinA), 2.0));
+        float distToRing = mix(sqrt(X.y * X.y + pow(rho - abs(PhysicalSpinA), 2.0)), KerrSchildRadius(X.xyz, PhysicalSpinA), clamp(smoothstep(0.45, 0.55, KerrSchildRadius(CurrentPos, PhysicalSpinA))-10.0*max(abs(iSpin)-1.0,0.0),0.0,1.0));
+
         
         // 2. 基础步长缩放因子 (远场线性增长，近场高精度)
         // 使用 distToRing 代替 DistanceToBlackHole 以适配裸奇环几何
@@ -873,18 +877,41 @@ if (bShouldContinueMarchRay)
         float smoothT = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
         
         // 混合近场逻辑与远场逻辑
-        RayStep = mix(baseScaleNear, baseScaleFar, smoothT);
+        RayStep *= mix(baseScaleNear, baseScaleFar, smoothT);
 
         // 4. 吸积盘细节权重 (自适应噪声频率)
         // 保证在吸积盘区域步长足够小以捕捉体积云噪声，同时保持平滑
         float diskWeight = 0.15 + 0.25 * clamp(0.5 * (0.5 * distToRing / max(10.0, SmallStepBoundary) - 1.0), 0.0, 1.0);
         RayStep *= diskWeight;
 
-        // 5. 起步抖动 (抗锯齿)
-        if (Count == 0) {
-            RayStep *= RandomStep(FragUv, fract(iTime * 1.0));
-        }
-        
+//{
+//            // 获取当前的 Kerr-Schild 半径 r
+//            float r_ks = KerrSchildRadius(X.xyz, PhysicalSpinA);
+//            float r2_ks = r_ks * r_ks;
+//            float a2 = PhysicalSpinA * PhysicalSpinA;
+//
+//            // 计算标量因子 f (对应你 GetKerrMetric 中的 f，2M=1)
+//            // f = 2Mr^3 / (r^4 + a^2 y^2)
+//            float f_scalar = (r2_ks * r_ks) / (r2_ks * r2_ks + a2 * X.y * X.y);
+//
+//            // 在 Kerr-Schild 坐标下，ZAMO 相对于坐标网格的移动速度 v^i = -beta^i
+//            // 其中 beta^i = (f / (1+f)) * l^i。
+//            // 我们只提取其中的“拖拽”（旋转）分量，即 l^i 中包含 a 的项：
+//            // l^x_rot = (a * z) / (r^2 + a^2)
+//            // l^z_rot = (-a * x) / (r^2 + a^2)
+//            // 因此 ZAMO 的旋转线速度分量 v_drag^i 为：
+//            float drag_denom = 1.0 / (r2_ks + a2);
+//            vec3 V_drag = (f_scalar / (1.0 + f_scalar)) * PhysicalSpinA * drag_denom * vec3(-X.z, 0.0, X.x);
+//
+//            // 计算光子瞬时方向与拖拽流的点积
+//            // LastRayDir 是归一化的光线方向，V_drag 是 ZAMO 的局部物理线速度（单位 c）
+//            float DragAlignment = dot(LastRayDir, V_drag);
+//
+//            if (DragAlignment < 0.0) 
+//            {
+//                //RayStep *= (1.0 - 0.8*DragAlignment);
+//            }
+//        }
         // 5.3 物理积分 (Hamiltonian Step)
         // 将 RayStep 用作仿射参数步长 dLambda
         // 对于光子，在远场 |dx/dlambda| ≈ 1，所以 dLambda ≈ dLocalDistance
@@ -901,7 +928,7 @@ if (bShouldContinueMarchRay)
         // 这确保了 Δx 和 Δt 都不会超过 RayStep 的数量级。
         float V_4d_Sum = length(V_contra.xyz) + abs(V_contra.w);
         float dLambda = 2.0*RayStep / max(V_4d_Sum, 1e-8);
-
+       
         // 记录积分前的位置
         vec3 PreStepPos = X.xyz;
         
@@ -921,11 +948,11 @@ if (bShouldContinueMarchRay)
         Result = DiskColor(Result, ActualStepLength, PostStepPos, PreStepPos, InstantDir, LastRayDir,
                            vec3(0.0), DiskNormalWorld, DiskTangentWorld,
                            iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-                           iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax,clamp(PhysicalSpinA,-0.49,0.49));
+                           iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax,clamp(PhysicalSpinA,-0.049,0.049));
        
         Result = JetColor(Result, ActualStepLength, PostStepPos, PreStepPos, InstantDir, LastRayDir,
                           vec3(0.0), DiskNormalWorld, DiskTangentWorld,
-                          iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax,clamp(PhysicalSpinA,-0.49,0.49));
+                          iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax,clamp(PhysicalSpinA,-0.049,0.049));
 
         // 5.6 不透明度检查
         if (Result.a > 0.99) {
