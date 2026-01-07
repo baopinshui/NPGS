@@ -672,29 +672,41 @@ void FApplication::ExecuteMainRender()
            // }
            // _FreeCamera->ProcessMouseMovement(10, 0);
             std::cout << glm::length(_FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)) / Rs << std::endl;;
-            // 1. 获取位置向量和距离比值 r_norm
             glm::vec3 pos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
-            float r = glm::length(pos);
-            float r_norm = r / Rs;
 
-            // 2. 获取无量纲自旋 a_star
-            float a_star = BlackHoleArgs.Spin;
+            // 2. 物理参数准备
+            // 注意：Shader中 Rs=1.0 对应 M=0.5。这里我们保持量纲一致，用真实的 Rs。
+            float M = 0.5f * Rs;
+            float a = BlackHoleArgs.Spin * M; // 物理自旋量 a = J/M
 
-            // 3. 计算 cos(theta)。由于自转轴是 Y，cos(theta) = pos.y / |pos|
-            // 注意防止除以 0
-            float cosTheta = (r > 1e-6f) ? (pos.y / r) : 0.0f;
-            float cos2Theta = cosTheta * cosTheta;
+            // 3. 从 KS 坐标 (x,y,z) 求解 BL 半径 r
+            // 假设 Y 轴为自旋轴，方程为: r^4 - (R^2 - a^2)r^2 - a^2*y^2 = 0
+            float x2 = pos.x * pos.x;
+            float y2 = pos.y * pos.y;
+            float z2 = pos.z * pos.z;
+            float R2 = x2 + y2 + z2; // 欧氏距离平方
 
-            // 4. 计算静态极限面和外视界的边界值 (已归一化到 Rs)
-            float a2 = a_star * a_star;
-            float static_limit = 0.5f * (1.0f + std::sqrt(1.0f - a2 * cos2Theta));
-            float horizon = 0.5f * (1.0f + std::sqrt(1.0f - a2));
+            float b = R2 - a * a;
+            float c = a * a * y2;
 
-            // 5. 判断是否在能层内 (在视界之外，且在静态极限面之内)
-            bool isInErgosphere = (r_norm < static_limit) && (r_norm > horizon);
+            // 解一元二次方程求 r^2 (取正根)
+            float r2 = 0.5f * (b + std::sqrt(b * b + 4.0f * c));
+            float r = std::sqrt(r2);
 
-            std::cout << (isInErgosphere ? "True" : "False") << std::endl;
-            
+            // 4. 计算度规函数 f (shader 中的 f_raw)
+            // 静止界限的定义是 g_tt = -1 + f = 0 => f = 1
+            float f = (2.0f * M * r * r2) / (r2 * r2 + a * a * y2);
+
+            // 5. 计算外视界半径 (用于排除掉视界内部)
+            // r_plus = M + sqrt(M^2 - a^2)
+            float horizon_r = M + std::sqrt(std::max(0.0f, M * M - a * a));
+
+            // 6. 判断是否在能层内
+            // 条件：f > 1.0 (进入静止界限) 且 r > horizon_r (还没掉进视界)
+            bool isInErgosphere = (f > 1.0f) && (r > horizon_r);
+
+            std::cout << (isInErgosphere ? "True" : "False")
+                << std::endl;
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
             _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);

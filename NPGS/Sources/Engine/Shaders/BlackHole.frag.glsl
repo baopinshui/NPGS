@@ -402,9 +402,14 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
             float AngularVelocity  = GetKeplerianAngularVelocity(PosR, 1.0, Spin);
             float HalfPiTimeInside = kPi / GetKeplerianAngularVelocity(3.0, 1.0, Spin);
 
-            // 纹理映射使用 atan(z, x)。在 KS 坐标下，这已经包含了“空间拖曳”的扭曲效果，
-            // 所以直接使用 PosOnDisk.z/x 不需要去拖曳它，视觉上反而更符合物理直觉。
-            float SpiralTheta=12.0*2.0/sqrt(3.0)*(atan(sqrt(0.6666666*(PosR)-1.0)));
+            float BH_M = 0.5; // Rs = 1.0, 所以 M = 0.5
+            
+// 1. 准备中间变量
+float u = sqrt(PosR);
+// 计算 k = (a*sqrt(M))^(1/3)。加入 1e-8 防止 Spin=0 时除零崩溃
+float s = Spin * 0.70710678; // 0.7071... 是 sqrt(0.5)
+float k = sign(s) * pow(max(abs(s), 1e-8), 1.0/3.0);
+float SpiralTheta = 0.0;
             float InnerTheta= kPi / HalfPiTimeInside *iBlackHoleTime ;
             float PosThetaForInnerCloud = Vec2ToTheta(PosOnDisk.zx, vec2(cos(0.666666*InnerTheta),sin(0.666666*InnerTheta)));
             float PosTheta            = Vec2ToTheta(PosOnDisk.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
@@ -643,7 +648,7 @@ void main()
     // 物理自旋参数
     float PhysicalSpinA = iSpin * CONST_M;
     float EventHorizonR = 0.5 + sqrt(max(0.0, 0.25 - PhysicalSpinA * PhysicalSpinA));
-    float TerminationR = EventHorizonR * 0.98;
+    float TerminationR = EventHorizonR ;
     // --- 1. 相机光线生成 ---
     vec2 Jitter = vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)), RandomStep(FragUv, fract(iTime * 1.0))) / iResolution;
     vec3 ViewDirLocal = FragUvToDir(FragUv + 0.5 * Jitter, Fov, iResolution);
@@ -651,12 +656,8 @@ void main()
     // 转换到世界空间方向
     vec3 RayDirWorld = normalize((iInverseCamRot * vec4(ViewDirLocal, 0.0)).xyz);
     
-    // [第一步] 获取相机的“直觉位置” (Boyer-Lindquist 坐标)
     vec3 CamToBHVecVisual = (iInverseCamRot * vec4(iBlackHoleRelativePosRs.xyz, 0.0)).xyz;
     vec3 RayPosVisual = -CamToBHVecVisual;
-    // [第二步] 关键修改：应用坐标映射 (BL -> KS)
-    // 这行代码确保当 a 增大时，RayPosWorld 会自动调整，
-    // 使得相机在物理上保持在能层之外（如果 RayPosVisual 本身在 2M 之外）。
     vec3 RayPosWorld = RayPosVisual;//TransformBLtoKS(RayPosVisual, PhysicalSpinA);
     
     // 吸积盘参数转换
@@ -705,55 +706,109 @@ void main()
         }
     }
     // --- 3. 物理动量初始化 ---
-    vec4 X = vec4(RayPosWorld, 0.0); 
-    vec4 P_cov = vec4(0.0); 
+    // 严谨的 Gram-Schmidt 正交化构建局部标架 (Tetrad)
     
-    if (bShouldContinueMarchRay) 
+vec4 X = vec4(RayPosWorld, 0.0);
+vec4 P_cov = vec4(0.0);
+
+if (bShouldContinueMarchRay) 
+{
+    mat4 g_cov = GetKerrMetric(X, PhysicalSpinA, GravityFade); 
+    float g_tt = g_cov[3][3];
+
+    if (g_tt < 0) 
     {
-        float r_ks = KerrSchildRadius(X.xyz, PhysicalSpinA);
-        float r2 = r_ks * r_ks;
-        float a2 = PhysicalSpinA * PhysicalSpinA;
-        float inv_denom = 1.0 / (r2 + a2);
+        // === 1. 平直空间准备 ===
+        vec3 R_flat = normalize(RayPosWorld);
+        vec3 View_flat = normalize(RayDirWorld);
         
-        // 计算 L 向量 (假设 Y 轴为自旋轴)
-        float lx = (r_ks * X.x + PhysicalSpinA * X.z) * inv_denom;
-        float ly = X.y / r_ks;
-        float lz = (r_ks * X.z - PhysicalSpinA * X.x) * inv_denom;
-        vec3 L = vec3(lx, ly, lz);
+        float cosTheta = dot(View_flat, R_flat);
+        float sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
         
-        float f_raw = (2.0 * CONST_M * r_ks * r2) / (r2 * r2 + a2 * X.y * X.y) * GravityFade;
-        
-        // 限制 f 以防止能层内的数值崩溃
-        float f_safe =f_raw; 
-        
-        float Pt = -sqrt(1.0 - f_safe);
-        
-        vec3 D = normalize(RayDirWorld);
-        float lambda = clamp(dot(D, L), -1.0, 1.0); 
-        
-        float A = 1.0 - f_safe * lambda * lambda;
-        float B = 2.0 * f_safe * lambda * Pt;
-        float C = -Pt * Pt * (1.0 + f_safe);
-        
-        float Disc = B * B - 4.0 * A * C;
-        
-        // 求解动量
-        if(Disc >= 0.0) {
-            float sqrtDisc = sqrt(Disc);
-            float k = (-B + sqrtDisc) / (2.0 * A);
-            k = abs(k); 
-            P_cov = vec4(k * D, Pt);
+        // 获取初始切向 T (尚未正交化)
+        vec3 T_flat;
+        if (sinTheta < 1e-5) {
+            vec3 arb = (abs(R_flat.y) > 0.9) ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+            T_flat = normalize(cross(R_flat, arb));
         } else {
-            // 极其罕见的情况，通常被 f_safe 避免了
-            bShouldContinueMarchRay = false;
-            bWaitCalBack = false; 
+            T_flat = (View_flat - cosTheta * R_flat) / sinTheta;
         }
-        // 如果原始位置依然在能层内 (例如用户手动设置半径 < 2.0)，标记停止
-        if (f_raw > 1.0) {
-             bShouldContinueMarchRay = false;
-             bWaitCalBack = false; // 或者 true，取决于你想显示什么
-        }
+
+        // === 2. 提取核心参数 ===
+        float D = -g_tt; // 正数，极小
+        vec3 g_ti = g_cov[3].xyz;
+        mat3 g_sp = mat3(g_cov);
+
+        // 投影量
+        float K_r = dot(g_ti, R_flat);
+        float K_t = dot(g_ti, T_flat);
+        
+        vec3 gS_r = g_sp * R_flat;
+        vec3 gS_t = g_sp * T_flat;
+        
+        float S_rr = dot(R_flat, gS_r);
+        float S_tt = dot(T_flat, gS_t);
+        float S_rt = dot(R_flat, gS_t);
+
+        // === 3. 构建高精度正交基底 (Analytic Gram-Schmidt) ===
+        
+        // --- 径向基底 (和 Code 2 一样) ---
+        // Num_R = K_r * g_ti + D * gS_r
+        vec3 Num_R = K_r * g_ti + D * gS_r;
+        float NormSq_R = max(K_r * K_r + D * S_rr, 1e-20);
+        float InvNorm_R = inversesqrt(NormSq_R);
+
+        // --- 切向基底 (代数消除奇异性) ---
+        // 我们不执行 Code 2 中的减法，而是直接计算减法后的解析结果。
+        // 理论公式：Num_T = (D / NormSq_R) * Residual_Vec
+        // Residual_Vec 是 O(1) 量级的稳定矢量，没有大数相减。
+        
+        // 计算交叉项因子 (Cross Factor)
+        float CrossTerm = K_t * S_rr - K_r * S_rt;
+        float Overlap = K_r * K_t + D * S_rt;
+
+        // Residual_Vec 构造：
+        // 1. 沿 g_ti 方向的分量 (由 CrossTerm 控制)
+        // 2. 沿纯空间方向的分量 (正交化投影)
+        vec3 Res_T = CrossTerm * g_ti + (NormSq_R * gS_t - Overlap * gS_r);
+
+        // 计算 Residual 对应的模长平方 (多项式展开，避免精度丢失)
+        // 这是 Code 1 中的 "Core" 部分，但在 Kerr 中需要完整的展开
+        float Core_Norm = S_tt * K_r*K_r + S_rr * K_t*K_t - 2.0 * S_rt * K_r * K_t;
+        // 添加 O(D) 的高阶修正项
+        float PolyNorm = max(Core_Norm + D * (S_tt * S_rr - S_rt * S_rt), 1e-20);
+
+        // === 4. 组合动量 ===
+        // 目标：P_cov = (g_ti + cos*E_r + sin*E_t) / sqrt(D)
+        // 其中 E_t 是归一化的切向基底。
+        
+        // 关键缩放推导：
+        // 真实的 Num_T = (D / NormSq_R) * Res_T
+        // 真实的 NormSq_T = (D / NormSq_R)^2 * (NormSq_R / D) * PolyNorm = (D / NormSq_R) * PolyNorm
+        // 归一化基底 E_t = Num_T / sqrt(NormSq_T) 
+        //               = Res_T * sqrt(D / (NormSq_R * PolyNorm))
+        
+        // 注意：这里 E_t 的长度包含 sqrt(D)，这在 Kerr 视界附近是物理预期的 (切向动量红移)。
+        
+        float Scale_T = sqrt(D / (NormSq_R * PolyNorm));
+        
+        // 组合分子 (Total Spatial Momentum Numerator)
+        // Total = g_ti + cos * Dir_R + sin * Res_T * Scale_T
+        vec3 Total_Spatial = g_ti + 
+                             cosTheta * Num_R * InvNorm_R + 
+                             sinTheta * Res_T * Scale_T;
+
+        // 时间分量固定
+        P_cov.w = -sqrt(D);
+        // 空间分量统一除以 sqrt(D)
+        P_cov.xyz = Total_Spatial * inversesqrt(D);
     }
+    else 
+    {
+        bShouldContinueMarchRay = false;
+        Result = vec4(0.0); 
+    }
+}
     // --- 4. 循环变量准备 ---
     vec3 LastRayPos = RayPosWorld;
     vec3 LastRayDir = RayDirWorld; 
@@ -867,7 +922,7 @@ void main()
                            vec3(0.0), DiskNormalWorld, DiskTangentWorld,
                            iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
                            iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax,clamp(PhysicalSpinA,-0.49,0.49));
-
+       
         Result = JetColor(Result, ActualStepLength, PostStepPos, PreStepPos, InstantDir, LastRayDir,
                           vec3(0.0), DiskNormalWorld, DiskTangentWorld,
                           iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax,clamp(PhysicalSpinA,-0.49,0.49));
