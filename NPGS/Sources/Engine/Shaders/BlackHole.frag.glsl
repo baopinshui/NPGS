@@ -335,8 +335,9 @@ void StepGeodesicEuler(inout vec4 X, inout vec4 P, float dt, float a, float fade
     // 更新位置 (使用新动量)
     mat4 g_inv = GetInverseKerrMetric(X, a, fade, r_sign);
     X = X + dt * (g_inv * P);
-     ApplyHamiltonianCorrection(P, X, a, fade, r_sign);
+    ApplyHamiltonianCorrection(P, X, a, fade, r_sign);
 }
+
 // =============================================================================
 // 吸积盘与喷流
 // =============================================================================
@@ -835,40 +836,54 @@ void main()
         if (CurrentUniverseSign > 0.0 && CurrentKerrR < TerminationR && abs(iSpin) <= 1.0) { bShouldContinueMarchRay = false; bWaitCalBack = false; break; }
         
         // RK4 使得我们可以使用大步长，减少迭代次数
-        if ((Count > 150&&!bIsNakedSingularity)||(Count > 450&&bIsNakedSingularity)) { bShouldContinueMarchRay = false; bWaitCalBack = true; break; }
-
-        float rho = length(RayPos.xz);
-        float RayStep;
-        bool useSymplecticEuler = false;
-        if (bIsNakedSingularity && abs(CurrentKerrR) < InnerRegionBoundary) {
-            // [区域 1: 裸奇点内部区域] 使用指定的优化公式 + 辛欧拉
-            useSymplecticEuler = true;            
-            RayStep = mix(0.15, 0.5, smoothstep(0.3, 0.5, abs(CurrentKerrR))) * sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
-
-        } else {
-            // [区域 2: 外部区域或正常黑洞] 使用默认 RK4 步长策略
-            useSymplecticEuler = false;
-            // 外部区域使用宽松的 RK4 步长系数
-            RayStep = 0.5 * sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
-            if (Count == 0) RayStep *= RandomStep(FragUv, fract(iTime));
-            RayStep = max(RayStep, 0.02);
+        if ((Count > 150 && !bIsNakedSingularity) || (Count > 450 && bIsNakedSingularity)) { 
+            bShouldContinueMarchRay = false; bWaitCalBack = true; break; 
         }
+        float rho = length(RayPos.xz);
+        float DistRing = sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
+        
+        // 1. 计算基础步长 (Spatial Step)
+        // 我们不在这里切换算法，只计算光线这一步要在空间中前进多远
+        float StepFactor;
+        if (bIsNakedSingularity) {
+            // DistRing 在奇环处为0，向外逐渐增加
+            float GeoFactor = smoothstep(0.0, 0.6, DistRing);
+            // RFactor 防止在 r=0 处步长过大
+            float RFactor   = smoothstep(0.0, 0.8, abs(CurrentKerrR)); 
+            
+            float Safety = min(GeoFactor, RFactor);
+            // 3. 计算最终 StepFactor (连续)
+            
+            // 基础步长：根据距离奇点的远近，在 0.05 到 0.5 之间变化
+            float BaseSpeed = mix(0.1, 0.5, pow(Safety, 0.6));
+
+            
+            StepFactor = BaseSpeed;// * PenaltyMult;
+            
+   
+            
+        } else 
+        {
+            // 普通黑洞
+            StepFactor = 0.5;
+        }
+        float RayStep = StepFactor * DistRing;
+
+        if (Count == 0) RayStep *= RandomStep(FragUv, fract(iTime));
+        RayStep = max(RayStep, 0.001); // 最小步长保护
+      
         LastPos = X.xyz; 
         
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
+        
+        // 准备积分参数
         mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, GravityFade, CurrentUniverseSign);
         vec4 V_contra = g_inv * P_cov;
         
-        // 转换空间步长 RayStep 为仿射参数 dLambda
-        // |V| dLambda = RayStep  => dLambda = RayStep / |V|
-        float V_mag = length(V_contra.xyz); // 空间速度模长
-        float dLambda = RayStep / max(V_mag, 1e-4);
-        if (useSymplecticEuler) {
-            StepGeodesicEuler(X, P_cov, dLambda, PhysicalSpinA, GravityFade, CurrentUniverseSign);
-        } else 
-        {
-            StepGeodesicRK4(X, P_cov, dLambda, PhysicalSpinA, GravityFade, CurrentUniverseSign);
-        }
+        float V_mag = length(V_contra.xyz); 
+        float dLambda_Total = RayStep / max(V_mag, 1e-6);
+        StepGeodesicRK4(X, P_cov, dLambda_Total, PhysicalSpinA, GravityFade, CurrentUniverseSign);
+        //ApplyHamiltonianCorrection(P_cov, X, PhysicalSpinA, GravityFade, CurrentUniverseSign);
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
         float ActualStepLength = length(StepVec);
@@ -884,10 +899,10 @@ void main()
         // ==========================================
             if (CurrentUniverseSign > 0.0) {
                 // 注意：RayPos 是 RK4 步进的终点，LastPos 是起点
-                Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-                                   iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-                                   iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, clamp(PhysicalSpinA,-0.49,0.49));
-                 
+               //Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
+               //                   iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
+               //                   iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, clamp(PhysicalSpinA,-0.49,0.49));
+               // 
                 // JetColor 保持原样 (如果需要同样的优化，也可以将循环逻辑复制进去，但通常吸积盘对精度要求最高)
                 //Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
                 //                  iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, clamp(PhysicalSpinA,-0.049,0.049));
