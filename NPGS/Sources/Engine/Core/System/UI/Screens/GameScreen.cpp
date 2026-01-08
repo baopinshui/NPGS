@@ -114,6 +114,7 @@ void GameScreen::OnEnter()
         menu->AddThrottle("Fov", &cfov);
         menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol);
         menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);
+        menu->AddThrottle("Q", &BlackHoleArgs.Q, 0.1f);
         menu->AddThrottle("Mu", &BlackHoleArgs.Mu);
         menu->AddThrottle("AccretionRate", &BlackHoleArgs.AccretionRate);
         menu->AddThrottle("InterRadiusLy", &BlackHoleArgs.InterRadiusRs);

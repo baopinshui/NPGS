@@ -58,6 +58,7 @@ struct FBlackHoleArgs
     float BlackHoleTime;
     float BlackHoleMassSol;
     float Spin;
+    float Q;
     float Mu;
     float AccretionRate;
     float InterRadiusRs;
