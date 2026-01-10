@@ -31,8 +31,8 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     float iUniverseSign;                 // +1.0 or -1.0
     float iBlackHoleTime;
     float iBlackHoleMassSol;
-    float iSpin;                         // [INPUT] Dimensionless Spin parameter a* (0.0 ~ 1.0)
-    float iQ;                            // [INPUT] Dimensionless Charge parameter Q* (0.0 ~ 1.0)
+    float iSpin;                         // [INPUT] Dimensionless Spin parameter a*   
+    float iQ;                            // [INPUT] Dimensionless Charge parameter Q* 
     float iMu;
     float iAccretionRate;
     float iInterRadiusRs;
@@ -205,23 +205,23 @@ const mat4 MINKOWSKI_METRIC = mat4(
 );
 
 // [INPUT] Spin/Q: Dimensional (scaled by CONST_M)
-float GetKeplerianAngularVelocity(float Radius, float Rs, float Spin, float Q) 
+float GetKeplerianAngularVelocity(float Radius, float Rs, float PhysicalSpinA, float PhysicalQ) 
 {
     float M = 0.5 * Rs; 
-    float Mr_minus_Q2 = M * Radius - Q * Q;
+    float Mr_minus_Q2 = M * Radius - PhysicalQ * PhysicalQ;
     if (Mr_minus_Q2 < 0.0) return 0.0;
     float sqrt_Term = sqrt(Mr_minus_Q2);
-    float denominator = Radius * Radius + Spin * sqrt_Term;
+    float denominator = Radius * Radius + PhysicalSpinA * sqrt_Term;
     return sqrt_Term / max(EPSILON, denominator);
 }
 
 // [MATH] Solve for r where (x^2 + z^2)/(r^2 + a^2) + y^2/r^2 = 1
 // [INPUT] a: Dimensional (scaled by CONST_M)
-float KerrSchildRadius(vec3 p, float a, float r_sign) {
+float KerrSchildRadius(vec3 p, float PhysicalSpinA, float r_sign) {
     float r_sign_len = r_sign * length(p);
-    if (a == 0.0) return r_sign_len; 
+    if (PhysicalSpinA == 0.0) return r_sign_len; 
 
-    float a2 = a * a;
+    float a2 = PhysicalSpinA * PhysicalSpinA;
     float rho2 = dot(p.xz, p.xz); // x^2 + z^2
     float y2 = p.y * p.y;
     
@@ -252,10 +252,10 @@ struct KerrGeometry {
 };
 
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out KerrGeometry geo) {
-    geo.a2 = a * a;
+void ComputeGeometry(vec3 X, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign, out KerrGeometry geo) {
+    geo.a2 = PhysicalSpinA * PhysicalSpinA;
     
-    if (a == 0.0) {
+    if (PhysicalSpinA == 0.0) {
         geo.r = length(X);
         geo.r2 = geo.r * geo.r;
         float inv_r = 1.0 / max(EPSILON, geo.r);
@@ -265,17 +265,17 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
         geo.l_up = vec4(X * inv_r, -1.0);
         geo.l_down = vec4(X * inv_r, 1.0);
         
-        geo.f = (2.0 * CONST_M * inv_r - (Q * Q) * inv_r2) * fade;
+        geo.f = (2.0 * CONST_M * inv_r - (PhysicalQ * PhysicalQ) * inv_r2) * fade;
         
         geo.grad_r = X * inv_r;
-        float df_dr = (-2.0 * CONST_M + 2.0 * Q * Q * inv_r) * inv_r2 * fade;
+        float df_dr = (-2.0 * CONST_M + 2.0 * PhysicalQ * PhysicalQ * inv_r) * inv_r2 * fade;
         geo.grad_f = df_dr * geo.grad_r;
         
         geo.inv_r2_a2 = inv_r2; 
         return;
     }
 
-    geo.r = KerrSchildRadius(X, a, r_sign);
+    geo.r = KerrSchildRadius(X, PhysicalSpinA, r_sign);
     geo.r2 = geo.r * geo.r;
     float r3 = geo.r2 * geo.r;
     float z_coord = X.y;
@@ -284,15 +284,15 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
     geo.inv_r2_a2 = 1.0 / (geo.r2 + geo.a2);
     
     // --- 计算 l^u ---
-    float lx = (geo.r * X.x + a * X.z) * geo.inv_r2_a2;
+    float lx = (geo.r * X.x + PhysicalSpinA * X.z) * geo.inv_r2_a2;
     float ly = X.y / geo.r;
-    float lz = (geo.r * X.z - a * X.x) * geo.inv_r2_a2;
+    float lz = (geo.r * X.z - PhysicalSpinA * X.x) * geo.inv_r2_a2;
     
     geo.l_up = vec4(lx, ly, lz, -1.0);
     geo.l_down = vec4(lx, ly, lz, 1.0); // Spatial same (eta_ij = delta_ij), Temporal flip (eta_tt = -1)
     
     // --- 计算 f ---
-    float num_f = 2.0 * CONST_M * r3 - Q * Q * geo.r2;
+    float num_f = 2.0 * CONST_M * r3 - PhysicalQ * PhysicalQ * geo.r2;
     float den_f = geo.r2 * geo.r2 + geo.a2 * z2;
     float inv_den_f = 1.0 / max(1e-20, den_f);
     geo.f = (num_f * inv_den_f) * fade;
@@ -312,9 +312,9 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
     
     // --- 计算 grad f (解析优化) ---
     float term_M  = -2.0 * CONST_M * geo.r2 * geo.r2 * geo.r;
-    float term_Q  = 2.0 * Q * Q * geo.r2 * geo.r2;
+    float term_Q  = 2.0 * PhysicalQ * PhysicalQ * geo.r2 * geo.r2;
     float term_Ma = 6.0 * CONST_M * geo.a2 * geo.r * z2;
-    float term_Qa = -2.0 * Q * Q * geo.a2 * z2;
+    float term_Qa = -2.0 * PhysicalQ * PhysicalQ * geo.a2 * z2;
     
     float df_dr_num_reduced = term_M + term_Q + term_Ma + term_Qa;
     float df_dr = (geo.r * df_dr_num_reduced) * (inv_den_f * inv_den_f);
@@ -329,18 +329,18 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
 // [TENSOR] Returns Contravariant Metric g^uv
 // g^uv = eta^uv - f * l^u * l^v
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-mat4 GetInverseKerrMetric(vec4 X, float a, float Q, float fade, float r_sign) {
+mat4 GetInverseKerrMetric(vec4 X, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
     KerrGeometry geo;
-    ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
+    ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, fade, r_sign, geo);
     return MINKOWSKI_METRIC - geo.f * outerProduct(geo.l_up, geo.l_up);
 }
 
 // [TENSOR] Returns Covariant Metric g_uv
 // g_uv = eta_uv + f * l_u * l_v
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-mat4 GetKerrMetric(vec4 X, float a, float Q, float fade, float r_sign) {
+mat4 GetKerrMetric(vec4 X, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
     KerrGeometry geo;
-    ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
+    ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, fade, r_sign, geo);
     return MINKOWSKI_METRIC + geo.f * outerProduct(geo.l_down, geo.l_down);
 }
 
@@ -348,9 +348,9 @@ mat4 GetKerrMetric(vec4 X, float a, float Q, float fade, float r_sign) {
 // X: Position x^u (Contravariant)
 // P: Momentum p_u (Covariant)
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-float Hamiltonian(vec4 X, vec4 P, float a, float Q, float fade, float r_sign) {
+float Hamiltonian(vec4 X, vec4 P, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
     KerrGeometry geo;
-    ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
+    ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, fade, r_sign, geo);
     
     // P^2_minkowski = P_i * P_i - P_t^2 (Using eta^uv)
     float P_sq_minkowski = dot(P.xyz, P.xyz) - P.w * P.w;
@@ -363,9 +363,9 @@ float Hamiltonian(vec4 X, vec4 P, float a, float Q, float fade, float r_sign) {
 }
 
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-float GetGtt(vec3 Pos, float a, float Q, float r_sign) {
+float GetGtt(vec3 Pos, float PhysicalSpinA, float PhysicalQ, float r_sign) {
     KerrGeometry geo;
-    ComputeGeometry(Pos, a, Q, 1.0, r_sign, geo);
+    ComputeGeometry(Pos, PhysicalSpinA, PhysicalQ, 1.0, r_sign, geo);
     // g_tt = -1 + f * l_t * l_t = -1 + f (since l_t = 1)
     return -1.0 + geo.f;
 }
@@ -383,14 +383,14 @@ vec4 LorentzBoost(vec4 P_in, vec3 v) {
 
 // [TENSOR] Returns Observer 4-Velocity U^u (Contravariant) in Kerr-Schild Frame
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-vec4 GetObserverU(vec4 X, int iObserverMode, float a, float Q, float fade, float r_sign) 
+vec4 GetObserverU(vec4 X, int iObserverMode, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) 
 {
     // Mode 1: Falling Observer (Rain Observer, ZAMO limit at infinity)
     // U_u = (0, 0, 0, -1) [Covariant]
     // U^u = g^uv * U_v = -g^u3
     if (iObserverMode == 1) 
     {
-        mat4 g_inv = GetInverseKerrMetric(X, a, Q, fade, r_sign);
+        mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, PhysicalQ, fade, r_sign);
         return -1.0 * g_inv[3]; 
     }
     
@@ -398,11 +398,11 @@ vec4 GetObserverU(vec4 X, int iObserverMode, float a, float Q, float fade, float
     // U^i = 0, U^t = 1 / sqrt(-g_tt)
     else 
     {
-        float gtt = GetGtt(X.xyz, a, Q, r_sign);
+        float gtt = GetGtt(X.xyz, PhysicalSpinA, PhysicalQ, r_sign);
         
         if (gtt >= -1e-6) // Ergosphere check
         {
-            mat4 g_inv = GetInverseKerrMetric(X, a, Q, fade, r_sign);
+            mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, PhysicalQ, fade, r_sign);
             return -1.0 * g_inv[3];
         }
         
@@ -417,13 +417,13 @@ vec4 GetInitialMomentum(
     vec4 X,
     int  iObserverMode,   // 0: static, 1: free-fall (E=1, L=0)
     float universesign,
-    float iSpin,          // Dimensional
-    float iQ,             // Dimensional
+    float PhysicalSpinA,  // Dimensional
+    float PhysicalQ,      // Dimensional
     float GravityFade
 ) {
     // --- 几何 ---
     KerrGeometry geo;
-    ComputeGeometry(X.xyz, iSpin, iQ, GravityFade, universesign, geo);
+    ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, universesign, geo);
 
     // 确保方向单位化
     vec3 n = normalize(RayDir);
@@ -437,14 +437,14 @@ vec4 GetInitialMomentum(
 
     if (iObserverMode == 0) {
         // ===== 静止观者 =====
-        float g_tt = GetGtt(X.xyz, iSpin, iQ, universesign);
+        float g_tt = GetGtt(X.xyz, PhysicalSpinA, PhysicalQ, universesign);
         float alpha = sqrt(max(EPSILON, -g_tt));
 
         // 仅时间缩放，不需要 boost
         vec4 P_up = vec4(P_local.xyz, P_local.w / alpha);
 
         // --- 降指标 ---
-        mat4 g_uv = GetKerrMetric(X, iSpin, iQ, GravityFade, universesign);
+        mat4 g_uv = GetKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, universesign);
         vec4 P_down = g_uv * P_up;
 
         // 空间反向
@@ -462,7 +462,7 @@ vec4 GetInitialMomentum(
         vec4 P_up = LorentzBoost(P_local, v);
 
         // --- 降指标 ---
-        mat4 g_uv = GetKerrMetric(X, iSpin, iQ, GravityFade, universesign);
+        mat4 g_uv = GetKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, universesign);
         vec4 P_down = g_uv * P_up;
 
         // 空间反向
@@ -493,12 +493,12 @@ struct State {
 // P: In/Out Covariant Momentum p_u
 // X: Contravariant Position x^u
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float initial_pt, float a, float Q, float fade, float r_sign) {
+void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float initial_pt, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
     P.w = -initial_pt; // Energy conservation (if applicable)
     vec3 p = P.xyz;    // Spatial components of Covariant Momentum p_i
     
     KerrGeometry geo;
-    ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
+    ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, fade, r_sign, geo);
     
     // Solving g^uv p_u p_v = 0 for scaling factor k on p_i
     float p2 = dot(p, p);
@@ -527,11 +527,11 @@ void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float initial_pt, float a,
 // Output deriv.X is dx^u / dlambda (Contravariant Velocity)
 // Output deriv.P is dp_u / dlambda (Covariant Force)
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-State GetDerivativesAnalytic(State S, float a, float Q, float fade, float r_sign) {
+State GetDerivativesAnalytic(State S, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
     State deriv;
     
     KerrGeometry geo;
-    ComputeGeometry(S.X.xyz, a, Q, fade, r_sign, geo);
+    ComputeGeometry(S.X.xyz, PhysicalSpinA, PhysicalQ, fade, r_sign, geo);
     
     // l^u * P_u
     float l_dot_P = dot(geo.l_up.xyz, S.P.xyz) + geo.l_up.w * S.P.w;
@@ -543,19 +543,19 @@ State GetDerivativesAnalytic(State S, float a, float Q, float fade, float r_sign
     // dp_u/dlambda = -dH/dx^u
     vec3 grad_A = (-2.0 * geo.r * geo.inv_r2_a2) * geo.inv_r2_a2 * geo.grad_r;
     
-    float rx_az = geo.r * S.X.x + a * S.X.z;
-    float rz_ax = geo.r * S.X.z - a * S.X.x;
+    float rx_az = geo.r * S.X.x + PhysicalSpinA * S.X.z;
+    float rz_ax = geo.r * S.X.z - PhysicalSpinA * S.X.x;
     
     vec3 d_num_lx = S.X.x * geo.grad_r; 
     d_num_lx.x += geo.r; 
-    d_num_lx.z += a;
+    d_num_lx.z += PhysicalSpinA;
     vec3 grad_lx = geo.inv_r2_a2 * d_num_lx + rx_az * grad_A;
     
     vec3 grad_ly = (geo.r * vec3(0.0, 1.0, 0.0) - S.X.y * geo.grad_r) / geo.r2;
     
     vec3 d_num_lz = S.X.z * geo.grad_r;
     d_num_lz.z += geo.r;
-    d_num_lz.x -= a;
+    d_num_lz.x -= PhysicalSpinA;
     vec3 grad_lz = geo.inv_r2_a2 * d_num_lz + rz_ax * grad_A;
     
     vec3 P_dot_grad_l = S.P.x * grad_lx + S.P.y * grad_ly + S.P.z * grad_lz;
@@ -572,30 +572,30 @@ State GetDerivativesAnalytic(State S, float a, float Q, float fade, float r_sign
 // X: Contravariant Position x^u
 // P: Covariant Momentum p_u
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float a, float Q, float fade, float r_sign) {
+void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
     State s0; s0.X = X; s0.P = P;
     
-    State k1 = GetDerivativesAnalytic(s0, a, Q, fade, r_sign);
+    State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, fade, r_sign);
     
     State s1; 
     s1.X = s0.X + 0.5 * dt * k1.X; 
     s1.P = s0.P + 0.5 * dt * k1.P;
-    State k2 = GetDerivativesAnalytic(s1, a, Q, fade, r_sign);
+    State k2 = GetDerivativesAnalytic(s1, PhysicalSpinA, PhysicalQ, fade, r_sign);
     
     State s2; 
     s2.X = s0.X + 0.5 * dt * k2.X; 
     s2.P = s0.P + 0.5 * dt * k2.P;
-    State k3 = GetDerivativesAnalytic(s2, a, Q, fade, r_sign);
+    State k3 = GetDerivativesAnalytic(s2, PhysicalSpinA, PhysicalQ, fade, r_sign);
     
     State s3; 
     s3.X = s0.X + dt * k3.X; 
     s3.P = s0.P + dt * k3.P;
-    State k4 = GetDerivativesAnalytic(s3, a, Q, fade, r_sign);
+    State k4 = GetDerivativesAnalytic(s3, PhysicalSpinA, PhysicalQ, fade, r_sign);
     
     X = s0.X + (dt / 6.0) * (k1.X + 2.0 * k2.X + 2.0 * k3.X + k4.X);
     P = s0.P + (dt / 6.0) * (k1.P + 2.0 * k2.P + 2.0 * k3.P + k4.P);
     
-    ApplyHamiltonianCorrection(P, X, E, a, Q, fade, r_sign);
+    ApplyHamiltonianCorrection(P, X, E, PhysicalSpinA, PhysicalQ, fade, r_sign);
 }
 
 // =============================================================================
@@ -607,8 +607,8 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
                float InterRadius, float OuterRadius, float Thin, float Hopper, float Brightmut, float Darkmut, float Reddening, float Saturation, float DiskTemperatureArgument,
                float BlackbodyIntensityExponent, float RedShiftColorExponent, float RedShiftIntensityExponent,
                float PeakTemperature, float ShiftMax, 
-               float Spin, // [INPUT] Dimensional Spin (scaled by CONST_M)
-               float Q,    // [INPUT] Dimensional Charge (scaled by CONST_M)
+               float PhysicalSpinA, // [INPUT] Dimensional Spin (scaled by CONST_M)
+               float PhysicalQ,     // [INPUT] Dimensional Charge (scaled by CONST_M)
                vec4 iP_cov, float iE_obs) 
 {
     vec4 CurrentResult = BaseColor;
@@ -617,8 +617,8 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
     float TotalDist = StepLength;
     float TraveledDist = 0.0;
     
-    float R_Start = KerrSchildRadius(StartPos, Spin, 1.0);
-    float R_End   = KerrSchildRadius(RayPos, Spin, 1.0);
+    float R_Start = KerrSchildRadius(StartPos, PhysicalSpinA, 1.0);
+    float R_End   = KerrSchildRadius(RayPos, PhysicalSpinA, 1.0);
     float MinR = min(R_Start, R_End);
     float MaxR = max(R_Start, R_End);
     float MinAbsY = min(abs(StartPos.y), abs(RayPos.y));
@@ -666,7 +666,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
             SamplePos = CurrentPos + DirVec * dt * Dither;
         }
         
-        float PosR = KerrSchildRadius(SamplePos, Spin, 1.0);
+        float PosR = KerrSchildRadius(SamplePos, PhysicalSpinA, 1.0);
         float PosY = SamplePos.y;
         float SampleThin = Thin + max(0.0, (length(SamplePos.xz) - 3.0) * Hopper);
         
@@ -682,10 +682,10 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
 
              if ((abs(PosY) < SampleThin * DenAndThiFactor) || (PosY < SampleThin * (1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0))))
              {
-                 float AngularVelocity = GetKeplerianAngularVelocity(PosR, 1.0, Spin, Q);
+                 float AngularVelocity = GetKeplerianAngularVelocity(PosR, 1.0, PhysicalSpinA, PhysicalQ);
                  
                  float u = sqrt(PosR);
-                 float k_cubed = Spin * 0.70710678;
+                 float k_cubed = PhysicalSpinA * 0.70710678;
                  float SpiralTheta;
                  if (abs(k_cubed) < 0.001 * u * u * u) {
                      float inv_u = 1.0 / u; float eps3 = k_cubed * pow(inv_u, 3.0);
@@ -701,7 +701,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
                  // FluidVel is v^i in KS frame
                  vec3 FluidVel = AngularVelocity * vec3(SamplePos.z, 0.0, -SamplePos.x);
                  vec4 U_fluid_unnorm = vec4(FluidVel, 1.0); 
-                 mat4 g_cov_sample = GetKerrMetric(vec4(SamplePos, 0.0), Spin, Q, 1.0, 1.0);
+                 mat4 g_cov_sample = GetKerrMetric(vec4(SamplePos, 0.0), PhysicalSpinA, PhysicalQ, 1.0, 1.0);
                  
                  // Normalize Fluid 4-Velocity U^u
                  float norm_sq = dot(U_fluid_unnorm, g_cov_sample * U_fluid_unnorm);
@@ -788,8 +788,8 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
 vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
               vec3 RayDir, vec3 LastRayDir,
               float InterRadius, float OuterRadius, float JetRedShiftIntensityExponent, float JetBrightmut, float JetReddening, float JetSaturation, float AccretionRate, float JetShiftMax, 
-              float Spin, // [INPUT] Dimensional Spin (scaled by CONST_M)
-              float Q,    // [INPUT] Dimensional Charge (scaled by CONST_M)
+              float PhysicalSpinA, // [INPUT] Dimensional Spin (scaled by CONST_M)
+              float PhysicalQ,     // [INPUT] Dimensional Charge (scaled by CONST_M)
               vec4 iP_cov, float iE_obs) 
 {
     vec4 CurrentResult = BaseColor;
@@ -825,7 +825,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         float Dither = RandomStep(10000.0 * (RayPos.zx / OuterRadius), iTime * 4.0 + float(i) * 0.1337);
         vec3 SamplePos = CurrentPos + DirVec * dt * Dither;
         
-        float PosR = KerrSchildRadius(SamplePos, Spin, 1.0);
+        float PosR = KerrSchildRadius(SamplePos, PhysicalSpinA, 1.0);
         float PosY = SamplePos.y;
         float RhoSq = dot(SamplePos.xz, SamplePos.xz);
         float Rho = sqrt(RhoSq);
@@ -839,7 +839,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         if (RhoSq < 2.0 * InterRadius * InterRadius + 0.03 * 0.03 * PosY * PosY && PosR < sqrt(2.0) * OuterRadius)
         {
             InJet = true;
-            float InnerTheta = 3.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, Spin, Q) * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY));
+            float InnerTheta = 3.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY));
             float Shape = 1.0 / sqrt(InterRadius * InterRadius + 0.02 * 0.02 * PosY * PosY);
             float noiseInput = 0.3 * (iBlackHoleTime - 1.0 / 0.8 * abs(abs(PosY) + 100.0 * (RhoSq / max(0.1, PosR)))) / (OuterRadius / 100.0) / (1.0 / 0.8);
             float a = mix(0.7 + 0.3 * PerlinNoise1D(noiseInput), 1.0, exp(-0.01 * 0.01 * PosY * PosY));
@@ -856,7 +856,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         if (Rho < 1.3 * InterRadius + 0.25 * Wid && Rho > 0.7 * InterRadius + 0.15 * Wid && PosR < 30.0 * InterRadius)
         {
             InJet = true;
-            float InnerTheta = 2.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, Spin, Q) * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY));
+            float InnerTheta = 2.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY));
             float Shape = 1.0 / (InterRadius + 0.2 * Wid);
             float Twist = 0.2 * (1.1 - exp(-0.1 * 0.1 * PosY * PosY)) * (PerlinNoise1D(0.35 * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY)) / (1.0 / 0.8)) - 0.5);
             vec2 TwistedPos = SamplePos.xz + Twist * vec2(cos(0.666666 * InnerTheta), -sin(0.666666 * InnerTheta));
@@ -876,7 +876,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
             vec3 FinalSpatialVel = JetVelDir * JetVelocityMag + RotVelDir * 0.05; 
             
             vec4 U_jet_unnorm = vec4(FinalSpatialVel, 1.0);
-            mat4 g_cov_sample = GetKerrMetric(vec4(SamplePos, 0.0), Spin, Q, 1.0, 1.0);
+            mat4 g_cov_sample = GetKerrMetric(vec4(SamplePos, 0.0), PhysicalSpinA, PhysicalQ, 1.0, 1.0);
             float norm_sq = dot(U_jet_unnorm, g_cov_sample * U_jet_unnorm);
             vec4 U_jet = U_jet_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
             
