@@ -412,6 +412,10 @@ vec4 GetObserverU(vec4 X, int iObserverMode, float PhysicalSpinA, float Physical
 
 // [TENSOR] Returns Initial Covariant Momentum P_u
 // [INPUT] iSpin/iQ: Dimensional (scaled by CONST_M)
+// [TENSOR] Returns Initial Covariant Momentum P_u
+// [INPUT] iSpin/iQ: Dimensional (scaled by CONST_M)
+// Implements the calculation of the photon momentum as seen by a specific observer
+// and reverses it for ray-tracing (camera emits light).
 vec4 GetInitialMomentum(
     vec3 RayDir,
     vec4 X,
@@ -420,55 +424,120 @@ vec4 GetInitialMomentum(
     float PhysicalSpinA,  // Dimensional
     float PhysicalQ,      // Dimensional
     float GravityFade
-) {
-    // --- 几何 ---
+)
+{
+    // 1. Compute Geometry at current position
     KerrGeometry geo;
     ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, universesign, geo);
 
-    // 确保方向单位化
-    vec3 n = normalize(RayDir);
+    // 2. Define the "Face Direction" vector d^u (Contravariant)
+    // As per prompt: Degrades to Cartesian (x1,y1,z1).
+    vec4 d_up = vec4(RayDir, 0.0);
 
-    // --- 局域正交系中的光子四动量（逆变，Minkowski） ---
-    // 注意：这里的 w 分量是“时间分量”
-    vec4 P_local = vec4(n, 1.0);
+    // 3. Determine Observer's 4-Velocity u^u (Contravariant)
+    vec4 u_up;
+    
+    // Constants for calculation
+    float r = geo.r;
+    float r2 = geo.r2;
+    float a2 = geo.a2;
+    // Note: In this codebase's convention (ComputeGeometry), Y is the polar axis, X/Z are equatorial.
+    float sigma = r2 + a2 * (X.y * X.y) / (r2); // r^2 + a^2 cos^2 theta
+    float H = 2.0 * CONST_M * r *GravityFade- PhysicalQ * PhysicalQ; // 2Mr - Q^2
+    
+    if (iObserverMode == 1) 
+    {
+        // --- Falling Observer (Raindrop / Landau-Lifshitz frame essentially) ---
+        // Derived from E=1, L=0, Q=0 geodesics in Kerr-Schild coordinates.
+        
+        // Safety for r < 0 or regions where H < 0 (inside inner horizon for Q>0 cases implies complex velocity if not careful)
+        // For rendering, we clamp strictly to avoid NaNs.
+        float safe_H = max(0.0, H);
+        float delta = r2 + a2 - 2.0 * CONST_M*GravityFade * r + PhysicalQ * PhysicalQ;
+        
+        // BL -> KS transformation logic simplifies significantly:
+        // u^t_KS = 1.0 (Exact cancellation of singularities for E=1 drop)
+        float u_t = 1.0; 
+        
+        // u^r = -sqrt(H * (r^2 + a^2)) / Sigma
+        float u_r = -sqrt(safe_H * (r2 + a2)) / max(EPSILON, sigma);
+        
+        // u^phi_KS. Using stable form to avoid 0/0 at horizon (Delta=0).
+        // Analytic form: -a / (Sigma * (1 + sqrt((r^2+a^2)/H)))
+        float u_phi = 0.0;
+        if (abs(PhysicalSpinA) > EPSILON) {
+             float denom_factor = 1.0 + sqrt((r2 + a2) / max(EPSILON, safe_H));
+             u_phi = -PhysicalSpinA / (max(EPSILON, sigma) * denom_factor);
+        }
 
-    // --- 观者速度（Minkowski 意义下） ---
-    vec3 v = vec3(0.0);
-
-    if (iObserverMode == 0) {
-        // ===== 静止观者 =====
-        float g_tt = GetGtt(X.xyz, PhysicalSpinA, PhysicalQ, universesign);
-        float alpha = sqrt(max(EPSILON, -g_tt));
-
-        // 仅时间缩放，不需要 boost
-        vec4 P_up = vec4(P_local.xyz, P_local.w / alpha);
-
-        // --- 降指标 ---
-        mat4 g_uv = GetKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, universesign);
-        vec4 P_down = g_uv * P_up;
-
-        // 空间反向
-        P_down.xyz = P_down.xyz;
-        return P_down;
+        // Convert (u^r, u^phi) to Cartesian (u^x, u^y, u^z)
+        // With Y-up convention:
+        // u^y = (y/r) * u^r
+        // u^x = (r*x / (r^2+a^2)) * u^r - z * u^phi
+        // u^z = (r*z / (r^2+a^2)) * u^r + x * u^phi
+        
+        float inv_ra = 1.0 / (r2 + a2);
+        float term_r = r * u_r * inv_ra;
+        
+        u_up.y = (abs(r) > EPSILON) ? (X.y / r * u_r) : u_r; // Limit y/r -> cos(theta) handled by pos
+        u_up.x = X.x * term_r - X.z * u_phi;
+        u_up.z = X.z * term_r + X.x * u_phi;
+        u_up.w = u_t;
+    }
+    else 
+    {
+        // --- Static Observer ---
+        // u is proportional to partial_t
+        // u^u = (0, 0, 0, 1/sqrt(-g_tt))
+        // g_tt = -1 + f
+        float g_tt = -1.0 + geo.f;
+        // Check if observer is inside infinite redshift surface
+        float time_norm = 1.0 / sqrt(max(EPSILON, -g_tt));
+        u_up = vec4(0.0, 0.0, 0.0, time_norm);
     }
 
-    else {
-        // ===== 自由落体观者 (E=1, L=0) =====
-        // KS 中的自然自由落体速度
-        float v_mag = sqrt(max(0.0, geo.f));
-        v = -v_mag * geo.l_up.xyz;
+    // 4. Calculate Metric Tensor elements needed for projection
+    // g_uv = eta_uv + f * l_u * l_v
+    // Helper to calculate dot product g_uv A^u B^v = eta(A,B) + f * (l.A) * (l.B)
+    // Note: l_down in struct has w=1. l_up has w=-1. 
+    
+    // Compute Covariant vectors u_u and d_u
+    // v_u = eta_uv * v^v + f * l_u * (l_k v^k)
+    // l_k v^k = dot(l_down, v_up) because l_down components (lx, ly, lz, 1) match l_k for v=(vx,vy,vz,vt)
+    
+    float l_dot_u = dot(geo.l_down, u_up);
+    vec4 u_down = vec4(u_up.xyz, -u_up.w) + geo.f * l_dot_u * geo.l_down;
+    
+    float l_dot_d = dot(geo.l_down, d_up);
+    vec4 d_down = vec4(d_up.xyz, -d_up.w) + geo.f * l_dot_d * geo.l_down;
 
-        // SR boost（在 Minkowski 上）
-        vec4 P_up = LorentzBoost(P_local, v);
-
-        // --- 降指标 ---
-        mat4 g_uv = GetKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, universesign);
-        vec4 P_down = g_uv * P_up;
-
-        // 空间反向
-        P_down.xyz = P_down.xyz;
-        return P_down;
-    }
+    // 5. Project d onto the local space of u to find spatial direction e_(1)
+    // K = u . d
+    float K = dot(u_up, d_down); // Contravariant u, Covariant d
+    
+    // w^u = d^u + K * u^u
+    // w_u = d_u + K * u_u
+    vec4 w_down = d_down + K * u_down;
+    
+    // Norm N = sqrt(w . w)
+    // Since w is spatial in local frame, w.w > 0
+    // w.w = w^u w_u. Since we need result covariance, we need w_up as well?
+    // Actually we can compute w.w using metric on w_up or just w_down * w_up
+    vec4 w_up = d_up + K * u_up;
+    float w_sq = dot(w_up, w_down);
+    float N = sqrt(max(EPSILON, w_sq));
+    
+    // e_u = w_u / N
+    vec4 e_down = w_down / N;
+    
+    // 6. Construct Photon Momentum
+    // Photon received from direction d (spatial e) has P_received = u - e.
+    // We want the reverse ray (emitted): P_out = e - u.
+    // Result is covariant P_u.
+    
+    vec4 P_cov = e_down - u_down;
+    
+    return vec4(P_cov.xyz,-P_cov.w);
 }
 // [TENSOR] Calculates Redshift Ratio E_emit / E_obs
 // P_photon: Contravariant P^u (NOTE: Function signature expects this, but caller passes Covariant? See main)
@@ -493,8 +562,8 @@ struct State {
 // P: In/Out Covariant Momentum p_u
 // X: Contravariant Position x^u
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
-void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float initial_pt, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
-    P.w = -initial_pt; // Energy conservation (if applicable)
+void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float E, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
+    P.w = -E; // Energy conservation (if applicable)
     vec3 p = P.xyz;    // Spatial components of Covariant Momentum p_i
     
     KerrGeometry geo;
@@ -994,7 +1063,7 @@ void main()
 
     // --- 3. 物理动量初始化 (Physics Initialization) ---
     vec4 X = vec4(RayPosLocal, 0.0); // [TENSOR] Contravariant Position X^u (t=0)
-    vec4 P_cov = vec4(0.0);          // [TENSOR] Covariant Momentum P_u
+    vec4 P_cov = vec4(-1.0);          // [TENSOR] Covariant Momentum P_u
     float E_conserved = 1.0;       
     
     vec3 RayDir = RayDirWorld_Geo;   
@@ -1007,7 +1076,7 @@ void main()
        // 1. Get Geometry-Correct Momentum Direction (Magnitude unknown yet)
        // Returns P_u (Covariant)
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode,iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
-
+       //P_cov=vec4(RayDir,-1.0);
        // 2. Get Observer 4-Velocity U^u (Contravariant)
        //vec4 U_obs = GetObserverU(X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
 
@@ -1081,7 +1150,7 @@ void main()
             break; 
         }
         if ((Count > 150 && !bIsNakedSingularity) || (Count > 450 && bIsNakedSingularity)) { 
-            bShouldContinueMarchRay = false; bWaitCalBack = true; break; 
+            bShouldContinueMarchRay = false; bWaitCalBack = false;Result=vec4(0.0,0.3,0.0,1.0); break; 
         }
         
         // Step Size Control
@@ -1124,21 +1193,21 @@ void main()
         }
         
         // --- 渲染积累 (取消了原来的注释) ---
-        //if (CurrentUniverseSign > 0.0) {
-        //   Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-        //                     iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-        //                     iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
-        //                     clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
-        //                     PhysicalQ,                       // Passed as Dimensional
-        //                     P_cov, E_obs_camera); 
-        //   
-        //   Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-        //                     iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
-        //                     clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
-        //                     PhysicalQ,                         // Passed as Dimensional
-        //                     P_cov, E_obs_camera); 
-        //}
-        //
+       // if (CurrentUniverseSign > 0.0) {
+       //    Result = max(RayPos.y,0.0)*DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
+       //                      iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
+       //                      iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
+       //                      clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
+       //                      PhysicalQ,                       // Passed as Dimensional
+       //                      P_cov, E_conserved); 
+       //    
+       //    Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
+       //                      iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
+       //                      clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
+       //                      PhysicalQ,                         // Passed as Dimensional
+       //                      P_cov, E_conserved); 
+       // }
+        
         if (Result.a > 0.99) { bShouldContinueMarchRay = false; bWaitCalBack = false; break; }
         
         LastDir = RayDir;
