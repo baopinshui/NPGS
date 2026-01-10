@@ -23,16 +23,16 @@ layout(set = 0, binding = 0) uniform GameArgs
 
 layout(set = 0, binding = 1) uniform BlackHoleArgs
 {
-    mat4x4 iInverseCamRot;
-    vec4  iBlackHoleRelativePosRs;
-    vec4  iBlackHoleRelativeDiskNormal; 
-    vec4  iBlackHoleRelativeDiskTangen; 
-    int   iObserverMode; // 0 = Static, 1 = Falling
-    float iUniverseSign;
+    mat4x4 iInverseCamRot;               
+    vec4  iBlackHoleRelativePosRs;       
+    vec4  iBlackHoleRelativeDiskNormal;  
+    vec4  iBlackHoleRelativeDiskTangen;  
+    int   iObserverMode;                 // 0 = Static, 1 = Falling
+    float iUniverseSign;                 // +1.0 or -1.0
     float iBlackHoleTime;
     float iBlackHoleMassSol;
-    float iSpin;
-    float iQ;
+    float iSpin;                         // [INPUT] Dimensionless Spin parameter a* (0.0 ~ 1.0)
+    float iQ;                            // [INPUT] Dimensionless Charge parameter Q* (0.0 ~ 1.0)
     float iMu;
     float iAccretionRate;
     float iInterRadiusRs;
@@ -193,11 +193,10 @@ vec3 WavelengthToRgb(float wavelength) {
 // SECTION 4: 广义相对论度规与物理核心 (Kerr-Newman)
 // =============================================================================
 
-const float CONST_M = 0.5; 
+const float CONST_M = 0.5; // [PHYS] Mass G*M = 0.5
 const float EPSILON = 1e-6;
 
-// [OPTIMIZATION] 预定义单位矩阵对角线，避免构建完整矩阵
-// 仅在极少数需要返回 mat4 的外部接口保留，内部计算不再依赖它
+// [TENSOR] Flat Space Metric eta_uv = diag(1, 1, 1, -1)
 const mat4 MINKOWSKI_METRIC = mat4(
     1, 0, 0, 0,
     0, 1, 0, 0,
@@ -205,7 +204,7 @@ const mat4 MINKOWSKI_METRIC = mat4(
     0, 0, 0, -1
 );
 
-// 开普勒角速度 (Kerr-Newman) - 保持不变，已足够精简
+// [INPUT] Spin/Q: Dimensional (scaled by CONST_M)
 float GetKeplerianAngularVelocity(float Radius, float Rs, float Spin, float Q) 
 {
     float M = 0.5 * Rs; 
@@ -216,50 +215,43 @@ float GetKeplerianAngularVelocity(float Radius, float Rs, float Spin, float Q)
     return sqrt_Term / max(EPSILON, denominator);
 }
 
-// [OPTIMIZATION] 内联优化的 KerrSchild 半径求解
-// 移除了部分冗余分支，利用 r_sign 统一处理逻辑
+// [MATH] Solve for r where (x^2 + z^2)/(r^2 + a^2) + y^2/r^2 = 1
+// [INPUT] a: Dimensional (scaled by CONST_M)
 float KerrSchildRadius(vec3 p, float a, float r_sign) {
     float r_sign_len = r_sign * length(p);
-    if (a == 0.0) return r_sign_len; // 快速路径
+    if (a == 0.0) return r_sign_len; 
 
     float a2 = a * a;
     float rho2 = dot(p.xz, p.xz); // x^2 + z^2
     float y2 = p.y * p.y;
     
-    // b = x^2 + y^2 + z^2 - a^2
     float b = rho2 + y2 - a2;
-    
-    // 判别式 det = sqrt(b^2 + 4 a^2 y^2)
     float det = sqrt(b * b + 4.0 * a2 * y2);
     
     float r2;
-    // 数值稳定性优化：避免两数相减造成的精度损失
     if (b >= 0.0) {
         r2 = 0.5 * (b + det);
     } else {
-        // 当 b < 0 时，使用共轭分子有理化公式: 
-        // (-b + sqrt(b^2 + 4ac)) / 2 = (2ac) / (b + sqrt(...)) -> 这里的形式略有不同
-        // r^2 = (2 a^2 y^2) / (det - b) 保证分母远离0
         r2 = (2.0 * a2 * y2) / max(1e-20, det - b);
     }
     return r_sign * sqrt(r2);
 }
 
-// [OPTIMIZATION] 结构体用于缓存几何参数，减少重复计算
+// [TENSOR] Structure to hold metric components g_uv and g^uv components
+// Kerr-Schild form: g_uv = eta_uv + f * l_u * l_v
 struct KerrGeometry {
     float r;
     float r2;
     float a2;
-    float f;
-    vec3  grad_r;     // dr/dx
-    vec3  grad_f;     // df/dx
-    vec4  l_up;       // l^u = (lx, ly, lz, -1)
-    vec4  l_down;     // l_u = (lx, ly, lz,  1)
-    float inv_r2_a2;  // 1 / (r^2 + a^2)
+    float f;              // [MATH] Scalar function f(r, theta)
+    vec3  grad_r;         // [TENSOR] Covariant spatial gradient of r (partial_i r)
+    vec3  grad_f;         // [TENSOR] Covariant spatial gradient of f (partial_i f)
+    vec4  l_up;           // [TENSOR] Contravariant null vector l^u = (l^x, l^y, l^z, -1)
+    vec4  l_down;         // [TENSOR] Covariant null vector l_u = (l_x, l_y, l_z, 1)
+    float inv_r2_a2; 
 };
 
-// [OPTIMIZATION] 计算几何参数的核心函数
-// 将原本分散在各个函数中的 r, f, l 计算逻辑集中处理
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out KerrGeometry geo) {
     geo.a2 = a * a;
     
@@ -273,15 +265,13 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
         geo.l_up = vec4(X * inv_r, -1.0);
         geo.l_down = vec4(X * inv_r, 1.0);
         
-        // f = (2M/r - Q^2/r^2)
         geo.f = (2.0 * CONST_M * inv_r - (Q * Q) * inv_r2) * fade;
         
         geo.grad_r = X * inv_r;
-        // df/dr = -2M/r^2 + 2Q^2/r^3 = (-2M + 2Q^2/r) / r^2
         float df_dr = (-2.0 * CONST_M + 2.0 * Q * Q * inv_r) * inv_r2 * fade;
         geo.grad_f = df_dr * geo.grad_r;
         
-        geo.inv_r2_a2 = inv_r2; // actually 1/r^2
+        geo.inv_r2_a2 = inv_r2; 
         return;
     }
 
@@ -299,7 +289,7 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
     float lz = (geo.r * X.z - a * X.x) * geo.inv_r2_a2;
     
     geo.l_up = vec4(lx, ly, lz, -1.0);
-    geo.l_down = vec4(lx, ly, lz, 1.0); // 空间分量相同，时间分量反号
+    geo.l_down = vec4(lx, ly, lz, 1.0); // Spatial same (eta_ij = delta_ij), Temporal flip (eta_tt = -1)
     
     // --- 计算 f ---
     float num_f = 2.0 * CONST_M * r3 - Q * Q * geo.r2;
@@ -321,7 +311,6 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
     ) * inv_denom_grad;
     
     // --- 计算 grad f (解析优化) ---
-    // df/dr terms (reduced by factor r)
     float term_M  = -2.0 * CONST_M * geo.r2 * geo.r2 * geo.r;
     float term_Q  = 2.0 * Q * Q * geo.r2 * geo.r2;
     float term_Ma = 6.0 * CONST_M * geo.a2 * geo.r * z2;
@@ -337,48 +326,51 @@ void ComputeGeometry(vec3 X, float a, float Q, float fade, float r_sign, out Ker
     geo.grad_f *= fade;
 }
 
-// 原始接口保留，但内部通过结构体加速
-// 逆度规 g^uv
+// [TENSOR] Returns Contravariant Metric g^uv
+// g^uv = eta^uv - f * l^u * l^v
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 mat4 GetInverseKerrMetric(vec4 X, float a, float Q, float fade, float r_sign) {
     KerrGeometry geo;
     ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
-    // g^uv = eta^uv - f * l^u * l^v
     return MINKOWSKI_METRIC - geo.f * outerProduct(geo.l_up, geo.l_up);
 }
 
-// 协变度规 g_uv
+// [TENSOR] Returns Covariant Metric g_uv
+// g_uv = eta_uv + f * l_u * l_v
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 mat4 GetKerrMetric(vec4 X, float a, float Q, float fade, float r_sign) {
     KerrGeometry geo;
     ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
-    // g_uv = eta_uv + f * l_u * l_v
     return MINKOWSKI_METRIC + geo.f * outerProduct(geo.l_down, geo.l_down);
 }
 
-// [OPTIMIZATION] 优化后的哈密顿量计算，不构建矩阵
+// [TENSOR] Calculates Hamiltonian H = 1/2 g^uv P_u P_v
+// X: Position x^u (Contravariant)
+// P: Momentum p_u (Covariant)
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 float Hamiltonian(vec4 X, vec4 P, float a, float Q, float fade, float r_sign) {
     KerrGeometry geo;
     ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
     
-    // P^2_minkowski = P.xyz . P.xyz - P.t^2
+    // P^2_minkowski = P_i * P_i - P_t^2 (Using eta^uv)
     float P_sq_minkowski = dot(P.xyz, P.xyz) - P.w * P.w;
     
-    // l^u P_u = l_up . P_down_flat - but P is Covariant (P_u)
-    // l^u P_u = l^x P_x + l^y P_y + l^z P_z + l^t P_t
-    // l^t = -1
+    // l^u P_u term
     float l_dot_P = dot(geo.l_up.xyz, P.xyz) - P.w;
     
-    // H = 1/2 * (P^2_eta - f * (l.P)^2)
+    // H = 1/2 * (eta^uv P_u P_v - f * (l^u P_u)^2)
     return 0.5 * (P_sq_minkowski - geo.f * l_dot_P * l_dot_P);
 }
 
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 float GetGtt(vec3 Pos, float a, float Q, float r_sign) {
     KerrGeometry geo;
-    ComputeGeometry(Pos, a, Q, 1.0, r_sign, geo); // fade assumed 1.0 or passed in? Original logic implies internal calc.
-    // g_tt = -1 + f * l_t * l_t = -1 + f
+    ComputeGeometry(Pos, a, Q, 1.0, r_sign, geo);
+    // g_tt = -1 + f * l_t * l_t = -1 + f (since l_t = 1)
     return -1.0 + geo.f;
 }
 
-// 辅助函数保持不变
+// [MATH] Special Relativity Lorentz Boost
 vec4 LorentzBoost(vec4 P_in, vec3 v) {
     float v2 = dot(v, v);
     if (v2 >= 1.0 || v2 < EPSILON) return P_in;
@@ -389,31 +381,27 @@ vec4 LorentzBoost(vec4 P_in, vec3 v) {
     return vec4(P_spatial, P_time);
 }
 
-// [FIXED] 获取观测者的逆变 4-速度 U^u
-// 这决定了观测者处于什么参考系，直接影响多普勒效应和光行差
-// [FIXED] 获取观测者的逆变 4-速度 U^u (Contravariant)
+// [TENSOR] Returns Observer 4-Velocity U^u (Contravariant) in Kerr-Schild Frame
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 vec4 GetObserverU(vec4 X, int iObserverMode, float a, float Q, float fade, float r_sign) 
 {
-    // Mode 1: Falling Observer (从无穷远静止下落 - Rain Observer)
-    // 这种观测者的协变速度是 U_u = (0, 0, 0, -1) (能量 E=1, 角动量 L=0)
-    // 逆变速度 U^u = g^uv * U_v = g^u3 * (-1) = -g^u3
+    // Mode 1: Falling Observer (Rain Observer, ZAMO limit at infinity)
+    // U_u = (0, 0, 0, -1) [Covariant]
+    // U^u = g^uv * U_v = -g^u3
     if (iObserverMode == 1) 
     {
         mat4 g_inv = GetInverseKerrMetric(X, a, Q, fade, r_sign);
-        // 注意符号：取反以匹配未来的时间方向 (假设 g^tt 是负值，我们需要 U^t > 0)
         return -1.0 * g_inv[3]; 
     }
     
-    // Mode 0: Static Observer (Boyer-Lindquist Stationary)
+    // Mode 0: Static Observer (Stationary in KS coordinates)
     // U^i = 0, U^t = 1 / sqrt(-g_tt)
     else 
     {
         float gtt = GetGtt(X.xyz, a, Q, r_sign);
         
-        // 安全检查：能层内无法存在静态观测者
-        if (gtt >= -1e-6) 
+        if (gtt >= -1e-6) // Ergosphere check
         {
-            // 回退到下落模式，防止除零或NaN
             mat4 g_inv = GetInverseKerrMetric(X, a, Q, fade, r_sign);
             return -1.0 * g_inv[3];
         }
@@ -422,88 +410,71 @@ vec4 GetObserverU(vec4 X, int iObserverMode, float a, float Q, float fade, float
     }
 }
 
-// [FIXED] 重写的初始动量计算
-// 使用局部投影法代替洛伦兹变换，能够完美处理 Kerr 度规的空间拖曳
-// [FIXED] 初始动量计算，增加了对下落观者的光行差处理
-vec4 GetInitialMomentum(vec3 RayDir, vec4 X, int iObserverMode, float iSpin, float iQ, float GravityFade) 
-{
-    float r_sign = 1.0; 
-    float r = KerrSchildRadius(X.xyz, iSpin, r_sign);
-    float r2 = r * r;
-    float a2 = iSpin * iSpin;
-    
-    // 几何辅助量
-    float denom_inv = 1.0 / (r2 + a2);
-    float lx = (r * X.x + iSpin * X.z) * denom_inv;
-    float ly = X.y / r;
-    float lz = (r * X.z - iSpin * X.x) * denom_inv;
-    vec3 l_spatial = vec3(lx, ly, lz);
-    
-    float r3 = r2 * r;
-    float numerator = 2.0 * CONST_M * r3 - iQ * iQ * r2;
-    float denominator = r2 * r2 + a2 * X.y * X.y;
-    float f = (numerator / max(1e-20, denominator)) * GravityFade;
+// [TENSOR] Returns Initial Covariant Momentum P_u
+// [INPUT] iSpin/iQ: Dimensional (scaled by CONST_M)
+vec4 GetInitialMomentum(
+    vec3 RayDir,
+    vec4 X,
+    int  iObserverMode,   // 0: static, 1: free-fall (E=1, L=0)
+    float universesign,
+    float iSpin,          // Dimensional
+    float iQ,             // Dimensional
+    float GravityFade
+) {
+    // --- 几何 ---
+    KerrGeometry geo;
+    ComputeGeometry(X.xyz, iSpin, iQ, GravityFade, universesign, geo);
 
-    vec3 TargetDir = RayDir;
+    // 确保方向单位化
+    vec3 n = normalize(RayDir);
 
-    // --- [FIX START] 观者参考系变换 (光行差/Aberration) ---
-    
-    // Mode 0: 静态观测者 (Static)
-    // 静态观者相对于 Kerr-Schild 坐标网格向外运动，因此需要向内 Boost
-    if (iObserverMode == 0 && f < 1.0) {
-        float beta = sqrt(f); 
-        vec3 v_boost = -normalize(l_spatial) * beta;
-        vec4 P_local = vec4(RayDir, 1.0);
-        TargetDir = LorentzBoost(P_local, v_boost).xyz;
-        TargetDir = normalize(TargetDir);
-    }
-    // Mode 1: 下落观测者 (Falling / Rain)
-    // 这是一个关键修正。下落观者高速向内运动，必须将相机空间的光线 Boost 到全局坐标系。
-    else if (iObserverMode == 1) {
-        // 1. 获取下落观者的逆变速度 U^u
-        // U_rain^u = -g^ut (见 GetObserverU 的推导)
-        // 我们可以直接用解析式，或者调用矩阵。为保持一致性，这里展开解析式：
-        // U^i = f * l^i, U^t = 1 + f
-        // 空间速度 v = U^i / U^t
-        
-        vec3 U_spatial = f * l_spatial;
-        float U_time   = 1.0 + f;
-        
-        vec3 v_fall = U_spatial / U_time; // 观者的三维速度
-        
-        // 2. 对光线应用洛伦兹变换
-        // 观者向内下落，光线需要根据观者速度进行“拖拽”
-        vec4 P_local = vec4(RayDir, 1.0);
-        TargetDir = LorentzBoost(P_local, v_fall).xyz;
-        TargetDir = normalize(TargetDir);
-    }
-    // --- [FIX END] ---
-    
-    // 3. 求解 Kerr-Schild 下的逆变时间分量 P^t (保持原有逻辑)
-    float v_sq = dot(TargetDir, TargetDir);
-    float L = dot(l_spatial, TargetDir); 
-    float A = 1.0 - f;
-    float Delta = v_sq - f * (v_sq - L * L);
-    
-    float kt = 0.0;
-    if (abs(A) < 1e-5) {
-        if (abs(L) > 1e-5) kt = (v_sq + f * L * L) / (2.0 * f * L);
-        else kt = length(TargetDir);
-    } else {
-        kt = (f * L + sqrt(max(0.0, Delta))) / A;
-    }
-    
-    vec4 P_contrav = vec4(TargetDir, kt);
+    // --- 局域正交系中的光子四动量（逆变，Minkowski） ---
+    // 注意：这里的 w 分量是“时间分量”
+    vec4 P_local = vec4(n, 1.0);
 
-    mat4 g_cov = GetKerrMetric(X, iSpin, iQ, GravityFade, r_sign);
-    return g_cov * P_contrav;
+    // --- 观者速度（Minkowski 意义下） ---
+    vec3 v = vec3(0.0);
+
+    if (iObserverMode == 0) {
+        // ===== 静止观者 =====
+        float g_tt = GetGtt(X.xyz, iSpin, iQ, universesign);
+        float alpha = sqrt(max(EPSILON, -g_tt));
+
+        // 仅时间缩放，不需要 boost
+        vec4 P_up = vec4(P_local.xyz, P_local.w / alpha);
+
+        // --- 降指标 ---
+        mat4 g_uv = GetKerrMetric(X, iSpin, iQ, GravityFade, universesign);
+        vec4 P_down = g_uv * P_up;
+
+        // 空间反向
+        P_down.xyz = P_down.xyz;
+        return P_down;
+    }
+
+    else {
+        // ===== 自由落体观者 (E=1, L=0) =====
+        // KS 中的自然自由落体速度
+        float v_mag = sqrt(max(0.0, geo.f));
+        v = -v_mag * geo.l_up.xyz;
+
+        // SR boost（在 Minkowski 上）
+        vec4 P_up = LorentzBoost(P_local, v);
+
+        // --- 降指标 ---
+        mat4 g_uv = GetKerrMetric(X, iSpin, iQ, GravityFade, universesign);
+        vec4 P_down = g_uv * P_up;
+
+        // 空间反向
+        P_down.xyz = P_down.xyz;
+        return P_down;
+    }
 }
-
-
-
+// [TENSOR] Calculates Redshift Ratio E_emit / E_obs
+// P_photon: Contravariant P^u (NOTE: Function signature expects this, but caller passes Covariant? See main)
+// Actually implementation uses g_cov * P_photon, so input must be Contravariant P^u.
 float CalculateFrequencyRatio(vec4 P_photon, vec4 U_emitter, vec4 U_observer, mat4 g_cov)
 {
-    // 这里传入 g_cov 是矩阵，为了兼容性保留，建议外部如果能优化也可以把 g_cov 去掉
     vec4 P_cov = g_cov * P_photon; 
     float E_emit = -dot(P_cov, U_emitter);
     float E_obs  = -dot(P_cov, U_observer);
@@ -514,44 +485,25 @@ float CalculateFrequencyRatio(vec4 P_photon, vec4 U_emitter, vec4 U_observer, ma
 // 数值积分核心结构
 // -----------------------------------------------------------------------------
 struct State {
-    vec4 X;
-    vec4 P;
+    vec4 X; // [TENSOR] Contravariant Position x^u
+    vec4 P; // [TENSOR] Covariant Momentum p_u
 };
 
-// [OPTIMIZATION] 极速版哈密顿修正
-// 完全移除 GetInverseKerrMetric 调用，使用代数解
+// [TENSOR] Enforces Hamiltonian Constraint H = 0 on Covariant Momentum P_u
+// P: In/Out Covariant Momentum p_u
+// X: Contravariant Position x^u
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float initial_pt, float a, float Q, float fade, float r_sign) {
-    // P is Covariant Momentum (P_u). P.w is P_t.
-    // We want to scale P.xyz by k such that H(k*P.xyz, -initial_pt) = 0.
+    P.w = -initial_pt; // Energy conservation (if applicable)
+    vec3 p = P.xyz;    // Spatial components of Covariant Momentum p_i
     
-    P.w = -initial_pt; // 能量守恒
-    vec3 p = P.xyz;
-    
-    // 获取几何参数
     KerrGeometry geo;
     ComputeGeometry(X.xyz, a, Q, fade, r_sign, geo);
     
-    // g^uv = eta^uv - f * l^u * l^v
-    // H = 1/2 * g^uv P_u P_v = 0
-    // g^uv P_u P_v = (eta^uv P_u P_v) - f * (l^u P_u)^2 = 0
-    
-    // 分解项:
-    // l^u P_u = l^i P_i + l^t P_t = (l_vec . p) + (-1)*P_t
-    // Let L_dot_p = dot(geo.l_up.xyz, p)
-    // Term L = L_dot_p * k - P.w (Substituting scaled p = k*p_old)
-    
-    // eta^uv P_u P_v = |p|^2 * k^2 - P_t^2
-    
-    // Equation:
-    // (|p|^2 * k^2 - P_t^2) - f * (L_dot_p * k - P.w)^2 = 0
-    
+    // Solving g^uv p_u p_v = 0 for scaling factor k on p_i
     float p2 = dot(p, p);
     float L_dot_p = dot(geo.l_up.xyz, p);
     float Pt = P.w;
-    
-    // Expand:
-    // k^2 * p2 - Pt^2 - f * ( L_dot_p^2 * k^2 - 2 * L_dot_p * Pt * k + Pt^2 ) = 0
-    // k^2 * (p2 - f * L_dot_p^2) + k * (2 * f * L_dot_p * Pt) + (-Pt^2 - f * Pt^2) = 0
     
     float Coeff_A = p2 - geo.f * L_dot_p * L_dot_p;
     float Coeff_B = 2.0 * geo.f * L_dot_p * Pt;
@@ -563,92 +515,63 @@ void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float initial_pt, float a,
         float sqrtDisc = sqrt(disc);
         float denom = 2.0 * Coeff_A;
         if (abs(denom) > 1e-9) {
-            // 我们寻找接近 1.0 的根。通常是 (-B + sqrt)/2A 或 (-B - sqrt)/2A
-            // 取决于 Coeff_A 的符号等。对于光子，k 应该是正数。
             float k = (-Coeff_B + sqrtDisc) / denom;
-            
-            // 如果得到了负数解或者不合理的解，尝试另一个
             if (k < 0.0) k = (-Coeff_B - sqrtDisc) / denom;
-            
             if (k > 0.0) P.xyz *= k;
         }
     }
 }
 
-// [OPTIMIZATION] 解析梯度计算 (Matrix-Free & Precomputed)
-// 这是整个渲染器最热的代码路径
+// [TENSOR] Calculates derivatives for Geodesic Equation
+// S.P is Covariant Momentum p_u
+// Output deriv.X is dx^u / dlambda (Contravariant Velocity)
+// Output deriv.P is dp_u / dlambda (Covariant Force)
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 State GetDerivativesAnalytic(State S, float a, float Q, float fade, float r_sign) {
     State deriv;
     
-    // 1. 获取所有几何数据 (r, f, l, gradients)
     KerrGeometry geo;
     ComputeGeometry(S.X.xyz, a, Q, fade, r_sign, geo);
     
-    // 2. 计算缩约量 (Contractions)
     // l^u * P_u
     float l_dot_P = dot(geo.l_up.xyz, S.P.xyz) + geo.l_up.w * S.P.w;
     
-    // 3. 计算 dX^u / dlambda = P^u
-    // P^u = g^uv P_v = (eta^uv - f l^u l^v) P_v
-    //     = P_flat^u - f * (l.P) * l^u
-    vec4 P_flat = vec4(S.P.xyz, -S.P.w); // eta是对角的 (1,1,1,-1)
+    // dx^u/dlambda = g^uv p_v = P_flat^u - f * (l.P) * l^u
+    vec4 P_flat = vec4(S.P.xyz, -S.P.w); // Minkowski raise
     deriv.X = P_flat - geo.f * l_dot_P * geo.l_up;
     
-    // 4. 计算 dP_u / dlambda (Force)
-    // F_i = 1/2 * partial_i ( g^uv P_u P_v )
-    //     = 1/2 * partial_i ( P_flat^2 - f * (l.P)^2 )  (P_flat^2 导数为0)
-    //     = -1/2 * [ (l.P)^2 * partial_i(f) + f * 2 * (l.P) * partial_i(l.P) ]
-    // partial_i(l.P) = P_u * partial_i(l^u) (P 视为常数)
-    
-    // --- 计算 P . grad(l) ---
-    // l^x = (rx + az)A, l^y = y/r, l^z = (rz - ax)A, where A = 1/(r^2+a^2)
-    
-    // A 的梯度: grad_A = -2r * A^2 * grad_r
+    // dp_u/dlambda = -dH/dx^u
     vec3 grad_A = (-2.0 * geo.r * geo.inv_r2_a2) * geo.inv_r2_a2 * geo.grad_r;
     
-    // 预计算 helper
     float rx_az = geo.r * S.X.x + a * S.X.z;
     float rz_ax = geo.r * S.X.z - a * S.X.x;
     
-    // 展开 P_k * partial_i (l^k)
-    // Term 1: l^x components
-    // grad(l^x) = grad(rx+az)*A + (rx+az)*grad_A
-    // grad(rx+az) = x*grad_r + r*x_hat + a*z_hat
     vec3 d_num_lx = S.X.x * geo.grad_r; 
     d_num_lx.x += geo.r; 
     d_num_lx.z += a;
     vec3 grad_lx = geo.inv_r2_a2 * d_num_lx + rx_az * grad_A;
     
-    // Term 2: l^y components
-    // grad(y/r) = (r*y_hat - y*grad_r) / r^2
     vec3 grad_ly = (geo.r * vec3(0.0, 1.0, 0.0) - S.X.y * geo.grad_r) / geo.r2;
     
-    // Term 3: l^z components
     vec3 d_num_lz = S.X.z * geo.grad_r;
     d_num_lz.z += geo.r;
     d_num_lz.x -= a;
     vec3 grad_lz = geo.inv_r2_a2 * d_num_lz + rz_ax * grad_A;
     
-    // 累加
     vec3 P_dot_grad_l = S.P.x * grad_lx + S.P.y * grad_ly + S.P.z * grad_lz;
     
-    // 最终 Force
-    // Force = -0.5 * [ (l.P)^2 * grad_f + 2 * f * (l.P) * P_dot_grad_l ]
-    // 注意：原代码是 +0.5 * ... 因为 H = 1/2 g^uv...
-    // Force = - dH/dX. 
-    // H = 0.5 * (const - f * (l.P)^2)
-    // dH/dX = -0.5 * [ grad_f * (l.P)^2 + f * 2(l.P) * grad(l.P) ]
-    // Force = -dH/dX = 0.5 * [ grad_f * (l.P)^2 + 2f(l.P) * grad(l.P) ]
-    // 符号与原代码一致。
-    
+    // Force = 0.5 * [ grad_f * (l.P)^2 + 2f(l.P) * grad(l.P) ]
     vec3 Force = 0.5 * ( (l_dot_P * l_dot_P) * geo.grad_f + (2.0 * geo.f * l_dot_P) * P_dot_grad_l );
     
-    deriv.P = vec4(Force, 0.0); // partial_t H = 0
+    deriv.P = vec4(Force, 0.0); // Stationary metric => partial_t H = 0
     
     return deriv;
 }
 
-// RK4 积分器 (逻辑不变，调用优化后的函数)
+// [MATH] RK4 Integrator
+// X: Contravariant Position x^u
+// P: Covariant Momentum p_u
+// [INPUT] a/Q: Dimensional (scaled by CONST_M)
 void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float a, float Q, float fade, float r_sign) {
     State s0; s0.X = X; s0.P = P;
     
@@ -674,6 +597,7 @@ void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float a, flo
     
     ApplyHamiltonianCorrection(P, X, E, a, Q, fade, r_sign);
 }
+
 // =============================================================================
 // SECTION 6: 体积渲染函数 (吸积盘与喷流)
 // =============================================================================
@@ -682,16 +606,17 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
                vec3 RayDir, vec3 LastRayDir,
                float InterRadius, float OuterRadius, float Thin, float Hopper, float Brightmut, float Darkmut, float Reddening, float Saturation, float DiskTemperatureArgument,
                float BlackbodyIntensityExponent, float RedShiftColorExponent, float RedShiftIntensityExponent,
-               float PeakTemperature, float ShiftMax, float Spin, float Q, 
+               float PeakTemperature, float ShiftMax, 
+               float Spin, // [INPUT] Dimensional Spin (scaled by CONST_M)
+               float Q,    // [INPUT] Dimensional Charge (scaled by CONST_M)
                vec4 iP_cov, float iE_obs) 
 {
     vec4 CurrentResult = BaseColor;
-    vec3 StartPos = LastRayPos;
+    vec3 StartPos = LastRayPos; // [COORD] KS Spatial Position
     vec3 DirVec   = RayDir; 
     float TotalDist = StepLength;
     float TraveledDist = 0.0;
     
-    // --- 包围盒剔除 ---
     float R_Start = KerrSchildRadius(StartPos, Spin, 1.0);
     float R_End   = KerrSchildRadius(RayPos, Spin, 1.0);
     float MinR = min(R_Start, R_End);
@@ -759,7 +684,6 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
              {
                  float AngularVelocity = GetKeplerianAngularVelocity(PosR, 1.0, Spin, Q);
                  
-                 // --- 螺旋与噪声计算 ---
                  float u = sqrt(PosR);
                  float k_cubed = Spin * 0.70710678;
                  float SpiralTheta;
@@ -773,21 +697,19 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
                  float PosTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
                  float PosLogarithmicTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-2.0 * log(PosR)), sin(-2.0 * log(PosR))));
                  
-                 // --- 物理红移计算 ---
-                 // [TENSOR ANNOTATION]
-                 // 构造流体(吸积盘物质)的逆变 4-速度 U_fluid^u.
-                 // FluidVel 是空间速度 v^i.
-                 // U^u = gamma * (v^x, v^y, v^z, 1).
+                 // [TENSOR] Physical Redshift Calculation
+                 // FluidVel is v^i in KS frame
                  vec3 FluidVel = AngularVelocity * vec3(SamplePos.z, 0.0, -SamplePos.x);
                  vec4 U_fluid_unnorm = vec4(FluidVel, 1.0); 
                  mat4 g_cov_sample = GetKerrMetric(vec4(SamplePos, 0.0), Spin, Q, 1.0, 1.0);
                  
-                 // 计算归一化因子 gamma
-                 // g_uv * U^u * U^v = -1
+                 // Normalize Fluid 4-Velocity U^u
                  float norm_sq = dot(U_fluid_unnorm, g_cov_sample * U_fluid_unnorm);
                  vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
                  
-                 // 计算发射能量 E_emit = - P_u(photon) * U^u(fluid)
+                 // E_emit = - P_u * U^u (Scalar invariant)
+                 // iP_cov is Covariant Momentum p_u
+                 // U_fluid is Contravariant Velocity U^u
                  float E_emit = -dot(iP_cov, U_fluid);
                  float FreqRatio = iE_obs / max(1e-6, E_emit);
                  
@@ -865,7 +787,9 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
 
 vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
               vec3 RayDir, vec3 LastRayDir,
-              float InterRadius, float OuterRadius, float JetRedShiftIntensityExponent, float JetBrightmut, float JetReddening, float JetSaturation, float AccretionRate, float JetShiftMax, float Spin, float Q, 
+              float InterRadius, float OuterRadius, float JetRedShiftIntensityExponent, float JetBrightmut, float JetReddening, float JetSaturation, float AccretionRate, float JetShiftMax, 
+              float Spin, // [INPUT] Dimensional Spin (scaled by CONST_M)
+              float Q,    // [INPUT] Dimensional Charge (scaled by CONST_M)
               vec4 iP_cov, float iE_obs) 
 {
     vec4 CurrentResult = BaseColor;
@@ -1005,7 +929,7 @@ void main()
     float Fov    = tan(iFovRadians / 2.0);
 
     // --- 0. 物理参数准备 ---
-       float iSpinclamp = clamp(iSpin, 0.0, 0.095);
+    float iSpinclamp = clamp(iSpin, 0.0, 0.095);
     float Zx = 1.0 + pow(1.0 - pow(iSpinclamp, 2.0), 0.333333333333333) * (pow(1.0 + pow(iSpinclamp, 2.0), 0.333333333333333) + pow(1.0 - iSpinclamp, 0.333333333333333)); 
     float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx)))) / 2.0; 
     float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); 
@@ -1016,11 +940,12 @@ void main()
     float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
     float BackgroundShiftMax = 2.0;
     
-    // [物理参数]
-    float PhysicalSpinA = iSpin * CONST_M;
-    float PhysicalQ = iQ * CONST_M;
+    // [PHYS] Scaled Physical Constants
+    // 这里将无量纲的输入自旋和电荷乘以质量常数 (CONST_M = 0.5)
+    float PhysicalSpinA = iSpin * CONST_M;  // Dimensional (Length units)
+    float PhysicalQ = iQ * CONST_M;         // Dimensional (Length units)
     
-    // 视界半径计算 (Kerr-Newman)
+    // Event Horizon (Kerr-Newman)
     float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
     float EventHorizonR = 0.5 + sqrt(max(0.0, HorizonDiscrim));
     bool bIsNakedSingularity = HorizonDiscrim < 0.0;
@@ -1030,13 +955,13 @@ void main()
 
     // --- 1. 相机光线生成 (几何部分) ---
     vec2 Jitter = vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)), RandomStep(FragUv, fract(iTime * 1.0))) / iResolution;
-    vec3 ViewDirLocal = FragUvToDir(FragUv + 0.5 * Jitter, Fov, iResolution);
+    vec3 ViewDirLocal = FragUvToDir(FragUv + 0.5 * Jitter, Fov, iResolution); // [COORD] Camera Space
     
-    // 计算世界空间中的相机位置
+    // [COORD] World Space
     vec3 CamToBHVecVisual = (iInverseCamRot * vec4(iBlackHoleRelativePosRs.xyz, 0.0)).xyz;
     vec3 RayPosWorld = -CamToBHVecVisual; 
     
-    // 计算吸积盘坐标系旋转矩阵
+    // Coordinate Transform Basis Construction
     vec3 DiskNormalWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskNormal.xyz, 0.0)).xyz);
     vec3 DiskTangentWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskTangen.xyz, 0.0)).xyz);
     vec3 BH_Y = normalize(DiskNormalWorld);             
@@ -1046,7 +971,7 @@ void main()
     mat3 LocalToWorldRot = mat3(BH_X, BH_Y, BH_Z);
     mat3 WorldToLocalRot = transpose(LocalToWorldRot);
     
-    // 转换到黑洞局部坐标系 (Kerr-Schild 坐标系的几何方向)
+    // [COORD] Kerr-Schild Local Space
     vec3 RayPosLocal = WorldToLocalRot * RayPosWorld;
     vec3 RayDirWorld_Geo = WorldToLocalRot * normalize((iInverseCamRot * vec4(ViewDirLocal, 0.0)).xyz);
 
@@ -1068,8 +993,8 @@ void main()
     }
 
     // --- 3. 物理动量初始化 (Physics Initialization) ---
-    vec4 X = vec4(RayPosLocal, 0.0); // 初始时空坐标 (t=0)
-    vec4 P_cov = vec4(0.0);         
+    vec4 X = vec4(RayPosLocal, 0.0); // [TENSOR] Contravariant Position X^u (t=0)
+    vec4 P_cov = vec4(0.0);          // [TENSOR] Covariant Momentum P_u
     float E_conserved = 1.0;       
     
     vec3 RayDir = RayDirWorld_Geo;   
@@ -1079,84 +1004,63 @@ void main()
         
     if (bShouldContinueMarchRay) 
     {
-       // 1. 获取几何上正确的动量方向 (此时能量大小是不确定的)
-       P_cov = GetInitialMomentum(RayDir, X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade);
+       // 1. Get Geometry-Correct Momentum Direction (Magnitude unknown yet)
+       // Returns P_u (Covariant)
+       P_cov = GetInitialMomentum(RayDir, X, iObserverMode,iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
 
-       // 2. [NEW] 获取本地观测者的四维速度
-       vec4 U_obs = GetObserverU(X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+       // 2. Get Observer 4-Velocity U^u (Contravariant)
+       //vec4 U_obs = GetObserverU(X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
 
-       // 3. [NEW] 计算本地观测到的能量 E_local = - P . U
-       // 注意：P_cov 是协变，U_obs 是逆变，直接点乘即可
-       float E_local = -dot(P_cov, U_obs);
 
-       // 4. [NEW] 归一化动量：强制使得相机看到的能量为 1.0
-       // 这保证了我们追踪的这根光线代表了相机感光元件上的"标准强度"
-       P_cov /= max(1e-6, E_local);
     }
     
-    // 5. 现在的 P_cov.w 就是经过正确缩放的 -E_conserved
+    // 5. P_cov.w is now -E_conserved (scaled)
     E_conserved = -P_cov.w;
     
-    // 6. 进行哈密顿约束修正 (确保 P.P = 0)，此时传入修正后的 E_conserved
+    // 6. Enforce Hamiltonian constraint (Null Geodesic P^2 = 0)
     ApplyHamiltonianCorrection(P_cov, X, E_conserved, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+    
     vec3 RayPos = X.xyz;
     LastPos = RayPos;
     int Count = 0;
     float CameraStartR = KerrSchildRadius(RayPos, PhysicalSpinA, CurrentUniverseSign);
- // 默认不阻挡 (-1.0)
+    
     TerminationR = -1.0; 
-    // 仅在黑洞（非裸奇点）且位于正宇宙时应用视界阻挡逻辑
+    
     if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity) 
     {
-        if (iObserverMode == 0) // 0 = Static Observer (静态观者)
+        if (iObserverMode == 0) // Static Observer
         {
-            // 计算静态极限/无限红移面 (Infinite Redshift Surfaces / Static Limits)
-            // r_S = M +/- sqrt(M^2 - Q^2 - a^2 * cos^2(theta))
-            // 在 Kerr-Schild 坐标系中 (y轴为旋转轴): cos^2(theta) = y^2 / r^2
             float CosThetaSq = (RayPos.y * RayPos.y) / (CameraStartR * CameraStartR + 1e-10);
-            
-            // 判别式 D_S = M^2 - Q^2 - a^2 * cos^2(theta)
-            // 注意: CONST_M = 0.5
             float SL_Discrim = 0.25 - PhysicalQ * PhysicalQ - PhysicalSpinA * PhysicalSpinA * CosThetaSq;
             
-            // 如果判别式<0 (极其罕见的高自旋/高电荷特定角度)，意味着静界不存在，退化为视界逻辑
-            float SL_Outer = 0.5 + sqrt(max(0.0, SL_Discrim)); // 外无限红移面 (Ergosphere Outer Boundary)
-            float SL_Inner = 0.5 - sqrt(max(0.0, SL_Discrim)); // 内无限红移面
+            float SL_Outer = 0.5 + sqrt(max(0.0, SL_Discrim)); 
+            float SL_Inner = 0.5 - sqrt(max(0.0, SL_Discrim)); 
             if (CameraStartR > SL_Outer) 
             {
-                // 1. 静态观者位于静界外 (正常黑洞外观)
-                // 判定条件：光进入外视界 (Event Horizon) 即停止
                 TerminationR = EventHorizonR; 
             } 
             else if (CameraStartR > SL_Inner) 
             {
-                // 2. 静态观者位于静界内 (Ergosphere) 但在内红移面外
-                // 物理上静态观者无法存在于能层 (需超光速)，视为非法状态 -> 立刻终止渲染
+                // Illegal State: Static observer inside Ergosphere
                 bShouldContinueMarchRay = false;
                 bWaitCalBack = false;
-                Result = vec4(0.0, 0.0, 0.0, 1.0); // 输出全黑或报错色
+                Result = vec4(0.0, 0.0, 0.0, 1.0); 
             } 
             else 
             {
-                // 3. 静态观者位于内无限红移面内 (Ring/Wormhole Region)
-                // 不判定奇点 (TerminationR = -1.0)，允许光穿过视界和环
                 TerminationR = -1.0;
             }
         }
-        else // 1 = Falling Observer (自由落体/雨滴观者)
+        else // Falling Observer
         {
-            // 计算内视界 (Inner Horizon / Cauchy Horizon)
             float InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
             if (CameraStartR > InnerHorizonR) 
             {
-                // 1. 自由落体观者位于内视界外
-                // 可以穿越外视界，但在接触柯西视界(内视界)时停止 (模拟柯西不稳定性或盲区)
                 TerminationR = InnerHorizonR;
             } 
             else 
             {
-                // 2. 自由落体观者位于内视界内
-                // 不判定奇点，允许看到奇环或穿越虫洞
                 TerminationR = -1.0;
             }
         }
@@ -1170,7 +1074,6 @@ void main()
             if (DistanceToBlackHole > RaymarchingBoundary) { bShouldContinueMarchRay = false; bWaitCalBack = true; break; }
         float CurrentKerrR = KerrSchildRadius(RayPos, PhysicalSpinA, CurrentUniverseSign);
         
-        // 视界/奇点判定
        if (CurrentUniverseSign > 0.0 && CurrentKerrR < TerminationR && !bIsNakedSingularity) 
         { 
             bShouldContinueMarchRay = false; 
@@ -1181,7 +1084,7 @@ void main()
             bShouldContinueMarchRay = false; bWaitCalBack = true; break; 
         }
         
-        // 步长控制
+        // Step Size Control
         float rho = length(RayPos.xz);
         float DistRing = sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
         
@@ -1198,19 +1101,14 @@ void main()
         }
         float RayStep = StepFactor * DistRing*smoothstep(0.0,0.5,DistRing);
 
-       // if (Count == 0) RayStep *= RandomStep(FragUv, fract(iTime));
-        
-
         LastPos = X.xyz;
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
         
-        // RK4 积分
-        // [TENSOR ANNOTATION]
-        // 动量 P_u 的更新需要 P^u = g^uv * P_v
+        // [TENSOR] RK4 Integration
         mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
-        vec4 P_contra_step = g_inv * P_cov; // Contravariant P
+        vec4 P_contra_step = g_inv * P_cov; // Raise index: P^u = g^uv P_v
         float V_mag = length(P_contra_step.xyz); 
-        float dLambda = RayStep / max(V_mag, 1e-6); // 将步长转换为仿射参数 lambda
+        float dLambda = RayStep / max(V_mag, 0.0); // Convert spatial step to affine parameter
         
         StepGeodesicRK4(X, P_cov, E_conserved,dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
         
@@ -1219,7 +1117,6 @@ void main()
         float ActualStepLength = length(StepVec);
         RayDir = (ActualStepLength > 1e-7) ? StepVec / ActualStepLength : LastDir;
         
-        // 穿越环状奇点检测
         if (LastPos.y * RayPos.y < 0.0) {
             float t_cross = LastPos.y / (LastPos.y - RayPos.y);
             float rho_cross = length(mix(LastPos.xz, RayPos.xz, t_cross));
@@ -1230,13 +1127,15 @@ void main()
         //if (CurrentUniverseSign > 0.0) {
         //   Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
         //                     iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-        //                     iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, clamp(PhysicalSpinA,-0.49,0.49),
-        //                     PhysicalQ, 
+        //                     iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
+        //                     clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
+        //                     PhysicalQ,                       // Passed as Dimensional
         //                     P_cov, E_obs_camera); 
         //   
         //   Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-        //                     iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, clamp(PhysicalSpinA,-0.049,0.049),
-        //                     PhysicalQ, 
+        //                     iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
+        //                     clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
+        //                     PhysicalQ,                         // Passed as Dimensional
         //                     P_cov, E_obs_camera); 
         //}
         //
@@ -1253,13 +1152,12 @@ void main()
         vec4 Backcolor = textureLod(iBackground, EscapeDirWorld, min(1.0, textureQueryLod(iBackground, EscapeDirWorld).x));
         if (CurrentUniverseSign < 0.0) Backcolor = textureLod(iAntiground, EscapeDirWorld, min(1.0, textureQueryLod(iAntiground, EscapeDirWorld).x));
         
-        // [FIX]: 红移计算逻辑
-        // Ratio = E_camera / E_background
-        // E_camera = 1.0 (我们定义的)
-        // E_background = E_conserved (-P_t at infinity)
+        // [PHYS] Gravitational Redshift Calculation
+        // Frequency Ratio = E_camera / E_infinity
+        // E_camera is normalized to 1.0 at start
+        // E_infinity = E_conserved (-P_t at infinity)
         float FrequencyRatio = 1.0 / max(1e-4, E_conserved);
         
-        // BackgroundShift 实际上就是频率比
         float BackgroundShift = FrequencyRatio; 
         BackgroundShift = clamp(BackgroundShift, 1.0/BackgroundShiftMax, BackgroundShiftMax);
         
