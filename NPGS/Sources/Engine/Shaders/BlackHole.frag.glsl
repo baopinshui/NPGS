@@ -391,50 +391,48 @@ vec4 LorentzBoost(vec4 P_in, vec3 v) {
 
 // [FIXED] 获取观测者的逆变 4-速度 U^u
 // 这决定了观测者处于什么参考系，直接影响多普勒效应和光行差
+// [FIXED] 获取观测者的逆变 4-速度 U^u (Contravariant)
 vec4 GetObserverU(vec4 X, int iObserverMode, float a, float Q, float fade, float r_sign) 
 {
-    // Mode 1: Falling Observer (Rain Observer / ZAMO in limit)
-    // 在 Kerr-Schild 坐标系中，从无穷远静止下落的观测者拥有非常简单的协变速度: U_u = (0, 0, 0, -1)
-    // 我们需要将其转换为逆变速度 U^u = g^uv * U_v
+    // Mode 1: Falling Observer (从无穷远静止下落 - Rain Observer)
+    // 这种观测者的协变速度是 U_u = (0, 0, 0, -1) (能量 E=1, 角动量 L=0)
+    // 逆变速度 U^u = g^uv * U_v = g^u3 * (-1) = -g^u3
     if (iObserverMode == 1) 
     {
         mat4 g_inv = GetInverseKerrMetric(X, a, Q, fade, r_sign);
-        // U^u = g^u0 * 0 + ... + g^u3 * (-1) = -1.0 * (g_inv 的第4列)
-        return 1.0 * g_inv[3]; 
+        // 注意符号：取反以匹配未来的时间方向 (假设 g^tt 是负值，我们需要 U^t > 0)
+        return -1.0 * g_inv[3]; 
     }
     
     // Mode 0: Static Observer (Boyer-Lindquist Stationary)
-    // 保持空间坐标不变的观测者: U^i = 0, U^t = N.
-    // 归一化条件: g_uv U^u U^v = -1 => g_tt * (U^t)^2 = -1
-    // U^t = 1 / sqrt(-g_tt)
-    // 注意：在能层（Ergosphere）内 g_tt > 0，静态观测者无法存在（需超光速）。
+    // U^i = 0, U^t = 1 / sqrt(-g_tt)
     else 
     {
         float gtt = GetGtt(X.xyz, a, Q, r_sign);
         
-        // 安全检查：如果在能层内或视界内，静态观测者物理上不成立
-        // 这里做一个平滑回退到 Falling 模式，防止渲染 NaN
-        if (gtt >= -1e-4) 
+        // 安全检查：能层内无法存在静态观测者
+        if (gtt >= -1e-6) 
         {
+            // 回退到下落模式，防止除零或NaN
             mat4 g_inv = GetInverseKerrMetric(X, a, Q, fade, r_sign);
-            return vec4(0.0);
+            return -1.0 * g_inv[3];
         }
         
-        return vec4(0.0, 0.0, 0.0, -1.0 / sqrt(-gtt));
+        return vec4(0.0, 0.0, 0.0, 1.0 / sqrt(-gtt));
     }
 }
 
 // [FIXED] 重写的初始动量计算
 // 使用局部投影法代替洛伦兹变换，能够完美处理 Kerr 度规的空间拖曳
+// [FIXED] 初始动量计算，增加了对下落观者的光行差处理
 vec4 GetInitialMomentum(vec3 RayDir, vec4 X, int iObserverMode, float iSpin, float iQ, float GravityFade) 
 {
-    // 1. 准备 Kerr-Schild 几何参数
     float r_sign = 1.0; 
     float r = KerrSchildRadius(X.xyz, iSpin, r_sign);
     float r2 = r * r;
     float a2 = iSpin * iSpin;
     
-    // 计算零矢量 l 的空间分量 (指向外，r增加的方向)
+    // 几何辅助量
     float denom_inv = 1.0 / (r2 + a2);
     float lx = (r * X.x + iSpin * X.z) * denom_inv;
     float ly = X.y / r;
@@ -446,30 +444,44 @@ vec4 GetInitialMomentum(vec3 RayDir, vec4 X, int iObserverMode, float iSpin, flo
     float denominator = r2 * r2 + a2 * X.y * X.y;
     float f = (numerator / max(1e-20, denominator)) * GravityFade;
 
-    // 2. 根据观测者模式修正光线方向
     vec3 TargetDir = RayDir;
 
+    // --- [FIX START] 观者参考系变换 (光行差/Aberration) ---
+    
     // Mode 0: 静态观测者 (Static)
+    // 静态观者相对于 Kerr-Schild 坐标网格向外运动，因此需要向内 Boost
     if (iObserverMode == 0 && f < 1.0) {
         float beta = sqrt(f); 
-        
-        // [BUG FIX]: 
-        // 静态观测者相对于网格向外运动，但在光线追踪(逆向)中，
-        // 我们需要把相机的“向内视线”在网格系中变得“更向内”，
-        // 这样才能模拟出静态者看到的“黑洞变大”的效果。
-        // 原代码使用了 +normalize(l_spatial)，导致光线向外偏折（黑洞变小）。
-        // 这里改为负号。
         vec3 v_boost = -normalize(l_spatial) * beta;
-        
         vec4 P_local = vec4(RayDir, 1.0);
         TargetDir = LorentzBoost(P_local, v_boost).xyz;
         TargetDir = normalize(TargetDir);
     }
+    // Mode 1: 下落观测者 (Falling / Rain)
+    // 这是一个关键修正。下落观者高速向内运动，必须将相机空间的光线 Boost 到全局坐标系。
+    else if (iObserverMode == 1) {
+        // 1. 获取下落观者的逆变速度 U^u
+        // U_rain^u = -g^ut (见 GetObserverU 的推导)
+        // 我们可以直接用解析式，或者调用矩阵。为保持一致性，这里展开解析式：
+        // U^i = f * l^i, U^t = 1 + f
+        // 空间速度 v = U^i / U^t
+        
+        vec3 U_spatial = f * l_spatial;
+        float U_time   = 1.0 + f;
+        
+        vec3 v_fall = U_spatial / U_time; // 观者的三维速度
+        
+        // 2. 对光线应用洛伦兹变换
+        // 观者向内下落，光线需要根据观者速度进行“拖拽”
+        vec4 P_local = vec4(RayDir, 1.0);
+        TargetDir = LorentzBoost(P_local, v_fall).xyz;
+        TargetDir = normalize(TargetDir);
+    }
+    // --- [FIX END] ---
     
-    // 3. 求解 Kerr-Schild 下的逆变时间分量 P^t
+    // 3. 求解 Kerr-Schild 下的逆变时间分量 P^t (保持原有逻辑)
     float v_sq = dot(TargetDir, TargetDir);
     float L = dot(l_spatial, TargetDir); 
-    
     float A = 1.0 - f;
     float Delta = v_sq - f * (v_sq - L * L);
     
@@ -483,10 +495,10 @@ vec4 GetInitialMomentum(vec3 RayDir, vec4 X, int iObserverMode, float iSpin, flo
     
     vec4 P_contrav = vec4(TargetDir, kt);
 
-    // 4. 转换为协变动量并返回
     mat4 g_cov = GetKerrMetric(X, iSpin, iQ, GravityFade, r_sign);
     return g_cov * P_contrav;
 }
+
 
 
 float CalculateFrequencyRatio(vec4 P_photon, vec4 U_emitter, vec4 U_observer, mat4 g_cov)
@@ -1056,14 +1068,10 @@ void main()
     }
 
     // --- 3. 物理动量初始化 (Physics Initialization) ---
-    // [TENSOR ANNOTATION]
-    // 在弯曲时空中初始化光子动量。
-    // 我们需要在相机位置构建一个局域四维标架 (Tetrad/Vierbein) {e_mu}.
-    // 相机测量到的光线方向 S 实际上是动量在局域平直空间(切空间)的分量。
-    
     vec4 X = vec4(RayPosLocal, 0.0); // 初始时空坐标 (t=0)
     vec4 P_cov = vec4(0.0);         
-    float E_obs_camera = 1.0;       
+    float E_conserved = 1.0;       
+    
     vec3 RayDir = RayDirWorld_Geo;   
     vec3 LastDir = RayDir;
     vec3 LastPos = RayPosLocal;
@@ -1071,20 +1079,26 @@ void main()
         
     if (bShouldContinueMarchRay) 
     {
-       // [FIXED] 使用新的投影法计算初始动量
+       // 1. 获取几何上正确的动量方向 (此时能量大小是不确定的)
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade);
+
+       // 2. [NEW] 获取本地观测者的四维速度
+       vec4 U_obs = GetObserverU(X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+
+       // 3. [NEW] 计算本地观测到的能量 E_local = - P . U
+       // 注意：P_cov 是协变，U_obs 是逆变，直接点乘即可
+       float E_local = -dot(P_cov, U_obs);
+
+       // 4. [NEW] 归一化动量：强制使得相机看到的能量为 1.0
+       // 这保证了我们追踪的这根光线代表了相机感光元件上的"标准强度"
+       P_cov /= max(1e-6, E_local);
     }
     
-    // [FIXED] 正确计算相机观测到的能量
-    // E_obs = - P_u * U^u_camera
-    // 之前直接使用 -P_cov.w 是假设了观测者 U=(1,0,0,0)，这对于静态观测者(需归一化)和落体观测者(需变换)都是错的。
-    vec4 U_camera = GetObserverU(X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
-    E_obs_camera = dot(P_cov, U_camera);
+    // 5. 现在的 P_cov.w 就是经过正确缩放的 -E_conserved
+    E_conserved = -P_cov.w;
     
-    // 强制修正哈密顿量，消除数值误差 (Input E should be E_infinity = -P_t)
-    // 注意：Hamiltonian correction 保持动量的时间分量守恒（能量守恒），即 P_t (P_cov.w)
-    // P_cov.w 是无穷远处的能量，E_obs_camera 是本地能量，两者是不同的，但积分器修正需要 P_t
-    ApplyHamiltonianCorrection(P_cov, X, E_obs_camera, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+    // 6. 进行哈密顿约束修正 (确保 P.P = 0)，此时传入修正后的 E_conserved
+    ApplyHamiltonianCorrection(P_cov, X, E_conserved, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
     vec3 RayPos = X.xyz;
     LastPos = RayPos;
     int Count = 0;
@@ -1198,7 +1212,7 @@ void main()
         float V_mag = length(P_contra_step.xyz); 
         float dLambda = RayStep / max(V_mag, 1e-6); // 将步长转换为仿射参数 lambda
         
-        StepGeodesicRK4(X, P_cov, E_obs_camera,dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+        StepGeodesicRK4(X, P_cov, E_conserved,dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
         
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
@@ -1239,14 +1253,15 @@ void main()
         vec4 Backcolor = textureLod(iBackground, EscapeDirWorld, min(1.0, textureQueryLod(iBackground, EscapeDirWorld).x));
         if (CurrentUniverseSign < 0.0) Backcolor = textureLod(iAntiground, EscapeDirWorld, min(1.0, textureQueryLod(iAntiground, EscapeDirWorld).x));
         
-        float E_emit_at_infinity = -P_cov.w;
-        
-        // 防止除零 (E_emit 不应为负或零，但在数值误差下需保护)
-        float FrequencyRatio = 1.0 / max(1e-4, E_emit_at_infinity);
+        // [FIX]: 红移计算逻辑
+        // Ratio = E_camera / E_background
+        // E_camera = 1.0 (我们定义的)
+        // E_background = E_conserved (-P_t at infinity)
+        float FrequencyRatio = 1.0 / max(1e-4, E_conserved);
         
         // BackgroundShift 实际上就是频率比
         float BackgroundShift = FrequencyRatio; 
-        BackgroundShift =clamp(BackgroundShift, 1.0/BackgroundShiftMax, BackgroundShiftMax);
+        BackgroundShift = clamp(BackgroundShift, 1.0/BackgroundShiftMax, BackgroundShiftMax);
         
         vec4 TexColor = Backcolor;
         vec3 Rcolor = Backcolor.r * 1.0 * WavelengthToRgb(max(453.0, 645.0 / BackgroundShift));
