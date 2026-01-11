@@ -165,10 +165,34 @@ vec3 KelvinToRgb(float Kelvin)
     return RgbColor;
 }
 
+//vec3 WavelengthToRgb(float wavelength) {
+//    vec3 color = vec3(0.0);
+//    if (wavelength < 380.0 || wavelength > 750.0) return color; 
+//    if (wavelength >= 380.0 && wavelength < 440.0) {
+//        color.r = -(wavelength - 440.0) / (440.0 - 380.0); color.g = 0.0; color.b = 1.0;
+//    } else if (wavelength >= 440.0 && wavelength < 490.0) {
+//        color.r = 0.0; color.g = (wavelength - 440.0) / (490.0 - 440.0); color.b = 1.0;
+//    } else if (wavelength >= 490.0 && wavelength < 510.0) {
+//        color.r = 0.0; color.g = 1.0; color.b = -(wavelength - 510.0) / (510.0 - 490.0);
+//    } else if (wavelength >= 510.0 && wavelength < 580.0) {
+//        color.r = (wavelength - 510.0) / (580.0 - 510.0); color.g = 1.0; color.b = 0.0;
+//    } else if (wavelength >= 580.0 && wavelength < 645.0) {
+//        color.r = 1.0; color.g = -(wavelength - 645.0) / (645.0 - 580.0); color.b = 0.0;
+//    } else if (wavelength >= 645.0 && wavelength <= 750.0) {
+//        color.r = 1.0; color.g = 0.0; color.b = 0.0;
+//    }
+//    float factor = 0.0;
+//    if (wavelength >= 380.0 && wavelength < 420.0) factor = 0.3 + 0.7 * (wavelength - 380.0) / (420.0 - 380.0);
+//    else if (wavelength >= 420.0 && wavelength < 645.0) factor = 1.0;
+//    else if (wavelength >= 645.0 && wavelength <= 750.0) factor = 0.3 + 0.7 * (750.0 - wavelength) / (750.0 - 645.0);
+//    
+//    return color * factor / pow(color.r * color.r + 2.25 * color.g * color.g + 0.36 * color.b * color.b, 0.5) * (0.1 * (color.r + color.g + color.b) + 0.9);
+//}
 vec3 WavelengthToRgb(float wavelength) {
     vec3 color = vec3(0.0);
-    if (wavelength < 380.0 || wavelength > 750.0) return color; 
-    if (wavelength >= 380.0 && wavelength < 440.0) {
+    if (wavelength <= 380.0 ) {
+        color.r = 1.0; color.g = 0.0; color.b = 1.0;
+    } else if (wavelength >= 380.0 && wavelength < 440.0) {
         color.r = -(wavelength - 440.0) / (440.0 - 380.0); color.g = 0.0; color.b = 1.0;
     } else if (wavelength >= 440.0 && wavelength < 490.0) {
         color.r = 0.0; color.g = (wavelength - 440.0) / (490.0 - 440.0); color.b = 1.0;
@@ -180,15 +204,16 @@ vec3 WavelengthToRgb(float wavelength) {
         color.r = 1.0; color.g = -(wavelength - 645.0) / (645.0 - 580.0); color.b = 0.0;
     } else if (wavelength >= 645.0 && wavelength <= 750.0) {
         color.r = 1.0; color.g = 0.0; color.b = 0.0;
+    } else if (wavelength >= 750.0) {
+        color.r = 1.0; color.g = 0.0; color.b = 0.0;
     }
-    float factor = 0.0;
+    float factor = 0.3;
     if (wavelength >= 380.0 && wavelength < 420.0) factor = 0.3 + 0.7 * (wavelength - 380.0) / (420.0 - 380.0);
     else if (wavelength >= 420.0 && wavelength < 645.0) factor = 1.0;
     else if (wavelength >= 645.0 && wavelength <= 750.0) factor = 0.3 + 0.7 * (750.0 - wavelength) / (750.0 - 645.0);
     
     return color * factor / pow(color.r * color.r + 2.25 * color.g * color.g + 0.36 * color.b * color.b, 0.5) * (0.1 * (color.r + color.g + color.b) + 0.9);
 }
-
 // =============================================================================
 // SECTION 4: 广义相对论度规与物理核心 (Kerr-Newman)
 // =============================================================================
@@ -637,34 +662,72 @@ State GetDerivativesAnalytic(State S, float PhysicalSpinA, float PhysicalQ, floa
     return deriv;
 }
 
-// [MATH] RK4 Integrator
+// [HELPER] 检测试探步是否穿过奇环面，并返回用于导数计算的临时 UniverseSign
+float GetIntermediateSign(vec4 StartX, vec4 CurrentX, float CurrentSign, float PhysicalSpinA) {
+    // 如果 Y 符号改变 (穿过赤道面)
+    if (StartX.y * CurrentX.y < 0.0) {
+        // 计算穿越比例 t
+        float t = StartX.y / (StartX.y - CurrentX.y);
+        // 线性插值求穿越点的平面半径 rho
+        float rho_cross = length(mix(StartX.xz, CurrentX.xz, t));
+        
+        // 如果在奇环内部 (rho < a)，则视为穿过虫洞，翻转 r_sign
+        if (rho_cross < abs(PhysicalSpinA)) {
+            return -CurrentSign;
+        }
+    }
+    return CurrentSign;
+}
+
+// [MATH] RK4 Integrator with Singularity Crossing Fix
 // X: Contravariant Position x^u
 // P: Covariant Momentum p_u
 // [INPUT] a/Q: Dimensional (scaled by CONST_M)
 void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
     State s0; s0.X = X; s0.P = P;
-    
+
+    // --- k1 Step ---
+    // 使用当前符号
     State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, fade, r_sign);
-    
+
+    // --- k2 Step ---
     State s1; 
     s1.X = s0.X + 0.5 * dt * k1.X; 
     s1.P = s0.P + 0.5 * dt * k1.P;
-    State k2 = GetDerivativesAnalytic(s1, PhysicalSpinA, PhysicalQ, fade, r_sign);
-    
+    // 检测 s0 -> s1 是否穿过奇环
+    float sign1 = GetIntermediateSign(s0.X, s1.X, r_sign, PhysicalSpinA);
+    State k2 = GetDerivativesAnalytic(s1, PhysicalSpinA, PhysicalQ, fade, sign1);
+
+    // --- k3 Step ---
     State s2; 
     s2.X = s0.X + 0.5 * dt * k2.X; 
     s2.P = s0.P + 0.5 * dt * k2.P;
-    State k3 = GetDerivativesAnalytic(s2, PhysicalSpinA, PhysicalQ, fade, r_sign);
-    
+    // 检测 s0 -> s2 是否穿过奇环
+    float sign2 = GetIntermediateSign(s0.X, s2.X, r_sign, PhysicalSpinA);
+    State k3 = GetDerivativesAnalytic(s2, PhysicalSpinA, PhysicalQ, fade, sign2);
+
+    // --- k4 Step ---
     State s3; 
     s3.X = s0.X + dt * k3.X; 
     s3.P = s0.P + dt * k3.P;
-    State k4 = GetDerivativesAnalytic(s3, PhysicalSpinA, PhysicalQ, fade, r_sign);
-    
-    X = s0.X + (dt / 6.0) * (k1.X + 2.0 * k2.X + 2.0 * k3.X + k4.X);
-    P = s0.P + (dt / 6.0) * (k1.P + 2.0 * k2.P + 2.0 * k3.P + k4.P);
-    
-    ApplyHamiltonianCorrection(P, X, E, PhysicalSpinA, PhysicalQ, fade, r_sign);
+    // 检测 s0 -> s3 是否穿过奇环
+    float sign3 = GetIntermediateSign(s0.X, s3.X, r_sign, PhysicalSpinA);
+    State k4 = GetDerivativesAnalytic(s3, PhysicalSpinA, PhysicalQ, fade, sign3);
+
+    // --- Final Integration ---
+    vec4 finalX = s0.X + (dt / 6.0) * (k1.X + 2.0 * k2.X + 2.0 * k3.X + k4.X);
+    vec4 finalP = s0.P + (dt / 6.0) * (k1.P + 2.0 * k2.P + 2.0 * k3.P + k4.P);
+
+    // --- Hamiltonian Correction Logic ---
+    // 在应用哈密顿约束前，我们需要确定最终位置所处的正确 r_sign。
+    // 如果这步积分确实穿过了奇环，ApplyHamiltonianCorrection 必须使用新的符号，
+    // 否则 g^uv 计算错误会导致动量修正产生巨大误差。
+    float finalSign = GetIntermediateSign(s0.X, finalX, r_sign, PhysicalSpinA);
+
+    ApplyHamiltonianCorrection(finalP, finalX, E, PhysicalSpinA, PhysicalQ, fade, finalSign);
+
+    X = finalX;
+    P = finalP;
 }
 
 // =============================================================================
@@ -1168,8 +1231,24 @@ void main()
         {
             StepFactor = 0.5;
         }
-        float RayStep = StepFactor * DistRing*smoothstep(0.0,0.5,DistRing);
 
+ 
+        float RayStep = StepFactor * DistRing*smoothstep(0.0,0.5,DistRing);
+                if (!bIsNakedSingularity) 
+        {
+            // 计算当前距离视界的距离
+            float DistToHorizon = abs(CurrentKerrR - EventHorizonR);
+            
+            // 限制单次步长不超过距离视界剩余距离的 25%。
+            // +0.002 是为了防止“芝诺悖论”导致的死循环（即步长无限趋近于0永远跨不过去）。
+            float MaxSafeStep = 0.25 * DistToHorizon + 0.002;
+            
+            RayStep = min(RayStep, MaxSafeStep);
+        }
+        if (Count < 5) 
+        {
+            RayStep *= 0.1; 
+        }
         LastPos = X.xyz;
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
         
@@ -1193,20 +1272,20 @@ void main()
         }
         
         // --- 渲染积累 (取消了原来的注释) ---
-       // if (CurrentUniverseSign > 0.0) {
-       //    Result = max(RayPos.y,0.0)*DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-       //                      iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-       //                      iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
-       //                      clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
-       //                      PhysicalQ,                       // Passed as Dimensional
-       //                      P_cov, E_conserved); 
-       //    
-       //    Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-       //                      iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
-       //                      clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
-       //                      PhysicalQ,                         // Passed as Dimensional
-       //                      P_cov, E_conserved); 
-       // }
+        if (CurrentUniverseSign > 0.0) {
+           Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
+                             iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
+                             iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
+                             clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
+                             PhysicalQ,                       // Passed as Dimensional
+                             P_cov, E_conserved); 
+           
+           Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
+                             iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
+                             clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
+                             PhysicalQ,                         // Passed as Dimensional
+                             P_cov, E_conserved); 
+        }
         
         if (Result.a > 0.99) { bShouldContinueMarchRay = false; bWaitCalBack = false; break; }
         
