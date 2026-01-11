@@ -1241,14 +1241,11 @@ void main()
             
             // 限制单次步长不超过距离视界剩余距离的 25%。
             // +0.002 是为了防止“芝诺悖论”导致的死循环（即步长无限趋近于0永远跨不过去）。
-            float MaxSafeStep = 0.25 * DistToHorizon + 0.002;
+            float MaxSafeStep = 0.5 * DistToHorizon + 0.002;
             
             RayStep = min(RayStep, MaxSafeStep);
         }
-        if (Count < 5) 
-        {
-            RayStep *= 0.1; 
-        }
+
         LastPos = X.xyz;
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
         
@@ -1272,20 +1269,20 @@ void main()
         }
         
         // --- 渲染积累 (取消了原来的注释) ---
-        if (CurrentUniverseSign > 0.0) {
-           Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-                             iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-                             iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
-                             clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
-                             PhysicalQ,                       // Passed as Dimensional
-                             P_cov, E_conserved); 
-           
-           Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-                             iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
-                             clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
-                             PhysicalQ,                         // Passed as Dimensional
-                             P_cov, E_conserved); 
-        }
+        //if (CurrentUniverseSign > 0.0) {
+        //   Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
+        //                     iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
+        //                     iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
+        //                     clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
+        //                     PhysicalQ,                       // Passed as Dimensional
+        //                     P_cov, E_conserved); 
+        //   
+        //   Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
+        //                     iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
+        //                     clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
+        //                     PhysicalQ,                         // Passed as Dimensional
+        //                     P_cov, E_conserved); 
+        //}
         
         if (Result.a > 0.99) { bShouldContinueMarchRay = false; bWaitCalBack = false; break; }
         
