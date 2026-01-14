@@ -574,9 +574,51 @@ float CalculateFrequencyRatio(vec4 P_photon, vec4 U_emitter, vec4 U_observer, ma
     float E_obs  = -dot(P_cov, U_observer);
     return E_emit / max(EPSILON, E_obs);
 }
+// [PHYS] Reflects a photon such that it retraces its spatial path in coordinate space.
+// Keeps the covariant time component (energy) constant: P'_v = P_v.
+// Reverses the contravariant spatial components: P'^i = -P^i.
+// Inputs: 
+//   X: Contravariant position (x, y, z, v)
+//   P_mu: Covariant momentum (P_x, P_y, P_z, P_v) [INOUT]
+void ReflectPhotonKerrSchild(
+    vec4 X, 
+    inout vec4 P_mu, 
+    float PhysicalSpinA, 
+    float PhysicalQ, 
+    float GravityFade, 
+    float CurrentUniverseSign
+) {
+    // 1. 获取几何信息 (f 和 l_mu)
+    KerrGeometry geo;
+    // 注意：ComputeGeometry 只使用 X.xyz，时间分量 X.w 此处不影响几何
+    ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo);
 
+    float f = geo.f;
+    vec4 l_lower = geo.l_down;
+
+    // 2. 提取协变时间分量 P_v
+    // 根据 MINKOWSKI_METRIC diag(1,1,1,-1)，时间在 w 分量
+    float P_v = P_mu.w;
+
+    // 3. 计算反射系数
+    // 变换公式: P'_mu = -P_mu + (2 * P_v / (1 - f)) * (n_mu - f * l_mu)
+    
+    // 计算分母 (1 - f)
+    // 注意：在无限红移面或特定几何处 f 可能接近 1，加一个极小值保护
+    float denom = 1.0 - f;
+    if (abs(denom) < 1e-9) denom = sign(denom) * 1e-9;
+
+    float scale_factor = (2.0 * P_v) / denom;
+
+    // 4. 构造修正向量 term = (n_mu - f * l_mu)
+    // n_mu 为纯时间方向协变基向量 (0, 0, 0, 1)
+    vec4 direction_term = vec4(0.0, 0.0, 0.0, 1.0) - f * l_lower;
+
+    // 5. 应用变换
+    P_mu = -P_mu + scale_factor * direction_term;
+}
 // -----------------------------------------------------------------------------
-// 数值积分核心结构
+// 5.数值积分核心结构
 // -----------------------------------------------------------------------------
 struct State {
     vec4 X; // [TENSOR] Contravariant Position x^u
@@ -1074,7 +1116,7 @@ void main()
     
     // [PHYS] Scaled Physical Constants
     // 这里将无量纲的输入自旋和电荷乘以质量常数 (CONST_M = 0.5)
-    float PhysicalSpinA = iSpin * CONST_M;  // Dimensional (Length units)
+    float PhysicalSpinA = -iSpin * CONST_M;  // Dimensional (Length units)
     float PhysicalQ = iQ * CONST_M;         // Dimensional (Length units)
     
     // Event Horizon (Kerr-Newman)
@@ -1139,7 +1181,7 @@ void main()
        // 1. Get Geometry-Correct Momentum Direction (Magnitude unknown yet)
        // Returns P_u (Covariant)
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode,iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
-       //P_cov=vec4(RayDir,-1.0);
+       P_cov=vec4(-RayDir,-1.0);
        // 2. Get Observer 4-Velocity U^u (Contravariant)
        //vec4 U_obs = GetObserverU(X, iObserverMode, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
 
@@ -1233,30 +1275,44 @@ void main()
         }
 
  
-        float RayStep = StepFactor * DistRing*smoothstep(0.0,0.5,DistRing);
-                if (!bIsNakedSingularity) 
-        {
-            // 计算当前距离视界的距离
-            float DistToHorizon = abs(CurrentKerrR - EventHorizonR);
-            
-            // 限制单次步长不超过距离视界剩余距离的 25%。
-            // +0.002 是为了防止“芝诺悖论”导致的死循环（即步长无限趋近于0永远跨不过去）。
-            float MaxSafeStep = 0.5 * DistToHorizon + 0.002;
-            
-            RayStep = min(RayStep, MaxSafeStep);
-        }
+        float RayStep = StepFactor * DistRing;
 
         LastPos = X.xyz;
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
         
         // [TENSOR] RK4 Integration
-        mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+
+
+
+    KerrGeometry geo;
+    ComputeGeometry(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo);
+    
+    
+    // l^u P_u term
+    float l_dot_P = dot(geo.l_up.xyz, P_cov.xyz);
+        if(l_dot_P<0){
+                mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
         vec4 P_contra_step = g_inv * P_cov; // Raise index: P^u = g^uv P_v
+ 
+       
+
         float V_mag = length(P_contra_step.xyz); 
         float dLambda = RayStep / max(V_mag, 0.0); // Convert spatial step to affine parameter
-        
-        StepGeodesicRK4(X, P_cov, E_conserved,dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
-        
+        StepGeodesicRK4(X, P_cov, E_conserved,-dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+        Result+=vec4(0.01,0.0,0.0,0.);
+        }else{
+        ReflectPhotonKerrSchild(X, P_cov,PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+                mat4 g_inv = GetInverseKerrMetric(X, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+        vec4 P_contra_step = g_inv * P_cov; // Raise index: P^u = g^uv P_v
+ 
+       
+
+        float V_mag = length(P_contra_step.xyz); 
+        float dLambda = RayStep / max(V_mag, 0.0); // Convert spatial step to affine parameter
+        StepGeodesicRK4(X, P_cov, E_conserved,dLambda, -PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+        ReflectPhotonKerrSchild(X, P_cov,PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
+         Result+=vec4(0.0,0.0,0.01,0.);
+        }
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
         float ActualStepLength = length(StepVec);
