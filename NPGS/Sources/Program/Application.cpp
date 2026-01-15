@@ -683,67 +683,125 @@ void FApplication::ExecuteMainRender()
             }//else{ _FreeCamera->SetTargetOrbitAxis(glm::vec3(0., -1., -0.)); _FreeCamera->SetTargetOrbitCenter(glm::vec3(0.,0.0*5.586e-5f, 0));
            // }
            // _FreeCamera->ProcessMouseMovement(10, 0);
-            std::cout << glm::length(_FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)) / Rs << std::endl;;
             glm::vec3 pos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
-
+            std::cout << pos.x / Rs << "   " << pos.y / Rs << "   " << pos.z / Rs << std::endl;
             // 2. 物理参数准备
-            // 注意：Shader中 Rs=1.0 对应 M=0.5。这里我们保持量纲一致，用真实的 Rs。
             float M = 0.5f * Rs;
-            float a = BlackHoleArgs.Spin * M; // 物理自旋量 a = J/M
+            float a = BlackHoleArgs.Spin * M;      // 物理自旋 a
+            float Q_phys = BlackHoleArgs.Q * M;    // 物理电荷 Q (注意量纲跟随M)
             float a2 = a * a;
+            float Q2 = Q_phys * Q_phys;
 
-            // 获取当前帧相机世界坐标
+            // 获取当前帧相机世界坐标及 UniverseSign 更新逻辑
             glm::vec3 currentPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
-            if (LastCameraWorldPos.y * currentPos.y < 0.0f&& FrameCount>0)
+            if (LastCameraWorldPos.y * currentPos.y < 0.0f && FrameCount > 0)
             {
-                // 1. 计算与 Y=0 平面的交点插值系数 t
-                // y_last + t * (y_curr - y_last) = 0  =>  t = y_last / (y_last - y_curr)
                 float denom = LastCameraWorldPos.y - currentPos.y;
                 if (std::abs(denom) > 1e-9f)
                 {
                     float t = LastCameraWorldPos.y / denom;
-
-                    // 2. 计算交点在 XZ 平面上的投影半径平方
                     float intersectX = LastCameraWorldPos.x + t * (currentPos.x - LastCameraWorldPos.x);
                     float intersectZ = LastCameraWorldPos.z + t * (currentPos.z - LastCameraWorldPos.z);
                     float rho2 = intersectX * intersectX + intersectZ * intersectZ;
-
-                    // 3. 判定：如果交点在奇环半径 a 之内，翻转宇宙符号
+                    // 奇环判定仅与自旋 a 有关，与 Q 无关
                     if (rho2 < a2)
                     {
                         BlackHoleArgs.UniverseSign *= -1.0f;
                     }
                 }
             }
-            // 更新上一帧位置记录
             LastCameraWorldPos = currentPos;
-            // 3. 从 KS 坐标 (x,y,z) 求解 BL 半径 r
-            // 假设 Y 轴为自旋轴，方程为: r^4 - (R^2 - a^2)r^2 - a^2*y^2 = 0
+
+            // 3. 从 KS 坐标求解 BL 半径 r
+            // 坐标变换方程中的共焦椭球结构主要由 a 决定，Q 仅改变度规分量系数
             float x2 = pos.x * pos.x;
             float y2 = pos.y * pos.y;
             float z2 = pos.z * pos.z;
-            float R2 = x2 + y2 + z2; // 欧氏距离平方
+            float R2 = x2 + y2 + z2;
 
-            float b = R2 - a * a;
-            float c = a * a * y2;
-
-            // 解一元二次方程求 r^2 (取正根)
+            float b = R2 - a2;
+            float c = a2 * y2;
             float r2 = 0.5f * (b + std::sqrt(b * b + 4.0f * c));
             float r = std::sqrt(r2) * BlackHoleArgs.UniverseSign;
 
-            // 4. 计算度规函数 f (shader 中的 f_raw)
-            // 静止界限的定义是 g_tt = -1 + f = 0 => f = 1
-            float f = (2.0f * M * r * r2) / (r2 * r2 + a * a * y2);
+            // 4. 计算 Kerr-Newman 度规函数 f
+            // g_tt = -1 + f. 在 KN 度规中 f = (2Mr - Q^2) / Sigma
+            // 原代码分母计算的是 Sigma * r^2 (即 r^4 + a^2*y^2)，所以分子也要乘 r^2
+            float sigma_times_r2 = r2 * r2 + a2 * y2;
+            float f = ((2.0f * M * r - Q2) * r2) / sigma_times_r2;
 
-            // 5. 计算外视界半径 (用于排除掉视界内部)
-            // r_plus = M + sqrt(M^2 - a^2)
-            float horizon_r = M + std::sqrt(std::max(0.0f, M * M - a * a));
+            // ... (前置代码保持不变: M, a, Q_phys, r, f 等计算) ...
 
-            // 6. 判断是否在能层内
-            // 条件：f > 1.0 (进入静止界限) 且 r > horizon_r (还没掉进视界)
-            bool isInErgosphere = (f > 1.0f) && (r > horizon_r);
+             // 5. 计算视界半径
+            float delta_discriminant = M * M - a2 - Q2;
+            float horizon_outer = 0.0f;
+            float horizon_inner = 0.0f;
+            bool isNakedSingularity = delta_discriminant < 0.0f;
 
-            std::cout << (isInErgosphere ? "True" : "False")
+            if (!isNakedSingularity)
+            {
+                float sqrt_delta = std::sqrt(delta_discriminant);
+                horizon_outer = M + sqrt_delta;
+                horizon_inner = M - sqrt_delta;
+            }
+
+            // 6. 区域判定 & 观测者限制警告
+            std::string locationStatus = "";
+            std::string warningMsg = "";
+
+            // --- 判定禁止静态观者 ---
+            // 1. 能层内: g_tt > 0 => f > 1.0
+            // 2. 视界间: Delta < 0，r 变为时间坐标，无法保持静止
+            bool isBetweenHorizons = (!isNakedSingularity && r < horizon_outer && r > horizon_inner);
+            if (f > 1.0f || isBetweenHorizons)
+            {
+                warningMsg += " [禁止静态观者]";
+            }
+
+            // --- 判定禁止自由落体观者 (从无穷远静止下落 E=1) ---
+            // 在 KN 度规中，当 2Mr < Q^2 时，引力项被电荷排斥项抵消
+            // 导致从无穷远静止下落的观测者在此半径前速度归零并被弹回
+            if (2.0f * M * r < Q2)
+            {
+                warningMsg += " [禁止自由落体]";
+            }
+
+            // --- 位置描述文本 ---
+            if (r < 0.0f)
+            {
+                locationStatus = "Antiverse (r < 0)";
+            }
+            else if (isNakedSingularity)
+            {
+                locationStatus = "裸奇点周边";
+            }
+            else
+            {
+                if (r > horizon_outer)
+                {
+                    locationStatus = (f > 1.0f) ? "外能层内" : "外静界外";
+                }
+                else if (r > horizon_inner)
+                {
+                    locationStatus = "内外视界间";
+                }
+                else
+                {
+                    // 内视界内部
+                    // 检查是否进入了"排斥力"占主导的区域
+                    if (2.0f * M * r < Q2)
+                        locationStatus = "重力排斥区 (Repulsive Gravity)";
+                    else if (f > 1.0f)
+                        locationStatus = "内能层内";
+                    else
+                        locationStatus = "内静界内";
+                }
+            }
+
+            std::cout << "r/Rs: " << r / Rs
+                << " | Q*: " << BlackHoleArgs.Q
+                << " | " << locationStatus
+                << warningMsg // 追加警告信息
                 << std::endl;
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
