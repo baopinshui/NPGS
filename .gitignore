@@ -375,3 +375,4 @@ NPGS/vcpkg_installed/
 
 # Vcpkg manifest mode
 vcpkg-manifest-install.log
+/NPGS/Win64
