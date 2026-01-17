@@ -165,29 +165,6 @@ vec3 KelvinToRgb(float Kelvin)
     return RgbColor;
 }
 
-//vec3 WavelengthToRgb(float wavelength) {
-//    vec3 color = vec3(0.0);
-//    if (wavelength < 380.0 || wavelength > 750.0) return color; 
-//    if (wavelength >= 380.0 && wavelength < 440.0) {
-//        color.r = -(wavelength - 440.0) / (440.0 - 380.0); color.g = 0.0; color.b = 1.0;
-//    } else if (wavelength >= 440.0 && wavelength < 490.0) {
-//        color.r = 0.0; color.g = (wavelength - 440.0) / (490.0 - 440.0); color.b = 1.0;
-//    } else if (wavelength >= 490.0 && wavelength < 510.0) {
-//        color.r = 0.0; color.g = 1.0; color.b = -(wavelength - 510.0) / (510.0 - 490.0);
-//    } else if (wavelength >= 510.0 && wavelength < 580.0) {
-//        color.r = (wavelength - 510.0) / (580.0 - 510.0); color.g = 1.0; color.b = 0.0;
-//    } else if (wavelength >= 580.0 && wavelength < 645.0) {
-//        color.r = 1.0; color.g = -(wavelength - 645.0) / (645.0 - 580.0); color.b = 0.0;
-//    } else if (wavelength >= 645.0 && wavelength <= 750.0) {
-//        color.r = 1.0; color.g = 0.0; color.b = 0.0;
-//    }
-//    float factor = 0.0;
-//    if (wavelength >= 380.0 && wavelength < 420.0) factor = 0.3 + 0.7 * (wavelength - 380.0) / (420.0 - 380.0);
-//    else if (wavelength >= 420.0 && wavelength < 645.0) factor = 1.0;
-//    else if (wavelength >= 645.0 && wavelength <= 750.0) factor = 0.3 + 0.7 * (750.0 - wavelength) / (750.0 - 645.0);
-//    
-//    return color * factor / pow(color.r * color.r + 2.25 * color.g * color.g + 0.36 * color.b * color.b, 0.5) * (0.1 * (color.r + color.g + color.b) + 0.9);
-//}
 vec3 WavelengthToRgb(float wavelength) {
     vec3 color = vec3(0.0);
     if (wavelength <= 380.0 ) {
@@ -214,6 +191,7 @@ vec3 WavelengthToRgb(float wavelength) {
     
     return color * factor / pow(color.r * color.r + 2.25 * color.g * color.g + 0.36 * color.b * color.b, 0.5) * (0.1 * (color.r + color.g + color.b) + 0.9);
 }
+
 // =============================================================================
 // SECTION 4: 广义相对论度规与物理核心 (Kerr-Newman)
 // =============================================================================
@@ -422,11 +400,7 @@ vec4 LorentzBoost(vec4 P_in, vec3 v) {
     return vec4(P_spatial, P_time);
 }
 
-
-
-// [TENSOR] Returns Initial Covariant Momentum P_u
-// [TENSOR] Returns Initial Covariant Momentum P_u
-// Updated: True E=1, L=0 Free-fall Observer & Cartesian-aligned Tetrad
+// [TENSOR] Returns Initial Covariant Momentum P_u   借助ZAMO观者定义一个性质非常良好的标架，再boost到静态/落体观者系
 vec4 GetInitialMomentum(
     vec3 RayDir,
     vec4 X,
@@ -437,31 +411,32 @@ vec4 GetInitialMomentum(
     float GravityFade
 )
 {
-    // 1. 计算当前位置的几何信息
+    // 1. 计算几何
     KerrGeometry geo;
     ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, universesign, geo);
 
     // -------------------------------------------------------------------------
-    // 2. 确定观者的四维速度 U (Target Frame)
+    // 2. 确定观者四维速度 U_up 并强制归一化
     // -------------------------------------------------------------------------
     vec4 U_up;
     
     if (iObserverMode == 0) { 
-        // --- Static Observer ---
+        // Static Observer
         float g_tt = -1.0 + geo.f;
         float time_comp = 1.0 / sqrt(max(1e-9, -g_tt));
         U_up = vec4(0.0, 0.0, 0.0, time_comp);
-    
     } else { 
-        // --- True Free-Falling Observer (E=1, L=0, Q=0) ---
-        // 代码保持不变，这是解析解
+        // Free-Falling Observer
         float r = geo.r; float r2 = geo.r2; float a = PhysicalSpinA; float a2 = geo.a2;
-        float y_phys = X.y; // Spin Axis Y
+        float y_phys = X.y; 
+        
         float rho2 = r2 + a2 * (y_phys * y_phys) / (r2 + 1e-9);
-        float TwoMr = 2.0 * CONST_M * r;
-        float Xi = sqrt(max(0.0, TwoMr * (r2 + a2)));
-        float DenomPhi = rho2 * (TwoMr + Xi);
-        float U_phi_KS = (abs(DenomPhi) > 1e-9) ? (-TwoMr * a / DenomPhi) : 0.0;
+        float Q2 = PhysicalQ * PhysicalQ;
+        float MassChargeTerm = 2.0 * CONST_M * r - Q2;
+        float Xi = sqrt(max(0.0, MassChargeTerm * (r2 + a2)));
+        float DenomPhi = rho2 * (MassChargeTerm + Xi);
+        
+        float U_phi_KS = (abs(DenomPhi) > 1e-9) ? (-MassChargeTerm * a / DenomPhi) : 0.0;
         float U_r_KS = -Xi / max(1e-9, rho2);
         
         float inv_r2_a2 = 1.0 / (r2 + a2);
@@ -483,89 +458,44 @@ vec4 GetInitialMomentum(
         U_up = vec4(U_spatial, Ut);
     }
 
+    // [FIX] 强制归一化 U_up，消除浮点误差
+    // U . U = -1
+    vec4 U_down = LowerIndex(U_up, geo);
+    float U_norm_sq = dot(U_up, U_down); // 应该是 -1
+    float U_correction = inversesqrt(abs(U_norm_sq)); // 修正因子，应该极接近 1.0
+    U_up *= U_correction;
+    U_down *= U_correction; // 更新 U_down 用于后续计算
+
     // -------------------------------------------------------------------------
-    // 3. 构建严格的局域参照系 (Reference Frame: ZAMO)
+    // 3. 构建 ZAMO 参照系并强制归一化
     // -------------------------------------------------------------------------
-    // 我们需要一个物理上严格定义的“静止”参考系来对齐相机的 -RayDir。
-    // ZAMO (Zero Angular Momentum Observer) 是由 t=const 超曲面的法线 n 定义的。
-    // n_cov = (-1, 0, 0, 0)。它是几何上唯一确定的，不依赖人为坐标轴选择。
+    vec4 zamo_cov = vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 zamo_contra = RaiseIndex(zamo_cov, geo); 
     
-    vec4 n_cov = vec4(0.0, 0.0, 0.0, -1.0); // 注意：Metric signature (-+++) vs 代码习惯
-    // 代码中 Metric = eta + f l l. eta = diag(1,1,1,-1).
-    // 这里 T 轴是 w 分量。通常 Riemann 几何中 n_cov = (-1,0,0,0) 或 (0,0,0,1) 取决于坐标位。
-    // 在本 Shader 坐标系中，w 是时间。
-    // ZAMO 的余切矢量是 dt (也就是梯度 t)。在代码坐标系中对应 vec4(0,0,0,1)。
-    // 让我们确认符号：U^t > 0，metric signature +++- ?
-    // MINKOWSKI_METRIC = diag(1, 1, 1, -1). 
-    // 所以时间分量是第 4 个。
-    // 协变矢量 (One-form) n_u = (0, 0, 0, 1)。
-    // 为什么是正？因为 inverse metric g^tt 通常是负的，为了让 u^u 指向未来(正)，我们需要调整符号。
-    // 只要保证 u_ref^t > 0 即可。
-    
-    vec4 zamo_cov = vec4(0.0, 0.0, 0.0, 1.0); // dt 方向
-    vec4 zamo_contra = RaiseIndex(zamo_cov, geo); // g^uv n_v
-    
-    // 归一化得到 ZAMO 四速度 u_ref
-    // u . u = -1
-    float zamo_norm_sq = dot(zamo_cov, zamo_contra); // g^tt
-    // 注意：在视界外 g^tt < 0。
+    float zamo_norm_sq = dot(zamo_cov, zamo_contra); 
     float norm_factor = inversesqrt(max(1e-9, abs(zamo_norm_sq)));
     vec4 u_ref = zamo_contra * norm_factor;
-    // 确保指向未来 (t分量 > 0)
     if (u_ref.w < 0.0) u_ref = -u_ref;
 
     // -------------------------------------------------------------------------
-    // 4. 在 ZAMO 系中定义物理的射线方向 k
+    // 4. 定义射线方向 k 并强制归一化
     // -------------------------------------------------------------------------
-    // 相机的 -RayDir 定义了它在“平直空间”想看的方向。
-    // 我们将其映射到 ZAMO 的空间切片上。
-    // 初始猜测：Coordinate basis 中的空间方向。
     vec4 k_naive = vec4(-normalize(RayDir), 0.0);
-    
-    // 投影：剔除平行于 u_ref 的分量，确保 k 正交于 u_ref (k . u_ref = 0)
-    // k_ortho = k - (k . u) * u / (u . u) = k + (k . u) * u
     vec4 k_naive_down = LowerIndex(k_naive, geo);
-    float k_dot_u = dot(k_naive_down, u_ref); // Covariant dot
+    float k_dot_u = dot(k_naive_down, u_ref); 
     vec4 k_ortho = k_naive + k_dot_u * u_ref;
     
-    // 归一化：确保 k 是单位空间向量 (k . k = 1)
     vec4 k_ortho_down = LowerIndex(k_ortho, geo);
     float k_len_sq = dot(k_ortho, k_ortho_down);
     float k_norm = inversesqrt(max(1e-9, k_len_sq));
     vec4 k_phys = k_ortho * k_norm;
 
     // -------------------------------------------------------------------------
-    // 5. 精确 Pure Boost (ZAMO -> Observer)
+    // 5. 精确 Boost
     // -------------------------------------------------------------------------
-    // 我们在 ZAMO 系中构建了光子 P_ref = u_ref + k_phys (Energy=1)。
-    // 现在用无旋转 Boost 将其变换到 Observer (U) 系。
-    // 变换公式：P = P_ref - [ (P_ref . (U + u_ref)) / (1 - U . u_ref) ] * (U + u_ref) - 2 * (P_ref . U) * U
-    // 由于 P_ref . P_ref = 0 且变换保持内积，P 也是 Null。
-    // 由于 P_ref . u_ref = -1 且变换映射 u_ref -> U，故 P . U = -1 (能量守恒)。
-    
-    vec4 P_ref = u_ref + k_phys;
-    
-    // 优化计算
     vec4 sum_vel = u_ref + U_up;
-    vec4 sum_vel_down = LowerIndex(sum_vel, geo); // = u_ref_down + U_down
-    vec4 U_down = LowerIndex(U_up, geo);
-    
-    float P_dot_sum = dot(P_ref, sum_vel_down);
-    float U_dot_uref = dot(U_down, u_ref); // Gamma factor roughly
-    
-    // 分母是 1 - (-U.u_ref)。由于两个都是未来指向的类时矢量，点积 < -1。
-    // 1 - (-|val|) = 1 + |val| > 2。非常安全。
+    float U_dot_uref = dot(U_down, u_ref); 
     float denom = 1.0 - U_dot_uref; 
-    
-    float factor = P_dot_sum / denom;
-    
-    // 公式中的第二项：2 * (P_ref . U) * U
-    // 实际上对于 Pure Boost 将 u_ref 映射到 U：
-    // P = P_ref - (P_ref . (U + u_ref))/(1 - u . U) * (U + u_ref) - 2(P_ref . U)U ?? 
-    // 不，那是反射公式的通用形式。
-    // 对于将 u_ref 映射到 U 的特定 Boost，且 P_ref 由 u_ref + k 组成：
-    // 正确的推导形式 (保证 E=1) 是：
-    // P^u = k^u + U^u + [ (k^u . U_u) / (1 - U . u_ref) ] * (u_ref^u + U^u)
     
     float k_dot_U = dot(k_phys, U_down);
     float boost_factor = k_dot_U / denom;
@@ -575,8 +505,6 @@ vec4 GetInitialMomentum(
     // 返回协变动量
     return LowerIndex(P_final, geo);
 }
-
-
 
 // [TENSOR] Calculates Redshift Ratio E_emit / E_obs
 float CalculateFrequencyRatio(vec4 P_photon, vec4 U_emitter, vec4 U_observer, KerrGeometry geo)
@@ -622,51 +550,40 @@ struct State {
 
 // [TENSOR] Enforces Hamiltonian Constraint H = 0
 // Optimized to use pre-calculated scalars if available, otherwise minimal calc.
+// Optimized: Uses 'Closest to 1.0' root selection to handle negative energy/ergosphere correctly.
 void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float E, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
+    // P.w (Pt) is -E_conserved. 
+    // For bound states or negative energy orbits, E might be negative relative to infinity, 
+    // but locally P.w just represents the time component covariant momentum.
     P.w = -E; 
     vec3 p = P.xyz;    
     
     KerrGeometry geo;
     ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, fade, r_sign, geo);
     
-    // Solving g^uv p_u p_v = 0
-    float p2 = dot(p, p);
-    // l^u * p_u (spatial part) + l^u * p_t
-    // geo.l_up = (lx, ly, lz, -1)
-    float L_dot_p_spatial = dot(geo.l_up.xyz, p);
-    float L_dot_P_full = L_dot_p_spatial - P.w; // l^t * p_t = (-1)*(-E) = E? Wait.
-    // l^u = (l, -1). P_u = (p, -E).
-    // l^u P_u = l.p + (-1)(-E) = l.p + E.
-    // BUT Hamiltonian function uses: l^u P_u term.
-    // In code below: dot(geo.l_up.xyz, p) is spatial.
-    // Let's stick to the algebraic expansion used in original code for safety.
+    // Equation: g^uv P_u P_v = 0
+    // Metric:   g^uv = eta^uv - f * l^u * l^v
+    // Expand:   (p^2 - Pt^2) - f * (l^u P_u)^2 = 0
+    // l^u P_u = l.p + l^t Pt = l.p - Pt (since l^t = -1)
     
-    // Original: float L_dot_P = dot(geo.l_up.xyz, p); (Variable name reuse confusion in orig code?)
-    // In original code: `float L_dot_P = dot(geo.l_up.xyz, p);` -> this only dotted spatial parts?
-    // Let's trace original `ApplyHamiltonianCorrection`.
-    // It used `L_dot_P` (spatial) in `Coeff_B` and `Coeff_A`.
+    // We want to find scalar k such that P_new = (k*p, Pt) satisfies the constraint.
+    // Substitute k*p:
+    // (k^2 p^2 - Pt^2) - f * (k * (l.p) - Pt)^2 = 0
     
-    // Correct expansion of g^uv P_u P_v = 0:
-    // eta^uv P_u P_v - f (l^u P_u)^2 = 0
-    // (p^2 - E^2) - f (l.p + E)^2 = 0  (since l^t=-1, P_t=-E => l^u P_u = l.p - (-E) = l.p + E)
-    
-    // Let P_new = k * p.
-    // (k^2 p^2 - E^2) - f (k l.p + E)^2 = 0
-    // k^2 p^2 - E^2 - f (k^2 (l.p)^2 + 2k E (l.p) + E^2) = 0
-    // k^2 [p^2 - f(l.p)^2] + k [-2 f E (l.p)] + [-E^2 - f E^2] = 0
+    // Expand quadratic for k: A*k^2 + B*k + C = 0
     
     float L_dot_p_s = dot(geo.l_up.xyz, p);
-    float Pt = P.w; // -E
+    float Pt = P.w; 
     
-    // Aligning with original variable names to ensure same logic
-    // Original: Coeff_A = p2 - geo.f * L_dot_P * L_dot_P; (where L_dot_P was spatial dot)
+    // A = p^2 - f * (l.p)^2
+    float p2 = dot(p, p);
     float Coeff_A = p2 - geo.f * L_dot_p_s * L_dot_p_s;
     
-    // Original: Coeff_B = 2.0 * geo.f * L_dot_P * Pt;
-    // Note: Pt is negative energy.
+    // Term inside square: (k * L.p - Pt)^2 = k^2(L.p)^2 - 2k(L.p)Pt + Pt^2
+    // Middle term of expansion: -f * (-2k * L.p * Pt) = 2 * f * L.p * Pt
     float Coeff_B = 2.0 * geo.f * L_dot_p_s * Pt;
     
-    // Original: Coeff_C = -Pt * Pt * (1.0 + geo.f);
+    // Constant term: -Pt^2 - f * Pt^2 = -Pt^2 * (1 + f)
     float Coeff_C = -Pt * Pt * (1.0 + geo.f);
     
     float disc = Coeff_B * Coeff_B - 4.0 * Coeff_A * Coeff_C;
@@ -674,10 +591,27 @@ void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float E, float PhysicalSpi
     if (disc >= 0.0) {
         float sqrtDisc = sqrt(disc);
         float denom = 2.0 * Coeff_A;
+        
+        // Avoid division by zero (linear trajectory case)
         if (abs(denom) > 1e-9) {
-            float k = (-Coeff_B + sqrtDisc) / denom;
-            if (k < 0.0) k = (-Coeff_B - sqrtDisc) / denom;
-            if (k > 0.0) P.xyz *= k;
+            float k1 = (-Coeff_B + sqrtDisc) / denom;
+            float k2 = (-Coeff_B - sqrtDisc) / denom;
+            
+            // CRITICAL FIX:
+            // Always pick the root closer to 1.0.
+            // This assumes the numerical drift is small.
+            // It correctly handles negative energy and ergosphere region crossing
+            // where coefficients might flip signs.
+            float dist1 = abs(k1 - 1.0);
+            float dist2 = abs(k2 - 1.0);
+            
+            float k = (dist1 < dist2) ? k1 : k2;
+            
+            // Safety: Only apply if k is reasonable (prevent NaN or Explosion)
+            // Ideally k should be very close to 1.0 (e.g. 0.99 ~ 1.01)
+            //f (k > 0.0 && abs(k - 1.0) < 0.1) {
+                P.xyz *= mix(k,1.0,clamp(abs(k-1.0)/0.1-1.0,0.0,1.0));
+            //}
         }
     }
 }
@@ -791,23 +725,30 @@ void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float Physic
 // SECTION 6: 体积渲染函数 (吸积盘与喷流)
 // =============================================================================
 
-vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
-               vec3 RayDir, vec3 LastRayDir,
+// 修改函数签名：RayPos 和 LastRayPos 改为 vec4 以包含时间信息 X.w
+vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
+               vec3 RayDir, vec3 LastRayDir,vec4 iP_cov, float iE_obs,
                float InterRadius, float OuterRadius, float Thin, float Hopper, float Brightmut, float Darkmut, float Reddening, float Saturation, float DiskTemperatureArgument,
                float BlackbodyIntensityExponent, float RedShiftColorExponent, float RedShiftIntensityExponent,
                float PeakTemperature, float ShiftMax, 
-               float PhysicalSpinA, // [INPUT] Dimensional Spin (scaled by CONST_M)
-               float PhysicalQ,     // [INPUT] Dimensional Charge (scaled by CONST_M)
-               vec4 iP_cov, float iE_obs) 
+               float PhysicalSpinA, 
+               float PhysicalQ     
+               ) 
 {
     vec4 CurrentResult = BaseColor;
-    vec3 StartPos = LastRayPos; // [COORD] KS Spatial Position
+    vec3 StartPos = LastRayPos.xyz; // 提取空间坐标
     vec3 DirVec   = RayDir; 
+    
+    // [TIME] 提取时间坐标 (X.w 是积分器累积的时间延迟)
+    float StartTimeLag = LastRayPos.w;
+    float EndTimeLag   = RayPos.w;
+
     float TotalDist = StepLength;
     float TraveledDist = 0.0;
     
+    // ... (几何边界检测逻辑保持不变) ...
     float R_Start = KerrSchildRadius(StartPos, PhysicalSpinA, 1.0);
-    float R_End   = KerrSchildRadius(RayPos, PhysicalSpinA, 1.0);
+    float R_End   = KerrSchildRadius(RayPos.xyz, PhysicalSpinA, 1.0);
     float MinR = min(R_Start, R_End);
     float MaxR = max(R_Start, R_End);
     float MinAbsY = min(abs(StartPos.y), abs(RayPos.y));
@@ -830,10 +771,21 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         if (TraveledDist >= TotalDist) break;
 
         vec3 CurrentPos = StartPos + DirVec * TraveledDist;
+        
+        // [TIME] 计算当前采样点的线性插值时间延迟
+        // 假设在这个小的积分步长内，时间和距离是近似线性关系的
+        float TimeInterpolant = min(1.0, TraveledDist / max(1e-9, TotalDist));
+        float CurrentRayTimeLag = mix(StartTimeLag, EndTimeLag, TimeInterpolant);
+        
+        // [TIME] 关键：发射时间 = 当前游戏时间 + 光线传播耗时
+        // 这会让离相机越远的部分（或引力越强导致时间变慢的部分）呈现出更早之前的状态
+        float EmissionTime = iBlackHoleTime + CurrentRayTimeLag;
+
         float DistanceToBlackHole = length(CurrentPos); 
         float SmallStepBoundary = max(OuterRadius, 12.0);
         float StepSize = 1.0; 
         
+        // ... (步长控制逻辑保持不变) ...
         StepSize *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / max(10.0 , SmallStepBoundary) - 1.0)), 1.0);
         if ((DistanceToBlackHole) >= 2.0 * SmallStepBoundary) StepSize *= DistanceToBlackHole;
         else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary) StepSize *= ((1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0)) * (2.0 * SmallStepBoundary - DistanceToBlackHole) + DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
@@ -843,6 +795,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         float Dither = RandomStep(10000.0*(RayPos.zx/OuterRadius), iTime * 4.0 + float(i) * 0.1337);
         vec3 SamplePos;
 
+        // ... (抖动采样逻辑保持不变) ...
         if (CurrentPos.y * (CurrentPos + DirVec * dt).y < 0.0) 
         {
             float t_cross = CurrentPos.y / (CurrentPos.y - (CurrentPos + DirVec * dt).y);
@@ -861,6 +814,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         
         if (abs(PosY) < SampleThin * 1.2 && PosR < OuterRadius && PosR > InterRadius)
         {
+             // ... (密度和物理计算保持不变) ...
              float NoiseLevel = max(0.0, 2.0 - 0.6 * SampleThin);
              float x = (PosR - InterRadius) / (OuterRadius - InterRadius);
              float a_param = max(1.0, (OuterRadius - InterRadius) / 10.0);
@@ -873,6 +827,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
              {
                  float AngularVelocity = GetKeplerianAngularVelocity(PosR, 1.0, PhysicalSpinA, PhysicalQ);
                  
+                 // ... (螺旋角计算保持不变) ...
                  float u = sqrt(PosR);
                  float k_cubed = PhysicalSpinA * 0.70710678;
                  float SpiralTheta;
@@ -886,38 +841,33 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
                  float PosTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
                  float PosLogarithmicTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-2.0 * log(PosR)), sin(-2.0 * log(PosR))));
                  
-                 // [TENSOR] Physical Redshift Calculation
-                 // FluidVel is v^i in KS frame
+                 // ... (红移物理计算保持不变) ...
                  vec3 FluidVel = AngularVelocity * vec3(SamplePos.z, 0.0, -SamplePos.x);
                  vec4 U_fluid_unnorm = vec4(FluidVel, 1.0); 
                  KerrGeometry geo_sample;
-                 // 注意：最后的参数根据上下文可能是 1.0 或者 CurrentUniverseSign，你原代码里写的是 1.0
                  ComputeGeometryScalars(SamplePos, PhysicalSpinA, PhysicalQ, 1.0, 1.0, geo_sample);
-                 
-                 // 2. 利用辅助函数下降指标：计算协变速度 U_u = g_uv * U^v
                  vec4 U_fluid_lower = LowerIndex(U_fluid_unnorm, geo_sample);
-                 
-                 // 3. 计算模长平方： U^u * U_u
                  float norm_sq = dot(U_fluid_unnorm, U_fluid_lower);
                  vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
-                 
-                 // E_emit = - P_u * U^u (Scalar invariant)
-                 // iP_cov is Covariant Momentum p_u
-                 // U_fluid is Contravariant Velocity U^u
                  float E_emit = -dot(iP_cov, U_fluid);
                  float FreqRatio = iE_obs / max(1e-6, E_emit);
                  
                  // --- 颜色合成 ---
+                 // 温度计算不变
                  float DiskTemperature = pow(DiskTemperatureArgument * pow(1.0 / PosR, 3.0) * max(1.0 - sqrt(InterRadius / PosR), 0.000001), 0.25);
                  float VisionTemperature = DiskTemperature * pow(FreqRatio, RedShiftColorExponent); 
                  float BrightWithoutRedshift = 0.05 * min(OuterRadius / (1000.0), 1000.0 / OuterRadius) + 0.55 / exp(5.0 * EffectiveRadius) * mix(0.2 + 0.8 * abs(DirVec.y), 1.0, clamp(Thin - 0.8, 0.2, 1.0)); 
                  BrightWithoutRedshift *= pow(DiskTemperature / PeakTemperature, BlackbodyIntensityExponent); 
                  
-                 float RotPosR = PosR + 0.25 / 3.0 * iBlackHoleTime;
+                 // [TIME CHANGE 1] 使用 EmissionTime 计算旋转角度
+                 // 原代码: float RotPosR = PosR + 0.25 / 3.0 * iBlackHoleTime;
+                 float RotPosR = PosR + 0.25 / 3.0 * EmissionTime;
+                 
                  float Density = DenAndThiFactor;
                  float Levelmut = 0.91 * log(1.0 + (0.06 / 0.91 * max(0.0, min(1000.0, PosR) - 10.0)));
                  float Conmut = 80.0 * log(1.0 + (0.1 * 0.06 * max(0.0, min(1000000.0, PosR) - 10.0)));
                  
+                 // 噪声采样
                  vec4 SampleColor = vec4(GenerateAccretionDiskNoise(vec3(0.1 * RotPosR, 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * PosTheta), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 4.0 - Levelmut, 80.0 - Conmut)); 
                  
                  if(PosTheta + kPi < 0.1 * kPi) {
@@ -926,14 +876,19 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
                  }
                  
                  if(PosR > max(0.15379 * OuterRadius, 0.15379 * 64.0)) {
-                     float Spir = (GenerateAccretionDiskNoise(vec3(0.1 * (PosR * (4.65114e-6) - 0.1 / 3.0 * iBlackHoleTime - 0.08 * OuterRadius * PosLogarithmicTheta), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * PosLogarithmicTheta), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut)); 
+                     // [TIME CHANGE 2] 大尺度螺旋结构的时间替换
+                     // 原代码中包含了 iBlackHoleTime，替换为 EmissionTime
+                     float TimeShiftedRadiusTerm = PosR * (4.65114e-6) - 0.1 / 3.0 * EmissionTime;
+                     
+                     float Spir = (GenerateAccretionDiskNoise(vec3(0.1 * (TimeShiftedRadiusTerm - 0.08 * OuterRadius * PosLogarithmicTheta), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * PosLogarithmicTheta), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut)); 
                      if(PosLogarithmicTheta + kPi < 0.1 * kPi) {
                          Spir *= (PosLogarithmicTheta + kPi) / (0.1 * kPi);
-                         Spir += (1.0 - ((PosLogarithmicTheta + kPi) / (0.1 * kPi))) * (GenerateAccretionDiskNoise(vec3(0.1 * (PosR * (4.65114e-6) - 0.1 / 3.0 * iBlackHoleTime - 0.08 * OuterRadius * (PosLogarithmicTheta + 2.0 * kPi)), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * (PosLogarithmicTheta + 2.0 * kPi)), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut));
+                         Spir += (1.0 - ((PosLogarithmicTheta + kPi) / (0.1 * kPi))) * (GenerateAccretionDiskNoise(vec3(0.1 * (TimeShiftedRadiusTerm - 0.08 * OuterRadius * (PosLogarithmicTheta + 2.0 * kPi)), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * (PosLogarithmicTheta + 2.0 * kPi)), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut));
                      }
                      SampleColor *= (mix(1.0, clamp(0.7 * Spir * 1.5 - 0.5, 0.0, 3.0), 0.5 + 0.5 * max(-1.0, 1.0 - exp(-1.5 * 0.1 * (100.0 * PosR / max(OuterRadius, 64.0) - 20.0)))));
                  }
 
+                 // ... (颜色混合逻辑保持不变) ...
                  float VerticalMixFactor = max(0.0, (1.0 - abs(PosY) / (SampleThin * Density * 1.4))); 
                  Density *= 0.7 * VerticalMixFactor * Density;
                  SampleColor.xyz *= Density * 1.4;
@@ -978,22 +933,26 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
     
     return CurrentResult;
 }
-
-vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
-              vec3 RayDir, vec3 LastRayDir,
+vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
+              vec3 RayDir, vec3 LastRayDir,vec4 iP_cov, float iE_obs,
               float InterRadius, float OuterRadius, float JetRedShiftIntensityExponent, float JetBrightmut, float JetReddening, float JetSaturation, float AccretionRate, float JetShiftMax, 
-              float PhysicalSpinA, // [INPUT] Dimensional Spin (scaled by CONST_M)
-              float PhysicalQ,     // [INPUT] Dimensional Charge (scaled by CONST_M)
-              vec4 iP_cov, float iE_obs) 
+              float PhysicalSpinA, 
+              float PhysicalQ    
+              ) 
 {
     vec4 CurrentResult = BaseColor;
-    vec3 StartPos = LastRayPos;
+    vec3 StartPos = LastRayPos.xyz; // 提取空间位置
     vec3 DirVec   = RayDir; 
+    
+    // [TIME] 提取时间坐标
+    float StartTimeLag = LastRayPos.w;
+    float EndTimeLag   = RayPos.w;
+
     float TotalDist = StepLength;
     float TraveledDist = 0.0;
     
     float R_Start = length(StartPos.xz);
-    float R_End   = length(RayPos.xz);
+    float R_End   = length(RayPos.xyz); // 注意这里取 xyz
     float MaxR_XZ = max(R_Start, R_End);
     float MaxY    = max(abs(StartPos.y), abs(RayPos.y));
     
@@ -1006,10 +965,18 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         if (TraveledDist >= TotalDist) break;
 
         vec3 CurrentPos = StartPos + DirVec * TraveledDist;
+        
+        // [TIME] 计算发射时间 (Emission Time)
+        // 喷流也是动态对象，远离相机的部分应该是"过去"的状态
+        float TimeInterpolant = min(1.0, TraveledDist / max(1e-9, TotalDist));
+        float CurrentRayTimeLag = mix(StartTimeLag, EndTimeLag, TimeInterpolant);
+        float EmissionTime = iBlackHoleTime + CurrentRayTimeLag;
+
         float DistanceToBlackHole = length(CurrentPos); 
         float SmallStepBoundary = max(OuterRadius, 12.0);
         float StepSize = 1.0; 
         
+        // ... (步长控制逻辑保持不变) ...
         StepSize *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / max(10.0 , SmallStepBoundary) - 1.0)), 1.0);
         if ((DistanceToBlackHole) >= 2.0 * SmallStepBoundary) StepSize *= DistanceToBlackHole;
         else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary) StepSize *= ((1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0)) * (2.0 * SmallStepBoundary - DistanceToBlackHole) + DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
@@ -1033,9 +1000,13 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         if (RhoSq < 2.0 * InterRadius * InterRadius + 0.03 * 0.03 * PosY * PosY && PosR < sqrt(2.0) * OuterRadius)
         {
             InJet = true;
-            float InnerTheta = 3.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY));
+            // [TIME CHANGE 1] 核心喷流旋转与噪声流动
+            // iBlackHoleTime -> EmissionTime
+            float InnerTheta = 3.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (EmissionTime - 1.0 / 0.8 * abs(PosY));
             float Shape = 1.0 / sqrt(InterRadius * InterRadius + 0.02 * 0.02 * PosY * PosY);
-            float noiseInput = 0.3 * (iBlackHoleTime - 1.0 / 0.8 * abs(abs(PosY) + 100.0 * (RhoSq / max(0.1, PosR)))) / (OuterRadius / 100.0) / (1.0 / 0.8);
+            
+            // [TIME CHANGE 2] 核心噪声参数
+            float noiseInput = 0.3 * (EmissionTime - 1.0 / 0.8 * abs(abs(PosY) + 100.0 * (RhoSq / max(0.1, PosR)))) / (OuterRadius / 100.0) / (1.0 / 0.8);
             float a = mix(0.7 + 0.3 * PerlinNoise1D(noiseInput), 1.0, exp(-0.01 * 0.01 * PosY * PosY));
             
             vec4 Col = vec4(1.0, 1.0, 1.0, 0.5) * max(0.0, 1.0 - 5.0 * Shape * abs(1.0 - pow(Rho * Shape, 2.0))) * Shape;
@@ -1050,9 +1021,12 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
         if (Rho < 1.3 * InterRadius + 0.25 * Wid && Rho > 0.7 * InterRadius + 0.15 * Wid && PosR < 30.0 * InterRadius)
         {
             InJet = true;
-            float InnerTheta = 2.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY));
+            // [TIME CHANGE 3] 外部喷流旋转
+            float InnerTheta = 2.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (EmissionTime - 1.0 / 0.8 * abs(PosY));
             float Shape = 1.0 / (InterRadius + 0.2 * Wid);
-            float Twist = 0.2 * (1.1 - exp(-0.1 * 0.1 * PosY * PosY)) * (PerlinNoise1D(0.35 * (iBlackHoleTime - 1.0 / 0.8 * abs(PosY)) / (1.0 / 0.8)) - 0.5);
+            
+            // [TIME CHANGE 4] 喷流扭曲 (Twist) 动画
+            float Twist = 0.2 * (1.1 - exp(-0.1 * 0.1 * PosY * PosY)) * (PerlinNoise1D(0.35 * (EmissionTime - 1.0 / 0.8 * abs(PosY)) / (1.0 / 0.8)) - 0.5);
             vec2 TwistedPos = SamplePos.xz + Twist * vec2(cos(0.666666 * InnerTheta), -sin(0.666666 * InnerTheta));
             
             vec4 Col = vec4(1.0, 1.0, 1.0, 0.5) * max(0.0, 1.0 - 2.0 * abs(1.0 - pow(length(TwistedPos) * Shape, 2.0))) * Shape;
@@ -1064,6 +1038,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
 
         if (InJet)
         {
+            // ... (速度计算与红移保持不变) ...
             float JetVelocityMag = 0.9; 
             vec3  JetVelDir = vec3(0.0, sign(PosY), 0.0);
             vec3 RotVelDir = normalize(vec3(SamplePos.z, 0.0, -SamplePos.x));
@@ -1071,13 +1046,8 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
             
             vec4 U_jet_unnorm = vec4(FinalSpatialVel, 1.0);
             KerrGeometry geo_sample;
-            // 注意：最后的参数根据上下文可能是 1.0 或者 CurrentUniverseSign，你原代码里写的是 1.0
             ComputeGeometryScalars(SamplePos, PhysicalSpinA, PhysicalQ, 1.0, 1.0, geo_sample);
-            
-            // 2. 利用辅助函数下降指标：计算协变速度 U_u = g_uv * U^v
             vec4 U_fluid_lower = LowerIndex(U_jet_unnorm, geo_sample);
-            
-            // 3. 计算模长平方： U^u * U_u
             float norm_sq = dot(U_jet_unnorm, U_fluid_lower);
             vec4 U_jet = U_jet_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
             
@@ -1091,6 +1061,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
             AccumColor *= dt * JetBrightmut * (0.5 + 0.5 * tanh(log(AccretionRate) + 1.0));
             AccumColor.a *= 0.0; 
 
+            // ... (颜色混合逻辑保持不变) ...
             float aR = 1.0 + JetReddening * (1.0 - 1.0);
             float aG = 1.0 + JetReddening * (2.5 - 1.0);
             float aB = 1.0 + JetReddening * (4.5 - 1.0);
@@ -1125,41 +1096,46 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec3 RayPos, vec3 LastRayPos,
 
 void main()
 {
-    vec4  Result = vec4(0.0);
-    vec2  FragUv = gl_FragCoord.xy / iResolution.xy;
-    float Fov    = tan(iFovRadians / 2.0);
+    // --- 1. 基础输入与坐标 ---
+    vec2 FragUv = gl_FragCoord.xy / iResolution.xy;
+    FragUv.y = 1.0 - FragUv.y; 
+    float Fov = tan(iFovRadians / 2.0);
 
-    // --- 0. 物理参数准备 ---
+    // --- 2. 物理与渲染参数初始化 ---
+    // [Physics] Derived Physical Constants
     float iSpinclamp = clamp(iSpin, 0.0, 0.095);
     float Zx = 1.0 + pow(1.0 - pow(iSpinclamp, 2.0), 0.333333333333333) * (pow(1.0 + pow(iSpinclamp, 2.0), 0.333333333333333) + pow(1.0 - iSpinclamp, 0.333333333333333)); 
     float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx)))) / 2.0; 
     float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); 
     const float kPhysicsFactor = 1.52491e30; 
-    float DiskArgument = kPhysicsFactor / iBlackHoleMassSol* (iMu / AccretionEffective) * (iAccretionRate );
+    float DiskArgument = kPhysicsFactor / iBlackHoleMassSol * (iMu / AccretionEffective) * (iAccretionRate);
     float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
 
-    float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
-    float BackgroundShiftMax = 2.0;
-    
-    // [PHYS] Scaled Physical Constants
+    // [Physics] Metric Constants (Scaled by CONST_M)
     float PhysicalSpinA = -iSpin * CONST_M;  
-    float PhysicalQ = iQ * CONST_M;         
+    float PhysicalQ     = iQ * CONST_M; 
     
-    // Event Horizon
+    // [Physics] Horizons
     float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
     float EventHorizonR = 0.5 + sqrt(max(0.0, HorizonDiscrim));
     bool bIsNakedSingularity = HorizonDiscrim < 0.0;
-    float TerminationR = EventHorizonR;
-    float CurrentUniverseSign = iUniverseSign;
-    float ShiftMax = iJetShiftMax; 
 
-    // --- 1. 相机光线生成 ---
+    // [Rendering] Limits and Settings
+    float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
+    float BackgroundShiftMax = 2.0;
+    float ShiftMax = iJetShiftMax; 
+    float CurrentUniverseSign = iUniverseSign;
+
+    // --- 3. 相机射线生成 (Camera Ray Generation) ---
+    // Jitter for TAA/Anti-Aliasing
     vec2 Jitter = vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)), RandomStep(FragUv, fract(iTime * 1.0))) / iResolution;
     vec3 ViewDirLocal = FragUvToDir(FragUv + 0.5 * Jitter, Fov, iResolution); 
     
+    // Camera Position in World Space (Visual)
     vec3 CamToBHVecVisual = (iInverseCamRot * vec4(iBlackHoleRelativePosRs.xyz, 0.0)).xyz;
     vec3 RayPosWorld = -CamToBHVecVisual; 
     
+    // Coordinate Basis Construction (Disk Plane Alignment)
     vec3 DiskNormalWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskNormal.xyz, 0.0)).xyz);
     vec3 DiskTangentWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskTangen.xyz, 0.0)).xyz);
     vec3 BH_Y = normalize(DiskNormalWorld);             
@@ -1169,14 +1145,17 @@ void main()
     mat3 LocalToWorldRot = mat3(BH_X, BH_Y, BH_Z);
     mat3 WorldToLocalRot = transpose(LocalToWorldRot);
     
+    // Transform Ray to Local Metric Space
     vec3 RayPosLocal = WorldToLocalRot * RayPosWorld;
     vec3 RayDirWorld_Geo = WorldToLocalRot * normalize((iInverseCamRot * vec4(ViewDirLocal, 0.0)).xyz);
 
-    // --- 2. 包围球快进 ---
+    // --- 4. 状态变量初始化 (State Initialization) ---
+    vec4  Result = vec4(0.0);
+    bool  bShouldContinueMarchRay = true;
+    bool  bWaitCalBack = false;
+
+    // Bounding Sphere Optimization (Fast Forward)
     float DistanceToBlackHole = length(RayPosLocal);
-    bool bShouldContinueMarchRay = true;
-    bool bWaitCalBack = false;
-    
     if (DistanceToBlackHole > RaymarchingBoundary) 
     {
         vec3 O = RayPosLocal; vec3 D = RayDirWorld_Geo; float r = RaymarchingBoundary - 1.0; 
@@ -1189,42 +1168,33 @@ void main()
         }
     }
 
-    // --- 3. 物理初始化 ---
-    vec4 X = vec4(RayPosLocal, 0.0); 
-    vec4 P_cov = vec4(-1.0);          
+    // Geodesic State Vectors
+    vec4 X = vec4(RayPosLocal, 0.0); // .xyz = Position, .w = Time Lag
+    vec4 P_cov = vec4(-1.0);         // Covariant Momentum
     float E_conserved = 1.0;       
-    
     vec3 RayDir = RayDirWorld_Geo;   
     vec3 LastDir = RayDir;
     vec3 LastPos = RayPosLocal;
     float GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * length(RayPosLocal) - 1.0) / 4.0, 1.0), 0.0));
-        
+    
+    // Initial Momentum Setup
     if (bShouldContinueMarchRay) 
     {
-       // Uses Optimized Scalar Geometry internally
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
-       //P_cov = vec4(-RayDir, -1.0); // Override as per original code behavior? Keeping logic.
     }
     
     E_conserved = -P_cov.w;
-    
-    // Uses Optimized Scalar Geometry internally
-    ApplyHamiltonianCorrection(P_cov, X, E_conserved, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);
-    
-    vec3 RayPos = X.xyz;
-    LastPos = RayPos;
-    int Count = 0;
-    float CameraStartR = KerrSchildRadius(RayPos, PhysicalSpinA, CurrentUniverseSign);
-    
-    TerminationR = -1.0; 
+
+    // --- 5. 终止条件判定 (Termination Conditions) ---
+    float TerminationR = -1.0; 
+    float CameraStartR = KerrSchildRadius(RayPosLocal, PhysicalSpinA, CurrentUniverseSign);
     
     if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity) 
     {
-        if (iObserverMode == 0) 
+        if (iObserverMode == 0) // Static
         {
-            float CosThetaSq = (RayPos.y * RayPos.y) / (CameraStartR * CameraStartR + 1e-10);
+            float CosThetaSq = (RayPosLocal.y * RayPosLocal.y) / (CameraStartR * CameraStartR + 1e-10);
             float SL_Discrim = 0.25 - PhysicalQ * PhysicalQ - PhysicalSpinA * PhysicalSpinA * CosThetaSq;
-            
             float SL_Outer = 0.5 + sqrt(max(0.0, SL_Discrim)); 
             float SL_Inner = 0.5 - sqrt(max(0.0, SL_Discrim)); 
             if (CameraStartR > SL_Outer) TerminationR = EventHorizonR; 
@@ -1232,100 +1202,102 @@ void main()
                 bShouldContinueMarchRay = false; bWaitCalBack = false; Result = vec4(0.0, 0.0, 0.0, 1.0); 
             } 
         }
-        else // Falling Observer
+        else // Falling
         {
             float InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
             if (CameraStartR > InnerHorizonR) TerminationR = InnerHorizonR;
         }
     }
     
-    // --- 4. 光线追踪主循环 ---
+    // --- 6. 光线追踪主循环 (Raymarching Loop) ---
+    int Count = 0;
+    vec3 RayPos = X.xyz; // Sync for loop start
+
     while (bShouldContinueMarchRay)
     {
-        float DistanceToBlackHole = length(RayPos);
+        DistanceToBlackHole = length(RayPos);
         if (DistanceToBlackHole > RaymarchingBoundary) { bShouldContinueMarchRay = false; bWaitCalBack = true; break; }
         
-        // [OPTIMIZATION] Compute Scalars Only Once per Loop
         KerrGeometry geo;
         ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo);
 
-        if (CurrentUniverseSign > 0.0 && geo.r < TerminationR && !bIsNakedSingularity) 
+        // Horizon Check
+        if (CurrentUniverseSign > 0.0 && geo.r < TerminationR && !bIsNakedSingularity && TerminationR!=-1.0) 
         { 
             bShouldContinueMarchRay = false; bWaitCalBack = false; 
-            //Result=vec4(0.0,0.,0.3,1.0); 
             break; 
         }
 
+        // Iteration Limit Check
         if ((Count > 150 && !bIsNakedSingularity) || (Count > 450 && bIsNakedSingularity)) { 
             bShouldContinueMarchRay = false; bWaitCalBack = false; 
-            Result=vec4(0.0,0.3,0.0,1.0);
+            Result = vec4(0.0, 0.3, 0.0, 1.0); // Debug Green
             break; 
         }
         
-        // Step Size Control
+        // Adaptive Step Size
         float rho = length(RayPos.xz);
         float DistRing = sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
-        
         float GeoFactor = smoothstep(0.0, 0.6, DistRing);
         float RFactor   = smoothstep(0.0, 0.8, abs(geo.r)); 
         float Safety = min(GeoFactor, RFactor);
         float BaseSpeed = mix(0.03, 0.5, Safety);
         float RayStep = BaseSpeed * DistRing;
 
+        vec4 LastX = X;
         LastPos = X.xyz;
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
         
-        // [OPTIMIZATION] Use RaiseIndex instead of Matrix
-        // P^u = g^uv P_v
+        // Momentum check for naked singularity/extreme conditions
         vec4 P_contra_step = RaiseIndex(P_cov, geo);
- 
         if (P_contra_step.w > 10000.0 && !bIsNakedSingularity) 
         { 
             bShouldContinueMarchRay = false; bWaitCalBack = false; 
-            //Result=vec4(0.3,0.0,0.0,1.0);
             break; 
         }
 
         float V_mag = length(vec4(P_contra_step.xyz, max(0.0, 1.0 - 0.8 * (iSpin*iSpin + iQ*iQ)) * P_contra_step.w)); 
         float dLambda = RayStep / max(V_mag, 0.0); 
 
-        // [OPTIMIZATION] Pass pre-computed 'geo' to RK4 to skip first ComputeGeometry call
+        // Numerical Integration (RK4)
         StepGeodesicRK4(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo);
 
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
         float ActualStepLength = length(StepVec);
 
-
         RayDir = (ActualStepLength > 1e-7) ? StepVec / ActualStepLength : LastDir;
         
+        // Wormhole/Throat Crossing Check
         if (LastPos.y * RayPos.y < 0.0) {
             float t_cross = LastPos.y / (LastPos.y - RayPos.y);
             float rho_cross = length(mix(LastPos.xz, RayPos.xz, t_cross));
             if (rho_cross < abs(PhysicalSpinA)) CurrentUniverseSign *= -1.0;
         }
 
-       // if (CurrentUniverseSign > 0.0) {
-       //    Result = DiskColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-       //                      iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-       //                      iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
-       //                      clamp(PhysicalSpinA,-0.49,0.49), // Passed as Dimensional
-       //                      PhysicalQ,                       // Passed as Dimensional
-       //                      P_cov, E_conserved); 
-       //    
-       //    Result = JetColor(Result, ActualStepLength, RayPos, LastPos, RayDir, LastDir,
-       //                      iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
-       //                      clamp(PhysicalSpinA,-0.049,0.049), // Passed as Dimensional
-       //                      PhysicalQ,                         // Passed as Dimensional
-       //                      P_cov, E_conserved); 
-       // }
+        // Volumetric Rendering
+        if (CurrentUniverseSign > 0.0) {
+           Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+                             iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
+                             iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
+                             clamp(PhysicalSpinA, -0.49, 0.49), // Passed as Dimensional
+                             PhysicalQ                          // Passed as Dimensional
+                             ); 
+           
+           Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+                             iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
+                             clamp(PhysicalSpinA, -0.049, 0.049), // Passed as Dimensional
+                             PhysicalQ                            // Passed as Dimensional
+                             ); 
+        }
+
         if (Result.a > 0.99) { bShouldContinueMarchRay = false; bWaitCalBack = false; break; }
         
         LastDir = RayDir;
         Count++;
     }
 
-    // --- 5. 背景采样 (含红移) ---
+    // --- 7. 背景采样与合成 (Background & Composition) ---
     if (bWaitCalBack)
     {
         vec3 EscapeDirWorld = LocalToWorldRot * normalize(RayDir); 
@@ -1333,9 +1305,7 @@ void main()
         if (CurrentUniverseSign < 0.0) Backcolor = textureLod(iAntiground, EscapeDirWorld, min(1.0, textureQueryLod(iAntiground, EscapeDirWorld).x));
         
         float FrequencyRatio = 1.0 / max(1e-4, E_conserved);
-        
-        float BackgroundShift = FrequencyRatio; 
-        BackgroundShift = clamp(BackgroundShift, 1.0/BackgroundShiftMax, BackgroundShiftMax);
+        float BackgroundShift = clamp(FrequencyRatio, 1.0/BackgroundShiftMax, BackgroundShiftMax);
         
         vec4 TexColor = Backcolor;
         vec3 Rcolor = Backcolor.r * 1.0 * WavelengthToRgb(max(453.0, 645.0 / BackgroundShift));
@@ -1350,7 +1320,7 @@ void main()
         Result += 0.9999 * TexColor * (1.0 - Result.a);
     }
     
-    // --- 6. 色调映射与 TAA ---
+    // --- 8. 色调映射与 TAA (Tone Mapping & TAA) ---
     float RedFactor   = 3.0 * Result.r / (Result.g + Result.b + Result.g );
     float BlueFactor  = 3.0 * Result.b / (Result.g + Result.b + Result.g );
     float GreenFactor = 3.0 * Result.g / (Result.g + Result.b + Result.g );
@@ -1361,7 +1331,6 @@ void main()
     Result.b = min(-4.0 * log( 1.0 - pow(Result.b, 2.2)), BloomMax * BlueFactor);
     Result.a = min(-4.0 * log( 1.0 - pow(Result.a, 2.2)), 4.0);
     
-    float BlendWeight = iBlendWeight;
     vec4 PrevColor = texelFetch(iHistoryTex, ivec2(gl_FragCoord.xy), 0);
-    FragColor      = (BlendWeight) * Result + (1.0 - BlendWeight) * PrevColor;
+    FragColor      = (iBlendWeight) * Result + (1.0 - iBlendWeight) * PrevColor;
 }

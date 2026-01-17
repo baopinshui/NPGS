@@ -26,7 +26,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _OrbitalCenter(0.0f, 0.0f, 0.0f),
     _ObjectivetOrbitalCenter(0.0f, 0.0f, 0.0f),
     _Theta(0.0f),
-    _Phi(135.0f),
+    _Phi(45.0f),
     _DistanceToOrbitalCenter(1.0f),
     _ObjectivetTargetDistanceToOrbitalCenter(0.0001f),
     _TimeSinceModeChange(10.0),
@@ -221,7 +221,7 @@ void FCamera::ProcessModeChange()
         {
             _bIsOrbiting = true;
             _OrbitalCenter = _Position + _DistanceToOrbitalCenter * _Front;
-            _AxisDir = glm::normalize(_Up + _Front);
+            _AxisDir = glm::normalize(_Up - _Front);
             glm::quat ToAxisRotate = glm::conjugate(CalculateToAxisRotate());
                 glm::mat3 R = glm::mat3_cast(ToAxisRotate * glm::conjugate(_Orientation) *glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
                 _Theta = glm::degrees(std::atan2(-R[0][2], R[0][0]));

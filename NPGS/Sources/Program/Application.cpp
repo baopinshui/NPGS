@@ -1557,7 +1557,7 @@ void FApplication::ProcessInput()
         else
         {
             double deltaX = currX - _LastX;
-            double deltaY = _LastY - currY;
+            double deltaY = currY - _LastY;
 
             // 立即更新基准
             _LastX = currX;
