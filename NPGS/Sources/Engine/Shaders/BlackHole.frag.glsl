@@ -674,13 +674,19 @@ float GetIntermediateSign(vec4 StartX, vec4 CurrentX, float CurrentSign, float P
 
 // [MATH] RK4 Integrator with Geometry Reuse
 // [OPTIMIZATION] Accepts 'geo0' (Geometry at X) to skip first ComputeGeometry call.
-void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign, KerrGeometry geo0) {
+// [ADD NEW FUNCTION] Optimized RK4 that reuses pre-calculated k1 and geometry
+// 这一步是为了防止为了计算步长多调用一次 GetDerivatives 导致性能下降
+void StepGeodesicRK4_Optimized(
+    inout vec4 X, inout vec4 P, 
+    float E, float dt, 
+    float PhysicalSpinA, float PhysicalQ, float fade, float r_sign, 
+    KerrGeometry geo0, 
+    State k1 // <--- 输入预计算的 k1
+) {
     State s0; s0.X = X; s0.P = P;
 
-    // --- k1 Step ---
-    // Reuse geo0 (Scalars already computed in main loop). 
-    // We pass it to GetDerivatives, which adds Gradients.
-    State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, fade, geo0);
+    // --- k1 Step (SKIPPED - REUSING INPUT) ---
+    // State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, fade, geo0);
 
     // --- k2 Step ---
     State s1; 
@@ -715,17 +721,16 @@ void StepGeodesicRK4(inout vec4 X, inout vec4 P, float E, float dt, float Physic
 
     // --- Hamiltonian Correction Logic ---
     float finalSign = GetIntermediateSign(s0.X, finalX, r_sign, PhysicalSpinA);
+    if(finalSign>0){
     ApplyHamiltonianCorrection(finalP, finalX, E, PhysicalSpinA, PhysicalQ, fade, finalSign);
-
+    }
     X = finalX;
     P = finalP;
 }
-
 // =============================================================================
 // SECTION 6: 体积渲染函数 (吸积盘与喷流)
 // =============================================================================
 
-// 修改函数签名：RayPos 和 LastRayPos 改为 vec4 以包含时间信息 X.w
 vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                vec3 RayDir, vec3 LastRayDir,vec4 iP_cov, float iE_obs,
                float InterRadius, float OuterRadius, float Thin, float Hopper, float Brightmut, float Darkmut, float Reddening, float Saturation, float DiskTemperatureArgument,
@@ -736,34 +741,50 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                ) 
 {
     vec4 CurrentResult = BaseColor;
-    vec3 StartPos = LastRayPos.xyz; // 提取空间坐标
+
+    // --- [性能优化] 多级包围盒检测 ---
+    
+    // 1. 垂直包围盒 (Vertical Bounds)
+    float MaxDiskHalfHeight = Thin + max(0.0, Hopper * OuterRadius) + 2.0; 
+    
+    if (LastRayPos.y > MaxDiskHalfHeight && RayPos.y > MaxDiskHalfHeight) return BaseColor;
+    if (LastRayPos.y < -MaxDiskHalfHeight && RayPos.y < -MaxDiskHalfHeight) return BaseColor;
+
+    // 2. 径向包围盒 (Radial Bounds - Cylinder Check)
+    vec2 P0 = LastRayPos.xz;
+    vec2 P1 = RayPos.xz;
+    vec2 V  = P1 - P0;
+    float LenSq = dot(V, V);
+    
+    float t_closest = (LenSq > 1e-8) ? clamp(-dot(P0, V) / LenSq, 0.0, 1.0) : 0.0;
+    vec2 ClosestPoint = P0 + V * t_closest;
+    float MinDistSq = dot(ClosestPoint, ClosestPoint);
+    
+    float BoundarySq = (OuterRadius * 1.1) * (OuterRadius * 1.1);
+    
+    if (MinDistSq > BoundarySq) return BaseColor;
+
+    // --- 包围盒检测结束 ---
+
+    vec3 StartPos = LastRayPos.xyz; 
     vec3 DirVec   = RayDir; 
     
-    // [TIME] 提取时间坐标 (X.w 是积分器累积的时间延迟)
     float StartTimeLag = LastRayPos.w;
     float EndTimeLag   = RayPos.w;
 
     float TotalDist = StepLength;
     float TraveledDist = 0.0;
     
-    // ... (几何边界检测逻辑保持不变) ...
     float R_Start = KerrSchildRadius(StartPos, PhysicalSpinA, 1.0);
     float R_End   = KerrSchildRadius(RayPos.xyz, PhysicalSpinA, 1.0);
-    float MinR = min(R_Start, R_End);
     float MaxR = max(R_Start, R_End);
-    float MinAbsY = min(abs(StartPos.y), abs(RayPos.y));
-    float BoundsR = min(MaxR, OuterRadius * 1.5); 
-    float MaxThicknessBounds = Thin * 2.0 + max(0.0, (BoundsR - 3.0) * Hopper) * 2.0; 
-    bool IsCrossingPlane = (StartPos.y * RayPos.y < 0.0);
-
-    if (MaxR < InterRadius * 0.9 || 
-        MinR > OuterRadius * 1.1 || 
-       (MinAbsY > MaxThicknessBounds * 1.5 && !IsCrossingPlane)) 
+    
+    if ( MaxR < InterRadius * 0.9) 
     {
         return BaseColor;
     }
-
-    int MaxSubSteps = 64; 
+   
+    int MaxSubSteps = 32; 
     
     for (int i = 0; i < MaxSubSteps; i++)
     {
@@ -772,20 +793,14 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
 
         vec3 CurrentPos = StartPos + DirVec * TraveledDist;
         
-        // [TIME] 计算当前采样点的线性插值时间延迟
-        // 假设在这个小的积分步长内，时间和距离是近似线性关系的
         float TimeInterpolant = min(1.0, TraveledDist / max(1e-9, TotalDist));
         float CurrentRayTimeLag = mix(StartTimeLag, EndTimeLag, TimeInterpolant);
-        
-        // [TIME] 关键：发射时间 = 当前游戏时间 + 光线传播耗时
-        // 这会让离相机越远的部分（或引力越强导致时间变慢的部分）呈现出更早之前的状态
         float EmissionTime = iBlackHoleTime + CurrentRayTimeLag;
 
         float DistanceToBlackHole = length(CurrentPos); 
         float SmallStepBoundary = max(OuterRadius, 12.0);
         float StepSize = 1.0; 
         
-        // ... (步长控制逻辑保持不变) ...
         StepSize *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / max(10.0 , SmallStepBoundary) - 1.0)), 1.0);
         if ((DistanceToBlackHole) >= 2.0 * SmallStepBoundary) StepSize *= DistanceToBlackHole;
         else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary) StepSize *= ((1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0)) * (2.0 * SmallStepBoundary - DistanceToBlackHole) + DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
@@ -795,7 +810,6 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
         float Dither = RandomStep(10000.0*(RayPos.zx/OuterRadius), iTime * 4.0 + float(i) * 0.1337);
         vec3 SamplePos;
 
-        // ... (抖动采样逻辑保持不变) ...
         if (CurrentPos.y * (CurrentPos + DirVec * dt).y < 0.0) 
         {
             float t_cross = CurrentPos.y / (CurrentPos.y - (CurrentPos + DirVec * dt).y);
@@ -810,25 +824,39 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
         
         float PosR = KerrSchildRadius(SamplePos, PhysicalSpinA, 1.0);
         float PosY = SamplePos.y;
-        float SampleThin = Thin + max(0.0, (length(SamplePos.xz) - 3.0) * Hopper);
         
-        if (abs(PosY) < SampleThin * 1.2 && PosR < OuterRadius && PosR > InterRadius)
+        float GeometricThin = Thin + max(0.0, (length(SamplePos.xz) - 3.0) * Hopper);
+        
+        // [修改 1] 计算内侧云参数与包围盒
+        float InterCloudEffectiveRadius = (PosR - InterRadius) / min(OuterRadius - InterRadius, 12.0);
+        float InnerCloudBound = max(GeometricThin, Thin * 1.0) * (1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0));
+        
+        // [修改 2] 关键修复：外层包围盒必须取主盘与内侧云的并集
+        // GeometricThin * 1.5 是主盘噪声的包围盒，InnerCloudBound 是内侧云的包围盒
+        float UnionBound = max(GeometricThin * 1.5, max(0.0, InnerCloudBound));
+
+        if (abs(PosY) < UnionBound && PosR < OuterRadius && PosR > InterRadius)
         {
-             // ... (密度和物理计算保持不变) ...
-             float NoiseLevel = max(0.0, 2.0 - 0.6 * SampleThin);
-             float x = (PosR - InterRadius) / (OuterRadius - InterRadius);
+             float NoiseLevel = max(0.0, 2.0 - 0.6 * GeometricThin);
+             float x = (PosR - InterRadius) / max(1e-6, OuterRadius - InterRadius);
              float a_param = max(1.0, (OuterRadius - InterRadius) / 10.0);
-             float EffectiveRadius = (-1.0 + sqrt(1.0 + 4.0 * a_param * a_param * x - 4.0 * x * a_param)) / (2.0 * a_param - 2.0);
+             float EffectiveRadius = (-1.0 + sqrt(max(0.0, 1.0 + 4.0 * a_param * a_param * x - 4.0 * x * a_param))) / (2.0 * a_param - 2.0);
              if(a_param == 1.0) EffectiveRadius = x;
-             float InterCloudEffectiveRadius = (PosR - InterRadius) / min(OuterRadius - InterRadius, 12.0);
+             
              float DenAndThiFactor = Shape(EffectiveRadius, 0.9, 1.5);
 
-             if ((abs(PosY) < SampleThin * DenAndThiFactor) || (PosY < SampleThin * (1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0))))
+             float RotPosR_ForThick = PosR + 0.25 / 3.0 * EmissionTime;
+             float PosLogTheta_ForThick = Vec2ToTheta(SamplePos.zx, vec2(cos(-2.0 * log(max(1e-6, PosR))), sin(-2.0 * log(max(1e-6, PosR)))));
+             float ThickNoise = GenerateAccretionDiskNoise(vec3(1.5 * PosLogTheta_ForThick, RotPosR_ForThick, 0.0), -0.7 + NoiseLevel, 1.3 + NoiseLevel, 80.0);
+             
+             float PerturbedThickness = max(1e-6, GeometricThin * DenAndThiFactor * (0.4 + 0.6 * clamp(GeometricThin - 0.5, 0.0, 2.5) / 2.5 + (1.0 - (0.4 + 0.6 * clamp(GeometricThin - 0.5, 0.0, 2.5) / 2.5)) * SoftSaturate(ThickNoise)));
+
+             // 使用并集条件进入详细计算
+             if ((abs(PosY) < PerturbedThickness) || (abs(PosY) < InnerCloudBound))
              {
-                 float AngularVelocity = GetKeplerianAngularVelocity(PosR, 1.0, PhysicalSpinA, PhysicalQ);
+                 float AngularVelocity = GetKeplerianAngularVelocity(max(InterRadius, PosR), 1.0, PhysicalSpinA, PhysicalQ);
                  
-                 // ... (螺旋角计算保持不变) ...
-                 float u = sqrt(PosR);
+                 float u = sqrt(max(1e-6, PosR));
                  float k_cubed = PhysicalSpinA * 0.70710678;
                  float SpiralTheta;
                  if (abs(k_cubed) < 0.001 * u * u * u) {
@@ -836,12 +864,12 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                      SpiralTheta = -16.9705627 * inv_u * (1.0 - 0.25 * eps3 + 0.142857 * eps3 * eps3);
                  } else {
                      float k = sign(k_cubed) * pow(abs(k_cubed), 0.33333333);
-                     SpiralTheta = (5.6568542 / k) * (0.5 * log((PosR - k*u + k*k) / pow(u+k, 2.0)) + 1.7320508 * (atan(2.0*u - k, 1.7320508 * k) - 1.5707963));
+                     float logTerm = (PosR - k*u + k*k) / max(1e-9, pow(u+k, 2.0));
+                     SpiralTheta = (5.6568542 / k) * (0.5 * log(max(1e-9, logTerm)) + 1.7320508 * (atan(2.0*u - k, 1.7320508 * k) - 1.5707963));
                  }
                  float PosTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
-                 float PosLogarithmicTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-2.0 * log(PosR)), sin(-2.0 * log(PosR))));
+                 float PosLogarithmicTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-2.0 * log(max(1e-6, PosR))), sin(-2.0 * log(max(1e-6, PosR)))));
                  
-                 // ... (红移物理计算保持不变) ...
                  vec3 FluidVel = AngularVelocity * vec3(SamplePos.z, 0.0, -SamplePos.x);
                  vec4 U_fluid_unnorm = vec4(FluidVel, 1.0); 
                  KerrGeometry geo_sample;
@@ -851,81 +879,124 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
                  float E_emit = -dot(iP_cov, U_fluid);
                  float FreqRatio = iE_obs / max(1e-6, E_emit);
-                 
-                 // --- 颜色合成 ---
-                 // 温度计算不变
-                 float DiskTemperature = pow(DiskTemperatureArgument * pow(1.0 / PosR, 3.0) * max(1.0 - sqrt(InterRadius / PosR), 0.000001), 0.25);
+
+
+
+
+
+                 float DiskTemperature = pow(DiskTemperatureArgument * pow(1.0 / max(1e-6, PosR), 3.0) * max(1.0 - sqrt(InterRadius / max(1e-6, PosR)), 0.000001), 0.25);
                  float VisionTemperature = DiskTemperature * pow(FreqRatio, RedShiftColorExponent); 
-                 float BrightWithoutRedshift = 0.05 * min(OuterRadius / (1000.0), 1000.0 / OuterRadius) + 0.55 / exp(5.0 * EffectiveRadius) * mix(0.2 + 0.8 * abs(DirVec.y), 1.0, clamp(Thin - 0.8, 0.2, 1.0)); 
+                 float BrightWithoutRedshift = 0.05 * min(OuterRadius / (1000.0), 1000.0 / OuterRadius) + 0.55 / exp(5.0 * EffectiveRadius) * mix(0.2 + 0.8 * abs(DirVec.y), 1.0, clamp(GeometricThin - 0.8, 0.2, 1.0)); 
                  BrightWithoutRedshift *= pow(DiskTemperature / PeakTemperature, BlackbodyIntensityExponent); 
                  
-                 // [TIME CHANGE 1] 使用 EmissionTime 计算旋转角度
-                 // 原代码: float RotPosR = PosR + 0.25 / 3.0 * iBlackHoleTime;
                  float RotPosR = PosR + 0.25 / 3.0 * EmissionTime;
-                 
                  float Density = DenAndThiFactor;
-                 float Levelmut = 0.91 * log(1.0 + (0.06 / 0.91 * max(0.0, min(1000.0, PosR) - 10.0)));
-                 float Conmut = 80.0 * log(1.0 + (0.1 * 0.06 * max(0.0, min(1000000.0, PosR) - 10.0)));
                  
-                 // 噪声采样
-                 vec4 SampleColor = vec4(GenerateAccretionDiskNoise(vec3(0.1 * RotPosR, 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * PosTheta), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 4.0 - Levelmut, 80.0 - Conmut)); 
-                 
-                 if(PosTheta + kPi < 0.1 * kPi) {
-                     SampleColor *= (PosTheta + kPi) / (0.1 * kPi);
-                     SampleColor += (1.0 - ((PosTheta + kPi) / (0.1 * kPi))) * vec4(GenerateAccretionDiskNoise(vec3(0.1 * RotPosR, 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * (PosTheta + 2.0 * kPi)), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 4.0 - Levelmut, 80.0 - Conmut));
-                 }
-                 
-                 if(PosR > max(0.15379 * OuterRadius, 0.15379 * 64.0)) {
-                     // [TIME CHANGE 2] 大尺度螺旋结构的时间替换
-                     // 原代码中包含了 iBlackHoleTime，替换为 EmissionTime
-                     float TimeShiftedRadiusTerm = PosR * (4.65114e-6) - 0.1 / 3.0 * EmissionTime;
+                 vec4 SampleColor = vec4(0.0);
+
+                 // 1. 主盘噪声计算
+                 if (abs(PosY) < PerturbedThickness) 
+                 {
+                     float Levelmut = 0.91 * log(1.0 + (0.06 / 0.91 * max(0.0, min(1000.0, PosR) - 10.0)));
+                     float Conmut = 80.0 * log(1.0 + (0.1 * 0.06 * max(0.0, min(1000000.0, PosR) - 10.0)));
                      
-                     float Spir = (GenerateAccretionDiskNoise(vec3(0.1 * (TimeShiftedRadiusTerm - 0.08 * OuterRadius * PosLogarithmicTheta), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * PosLogarithmicTheta), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut)); 
-                     if(PosLogarithmicTheta + kPi < 0.1 * kPi) {
-                         Spir *= (PosLogarithmicTheta + kPi) / (0.1 * kPi);
-                         Spir += (1.0 - ((PosLogarithmicTheta + kPi) / (0.1 * kPi))) * (GenerateAccretionDiskNoise(vec3(0.1 * (TimeShiftedRadiusTerm - 0.08 * OuterRadius * (PosLogarithmicTheta + 2.0 * kPi)), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * (PosLogarithmicTheta + 2.0 * kPi)), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut));
+                     SampleColor = vec4(GenerateAccretionDiskNoise(vec3(0.1 * RotPosR, 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * PosTheta), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 4.0 - Levelmut, 80.0 - Conmut)); 
+                     
+                     if(PosTheta + kPi < 0.1 * kPi) {
+                         SampleColor *= (PosTheta + kPi) / (0.1 * kPi);
+                         SampleColor += (1.0 - ((PosTheta + kPi) / (0.1 * kPi))) * vec4(GenerateAccretionDiskNoise(vec3(0.1 * RotPosR, 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * (PosTheta + 2.0 * kPi)), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 4.0 - Levelmut, 80.0 - Conmut));
                      }
-                     SampleColor *= (mix(1.0, clamp(0.7 * Spir * 1.5 - 0.5, 0.0, 3.0), 0.5 + 0.5 * max(-1.0, 1.0 - exp(-1.5 * 0.1 * (100.0 * PosR / max(OuterRadius, 64.0) - 20.0)))));
+                     
+                     if(PosR > max(0.15379 * OuterRadius, 0.15379 * 64.0)) {
+                         float TimeShiftedRadiusTerm = PosR * (4.65114e-6) - 0.1 / 3.0 * EmissionTime;
+                         float Spir = (GenerateAccretionDiskNoise(vec3(0.1 * (TimeShiftedRadiusTerm - 0.08 * OuterRadius * PosLogarithmicTheta), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * PosLogarithmicTheta), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut)); 
+                         if(PosLogarithmicTheta + kPi < 0.1 * kPi) {
+                             Spir *= (PosLogarithmicTheta + kPi) / (0.1 * kPi);
+                             Spir += (1.0 - ((PosLogarithmicTheta + kPi) / (0.1 * kPi))) * (GenerateAccretionDiskNoise(vec3(0.1 * (TimeShiftedRadiusTerm - 0.08 * OuterRadius * (PosLogarithmicTheta + 2.0 * kPi)), 0.1 * PosY, 0.02 * pow(OuterRadius, 0.7) * (PosLogarithmicTheta + 2.0 * kPi)), NoiseLevel + 2.0 - Levelmut, NoiseLevel + 3.0 - Levelmut, 80.0 - Conmut));
+                         }
+                         SampleColor *= (mix(1.0, clamp(0.7 * Spir * 1.5 - 0.5, 0.0, 3.0), 0.5 + 0.5 * max(-1.0, 1.0 - exp(-1.5 * 0.1 * (100.0 * PosR / max(OuterRadius, 64.0) - 20.0)))));
+                     }
+
+                     float VerticalMixFactor = max(0.0, (1.0 - abs(PosY) / PerturbedThickness)); 
+                     Density *= 0.7 * VerticalMixFactor * Density;
+                     SampleColor.xyz *= Density * 1.4;
+                     SampleColor.a *= (Density) * (Density) / 0.3;
+                     
+                     float RelHeight = clamp(abs(PosY) / PerturbedThickness, 0.0, 1.0);
+                     SampleColor.xyz *= max(0.0, (0.2 + 2.0 * sqrt(max(0.0, RelHeight * RelHeight + 0.001))));
                  }
 
-                 // ... (颜色混合逻辑保持不变) ...
-                 float VerticalMixFactor = max(0.0, (1.0 - abs(PosY) / (SampleThin * Density * 1.4))); 
-                 Density *= 0.7 * VerticalMixFactor * Density;
-                 SampleColor.xyz *= Density * 1.4;
-                 SampleColor.a *= (Density) * (Density) / 0.3;
-                 
+                 // [修改 3] 内侧点缀云（Dust）：恢复独立旋转逻辑，并使用修正后的 InnerCloudBound
+                 // 计算内侧独立坐标系
+                 float InnerAngVel = GetKeplerianAngularVelocity(3.0, 1.0, PhysicalSpinA, PhysicalQ);
+                 float InnerCloudTimePhase = kPi / (kPi / max(1e-6, InnerAngVel)) * EmissionTime; 
+                 // 注意：这里使用 0.666666 * InnerCloudTimePhase 来匹配 Schwarzschild 版本的速度感
+                 float InnerRotArg = 0.666666 * InnerCloudTimePhase;
+                 float PosThetaForInnerCloud = Vec2ToTheta(SamplePos.zx, vec2(cos(InnerRotArg), sin(InnerRotArg)));
+
+                 if (abs(PosY) < InnerCloudBound) 
+                 {
+                     float DustIntensity = max(1.0 - pow(PosY / (GeometricThin  * max(1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0), 0.0001)), 2.0), 0.0);
+                     
+                     if (DustIntensity > 0.0) {
+                        float DustNoise = GenerateAccretionDiskNoise(
+                            vec3(1.5 * fract((1.5 * PosThetaForInnerCloud + InnerCloudTimePhase) / 2.0 / kPi) * 2.0 * kPi, PosR, PosY), 
+                            0.0, 6.0, 80.0
+                        );
+                        float DustVal = DustIntensity * DustNoise;
+                         
+                        float ApproxDiskDirY =  DirVec.y; 
+                        SampleColor += 0.02 * vec4(vec3(DustVal), 0.2 * DustVal) * sqrt(max(0.0, 1.0001 - ApproxDiskDirY * ApproxDiskDirY) * min(1.0, 1 * 1));
+                     }
+                 }
+
                  SampleColor.xyz *= BrightWithoutRedshift * KelvinToRgb(VisionTemperature); 
                  SampleColor.xyz *= min(pow(FreqRatio, RedShiftIntensityExponent), ShiftMax); 
-                 SampleColor.xyz *= min(1.0, 1.8 * (OuterRadius - PosR) / (OuterRadius - InterRadius)); 
+                 SampleColor.xyz *= min(1.0, 1.3 * (OuterRadius - PosR) / (OuterRadius - InterRadius)); 
                  SampleColor.a   *= 0.125;
-                 SampleColor.xyz *=Brightmut;
-                 SampleColor.a   *=Darkmut;
+                 
+                 vec4 BoostFactor = max(
+                    mix(vec4(5.0 / (max(Thin, 0.2) + (0.0 + Hopper * 0.5) * OuterRadius)), vec4(vec3(0.3 + 0.7 * 5.0 / (Thin + (0.0 + Hopper * 0.5) * OuterRadius)), 1.0), 0.0),
+                    mix(vec4(100.0 / OuterRadius), vec4(vec3(0.3 + 0.7 * 100.0 / OuterRadius), 1.0), exp(-pow(20.0 * PosR / OuterRadius, 2.0)))
+                 );
+                 SampleColor *= BoostFactor;
+                 SampleColor.xyz *= mix(1.0, max(1.0, abs(DirVec.y) / 0.2), clamp(0.3 - 0.6 * (PerturbedThickness / max(1e-6, Density) - 1.0), 0.0, 0.3));
+                 SampleColor.xyz *=1.0+1.2*max(0.0,max(0.0,min(1.0,3.0-2.0*Thin))*min(0.5,1.0-5.0*Hopper));
+                 SampleColor.xyz *= Brightmut;
+                 SampleColor.a   *= Darkmut;
+                 
                  vec4 StepColor = SampleColor * dt;
                  
+                 // [修改 4] 颜色混合逻辑：保持你提供的基于透射率衰减后再计算饱和度的顺序
                  float aR = 1.0 + Reddening * (1.0 - 1.0);
                  float aG = 1.0 + Reddening * (3.0 - 1.0);
                  float aB = 1.0 + Reddening * (6.0 - 1.0);
+                 
                  float Sum_rgb = (StepColor.r + StepColor.g + StepColor.b) * pow(1.0 - CurrentResult.a, aG);
+                 Sum_rgb *= 1.0;
                  
-                 float r001 = 0.0; float g001 = 0.0; float b001 = 0.0;
-                 float Denominator = StepColor.r * pow(1.0 - CurrentResult.a, aR) + StepColor.g * pow(1.0 - CurrentResult.a, aG) + StepColor.b * pow(1.0 - CurrentResult.a, aB);
+                 float r001 = 0.0;
+                 float g001 = 0.0;
+                 float b001 = 0.0;
+                     
+                 float Denominator = StepColor.r*pow(1.0 - CurrentResult.a, aR) + StepColor.g*pow(1.0 - CurrentResult.a, aG) + StepColor.b*pow(1.0 - CurrentResult.a, aB);
                  
-                 if (Denominator > 1e-6)
+                 if (Denominator > 0.000001)
                  {
                      r001 = Sum_rgb * StepColor.r * pow(1.0 - CurrentResult.a, aR) / Denominator;
                      g001 = Sum_rgb * StepColor.g * pow(1.0 - CurrentResult.a, aG) / Denominator;
                      b001 = Sum_rgb * StepColor.b * pow(1.0 - CurrentResult.a, aB) / Denominator;
                      
-                     float invSum = 3.0 / (r001 + g001 + b001);
-                     r001 *= pow(r001 * invSum, Saturation);
-                     g001 *= pow(g001 * invSum, Saturation);
-                     b001 *= pow(b001 * invSum, Saturation);
+                    r001 *= pow(3.0*r001/(r001+g001+b001), Saturation);
+                    g001 *= pow(3.0*g001/(r001+g001+b001), Saturation);
+                    b001 *= pow(3.0*b001/(r001+g001+b001), Saturation);
                  }
+                 
+                 CurrentResult.r = CurrentResult.r + r001;
+                 CurrentResult.g = CurrentResult.g + g001;
+                 CurrentResult.b = CurrentResult.b + b001;
+                 CurrentResult.a = CurrentResult.a + StepColor.a * pow((1.0 - CurrentResult.a), 1.0);
 
-                 CurrentResult.r += r001;
-                 CurrentResult.g += g001;
-                 CurrentResult.b += b001;
-                 CurrentResult.a += StepColor.a * (1.0 - CurrentResult.a);
             }
         }
         TraveledDist += dt;
@@ -941,10 +1012,12 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
               ) 
 {
     vec4 CurrentResult = BaseColor;
-    vec3 StartPos = LastRayPos.xyz; // 提取空间位置
+    vec3 StartPos = LastRayPos.xyz; 
     vec3 DirVec   = RayDir; 
     
-    // [TIME] 提取时间坐标
+    // [NaN保护] 
+    if (any(isnan(StartPos)) || any(isinf(StartPos))) return BaseColor;
+
     float StartTimeLag = LastRayPos.w;
     float EndTimeLag   = RayPos.w;
 
@@ -952,13 +1025,13 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
     float TraveledDist = 0.0;
     
     float R_Start = length(StartPos.xz);
-    float R_End   = length(RayPos.xyz); // 注意这里取 xyz
+    float R_End   = length(RayPos.xyz); 
     float MaxR_XZ = max(R_Start, R_End);
     float MaxY    = max(abs(StartPos.y), abs(RayPos.y));
     
     if (MaxR_XZ > OuterRadius * 1.5 && MaxY < OuterRadius) return BaseColor;
 
-    int MaxSubSteps = 64; 
+    int MaxSubSteps = 32; 
     
     for (int i = 0; i < MaxSubSteps; i++)
     {
@@ -966,8 +1039,6 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
 
         vec3 CurrentPos = StartPos + DirVec * TraveledDist;
         
-        // [TIME] 计算发射时间 (Emission Time)
-        // 喷流也是动态对象，远离相机的部分应该是"过去"的状态
         float TimeInterpolant = min(1.0, TraveledDist / max(1e-9, TotalDist));
         float CurrentRayTimeLag = mix(StartTimeLag, EndTimeLag, TimeInterpolant);
         float EmissionTime = iBlackHoleTime + CurrentRayTimeLag;
@@ -976,14 +1047,13 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
         float SmallStepBoundary = max(OuterRadius, 12.0);
         float StepSize = 1.0; 
         
-        // ... (步长控制逻辑保持不变) ...
         StepSize *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / max(10.0 , SmallStepBoundary) - 1.0)), 1.0);
         if ((DistanceToBlackHole) >= 2.0 * SmallStepBoundary) StepSize *= DistanceToBlackHole;
         else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary) StepSize *= ((1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0)) * (2.0 * SmallStepBoundary - DistanceToBlackHole) + DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
         else StepSize *= min(1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0), DistanceToBlackHole);
         
         float dt = min(StepSize, TotalDist - TraveledDist);
-        float Dither = RandomStep(10000.0 * (RayPos.zx / OuterRadius), iTime * 4.0 + float(i) * 0.1337);
+        float Dither = RandomStep(10000.0 * (RayPos.zx / max(1e-6, OuterRadius)), iTime * 4.0 + float(i) * 0.1337);
         vec3 SamplePos = CurrentPos + DirVec * dt * Dither;
         
         float PosR = KerrSchildRadius(SamplePos, PhysicalSpinA, 1.0);
@@ -994,25 +1064,18 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
         vec4 AccumColor = vec4(0.0);
         bool InJet = false;
 
-        // --- 几何形状 (Jet Funnel) ---
-        float JetCoreShape = 0.0;
-        
         if (RhoSq < 2.0 * InterRadius * InterRadius + 0.03 * 0.03 * PosY * PosY && PosR < sqrt(2.0) * OuterRadius)
         {
             InJet = true;
-            // [TIME CHANGE 1] 核心喷流旋转与噪声流动
-            // iBlackHoleTime -> EmissionTime
-            float InnerTheta = 3.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (EmissionTime - 1.0 / 0.8 * abs(PosY));
-            float Shape = 1.0 / sqrt(InterRadius * InterRadius + 0.02 * 0.02 * PosY * PosY);
+            float Shape = 1.0 / sqrt(max(1e-9, InterRadius * InterRadius + 0.02 * 0.02 * PosY * PosY));
             
-            // [TIME CHANGE 2] 核心噪声参数
-            float noiseInput = 0.3 * (EmissionTime - 1.0 / 0.8 * abs(abs(PosY) + 100.0 * (RhoSq / max(0.1, PosR)))) / (OuterRadius / 100.0) / (1.0 / 0.8);
+            float noiseInput = 0.3 * (EmissionTime - 1.0 / 0.8 * abs(abs(PosY) + 100.0 * (RhoSq / max(0.1, PosR)))) / max(1e-6, (OuterRadius / 100.0)) / (1.0 / 0.8);
             float a = mix(0.7 + 0.3 * PerlinNoise1D(noiseInput), 1.0, exp(-0.01 * 0.01 * PosY * PosY));
             
             vec4 Col = vec4(1.0, 1.0, 1.0, 0.5) * max(0.0, 1.0 - 5.0 * Shape * abs(1.0 - pow(Rho * Shape, 2.0))) * Shape;
             Col *= a;
-            Col *= max(0.0, 1.0 - 1.0 * exp(-0.0001 * PosY / InterRadius * PosY / InterRadius));
-            Col *= exp(-4.0 / (2.0) * PosR / OuterRadius * PosR / OuterRadius);
+            Col *= max(0.0, 1.0 - 1.0 * exp(-0.0001 * PosY / max(1e-6, InterRadius) * PosY / max(1e-6, InterRadius)));
+            Col *= exp(-4.0 / (2.0) * PosR / max(1e-6, OuterRadius) * PosR / max(1e-6, OuterRadius));
             Col *= 0.5;
             AccumColor += Col;
         }
@@ -1021,28 +1084,24 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
         if (Rho < 1.3 * InterRadius + 0.25 * Wid && Rho > 0.7 * InterRadius + 0.15 * Wid && PosR < 30.0 * InterRadius)
         {
             InJet = true;
-            // [TIME CHANGE 3] 外部喷流旋转
             float InnerTheta = 2.0 * GetKeplerianAngularVelocity(InterRadius, 1.0, PhysicalSpinA, PhysicalQ) * (EmissionTime - 1.0 / 0.8 * abs(PosY));
-            float Shape = 1.0 / (InterRadius + 0.2 * Wid);
+            float Shape = 1.0 / max(1e-9, (InterRadius + 0.2 * Wid));
             
-            // [TIME CHANGE 4] 喷流扭曲 (Twist) 动画
             float Twist = 0.2 * (1.1 - exp(-0.1 * 0.1 * PosY * PosY)) * (PerlinNoise1D(0.35 * (EmissionTime - 1.0 / 0.8 * abs(PosY)) / (1.0 / 0.8)) - 0.5);
             vec2 TwistedPos = SamplePos.xz + Twist * vec2(cos(0.666666 * InnerTheta), -sin(0.666666 * InnerTheta));
             
             vec4 Col = vec4(1.0, 1.0, 1.0, 0.5) * max(0.0, 1.0 - 2.0 * abs(1.0 - pow(length(TwistedPos) * Shape, 2.0))) * Shape;
-            Col *= 1.0 - exp(-PosY / InterRadius * PosY / InterRadius);
-            Col *= exp(-0.005 * PosY / InterRadius * PosY / InterRadius);
+            Col *= 1.0 - exp(-PosY / max(1e-6, InterRadius) * PosY / max(1e-6, InterRadius));
+            Col *= exp(-0.005 * PosY / max(1e-6, InterRadius) * PosY / max(1e-6, InterRadius));
             Col *= 0.5;
             AccumColor += Col;
         }
 
         if (InJet)
         {
-            // ... (速度计算与红移保持不变) ...
-            float JetVelocityMag = 0.9; 
             vec3  JetVelDir = vec3(0.0, sign(PosY), 0.0);
             vec3 RotVelDir = normalize(vec3(SamplePos.z, 0.0, -SamplePos.x));
-            vec3 FinalSpatialVel = JetVelDir * JetVelocityMag + RotVelDir * 0.05; 
+            vec3 FinalSpatialVel = JetVelDir * 0.9 + RotVelDir * 0.05; 
             
             vec4 U_jet_unnorm = vec4(FinalSpatialVel, 1.0);
             KerrGeometry geo_sample;
@@ -1058,32 +1117,38 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
             AccumColor.xyz *= KelvinToRgb(JetTemperature);
             AccumColor.xyz *= min(pow(FreqRatio, JetRedShiftIntensityExponent), JetShiftMax);
             
-            AccumColor *= dt * JetBrightmut * (0.5 + 0.5 * tanh(log(AccretionRate) + 1.0));
+            AccumColor *= JetBrightmut * (0.5 + 0.5 * tanh(log(max(1e-6, AccretionRate)) + 1.0));
             AccumColor.a *= 0.0; 
+                 
 
-            // ... (颜色混合逻辑保持不变) ...
-            float aR = 1.0 + JetReddening * (1.0 - 1.0);
-            float aG = 1.0 + JetReddening * (2.5 - 1.0);
-            float aB = 1.0 + JetReddening * (4.5 - 1.0);
-            float Sum_rgb = (AccumColor.r + AccumColor.g + AccumColor.b) * pow(1.0 - BaseColor.a, aG);
-            
-            float r001 = 0.0; float g001 = 0.0; float b001 = 0.0;
-            float Denominator = AccumColor.r * pow(1.0 - BaseColor.a, aR) + AccumColor.g * pow(1.0 - BaseColor.a, aG) + AccumColor.b * pow(1.0 - BaseColor.a, aB);
-            if (Denominator > 1e-6)
-            {
-                r001 = Sum_rgb * AccumColor.r * pow(1.0 - BaseColor.a, aR) / Denominator;
-                g001 = Sum_rgb * AccumColor.g * pow(1.0 - BaseColor.a, aG) / Denominator;
-                b001 = Sum_rgb * AccumColor.b * pow(1.0 - BaseColor.a, aB) / Denominator;
-                
-                float invSum = 3.0 / (r001 + g001 + b001);
-                r001 *= pow(r001 * invSum, JetSaturation);
-                g001 *= pow(g001 * invSum, JetSaturation);
-                b001 *= pow(b001 * invSum, JetSaturation);
-            }
-            
-            CurrentResult.r += r001;
-            CurrentResult.g += g001;
-            CurrentResult.b += b001;
+
+                 float aR = 1.0+ JetReddening*(1.0-1.0);
+                 float aG = 1.0+ JetReddening*(3.0-1.0);
+                 float aB = 1.0+ JetReddening*(6.0-1.0);
+                 float Sum_rgb = (AccumColor.r + AccumColor.g + AccumColor.b)*pow(1.0 - CurrentResult.a, aG);
+                 Sum_rgb *= 1.0;
+                 
+                 float r001 = 0.0;
+                 float g001 = 0.0;
+                 float b001 = 0.0;
+                     
+                 float Denominator = AccumColor.r*pow(1.0 - CurrentResult.a, aR) + AccumColor.g*pow(1.0 - CurrentResult.a, aG) + AccumColor.b*pow(1.0 - CurrentResult.a, aB);
+                 if (Denominator > 0.000001)
+                 {
+                     r001 = Sum_rgb * AccumColor.r * pow(1.0 - CurrentResult.a, aR) / Denominator;
+                     g001 = Sum_rgb * AccumColor.g * pow(1.0 - CurrentResult.a, aG) / Denominator;
+                     b001 = Sum_rgb * AccumColor.b * pow(1.0 - CurrentResult.a, aB) / Denominator;
+                     
+                    r001 *= pow(3.0*r001/(r001+g001+b001),JetSaturation);
+                    g001 *= pow(3.0*g001/(r001+g001+b001),JetSaturation);
+                    b001 *= pow(3.0*b001/(r001+g001+b001),JetSaturation);
+                     
+                 }
+                 
+                 CurrentResult.r=CurrentResult.r + r001;
+                 CurrentResult.g=CurrentResult.g + g001;
+                 CurrentResult.b=CurrentResult.b + b001;
+                 CurrentResult.a=CurrentResult.a + AccumColor.a * pow((1.0 - CurrentResult.a),1.0);
         }
         TraveledDist += dt;
     }
@@ -1103,14 +1168,24 @@ void main()
 
     // --- 2. 物理与渲染参数初始化 ---
     // [Physics] Derived Physical Constants
-    float iSpinclamp = clamp(iSpin, 0.0, 0.095);
-    float Zx = 1.0 + pow(1.0 - pow(iSpinclamp, 2.0), 0.333333333333333) * (pow(1.0 + pow(iSpinclamp, 2.0), 0.333333333333333) + pow(1.0 - iSpinclamp, 0.333333333333333)); 
-    float RmsRatio = (3.0 + sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx) - sqrt((3.0 - Zx) * (3.0 + Zx + 2.0 * sqrt(3.0 * pow(iSpinclamp, 2.0) + Zx * Zx)))) / 2.0; 
-    float AccretionEffective = sqrt(1.0 - 1.0 / RmsRatio); 
-    const float kPhysicsFactor = 1.52491e30; 
-    float DiskArgument = kPhysicsFactor / iBlackHoleMassSol * (iMu / AccretionEffective) * (iAccretionRate);
-    float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
+        float iSpinclamp = clamp(iSpin,-0.99,0.99);
+float a2 = iSpinclamp*iSpinclamp;
+float abs_a = abs(iSpinclamp);
 
+float common_term = pow(1.0 - a2, 1.0/3.0);
+float Z1 = 1.0 + common_term * (pow(1.0 + abs_a, 1.0/3.0) + pow(1.0 - abs_a, 1.0/3.0));
+float Z2 = sqrt(3.0 * a2 + Z1 * Z1);
+
+//顺行逆行要分别处理
+float root_term = sqrt(max(0.0, (3.0 - Z1) * (3.0 + Z1 + 2.0 * Z2))); 
+float Rms_M = 3.0 + Z2 - (sign(iSpinclamp) * root_term); 
+
+float RmsRatio = Rms_M / 2.0; 
+
+float AccretionEffective = sqrt(max(0.001, 1.0 - (2.0 / 3.0) / Rms_M));
+    const float kPhysicsFactor = 1.52491e30; 
+float DiskArgument = kPhysicsFactor / iBlackHoleMassSol * (iMu / AccretionEffective) * (iAccretionRate);
+float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
     // [Physics] Metric Constants (Scaled by CONST_M)
     float PhysicalSpinA = -iSpin * CONST_M;  
     float PhysicalQ     = iQ * CONST_M; 
@@ -1118,12 +1193,13 @@ void main()
     // [Physics] Horizons
     float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
     float EventHorizonR = 0.5 + sqrt(max(0.0, HorizonDiscrim));
+    float InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
     bool bIsNakedSingularity = HorizonDiscrim < 0.0;
 
     // [Rendering] Limits and Settings
     float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
     float BackgroundShiftMax = 2.0;
-    float ShiftMax = iJetShiftMax; 
+    float ShiftMax = 1.0; 
     float CurrentUniverseSign = iUniverseSign;
 
     // --- 3. 相机射线生成 (Camera Ray Generation) ---
@@ -1185,34 +1261,77 @@ void main()
     
     E_conserved = -P_cov.w;
 
-    // --- 5. 终止条件判定 (Termination Conditions) ---
+
+    bool bIntoOutHorizon=false;
+    bool bIntoInHorizon=false;
+
+
+// --- 5. 终止条件判定 (Termination Conditions) ---
     float TerminationR = -1.0; 
     float CameraStartR = KerrSchildRadius(RayPosLocal, PhysicalSpinA, CurrentUniverseSign);
     
-    if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity) 
+    // [逻辑修正 1 & 2] 静态观者合法性检查
+    // 无论是否为裸奇点，只要存在能层(Static Limit)，静态观者就不能位于能层内部(即内外静界之间)
+    if (CurrentUniverseSign > 0.0) 
     {
-        if (iObserverMode == 0) // Static
+        if (iObserverMode == 0) // Static Observer
         {
-            float CosThetaSq = (RayPosLocal.y * RayPosLocal.y) / (CameraStartR * CameraStartR + 1e-10);
+            // 计算 cos^2(theta). 在 Kerr-Schild 坐标系中 y 为极轴
+            float CosThetaSq = (RayPosLocal.y * RayPosLocal.y) / (CameraStartR * CameraStartR + 1e-20);
+            
+            // 计算静界判别式: (M)^2 - Q^2 - a^2 * cos^2(theta)
+            // 代码中 M = 0.5, 所以 M^2 = 0.25
             float SL_Discrim = 0.25 - PhysicalQ * PhysicalQ - PhysicalSpinA * PhysicalSpinA * CosThetaSq;
-            float SL_Outer = 0.5 + sqrt(max(0.0, SL_Discrim)); 
-            float SL_Inner = 0.5 - sqrt(max(0.0, SL_Discrim)); 
-            if (CameraStartR > SL_Outer) TerminationR = EventHorizonR; 
-            else if (CameraStartR > SL_Inner) {
-                bShouldContinueMarchRay = false; bWaitCalBack = false; Result = vec4(0.0, 0.0, 0.0, 1.0); 
-            } 
+            
+            // 只有判别式非负时，静界才存在
+            if (SL_Discrim >= 0.0) {
+                float SL_Outer = 0.5 + sqrt(SL_Discrim);
+                float SL_Inner = 0.5 - sqrt(SL_Discrim); 
+                
+                // 如果静态观者位于外静界内部且在内静界外部，则非法 -> 黑屏
+                // 注意：如果 SL_Inner 为虚数或负数(极端情况), 只要小于 SL_Outer 判定依然成立
+                if (CameraStartR < SL_Outer && CameraStartR > SL_Inner) {
+                    bShouldContinueMarchRay = false; 
+                    bWaitCalBack = false; 
+                    Result = vec4(0.0, 0.0, 0.0, 1.0); 
+                } 
+            }
         }
-        else // Falling
+        else 
         {
-            float InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
-            if (CameraStartR > InnerHorizonR) TerminationR = InnerHorizonR;
+            // TODO: 处理落体观者(Falling Observer)的非法区域
+            // 例如：带电黑洞(Reissner-Nordstrom/Kerr-Newman)内部可能存在重力斥力区导致自由落体无法抵达某些区域
         }
     }
     
+    // [逻辑修正 3] 光线追踪终止半径 (Termination Radius)
+    // 仅在非裸奇点(存在视界)且位于正宇宙时生效
+    if (!bIsNakedSingularity && CurrentUniverseSign > 0.0) 
+    {
+        InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
+        // EventHorizonR (Outer) 已经在 Section 7 开头计算过
+        
+        if (CameraStartR > EventHorizonR) 
+        {
+            // 情况 A: 观者在外视界外 -> 光终结于外视界
+            TerminationR = EventHorizonR; 
+           
+        }
+        else if (CameraStartR > InnerHorizonR) 
+        {
+            // 情况 B: 观者在内外视界之间 -> 光终结于内视界
+            TerminationR = InnerHorizonR;
+        }
+        else 
+        {
+            // 情况 C: 观者在内视界内 -> 光全域合法
+            TerminationR = -1.0;
+        }
+    }
     // --- 6. 光线追踪主循环 (Raymarching Loop) ---
     int Count = 0;
     vec3 RayPos = X.xyz; // Sync for loop start
-
+    float lastR=0.0;
     while (bShouldContinueMarchRay)
     {
         DistanceToBlackHole = length(RayPos);
@@ -1222,7 +1341,7 @@ void main()
         ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo);
 
         // Horizon Check
-        if (CurrentUniverseSign > 0.0 && geo.r < TerminationR && !bIsNakedSingularity && TerminationR!=-1.0) 
+        if (CurrentUniverseSign > 0.0 && geo.r < TerminationR && !bIsNakedSingularity && TerminationR != -1.0) 
         { 
             bShouldContinueMarchRay = false; bWaitCalBack = false; 
             break; 
@@ -1230,20 +1349,114 @@ void main()
 
         // Iteration Limit Check
         if ((Count > 150 && !bIsNakedSingularity) || (Count > 450 && bIsNakedSingularity)) { 
-            bShouldContinueMarchRay = false; bWaitCalBack = false; 
-            Result = vec4(0.0, 0.3, 0.0, 1.0); // Debug Green
+            bShouldContinueMarchRay = false; bWaitCalBack = false; Result=vec4(0.0,0.3,0.0,0.0);
             break; 
         }
+
+        // =====================================================================
+        // [MODIFIED] 自适应步长核心逻辑 (Adaptive Step Size)
+        // =====================================================================
         
-        // Adaptive Step Size
+        // 1. 预先计算当前点的导数 (Force & Velocity)
+        //    这相当于 RK4 的第一步 (k1)，我们在这里算好，后面直接传给优化后的 RK4
+        State s0; s0.X = X; s0.P = P_cov;
+        State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade, geo);
+        // =====================================================================
+        // [OPTIMIZATION] 物理安全的光线截断
+        // =====================================================================
+        
+
+        if(geo.r>InnerHorizonR&& lastR<InnerHorizonR)
+        {
+            bIntoInHorizon=true;
+        }
+        if(geo.r>EventHorizonR&& lastR<EventHorizonR)
+        {
+            bIntoOutHorizon=true;
+        }
+
+        if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity)
+        {
+            // [新增] 动态计算顺行光子球半径 (Prograde Photon Sphere Radius)
+            // 公式: R_ph = 2M * [1 + cos(2/3 * acos(-|a|/M))]
+            // 注意: 代码中 CONST_M = 0.5, 所以 Mass M = 0.5
+            // iSpin 是无量纲自旋 a*, PhysicalSpinA 是有量纲的 a = a* * M
+            // 这里我们直接用无量纲自旋计算系数。
+            // 对于 a*=1, acos(-1)=pi, cos(2pi/3)=-0.5, term=0.5, R=M (即 0.5Rs) -> 紧贴视界
+            // 对于 a*=0, acos(0)=pi/2, cos(pi/3)=0.5, term=1.5, R=3M (即 1.5Rs) -> 远大于视界
+            
+            float AbsSpin = abs(iSpin); // 0.0 ~ 1.0 (注意 iSpin 可能被 clamp 过)
+            // 为了安全，防止 acos 出错，clamp 一下输入
+            float AcosTerm = acos(clamp(-AbsSpin, -1.0, 1.0));
+            float PhCoefficient = 1.0 + cos(0.66666667 * AcosTerm);
+            float ProgradePhotonRadius = 2.0 * CONST_M * PhCoefficient; // 转换为物理半径
+
+            // 1. 区域限制：
+            // - 绝对上限：必须严格位于顺行光子球半径之内 (ProgradePhotonRadius)
+            //   我们乘以 0.99 或减去一个小量做安全缓冲，确保不误伤光子环本身
+            // - 相对上限：视界外 0.05 (TerminationR + 0.05)
+            // - 相机保护：必须小于相机起始半径
+            // - 吸积盘保护：必须小于吸积盘内径
+            
+            float SafetyGap = 0.001;
+            float PhotonShellLimit = ProgradePhotonRadius - SafetyGap; // 核心修正：绝不超过光子球
+            float preCeiling= min(CameraStartR - SafetyGap,TerminationR + 0.05);
+            if(bIntoInHorizon){preCeiling=InnerHorizonR+0.05;}//针对射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击视界 的判定优化
+            if(bIntoOutHorizon){preCeiling=EventHorizonR+0.05;}
+            // 取所有限制的最小值
+            float PruningCeiling = min(iInterRadiusRs, preCeiling);
+            PruningCeiling = min(PruningCeiling, PhotonShellLimit); 
+
+            // 只有当当前半径小于这个最严格的“天花板”时，才敢断定向外的光来自视界
+            if (geo.r < PruningCeiling)
+            {
+                // 2. 径向速度判定 (使用梯度点积):
+                // dot(grad_r, V) > 0 表示光线正在向外逃逸
+                float DrDlambda = dot(geo.grad_r, k1.X.xyz);
+                
+                if (DrDlambda > 1e-4) 
+                {
+                    bShouldContinueMarchRay = false; 
+                    bWaitCalBack = false; 
+                    Result=vec4(0.0,0.,0.3,0.0);
+                    break; 
+                }
+            }
+        }
+
+        // =====================================================================
+        // 2. 计算几何限制 (Geometric Limit)
+        //    防止穿模吸积盘或奇环，保持原有逻辑但作为硬上限
+
         float rho = length(RayPos.xz);
         float DistRing = sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
-        float GeoFactor = smoothstep(0.0, 0.6, DistRing);
-        float RFactor   = smoothstep(0.0, 0.8, abs(geo.r)); 
-        float Safety = min(GeoFactor, RFactor);
-        float BaseSpeed = mix(0.03, 0.5, Safety);
-        float RayStep = BaseSpeed * DistRing;
+        float Vel_Mag = length(k1.X); // dx/dlambda (Coordinate Velocity)
+        
+        // 3. 计算曲率限制 (Curvature/Force Limit)
+        //    原理：如果力 (k1.P) 相对于动量 (P_cov) 很大，说明光线正在急转弯，步长必须极小
+        float Force_Mag = length(k1.P); // dp/dlambda (Geodesic Force)
+        float Mom_Mag   = length(P_cov);
+        
+        // ErrorTolerance: 允许每一步动量方向改变多少？
+        float ErrorTolerance =0.5;// mix(0.1, 0.4, smoothstep(2.0, 20.0, DistanceToBlackHole));
+        
+        
+        // A. 几何步长：保证一步不超过距离物体的 50%
+        float StepGeo = 0.5 * DistRing / (Vel_Mag + 1e-9);
+        
+        // B. 动力学步长：保证一步内动量变化不超过 Tolerance
+        float StepForce = ErrorTolerance * Mom_Mag / (Force_Mag + 1e-15);
+        
+        // 4. 最终步长 (取最小值)
+        //    在远处，StepForce 会很大，StepGeo 也会很大 -> 步长巨大 -> FPS 提升
+        //    在强引力区，Force_Mag 暴增，StepForce 会变得极小 -> 消除断裂
+        float dLambda = min(StepGeo, StepForce);
 
+        // [Safety Clamp] 极小步长保护，防止死循环
+        dLambda = max(dLambda, 1e-7); 
+
+        // =====================================================================
+        
         vec4 LastX = X;
         LastPos = X.xyz;
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
@@ -1256,11 +1469,12 @@ void main()
             break; 
         }
 
-        float V_mag = length(vec4(P_contra_step.xyz, max(0.0, 1.0 - 0.8 * (iSpin*iSpin + iQ*iQ)) * P_contra_step.w)); 
-        float dLambda = RayStep / max(V_mag, 0.0); 
+        // [MODIFIED] 使用优化版 RK4，传入计算好的 dt (-dLambda) 和 k1
+        StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo, k1);
 
-        // Numerical Integration (RK4)
-        StepGeodesicRK4(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo);
+
+        lastR=geo.r;
+
 
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
@@ -1274,6 +1488,8 @@ void main()
             float rho_cross = length(mix(LastPos.xz, RayPos.xz, t_cross));
             if (rho_cross < abs(PhysicalSpinA)) CurrentUniverseSign *= -1.0;
         }
+
+        // ... (接下来的 DiskColor / JetColor 代码保持不变) ...
 
         // Volumetric Rendering
         if (CurrentUniverseSign > 0.0) {
@@ -1304,7 +1520,7 @@ void main()
         vec4 Backcolor = textureLod(iBackground, EscapeDirWorld, min(1.0, textureQueryLod(iBackground, EscapeDirWorld).x));
         if (CurrentUniverseSign < 0.0) Backcolor = textureLod(iAntiground, EscapeDirWorld, min(1.0, textureQueryLod(iAntiground, EscapeDirWorld).x));
         
-        float FrequencyRatio = 1.0 / max(1e-4, E_conserved);
+        float FrequencyRatio = 1.0;// / max(1e-4, E_conserved);
         float BackgroundShift = clamp(FrequencyRatio, 1.0/BackgroundShiftMax, BackgroundShiftMax);
         
         vec4 TexColor = Backcolor;
