@@ -1154,66 +1154,70 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
     }
     return CurrentResult;
 }
-
 // =============================================================================
 // SECTION 7: 主函数 (Main)
 // =============================================================================
 
 void main()
 {
-    // --- 1. 基础输入与坐标 ---
+    // -------------------------------------------------------------------------
+    // 1. 基础输入与屏幕坐标 (Basic Input & Screen Coordinates)
+    // -------------------------------------------------------------------------
     vec2 FragUv = gl_FragCoord.xy / iResolution.xy;
     FragUv.y = 1.0 - FragUv.y; 
     float Fov = tan(iFovRadians / 2.0);
 
-    // --- 2. 物理与渲染参数初始化 ---
-    // [Physics] Derived Physical Constants
-        float iSpinclamp = clamp(iSpin,-0.99,0.99);
-float a2 = iSpinclamp*iSpinclamp;
-float abs_a = abs(iSpinclamp);
+    // TAA Jitter
+    vec2 Jitter = vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)), RandomStep(FragUv, fract(iTime * 1.0))) / iResolution;
+    vec3 ViewDirLocal = FragUvToDir(FragUv + 0.5 * Jitter, Fov, iResolution); 
 
-float common_term = pow(1.0 - a2, 1.0/3.0);
-float Z1 = 1.0 + common_term * (pow(1.0 + abs_a, 1.0/3.0) + pow(1.0 - abs_a, 1.0/3.0));
-float Z2 = sqrt(3.0 * a2 + Z1 * Z1);
+    // -------------------------------------------------------------------------
+    // 2. 物理常数与黑洞参数计算 (Physical Constants & Black Hole Parameters)
+    // -------------------------------------------------------------------------
+    // [Spin & ISCO Parameters]
+    float iSpinclamp = clamp(iSpin, -0.99, 0.99);
+    float a2 = iSpinclamp * iSpinclamp;
+    float abs_a = abs(iSpinclamp);
+    float common_term = pow(1.0 - a2, 1.0/3.0);
+    float Z1 = 1.0 + common_term * (pow(1.0 + abs_a, 1.0/3.0) + pow(1.0 - abs_a, 1.0/3.0));
+    float Z2 = sqrt(3.0 * a2 + Z1 * Z1);
+    float root_term = sqrt(max(0.0, (3.0 - Z1) * (3.0 + Z1 + 2.0 * Z2))); 
+    float Rms_M = 3.0 + Z2 - (sign(iSpinclamp) * root_term); 
+    float RmsRatio = Rms_M / 2.0; 
+    float AccretionEffective = sqrt(max(0.001, 1.0 - (2.0 / 3.0) / Rms_M));
 
-//顺行逆行要分别处理
-float root_term = sqrt(max(0.0, (3.0 - Z1) * (3.0 + Z1 + 2.0 * Z2))); 
-float Rms_M = 3.0 + Z2 - (sign(iSpinclamp) * root_term); 
-
-float RmsRatio = Rms_M / 2.0; 
-
-float AccretionEffective = sqrt(max(0.001, 1.0 - (2.0 / 3.0) / Rms_M));
+    // [Temperature & Accretion]
     const float kPhysicsFactor = 1.52491e30; 
-float DiskArgument = kPhysicsFactor / iBlackHoleMassSol * (iMu / AccretionEffective) * (iAccretionRate);
-float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
-    // [Physics] Metric Constants (Scaled by CONST_M)
+    float DiskArgument = kPhysicsFactor / iBlackHoleMassSol * (iMu / AccretionEffective) * (iAccretionRate);
+    float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
+
+    // [Metric Constants]
     float PhysicalSpinA = -iSpin * CONST_M;  
     float PhysicalQ     = iQ * CONST_M; 
     
-    // [Physics] Horizons
+    // [Horizons]
     float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
     float EventHorizonR = 0.5 + sqrt(max(0.0, HorizonDiscrim));
     float InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
-    bool bIsNakedSingularity = HorizonDiscrim < 0.0;
+    bool  bIsNakedSingularity = HorizonDiscrim < 0.0;
 
-    // [Rendering] Limits and Settings
+    // [Rendering Limits]
     float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
     float BackgroundShiftMax = 2.0;
     float ShiftMax = 1.0; 
     float CurrentUniverseSign = iUniverseSign;
 
-    // --- 3. 相机射线生成 (Camera Ray Generation) ---
-    // Jitter for TAA/Anti-Aliasing
-    vec2 Jitter = vec2(RandomStep(FragUv, fract(iTime * 1.0 + 0.5)), RandomStep(FragUv, fract(iTime * 1.0))) / iResolution;
-    vec3 ViewDirLocal = FragUvToDir(FragUv + 0.5 * Jitter, Fov, iResolution); 
-    
-    // Camera Position in World Space (Visual)
+    // -------------------------------------------------------------------------
+    // 3. 相机系统与坐标变换 (Camera System & Coordinate Transforms)
+    // -------------------------------------------------------------------------
+    // World Space
     vec3 CamToBHVecVisual = (iInverseCamRot * vec4(iBlackHoleRelativePosRs.xyz, 0.0)).xyz;
     vec3 RayPosWorld = -CamToBHVecVisual; 
     
-    // Coordinate Basis Construction (Disk Plane Alignment)
     vec3 DiskNormalWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskNormal.xyz, 0.0)).xyz);
     vec3 DiskTangentWorld = normalize((iInverseCamRot * vec4(iBlackHoleRelativeDiskTangen.xyz, 0.0)).xyz);
+    
+    // Basis Construction
     vec3 BH_Y = normalize(DiskNormalWorld);             
     vec3 BH_X = normalize(DiskTangentWorld);            
     BH_X = normalize(BH_X - dot(BH_X, BH_Y) * BH_Y);
@@ -1221,30 +1225,38 @@ float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
     mat3 LocalToWorldRot = mat3(BH_X, BH_Y, BH_Z);
     mat3 WorldToLocalRot = transpose(LocalToWorldRot);
     
-    // Transform Ray to Local Metric Space
+    // Transform to Local Metric Space
     vec3 RayPosLocal = WorldToLocalRot * RayPosWorld;
     vec3 RayDirWorld_Geo = WorldToLocalRot * normalize((iInverseCamRot * vec4(ViewDirLocal, 0.0)).xyz);
 
-    // --- 4. 状态变量初始化 (State Initialization) ---
+    // -------------------------------------------------------------------------
+    // 4. 状态初始化与包围盒优化 (State Init & Bounding Optimization)
+    // -------------------------------------------------------------------------
     vec4  Result = vec4(0.0);
     bool  bShouldContinueMarchRay = true;
     bool  bWaitCalBack = false;
-
-    // Bounding Sphere Optimization (Fast Forward)
     float DistanceToBlackHole = length(RayPosLocal);
+
+    // Fast Forward (Bounding Sphere Check)
     if (DistanceToBlackHole > RaymarchingBoundary) 
     {
         vec3 O = RayPosLocal; vec3 D = RayDirWorld_Geo; float r = RaymarchingBoundary - 1.0; 
         float b = dot(O, D); float c = dot(O, O) - r * r; float delta = b * b - c; 
-        if (delta < 0.0) { bShouldContinueMarchRay = false; bWaitCalBack = true; } 
+        if (delta < 0.0) { 
+            bShouldContinueMarchRay = false; 
+            bWaitCalBack = true; 
+        } 
         else {
             float tEnter = -b - sqrt(delta); 
             if (tEnter > 0.0) RayPosLocal = O + D * tEnter;
-            else if (-b + sqrt(delta) <= 0.0) { bShouldContinueMarchRay = false; bWaitCalBack = true; }
+            else if (-b + sqrt(delta) <= 0.0) { 
+                bShouldContinueMarchRay = false; 
+                bWaitCalBack = true; 
+            }
         }
     }
 
-    // Geodesic State Vectors
+    // Geodesic Variables
     vec4 X = vec4(RayPosLocal, 0.0); // .xyz = Position, .w = Time Lag
     vec4 P_cov = vec4(-1.0);         // Covariant Momentum
     float E_conserved = 1.0;       
@@ -1253,43 +1265,31 @@ float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
     vec3 LastPos = RayPosLocal;
     float GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * length(RayPosLocal) - 1.0) / 4.0, 1.0), 0.0));
     
-    // Initial Momentum Setup
+    // Calculate Initial Momentum
     if (bShouldContinueMarchRay) 
     {
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
     }
-    
     E_conserved = -P_cov.w;
 
-
-    bool bIntoOutHorizon=false;
-    bool bIntoInHorizon=false;
-
-
-// --- 5. 终止条件判定 (Termination Conditions) ---
+    // -------------------------------------------------------------------------
+    // 5. 初始合法性检查与终结半径 (Validity Checks & Termination Radius)
+    // -------------------------------------------------------------------------
     float TerminationR = -1.0; 
     float CameraStartR = KerrSchildRadius(RayPosLocal, PhysicalSpinA, CurrentUniverseSign);
     
-    // [逻辑修正 1 & 2] 静态观者合法性检查
-    // 无论是否为裸奇点，只要存在能层(Static Limit)，静态观者就不能位于能层内部(即内外静界之间)
     if (CurrentUniverseSign > 0.0) 
     {
-        if (iObserverMode == 0) // Static Observer
+        // 静态观者能层合法性检查
+        if (iObserverMode == 0) 
         {
-            // 计算 cos^2(theta). 在 Kerr-Schild 坐标系中 y 为极轴
             float CosThetaSq = (RayPosLocal.y * RayPosLocal.y) / (CameraStartR * CameraStartR + 1e-20);
-            
-            // 计算静界判别式: (M)^2 - Q^2 - a^2 * cos^2(theta)
-            // 代码中 M = 0.5, 所以 M^2 = 0.25
             float SL_Discrim = 0.25 - PhysicalQ * PhysicalQ - PhysicalSpinA * PhysicalSpinA * CosThetaSq;
             
-            // 只有判别式非负时，静界才存在
             if (SL_Discrim >= 0.0) {
                 float SL_Outer = 0.5 + sqrt(SL_Discrim);
                 float SL_Inner = 0.5 - sqrt(SL_Discrim); 
                 
-                // 如果静态观者位于外静界内部且在内静界外部，则非法 -> 黑屏
-                // 注意：如果 SL_Inner 为虚数或负数(极端情况), 只要小于 SL_Outer 判定依然成立
                 if (CameraStartR < SL_Outer && CameraStartR > SL_Inner) {
                     bShouldContinueMarchRay = false; 
                     bWaitCalBack = false; 
@@ -1297,213 +1297,195 @@ float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
                 } 
             }
         }
-        else 
+        else
         {
-            // TODO: 处理落体观者(Falling Observer)的非法区域
-            // 例如：带电黑洞(Reissner-Nordstrom/Kerr-Newman)内部可能存在重力斥力区导致自由落体无法抵达某些区域
+
         }
+        // 确定光线追踪终止半径 (非裸奇点)
+        if (!bIsNakedSingularity && CurrentUniverseSign > 0.0) 
+        {
+            if (CameraStartR > EventHorizonR) TerminationR = EventHorizonR; 
+            else if (CameraStartR > InnerHorizonR) TerminationR = InnerHorizonR;
+            else TerminationR = -1.0;
+        }
+    }
+    // 输入变量：CONST_M (质量), iSpin (无量纲自旋), iQ (无量纲电荷)
+    float AbsSpin = abs(CONST_M * iSpin);
+    float Q2 = iQ * iQ * CONST_M * CONST_M; // Q^2
+    
+
+    float AcosTerm = acos(clamp(-abs(iSpin), -1.0, 1.0));
+    float PhCoefficient = 1.0 + cos(0.66666667 * AcosTerm);
+    float r_guess = 2.0 * CONST_M * PhCoefficient; 
+    float r = r_guess;
+    float sign_a = 1.0; 
+    
+    for(int k=0; k<3; k++) {
+        float Mr_Q2 = CONST_M * r - Q2;
+        float sqrt_term = sqrt(max(0.0001, Mr_Q2)); 
+        
+        // 方程 f(r)
+        float f = r*r - 3.0*CONST_M*r + 2.0*Q2 + sign_a * 2.0 * AbsSpin * sqrt_term;
+        
+        // 导数 f'(r)
+        float df = 2.0*r - 3.0*CONST_M + sign_a * AbsSpin * CONST_M / sqrt_term;
+        
+        if(abs(df) < 0.00001) break;
+    
+        r = r - f / df;
     }
     
-    // [逻辑修正 3] 光线追踪终止半径 (Termination Radius)
-    // 仅在非裸奇点(存在视界)且位于正宇宙时生效
-    if (!bIsNakedSingularity && CurrentUniverseSign > 0.0) 
-    {
-        InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
-        // EventHorizonR (Outer) 已经在 Section 7 开头计算过
-        
-        if (CameraStartR > EventHorizonR) 
-        {
-            // 情况 A: 观者在外视界外 -> 光终结于外视界
-            TerminationR = EventHorizonR; 
-           
-        }
-        else if (CameraStartR > InnerHorizonR) 
-        {
-            // 情况 B: 观者在内外视界之间 -> 光终结于内视界
-            TerminationR = InnerHorizonR;
-        }
-        else 
-        {
-            // 情况 C: 观者在内视界内 -> 光全域合法
-            TerminationR = -1.0;
-        }
-    }
-    // --- 6. 光线追踪主循环 (Raymarching Loop) ---
+    float ProgradePhotonRadius = r;
+
+    float MaxStep=150.0+300.0/(1.0+1000.0*(1.0-iSpin*iSpin-iQ*iQ)*(1.0-iSpin*iSpin-iQ*iQ));
+    if(bIsNakedSingularity) MaxStep=450;//150.0+300.0/(1.0+10.0*(1.0-iSpin*iSpin-iQ*iQ)*(1.0-iSpin*iSpin-iQ*iQ));
+    // -------------------------------------------------------------------------
+    // 6. 光线追踪主循环 (Raymarching Loop)
+    // -------------------------------------------------------------------------
     int Count = 0;
+    float lastR = 0.0;
+    bool bIntoOutHorizon = false;
+    bool bIntoInHorizon = false;
+    float LastDr = 0.0;           
+    int RadialTurningCounts = 0;  
+    
     vec3 RayPos = X.xyz; // Sync for loop start
-    float lastR=0.0;
+
     while (bShouldContinueMarchRay)
     {
+        // --- Geometry & Status Update ---
         DistanceToBlackHole = length(RayPos);
-        if (DistanceToBlackHole > RaymarchingBoundary) { bShouldContinueMarchRay = false; bWaitCalBack = true; break; }
+        if (DistanceToBlackHole > RaymarchingBoundary)
+        { 
+            bShouldContinueMarchRay = false; 
+            bWaitCalBack = true; 
+            break; //离开足够远
+        }
         
         KerrGeometry geo;
         ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo);
 
-        // Horizon Check
+        // Horizon & Iteration Checks
         if (CurrentUniverseSign > 0.0 && geo.r < TerminationR && !bIsNakedSingularity && TerminationR != -1.0) 
         { 
-            bShouldContinueMarchRay = false; bWaitCalBack = false; 
-            break; 
+            bShouldContinueMarchRay = false;
+            bWaitCalBack = false;
+            Result = vec4(0.0, 0.3, 0.3, 0.0); 
+            break; //直接进入判定区
+        }
+        if (Count > MaxStep) 
+        { 
+            bShouldContinueMarchRay = false; 
+            bWaitCalBack = false;
+            Result = vec4(0.0, 0.3, 0.0, 0.0);
+            break; //耗尽步数
         }
 
-        // Iteration Limit Check
-        if ((Count > 150 && !bIsNakedSingularity) || (Count > 450 && bIsNakedSingularity)) { 
-            bShouldContinueMarchRay = false; bWaitCalBack = false; Result=vec4(0.0,0.3,0.0,0.0);
-            break; 
-        }
-
-        // =====================================================================
-        // [MODIFIED] 自适应步长核心逻辑 (Adaptive Step Size)
-        // =====================================================================
-        
-        // 1. 预先计算当前点的导数 (Force & Velocity)
-        //    这相当于 RK4 的第一步 (k1)，我们在这里算好，后面直接传给优化后的 RK4
+        // --- Derivative & Bound State Logic ---
         State s0; s0.X = X; s0.P = P_cov;
         State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade, geo);
-        // =====================================================================
-        // [OPTIMIZATION] 物理安全的光线截断
-        // =====================================================================
-        
 
-        if(geo.r>InnerHorizonR&& lastR<InnerHorizonR)
+        // Bound State Detection (Naked Singularity)
         {
-            bIntoInHorizon=true;
-        }
-        if(geo.r>EventHorizonR&& lastR<EventHorizonR)
-        {
-            bIntoOutHorizon=true;
+            float CurrentDr = dot(geo.grad_r, k1.X.xyz);
+            if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
+            if (RadialTurningCounts > 2) 
+            {
+                bShouldContinueMarchRay = false; bWaitCalBack = false;
+                Result = vec4(0.3, 0.0, 0.3, 1.0); 
+                break;//识别剔除束缚态光子轨道
+            }
+            LastDr = CurrentDr;
         }
 
+        // Horizon Crossing Flags
+        if(geo.r > InnerHorizonR && lastR < InnerHorizonR) bIntoInHorizon = true;
+        if(geo.r > EventHorizonR && lastR < EventHorizonR) bIntoOutHorizon = true;
+
+        // --- Prograde Photon Sphere Pruning ---
         if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity)
         {
-            // [新增] 动态计算顺行光子球半径 (Prograde Photon Sphere Radius)
-            // 公式: R_ph = 2M * [1 + cos(2/3 * acos(-|a|/M))]
-            // 注意: 代码中 CONST_M = 0.5, 所以 Mass M = 0.5
-            // iSpin 是无量纲自旋 a*, PhysicalSpinA 是有量纲的 a = a* * M
-            // 这里我们直接用无量纲自旋计算系数。
-            // 对于 a*=1, acos(-1)=pi, cos(2pi/3)=-0.5, term=0.5, R=M (即 0.5Rs) -> 紧贴视界
-            // 对于 a*=0, acos(0)=pi/2, cos(pi/3)=0.5, term=1.5, R=3M (即 1.5Rs) -> 远大于视界
-            
-            float AbsSpin = abs(iSpin); // 0.0 ~ 1.0 (注意 iSpin 可能被 clamp 过)
-            // 为了安全，防止 acos 出错，clamp 一下输入
-            float AcosTerm = acos(clamp(-AbsSpin, -1.0, 1.0));
-            float PhCoefficient = 1.0 + cos(0.66666667 * AcosTerm);
-            float ProgradePhotonRadius = 2.0 * CONST_M * PhCoefficient; // 转换为物理半径
 
-            // 1. 区域限制：
-            // - 绝对上限：必须严格位于顺行光子球半径之内 (ProgradePhotonRadius)
-            //   我们乘以 0.99 或减去一个小量做安全缓冲，确保不误伤光子环本身
-            // - 相对上限：视界外 0.05 (TerminationR + 0.05)
-            // - 相机保护：必须小于相机起始半径
-            // - 吸积盘保护：必须小于吸积盘内径
-            
+
             float SafetyGap = 0.001;
-            float PhotonShellLimit = ProgradePhotonRadius - SafetyGap; // 核心修正：绝不超过光子球
-            float preCeiling= min(CameraStartR - SafetyGap,TerminationR + 0.05);
-            if(bIntoInHorizon){preCeiling=InnerHorizonR+0.05;}//针对射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击视界 的判定优化
-            if(bIntoOutHorizon){preCeiling=EventHorizonR+0.05;}
-            // 取所有限制的最小值
+            float PhotonShellLimit = ProgradePhotonRadius - SafetyGap; 
+            float preCeiling = min(CameraStartR - SafetyGap, TerminationR + 0.2);
+            if(bIntoInHorizon) { preCeiling = InnerHorizonR + 0.2; }//处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击内视界 的光
+            if(bIntoOutHorizon) { preCeiling = EventHorizonR + 0.2; }
+            
             float PruningCeiling = min(iInterRadiusRs, preCeiling);
             PruningCeiling = min(PruningCeiling, PhotonShellLimit); 
 
-            // 只有当当前半径小于这个最严格的“天花板”时，才敢断定向外的光来自视界
             if (geo.r < PruningCeiling)
             {
-                // 2. 径向速度判定 (使用梯度点积):
-                // dot(grad_r, V) > 0 表示光线正在向外逃逸
                 float DrDlambda = dot(geo.grad_r, k1.X.xyz);
-                
                 if (DrDlambda > 1e-4) 
                 {
-                    bShouldContinueMarchRay = false; 
-                    bWaitCalBack = false; 
-                    Result=vec4(0.0,0.,0.3,0.0);
-                    break; 
+                    bShouldContinueMarchRay = false;
+                    bWaitCalBack = false;
+                    Result = vec4(0.0, 0., 0.3, 0.0);
+                    break; //对凝结在视界前的光提前剔除
                 }
             }
         }
 
-        // =====================================================================
-        // 2. 计算几何限制 (Geometric Limit)
-        //    防止穿模吸积盘或奇环，保持原有逻辑但作为硬上限
-
+        // --- Adaptive Step Size Calculation ---
         float rho = length(RayPos.xz);
         float DistRing = sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
-        float Vel_Mag = length(k1.X); // dx/dlambda (Coordinate Velocity)
+        float Vel_Mag = length(k1.X); 
+        float Force_Mag = length(k1.P);
+        float Mom_Mag = length(P_cov);
         
-        // 3. 计算曲率限制 (Curvature/Force Limit)
-        //    原理：如果力 (k1.P) 相对于动量 (P_cov) 很大，说明光线正在急转弯，步长必须极小
-        float Force_Mag = length(k1.P); // dp/dlambda (Geodesic Force)
-        float Mom_Mag   = length(P_cov);
+        float ErrorTolerance = 0.5;
+        float StepGeo =  DistRing / (Vel_Mag + 1e-9);
+        float StepForce = Mom_Mag / (Force_Mag + 1e-15);
         
-        // ErrorTolerance: 允许每一步动量方向改变多少？
-        float ErrorTolerance =0.5;// mix(0.1, 0.4, smoothstep(2.0, 20.0, DistanceToBlackHole));
-        
-        
-        // A. 几何步长：保证一步不超过距离物体的 50%
-        float StepGeo = 0.5 * DistRing / (Vel_Mag + 1e-9);
-        
-        // B. 动力学步长：保证一步内动量变化不超过 Tolerance
-        float StepForce = ErrorTolerance * Mom_Mag / (Force_Mag + 1e-15);
-        
-        // 4. 最终步长 (取最小值)
-        //    在远处，StepForce 会很大，StepGeo 也会很大 -> 步长巨大 -> FPS 提升
-        //    在强引力区，Force_Mag 暴增，StepForce 会变得极小 -> 消除断裂
-        float dLambda = min(StepGeo, StepForce);
-
-        // [Safety Clamp] 极小步长保护，防止死循环
+        float dLambda = ErrorTolerance*min(StepGeo, StepForce);
         dLambda = max(dLambda, 1e-7); 
 
-        // =====================================================================
-        
+        // --- Integration (Optimized RK4) ---
         vec4 LastX = X;
         LastPos = X.xyz;
         GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
         
-        // Momentum check for naked singularity/extreme conditions
+        // Safety Check for Contra Momentum
         vec4 P_contra_step = RaiseIndex(P_cov, geo);
-        if (P_contra_step.w > 10000.0 && !bIsNakedSingularity) 
+        if (P_contra_step.w > 10000.0 && !bIsNakedSingularity && CurrentUniverseSign > 0.0) 
         { 
-            bShouldContinueMarchRay = false; bWaitCalBack = false; 
-            break; 
+            bShouldContinueMarchRay = false; 
+            bWaitCalBack = false;
+            Result = vec4(0.3, 0.3, 0.2, 0.0);  
+            break; //凝结在视界
         }
 
-        // [MODIFIED] 使用优化版 RK4，传入计算好的 dt (-dLambda) 和 k1
         StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo, k1);
-
-
-        lastR=geo.r;
-
+        lastR = geo.r;
 
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
         float ActualStepLength = length(StepVec);
-
         RayDir = (ActualStepLength > 1e-7) ? StepVec / ActualStepLength : LastDir;
         
-        // Wormhole/Throat Crossing Check
+        // Wormhole Check
         if (LastPos.y * RayPos.y < 0.0) {
             float t_cross = LastPos.y / (LastPos.y - RayPos.y);
             float rho_cross = length(mix(LastPos.xz, RayPos.xz, t_cross));
             if (rho_cross < abs(PhysicalSpinA)) CurrentUniverseSign *= -1.0;
         }
 
-        // ... (接下来的 DiskColor / JetColor 代码保持不变) ...
-
-        // Volumetric Rendering
+        // --- Volumetric Rendering ---
         if (CurrentUniverseSign > 0.0) {
            Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
                              iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
                              iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
-                             clamp(PhysicalSpinA, -0.49, 0.49), // Passed as Dimensional
-                             PhysicalQ                          // Passed as Dimensional
+                             clamp(PhysicalSpinA, -0.49, 0.49), 
+                             PhysicalQ                          
                              ); 
            
            Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
                              iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
-                             clamp(PhysicalSpinA, -0.049, 0.049), // Passed as Dimensional
-                             PhysicalQ                            // Passed as Dimensional
+                             clamp(PhysicalSpinA, -0.049, 0.049), 
+                             PhysicalQ                            
                              ); 
         }
 
@@ -1513,14 +1495,16 @@ float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
         Count++;
     }
 
-    // --- 7. 背景采样与合成 (Background & Composition) ---
+    // -------------------------------------------------------------------------
+    // 7. 背景采样 (Background Sampling)
+    // -------------------------------------------------------------------------
     if (bWaitCalBack)
     {
         vec3 EscapeDirWorld = LocalToWorldRot * normalize(RayDir); 
         vec4 Backcolor = textureLod(iBackground, EscapeDirWorld, min(1.0, textureQueryLod(iBackground, EscapeDirWorld).x));
         if (CurrentUniverseSign < 0.0) Backcolor = textureLod(iAntiground, EscapeDirWorld, min(1.0, textureQueryLod(iAntiground, EscapeDirWorld).x));
         
-        float FrequencyRatio = 1.0;// / max(1e-4, E_conserved);
+        float FrequencyRatio = 1.0 / max(1e-4, E_conserved);
         float BackgroundShift = clamp(FrequencyRatio, 1.0/BackgroundShiftMax, BackgroundShiftMax);
         
         vec4 TexColor = Backcolor;
@@ -1536,7 +1520,9 @@ float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
         Result += 0.9999 * TexColor * (1.0 - Result.a);
     }
     
-    // --- 8. 色调映射与 TAA (Tone Mapping & TAA) ---
+    // -------------------------------------------------------------------------
+    // 8. 色调映射与 TAA (Tone Mapping & TAA)
+    // -------------------------------------------------------------------------
     float RedFactor   = 3.0 * Result.r / (Result.g + Result.b + Result.g );
     float BlueFactor  = 3.0 * Result.b / (Result.g + Result.b + Result.g );
     float GreenFactor = 3.0 * Result.g / (Result.g + Result.b + Result.g );
