@@ -487,5 +487,8 @@
     <None Include="Sources\Engine\Shaders\Skybox.vert.glsl" />
     <None Include="Sources\Engine\Shaders\ShadowMap.vert.glsl" />
     <None Include="Sources\Engine\Shaders\ShadowMap.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole_prepass.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole_composite.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole_common.glsl" />
   </ItemGroup>
 </Project>

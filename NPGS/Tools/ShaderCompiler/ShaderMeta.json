@@ -4,7 +4,7 @@
   "BasicLighting_Lamp.frag.spv": "21a0cecf1b46888b4a1f93b44fd259f2",
   "PreBloom.frag.spv": "5cc2c322f4a7efcdf950bfe78f7c6274",
   "GaussBlur.frag.spv": "8209110eac499bec30aacc56ce066ac2",
-  "BlackHole.frag.spv": "8c16711106afa4b2d94252125f4ae894",
+  "BlackHole.frag.spv": "f0c601862835cbe21e2710490b89c819",
   "ColorBlend.frag.spv": "170a16c27d1f6a29cc781403c4f22eff",
   "PostProcess.frag.spv": "2c09fe8968e51e57af5ebafa313a2157",
   "PostProcess.vert.spv": "b3a294721715a88bd25e4fc7d0c6bfaf",
@@ -18,5 +18,7 @@
   "ShadowMap.frag.spv": "83ee3cd10cdc186527ad02a47aa514a9",
   "Skybox.frag.spv": "7672e6086dd94688e587f22057cacc97",
   "ShadowMap.vert.spv": "c367b9841b6b072b632513ebdcee91cd",
-  "Skybox.vert.spv": "d279238f1d899e8dac15a5a9923fc2ea"
+  "Skybox.vert.spv": "d279238f1d899e8dac15a5a9923fc2ea",
+  "BlackHole_composite.frag.spv": "078546019b8e494e404cc10a32e9516e",
+  "BlackHole_prepass.frag.spv": "ebb78aeadead2aaae613b694a0768093"
 }

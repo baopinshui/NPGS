@@ -417,6 +417,9 @@ spirv-cross-cpp.lib
     <None Include="Sources\Engine\Core\Types\Properties\StellarClass.inl" />
     <None Include="Sources\Engine\Shaders\BlackHole.comp.glsl" />
     <None Include="Sources\Engine\Shaders\BlackHole.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole_common.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole_composite.frag.glsl" />
+    <None Include="Sources\Engine\Shaders\BlackHole_prepass.frag.glsl" />
     <None Include="Sources\Engine\Shaders\Bloom.comp.glsl" />
     <None Include="Sources\Engine\Shaders\Bloom.frag.glsl" />
     <None Include="Sources\Engine\Shaders\ColorBlend.frag.glsl" />

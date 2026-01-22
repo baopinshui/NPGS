@@ -88,10 +88,6 @@ void FApplication::ExecuteMainRender()
 
     // =========================================================================
     std::unique_ptr<Grt::FColorAttachment> HistoryAttachment;
-    // [新增] 预计算阶段的附件
-    std::unique_ptr<Grt::FColorAttachment> DistortionAttachment; // 对应 OutDistortionFlag (Set 1, Binding 3)
-    std::unique_ptr<Grt::FColorAttachment> VolumetricAttachment; // 对应 OutVolumetric (Set 1, Binding 4)
-    // [修改] BlackHoleAttachment 现在作为合成后的输出
     std::unique_ptr<Grt::FColorAttachment> BlackHoleAttachment;
     std::unique_ptr<Grt::FColorAttachment> PreBloomAttachment;
     std::unique_ptr<Grt::FColorAttachment> GaussBlurAttachment;
@@ -104,21 +100,6 @@ void FApplication::ExecuteMainRender()
     // [新增] 用于 UI 背景模糊的最终图 (Half Size)
     std::unique_ptr<Grt::FColorAttachment> UIBlurAttachment;
 
-
-    vk::RenderingAttachmentInfo DistortionAttachmentInfo = vk::RenderingAttachmentInfo()
-        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setClearValue(vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f})));
-
-    // Prepass 输出 1
-    vk::RenderingAttachmentInfo VolumetricAttachmentInfo = vk::RenderingAttachmentInfo()
-        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setClearValue(vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f})));
-
-    // Composite 输出
     vk::RenderingAttachmentInfo BlackHoleAttachmentInfo = vk::RenderingAttachmentInfo()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
@@ -142,40 +123,18 @@ void FApplication::ExecuteMainRender()
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
-
-    vk::Extent2D HalfWindowSize = { _WindowSize.width / 2, _WindowSize.height / 2 };
-    if (HalfWindowSize.width == 0) HalfWindowSize.width = 1;
-    if (HalfWindowSize.height == 0) HalfWindowSize.height = 1;
-
     auto CreateFramebuffers = [&]() -> void
     {
         _VulkanContext->WaitIdle();
 
-        vk::Extent2D HalfWindowSize = { _WindowSize.width / 2, _WindowSize.height / 2 };
-        if (HalfWindowSize.width == 0) HalfWindowSize.width = 1;
-        if (HalfWindowSize.height == 0) HalfWindowSize.height = 1;
-
-        // 1. History (保持全分辨率)
         HistoryAttachment = std::make_unique<Grt::FColorAttachment>(
             vk::Format::eR16G16B16A16Sfloat, _WindowSize, 1, vk::SampleCountFlagBits::e1,
             vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst);
 
-        // 2. Prepass Attachments (修改为 HalfWindowSize)
-        // Distortion: 即使是半分辨率，RG32F 也能保证向量精度
-        DistortionAttachment = std::make_unique<Grt::FColorAttachment>(
-            vk::Format::eR32G32B32A32Sfloat, HalfWindowSize, 1, vk::SampleCountFlagBits::e1, // <--- 使用 HalfWindowSize
-            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled);
-
-        // Volumetric: 半分辨率
-        VolumetricAttachment = std::make_unique<Grt::FColorAttachment>(
-            vk::Format::eR16G16B16A16Sfloat, HalfWindowSize, 1, vk::SampleCountFlagBits::e1, // <--- 使用 HalfWindowSize
-            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled);
-
-        // 3. Composite Output (保持全分辨率)
         BlackHoleAttachment = std::make_unique<Grt::FColorAttachment>(
             vk::Format::eR16G16B16A16Sfloat, _WindowSize, 1, vk::SampleCountFlagBits::e1,
             vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage |
-            vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment);
+            vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst);
 
         PreBloomAttachment = std::make_unique<Grt::FColorAttachment>(
             vk::Format::eR16G16B16A16Sfloat, _WindowSize, 1, vk::SampleCountFlagBits::e1,
@@ -213,12 +172,12 @@ void FApplication::ExecuteMainRender()
             vk::Format::eR8G8B8A8Unorm, halfSize, 1, vk::SampleCountFlagBits::e1, blurUsageFlags
         );
 
+
         HistoryAttachmentInfo.setImageView(*HistoryAttachment->GetImageView());
-        DistortionAttachmentInfo.setImageView(*DistortionAttachment->GetImageView()); // New
-        VolumetricAttachmentInfo.setImageView(*VolumetricAttachment->GetImageView()); // New
         BlackHoleAttachmentInfo.setImageView(*BlackHoleAttachment->GetImageView());
         PreBloomAttachmentInfo.setImageView(*PreBloomAttachment->GetImageView());
         GaussBlurAttachmentInfo.setImageView(*GaussBlurAttachment->GetImageView());
+        // [新增] 更新 SceneColorInfo
         SceneColorAttachmentInfo.setImageView(*SceneColorAttachment->GetImageView());
     };
 
@@ -236,7 +195,7 @@ void FApplication::ExecuteMainRender()
     // ----------------------
     auto* AssetManager = Art::FAssetManager::GetInstance();
 
-    Art::FShader::FResourceInfo QuadResourceInfo
+    Art::FShader::FResourceInfo BlackHoleResourceInfo
     {
         { { 0, sizeof(FQuadOnlyVertex), false } },
         { { 0, 0, offsetof(FQuadOnlyVertex, Position) } },
@@ -246,7 +205,7 @@ void FApplication::ExecuteMainRender()
         }
     };
 
-    Art::FShader::FResourceInfo ComputeResourceInfo
+    Art::FShader::FResourceInfo BloomResourceInfo
     {
         {}, {},
         { { 0, 0, false } },
@@ -259,8 +218,8 @@ void FApplication::ExecuteMainRender()
         { { 0, 0, offsetof(FQuadOnlyVertex, Position) } },
         { { 0, 0, false } }
     };
-    std::vector<std::string> PrepassShaderFiles({ "ScreenQuad.vert.spv", "BlackHole_prepass.frag.spv" });
-    std::vector<std::string> CompositeShaderFiles({ "ScreenQuad.vert.spv", "BlackHole_composite.frag.spv" });
+
+    std::vector<std::string> BlackHoleShaderFiles({ "ScreenQuad.vert.spv", "BlackHole.frag.spv" });
     std::vector<std::string> PreBloomShaderFiles({ "PreBloom.comp.spv" });
     std::vector<std::string> GaussBlurShaderFiles({ "GaussBlur.comp.spv" });
     std::vector<std::string> BlendShaderFiles({ "ScreenQuad.vert.spv", "ColorBlend.frag.spv" });
@@ -270,11 +229,10 @@ void FApplication::ExecuteMainRender()
         .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
         .usage = VMA_MEMORY_USAGE_GPU_ONLY
     };
-    AssetManager->AddAsset<Art::FShader>("BlackHolePrepass", PrepassShaderFiles, QuadResourceInfo);
-    AssetManager->AddAsset<Art::FShader>("BlackHoleComposite", CompositeShaderFiles, QuadResourceInfo);
 
-    AssetManager->AddAsset<Art::FShader>("PreBloom", PreBloomShaderFiles, ComputeResourceInfo);
-    AssetManager->AddAsset<Art::FShader>("GaussBlur", GaussBlurShaderFiles, ComputeResourceInfo);
+    AssetManager->AddAsset<Art::FShader>("BlackHole", BlackHoleShaderFiles, BlackHoleResourceInfo);
+    AssetManager->AddAsset<Art::FShader>("PreBloom", PreBloomShaderFiles, BloomResourceInfo);
+    AssetManager->AddAsset<Art::FShader>("GaussBlur", GaussBlurShaderFiles, BloomResourceInfo);
     AssetManager->AddAsset<Art::FShader>("Blend", BlendShaderFiles, BlendResourceInfo);
     AssetManager->AddAsset<Art::FTextureCube>(
         "Background", TextureAllocationCreateInfo, "UNSkybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
@@ -303,8 +261,7 @@ void FApplication::ExecuteMainRender()
         vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
 
 
-    auto* PrepassShader = AssetManager->GetAsset<Art::FShader>("BlackHolePrepass");
-    auto* CompositeShader = AssetManager->GetAsset<Art::FShader>("BlackHoleComposite");
+    auto* BlackHoleShader = AssetManager->GetAsset<Art::FShader>("BlackHole");
     auto* PreBloomShader = AssetManager->GetAsset<Art::FShader>("PreBloom");
     auto* GaussBlurShader = AssetManager->GetAsset<Art::FShader>("GaussBlur");
     auto* BlendShader = AssetManager->GetAsset<Art::FShader>("Blend");
@@ -324,8 +281,6 @@ void FApplication::ExecuteMainRender()
         .Binding = 0,
         .Usage = vk::DescriptorType::eUniformBuffer
     };
-    Grt::FShaderResourceManager::FUniformBufferCreateInfo PrepassGameArgsCreateInfo = GameArgsCreateInfo;
-    PrepassGameArgsCreateInfo.Name = "GameArgsPrepass";
 
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
@@ -340,7 +295,6 @@ void FApplication::ExecuteMainRender()
 
     auto ShaderResourceManager = Grt::FShaderResourceManager::GetInstance();
     ShaderResourceManager->CreateBuffers<FGameArgs>(GameArgsCreateInfo);
-    ShaderResourceManager->CreateBuffers<FGameArgs>(PrepassGameArgsCreateInfo);
     ShaderResourceManager->CreateBuffers<FBlackHoleArgs>(BlackHoleArgsCreateInfo);
 
     // Create graphics pipeline
@@ -356,50 +310,13 @@ void FApplication::ExecuteMainRender()
         .setMipmapMode(vk::SamplerMipmapMode::eNearest);
 
     Grt::FVulkanSampler FramebufferSampler(SamplerCreateInfo);
-    SamplerCreateInfo.setMagFilter(vk::Filter::eNearest).setMinFilter(vk::Filter::eNearest);
-    Grt::FVulkanSampler PointSampler(SamplerCreateInfo);
 
     auto CreatePostDescriptors = [&]() -> void
     {
         ImageInfos.clear();
-        ImageInfos.push_back(Background->CreateDescriptorImageInfo(Sampler));
-        PrepassShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
-        // Binding 2: Antiground
-        ImageInfos.clear();
-        ImageInfos.push_back(Antiground->CreateDescriptorImageInfo(Sampler));
-        PrepassShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
-
-        // 2. Composite Descriptors (Set 1)
-        // ----------------------------------------------------
-        // Binding 0: History Texture
-        ImageInfos.clear();
-        vk::DescriptorImageInfo HistoryFrameImageInfo(nullptr, *HistoryAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-        ImageInfos.push_back(HistoryFrameImageInfo);
-        CompositeShader->WriteSharedDescriptors(1, 0, vk::DescriptorType::eSampledImage, ImageInfos);
-
-        // Binding 1: Background
-        ImageInfos.clear();
-        ImageInfos.push_back(Background->CreateDescriptorImageInfo(Sampler));
-        CompositeShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
-
-        // Binding 2: Antiground
-        ImageInfos.clear();
-        ImageInfos.push_back(Antiground->CreateDescriptorImageInfo(Sampler));
-        CompositeShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
-
-        // Binding 3: Distortion (Output from Prepass) - Use Point Sampler
-        ImageInfos.clear();
-        vk::DescriptorImageInfo DistortionImageInfo(*PointSampler, *DistortionAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-        ImageInfos.push_back(DistortionImageInfo);
-        CompositeShader->WriteSharedDescriptors(1, 3, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
-
-        // Binding 4: Volumetric (Output from Prepass) - Use Linear Sampler
-        ImageInfos.clear();
-        vk::DescriptorImageInfo VolumetricImageInfo(*FramebufferSampler, *VolumetricAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-        ImageInfos.push_back(VolumetricImageInfo);
-        CompositeShader->WriteSharedDescriptors(1, 4, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
-
+        vk::DescriptorImageInfo HistoryFrameImageInfo(
+            nullptr, *HistoryAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
         vk::DescriptorImageInfo BlackHoleImageInfo(
             *FramebufferSampler, *BlackHoleAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
         vk::DescriptorImageInfo PreBloomImageInfoForSample(
@@ -410,6 +327,17 @@ void FApplication::ExecuteMainRender()
             *FramebufferSampler, *GaussBlurAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
         vk::DescriptorImageInfo GaussBlurImageInfoForStore(
             *FramebufferSampler, *GaussBlurAttachment->GetImageView(), vk::ImageLayout::eGeneral);
+
+        ImageInfos.push_back(HistoryFrameImageInfo);
+        BlackHoleShader->WriteSharedDescriptors(1, 0, vk::DescriptorType::eSampledImage, ImageInfos);
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Background->CreateDescriptorImageInfo(Sampler));
+        BlackHoleShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Antiground->CreateDescriptorImageInfo(Sampler));
+        BlackHoleShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
         ImageInfos.clear();
         ImageInfos.push_back(BlackHoleImageInfo);
@@ -451,15 +379,13 @@ void FApplication::ExecuteMainRender()
     };
 
     CreatePostDescriptors();
+
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "CreatePostDescriptor", CreatePostDescriptors);
 
-    // 绑定 UBO
-    std::vector<std::string> BindShaders{ "BlackHoleComposite", "PreBloom", "GaussBlur", "Blend" };
+    std::vector<std::string> BindShaders{ "BlackHole", "PreBloom", "GaussBlur", "Blend" };
+
     ShaderResourceManager->BindShadersToBuffers("GameArgs", BindShaders);
-    ShaderResourceManager->BindShaderToBuffers("GameArgsPrepass", "BlackHolePrepass");
-    // 注意：只给 Prepass 绑定 BlackHoleArgs 也可以，但 Composite 可能需要一些参数（如 BlendWeight），所以都绑定
-    ShaderResourceManager->BindShaderToBuffers("BlackHoleArgs", "BlackHolePrepass");
-    ShaderResourceManager->BindShaderToBuffers("BlackHoleArgs", "BlackHoleComposite");
+    ShaderResourceManager->BindShaderToBuffers("BlackHoleArgs", "BlackHole");
 
 
 
@@ -495,89 +421,71 @@ void FApplication::ExecuteMainRender()
         *stage4->GetImageView(),
         vk::ImageLayout::eShaderReadOnlyOptimal
     );
-
 #include "Vertices.inc"
+
     Grt::FDeviceLocalBuffer QuadOnlyVertexBuffer(QuadOnlyVertices.size() * sizeof(FQuadOnlyVertex), vk::BufferUsageFlagBits::eVertexBuffer);
     QuadOnlyVertexBuffer.CopyData(QuadOnlyVertices);
 
-    // =========================================================================
-    // [创建] Pipelines
-    // =========================================================================
+    auto BlackHoleShaderStageCreateInfos = BlackHoleShader->CreateShaderStageCreateInfo();
+
     auto* PipelineManager = Grt::FPipelineManager::GetInstance();
+
     vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState = vk::PipelineColorBlendAttachmentState()
-        .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
+        .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+            vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
 
-    // 1. Prepass Pipeline (2 Outputs)
-    std::array<vk::Format, 2> PrepassFormats{
-        vk::Format::eR32G32B32A32Sfloat, // Distortion
-        vk::Format::eR16G16B16A16Sfloat  // Volumetric
-    };
-    vk::PipelineRenderingCreateInfo PrepassRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
-        .setColorAttachmentCount(2)
-        .setColorAttachmentFormats(PrepassFormats);
+    std::array<vk::Format, 1> ColorFormat{ vk::Format::eR16G16B16A16Sfloat };
 
-    Grt::FGraphicsPipelineCreateInfoPack PrepassCreateInfoPack;
-    PrepassCreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&PrepassRenderingCreateInfo);
-    PrepassCreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
-    PrepassCreateInfoPack.ColorBlendAttachmentStates = { ColorBlendAttachmentState, ColorBlendAttachmentState }; // 两个附件都需要 Blend State (虽然通常 Disable Blend)
-    PrepassCreateInfoPack.Viewports.emplace_back(
-        0.0f, static_cast<float>(HalfWindowSize.height), static_cast<float>(HalfWindowSize.width),
-        -static_cast<float>(HalfWindowSize.height), 0.0f, 1.0f
-    );
-    PrepassCreateInfoPack.Scissors.emplace_back(vk::Offset2D(), HalfWindowSize);
-
-    PipelineManager->CreateGraphicsPipeline("BlackHolePrepassPipeline", "BlackHolePrepass", PrepassCreateInfoPack);
-
-    // 2. Composite Pipeline (1 Output)
-    std::array<vk::Format, 1> CompositeFormat{ vk::Format::eR16G16B16A16Sfloat };
-    vk::PipelineRenderingCreateInfo CompositeRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
+    vk::PipelineRenderingCreateInfo BlackHoleRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
         .setColorAttachmentCount(1)
-        .setColorAttachmentFormats(CompositeFormat);
+        .setColorAttachmentFormats(ColorFormat);
 
-    Grt::FGraphicsPipelineCreateInfoPack CompositeCreateInfoPack;
-    CompositeCreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&CompositeRenderingCreateInfo);
-    CompositeCreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
-    CompositeCreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
-    CompositeCreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height), static_cast<float>(_WindowSize.width), -static_cast<float>(_WindowSize.height), 0.0f, 1.0f);
-    CompositeCreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
+    Grt::FGraphicsPipelineCreateInfoPack BlackHoleCreateInfoPack;
+    BlackHoleCreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&BlackHoleRenderingCreateInfo);
+    BlackHoleCreateInfoPack.InputAssemblyStateCreateInfo.setTopology(vk::PrimitiveTopology::eTriangleList);
+    BlackHoleCreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
 
-    PipelineManager->CreateGraphicsPipeline("BlackHoleCompositePipeline", "BlackHoleComposite", CompositeCreateInfoPack);
+    BlackHoleCreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height), static_cast<float>(_WindowSize.width),
+        -static_cast<float>(_WindowSize.height), 0.0f, 1.0f);
 
-    // 3. Other Pipelines
+    BlackHoleCreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
+
+    PipelineManager->CreateGraphicsPipeline("BlackHolePipeline", "BlackHole", BlackHoleCreateInfoPack);
+
     std::array<vk::Format, 1> SceneColorFormat{ vk::Format::eR8G8B8A8Unorm };
-    vk::PipelineRenderingCreateInfo BlendRenderingCreateInfo = vk::PipelineRenderingCreateInfo().setColorAttachmentCount(1).setColorAttachmentFormats(SceneColorFormat);
-    Grt::FGraphicsPipelineCreateInfoPack BlendCreateInfoPack = CompositeCreateInfoPack; // 复用配置
-    BlendCreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&BlendRenderingCreateInfo);
 
-    PipelineManager->CreateGraphicsPipeline("BlendPipeline", "Blend", BlendCreateInfoPack);
+    vk::PipelineRenderingCreateInfo BlendRenderingCreateInfo = vk::PipelineRenderingCreateInfo()
+        .setColorAttachmentCount(1)
+        .setColorAttachmentFormats(SceneColorFormat);
+
+    BlackHoleCreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&BlendRenderingCreateInfo);
+    PipelineManager->CreateGraphicsPipeline("BlendPipeline", "Blend", BlackHoleCreateInfoPack);
+
     PipelineManager->CreateComputePipeline("PreBloomPipeline", "PreBloom");
     PipelineManager->CreateComputePipeline("GaussBlurPipeline", "GaussBlur");
 
-    vk::Pipeline PrepassPipeline;
-    vk::Pipeline CompositePipeline;
+    vk::Pipeline BlackHolePipeline;
     vk::Pipeline PreBloomPipeline;
     vk::Pipeline GaussBlurPipeline;
     vk::Pipeline BlendPipeline;
 
     auto GetPipelines = [&]() -> void
     {
-        PrepassPipeline = PipelineManager->GetPipeline("BlackHolePrepassPipeline");
-        CompositePipeline = PipelineManager->GetPipeline("BlackHoleCompositePipeline");
+        BlackHolePipeline = PipelineManager->GetPipeline("BlackHolePipeline");
         PreBloomPipeline = PipelineManager->GetPipeline("PreBloomPipeline");
         GaussBlurPipeline = PipelineManager->GetPipeline("GaussBlurPipeline");
         BlendPipeline = PipelineManager->GetPipeline("BlendPipeline");
     };
 
     GetPipelines();
+
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "GetPipelines", GetPipelines);
 
-    auto PrepassPipelineLayout = PipelineManager->GetPipelineLayout("BlackHolePrepassPipeline");
-    auto CompositePipelineLayout = PipelineManager->GetPipelineLayout("BlackHoleCompositePipeline");
+    auto BlackHolePipelineLayout = PipelineManager->GetPipelineLayout("BlackHolePipeline");
     auto PreBloomPipelineLayout = PipelineManager->GetPipelineLayout("PreBloomPipeline");
     auto GaussBlurPipelineLayout = PipelineManager->GetPipelineLayout("GaussBlurPipeline");
     auto BlendPipelineLayout = PipelineManager->GetPipelineLayout("BlendPipeline");
 
-    // Fences & Command Buffers
     std::vector<Grt::FVulkanFence> InFlightFences;
     std::vector<Grt::FVulkanSemaphore> Semaphores_ImageAvailable;
     std::vector<Grt::FVulkanSemaphore> Semaphores_RenderFinished;
@@ -588,36 +496,84 @@ void FApplication::ExecuteMainRender()
         Semaphores_RenderFinished.emplace_back(vk::SemaphoreCreateFlags());
     }
 
-    std::vector<Grt::FVulkanCommandBuffer> GraphicsCommandBuffers(Config::Graphics::kMaxFrameInFlight);
-    _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, GraphicsCommandBuffers);
+    std::vector<Grt::FVulkanCommandBuffer> BlackHoleCommandBuffers(Config::Graphics::kMaxFrameInFlight);
+    std::vector<Grt::FVulkanCommandBuffer> PreBloomCommandBuffers(Config::Graphics::kMaxFrameInFlight);
+    std::vector<Grt::FVulkanCommandBuffer> GaussBlurCommandBuffers(Config::Graphics::kMaxFrameInFlight);
+    std::vector<Grt::FVulkanCommandBuffer> BlendCommandBuffers(Config::Graphics::kMaxFrameInFlight);
+    _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, BlackHoleCommandBuffers);
+    _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, PreBloomCommandBuffers);
+    _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, GaussBlurCommandBuffers);
+    _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, BlendCommandBuffers);
 
     vk::DeviceSize Offset = 0;
     std::uint32_t  CurrentFrame = 0;
+    glm::vec4      WorldUp(0.0f, 1.0f, 0.0f, 0.0f);
+
     vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
 
-    // Init History Frame (保持不变)
     auto InitHistoryFrame = [&]() -> void
     {
-        vk::ImageMemoryBarrier2 InitHistoryBarrier(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *HistoryAttachment->GetImage(), SubresourceRange);
-        vk::DependencyInfo InitialDependencyInfo = vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(InitHistoryBarrier);
+        vk::ImageMemoryBarrier2 InitHistoryBarrier(
+            vk::PipelineStageFlagBits2::eTopOfPipe,
+            vk::AccessFlagBits2::eNone,
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderRead,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            *HistoryAttachment->GetImage(),
+            SubresourceRange);
+
+        vk::DependencyInfo InitialDependencyInfo = vk::DependencyInfo()
+            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+            .setImageMemoryBarriers(InitHistoryBarrier);
+
         auto& CommandBuffer = _VulkanContext->GetTransferCommandBuffer();
         CommandBuffer.Begin();
         CommandBuffer->pipelineBarrier2(InitialDependencyInfo);
         CommandBuffer.End();
         _VulkanContext->ExecuteGraphicsCommands(CommandBuffer);
     };
+
     InitHistoryFrame();
+
     _VulkanContext->RegisterAutoRemovedCallbacks(Grt::FVulkanContext::ECallbackType::kCreateSwapchain, "InitHistoryFrame", InitHistoryFrame);
 
-    // UI Init (保持不变)
-    System::UI::AppContext appContext{ .Application = this, .UIRenderer = _uiRenderer.get(), .GameArgs = &GameArgs, .BlackHoleArgs = &BlackHoleArgs, .GameTime = &GameTime, .TimeRate = &TimeRate, .RealityTime = &RealityTime, .RKKVID = RKKVID, .stage0ID = stage0ID, .stage1ID = stage1ID, .stage2ID = stage2ID, .stage3ID = stage3ID, .stage4ID = stage4ID };
+    // 1. 设置自定义主题 (可以在这里或者在构造函数中完成)
+    auto& theme = UI::UIContext::Get().m_theme;
+
+    
+
+    System::UI::AppContext appContext{
+    .Application = this,
+    .UIRenderer = _uiRenderer.get(),
+    .GameArgs = &GameArgs,
+    .BlackHoleArgs = &BlackHoleArgs,
+    .GameTime = &GameTime,
+    .TimeRate = &TimeRate,
+    .RealityTime = &RealityTime,
+    .RKKVID = RKKVID,
+    .stage0ID = stage0ID,
+    .stage1ID = stage1ID,
+    .stage2ID = stage2ID,
+    .stage3ID = stage3ID,
+    .stage4ID = stage4ID
+    };
+
     m_screen_manager = std::make_unique<System::UI::ScreenManager>();
+
+    // 4. 创建并注册屏幕
     m_screen_manager->RegisterScreen("Game", std::make_shared<System::UI::GameScreen>(appContext));
     m_screen_manager->RegisterScreen("MainMenu", std::make_shared<System::UI::MainMenuScreen>(appContext));
+
+    // 5. 设置初始屏幕
     m_screen_manager->RequestPushScreen("MainMenu");
+
+    // [新增] 第一次应用变更，使主菜单在第一帧就生效
     m_screen_manager->ApplyPendingChanges();
 
-    glm::vec4 LastBlackHoleRelativePos(0.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4    LastBlackHoleRelativePos(0.0f, 0.0f, 0.0f, 1.0f);
     glm::mat4x4 lastdir(0.0f);
     //LastFrameTime = glfwGetTime();
     while (!glfwWindowShouldClose(_Window))
@@ -667,9 +623,6 @@ void FApplication::ExecuteMainRender()
                 LastBlackHoleRelativePos = BlackHoleArgs.BlackHoleRelativePosRs;
                 lastdir = BlackHoleArgs.InverseCamRot;
                 ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
-                FGameArgs PrepassArgs = GameArgs;
-                PrepassArgs.Resolution = GameArgs.Resolution * 0.5f; // <--- 关键：分辨率减半
-                ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgsPrepass", PrepassArgs);
                 BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
@@ -710,9 +663,6 @@ void FApplication::ExecuteMainRender()
                 LastBlackHoleRelativePos = BlackHoleArgs.BlackHoleRelativePosRs;
                 lastdir = BlackHoleArgs.InverseCamRot;
                 ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
-                FGameArgs PrepassArgs = GameArgs;
-                PrepassArgs.Resolution = GameArgs.Resolution * 0.5f; // <--- 关键：分辨率减半
-                ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgsPrepass", PrepassArgs);
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
@@ -853,9 +803,6 @@ void FApplication::ExecuteMainRender()
                 << " | " << locationStatus
                 << warningMsg // 追加警告信息
                 << std::endl;
-
-
-
             ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
 
             _VulkanContext->SwapImage(*Semaphores_ImageAvailable[CurrentFrame]);
@@ -868,75 +815,38 @@ void FApplication::ExecuteMainRender()
 
             // Record BlackHole rendering commands
             // -----------------------------------
-            auto& CurrentBuffer = GraphicsCommandBuffers[CurrentFrame];
+            auto& CurrentBuffer = BlackHoleCommandBuffers[CurrentFrame];
             CurrentBuffer.Begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
+            vk::ImageMemoryBarrier2 InitBlackHoleBarrier(
+                vk::PipelineStageFlagBits2::eTopOfPipe,
+                vk::AccessFlagBits2::eNone,
+                vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                vk::AccessFlagBits2::eColorAttachmentWrite,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                vk::QueueFamilyIgnored,
+                vk::QueueFamilyIgnored,
+                *BlackHoleAttachment->GetImage(),
+                SubresourceRange);
 
-            vk::Extent2D CurrentHalfSize = { _WindowSize.width / 2, _WindowSize.height / 2 };
-            if (CurrentHalfSize.width == 0) CurrentHalfSize.width = 1;
-            if (CurrentHalfSize.height == 0) CurrentHalfSize.height = 1;
+            vk::DependencyInfo BlackHoleInitialDependencyInfo = vk::DependencyInfo()
+                .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+                .setImageMemoryBarriers(InitBlackHoleBarrier);
 
-            // 定义视口和裁剪
-            vk::Viewport PrepassViewport(
-                0.0f, static_cast<float>(CurrentHalfSize.height),
-                static_cast<float>(CurrentHalfSize.width), -static_cast<float>(CurrentHalfSize.height),
-                0.0f, 1.0f
-            );
-            vk::Rect2D PrepassScissor({ 0, 0 }, CurrentHalfSize);
+            CurrentBuffer->pipelineBarrier2(BlackHoleInitialDependencyInfo);
 
-
-
-            {
-                vk::ImageMemoryBarrier2 b1(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *DistortionAttachment->GetImage(), SubresourceRange);
-                vk::ImageMemoryBarrier2 b2(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *VolumetricAttachment->GetImage(), SubresourceRange);
-                std::array barriers = { b1, b2 };
-                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(barriers));
-            }
-
-            std::array<vk::RenderingAttachmentInfo, 2> PrepassAttachments = {
-                            DistortionAttachmentInfo,
-                            VolumetricAttachmentInfo
-            };
-
-            vk::RenderingInfo PrepassRenderingInfo = vk::RenderingInfo()
-                .setRenderArea(vk::Rect2D({ 0, 0 }, CurrentHalfSize))
-                .setLayerCount(1)
-                .setColorAttachments(PrepassAttachments); // 或者使用 
-
-            CurrentBuffer->beginRendering(PrepassRenderingInfo);
-            CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
-            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, PrepassPipeline);
-            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, PrepassPipelineLayout, 0, PrepassShader->GetDescriptorSets(CurrentFrame), {});
-            CurrentBuffer->draw(6, 1, 0, 0);
-            CurrentBuffer->endRendering();
-
-            // =====================================================================
-            // PASS 2: Composite (Render to BlackHoleAttachment, Reading Prepass)
-            // =====================================================================
-
-            // 1. Barrier: Transition Prepass Attachments to ShaderReadOnly
-            //    Barrier: Transition Composite Output (BlackHole) to ColorAttachmentOptimal
-            {
-                // Distortion & Volumetric: Write -> Read
-                vk::ImageMemoryBarrier2 b1(vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *DistortionAttachment->GetImage(), SubresourceRange);
-                vk::ImageMemoryBarrier2 b2(vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *VolumetricAttachment->GetImage(), SubresourceRange);
-                // BlackHole: Undef -> Write
-                vk::ImageMemoryBarrier2 b3(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *BlackHoleAttachment->GetImage(), SubresourceRange);
-
-                std::array barriers = { b1, b2, b3 };
-                CurrentBuffer->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(barriers));
-            }
-
-            vk::RenderingInfo CompositeRenderingInfo = vk::RenderingInfo()
+            vk::RenderingInfo BlackHoleRenderingInfo = vk::RenderingInfo()
                 .setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize))
                 .setLayerCount(1)
                 .setColorAttachments(BlackHoleAttachmentInfo);
 
-            CurrentBuffer->beginRendering(CompositeRenderingInfo);
+            CurrentBuffer->beginRendering(BlackHoleRenderingInfo);
             CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
-            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, CompositePipeline);
-            // 注意：Composite Shader 的 Descriptor Set 包含了 Prepass 的结果
-            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, CompositePipelineLayout, 0, CompositeShader->GetDescriptorSets(CurrentFrame), {});
+            CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlackHolePipeline);
+
+            CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlackHolePipelineLayout, 0,
+                BlackHoleShader->GetDescriptorSets(CurrentFrame), {});
             CurrentBuffer->draw(6, 1, 0, 0);
             CurrentBuffer->endRendering();
 
