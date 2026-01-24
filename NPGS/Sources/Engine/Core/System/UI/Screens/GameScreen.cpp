@@ -112,6 +112,7 @@ void GameScreen::OnEnter()
         menu->AddLinear("G", &ctx.m_theme.color_accent.y, 0.0f, 1.0f);
         menu->AddLinear("B", &ctx.m_theme.color_accent.z, 0.0f, 1.0f);
         menu->AddThrottle("Fov", &cfov);
+        menu->AddLinear("Grid", &BlackHoleArgs.Grid, 0, 1);
         menu->AddLinear("Mode", &BlackHoleArgs.ObserverMode, 0, 1);
         menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol);
         menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);

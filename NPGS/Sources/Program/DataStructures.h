@@ -54,6 +54,7 @@ struct FBlackHoleArgs
     glm::vec4 BlackHoleRelativePosRs;
     glm::vec4 BlackHoleRelativeDiskNormal;
     glm::vec4 BlackHoleRelativeDiskTangen;
+    int   Grid;
     int   ObserverMode;
     float UniverseSign;
     float BlackHoleTime;

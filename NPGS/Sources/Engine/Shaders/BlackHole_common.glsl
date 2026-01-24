@@ -22,14 +22,15 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 {
     mat4x4 iInverseCamRot;               
     vec4  iBlackHoleRelativePosRs;       //黑洞在相机系下位置。单位倍Rs
-    vec4  iBlackHoleRelativeDiskNormal;  //黑洞在相机系下吸积盘法向兼自旋正方向单位倍Rs
+    vec4  iBlackHoleRelativeDiskNormal;  //黑洞在相机系下吸积盘法向兼自旋正方向。单位倍Rs
     vec4  iBlackHoleRelativeDiskTangen;  //黑洞在相机系下吸积盘切向。单位倍Rs
 
+
+    int   iGrid;                         //绘制网格
     int   iObserverMode;                 //观者模式，0静态，1落体
     float iUniverseSign;                 //相机所在空间侧。 +1.0正宇宙  -1.0反宇宙
-
+                        
     float iBlackHoleTime;                //时间。单位 c*s/Rs
-
     float iBlackHoleMassSol;             //质量，单位倍太阳质量
     float iSpin;                         //无量纲自旋a*   
     float iQ;                            //无量纲电荷Q* 
@@ -53,9 +54,10 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     //应该添加背景的频移 亮度和颜色限制系数
 
     float iJetRedShiftIntensityExponent; //喷流频移——亮度指数
-    float iJetBrightmut;                 //吸积盘亮度乘数
-    float iJetSaturation;                //吸积盘饱和度
+    float iJetBrightmut;                 //喷流亮度乘数
+    float iJetSaturation;                //喷流饱和度
     float iJetShiftMax;                  //喷流蓝移限制
+
     float iBlendWeight;                  //TAA前后帧混合权重。
 };
 
@@ -282,7 +284,59 @@ float KerrSchildRadius(vec3 p, float PhysicalSpinA, float r_sign) {
     }
     return r_sign * sqrt(r2);
 }
+// 计算 ZAMO (零角动量观测者) 的角速度 Omega
+float GetZamoOmega(float r, float a, float Q, float y) {
+    float r2 = r * r;
+    float a2 = a * a;
+    float y2 = y * y;
+    float cos2 = min(1.0, y2 / (r2 + 1e-9)); 
+    float sin2 = 1.0 - cos2;
+    
+    // Delta = r^2 - 2Mr + a^2 + Q^2 (M=0.5)
+    float Delta = r2 - r + a2 + Q * Q;
+    
+    // Sigma = r^2 + a^2 cos^2 theta
+    float Sigma = r2 + a2 * cos2;
+    
+    // metric term A = (r^2+a^2)^2 - Delta * a^2 * sin^2 theta
+    float A_metric = (r2 + a2) * (r2 + a2) - Delta * a2 * sin2;
+    
+    // Omega_ZAMO = 2Mra / A (for Q=0), with Q: a(2Mr - Q^2) / A
+    // 2Mr = r (since M=0.5, 2M=1.0) -> r
+    return a * (r - Q * Q) / max(1e-9, A_metric);
+}
 
+// 求解射线与 Kerr-Schild 常数 r 椭球面的交点
+// 方程: (x^2 + z^2)/(r^2 + a^2) + y^2/r^2 = 1
+// 返回 vec2(t1, t2)，如果没有交点返回 vec2(-1.0)
+vec2 IntersectKerrEllipsoid(vec3 O, vec3 D, float r, float a) {
+    float r2 = r * r;
+    float a2 = a * a;
+    float R_eq_sq = r2 + a2; // 赤道半径平方
+    float R_pol_sq = r2;     // 极半径平方
+    
+    // 椭球方程: B(x^2 + z^2) + A(y^2) = A*B
+    // 其中 A = R_eq_sq, B = R_pol_sq
+    float A = R_eq_sq;
+    float B = R_pol_sq;
+    
+    // 代入射线 P = O + D*t
+    // (B*Dx^2 + B*Dz^2 + A*Dy^2) t^2 + ...
+    float qa = B * (D.x * D.x + D.z * D.z) + A * D.y * D.y;
+    float qb = 2.0 * (B * (O.x * D.x + O.z * D.z) + A * O.y * D.y);
+    float qc = B * (O.x * O.x + O.z * O.z) + A * O.y * O.y - A * B;
+    
+    if (abs(qa) < 1e-9) return vec2(-1.0); // 线性退化，忽略
+    
+    float disc = qb * qb - 4.0 * qa * qc;
+    if (disc < 0.0) return vec2(-1.0);
+    
+    float sqrtDisc = sqrt(disc);
+    float t1 = (-qb - sqrtDisc) / (2.0 * qa);
+    float t2 = (-qb + sqrtDisc) / (2.0 * qa);
+    
+    return vec2(t1, t2);
+}
 
 struct KerrGeometry {
     float r;
@@ -682,7 +736,7 @@ void StepGeodesicRK4_Optimized(
     P = finalP;
 }
 // =============================================================================
-// SECTION 6: 吸积盘与喷流
+// SECTION 6: 吸积盘与喷流,经纬网
 // =============================================================================
 
 vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
@@ -830,7 +884,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  float norm_sq = dot(U_fluid_unnorm, U_fluid_lower);
                  vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
                  float E_emit = -dot(iP_cov, U_fluid);
-                 float FreqRatio = iE_obs / max(1e-6, E_emit);
+                 float FreqRatio =  1.0/iE_obs/ max(1e-6, E_emit);
 
 
 
@@ -1060,7 +1114,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
             vec4 U_jet = U_jet_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
             
             float E_emit = -dot(iP_cov, U_jet);
-            float FreqRatio = iE_obs / max(1e-6, E_emit);
+            float FreqRatio = 1.0/iE_obs/ max(1e-6, E_emit);
 
             float JetTemperature = 100000.0 * FreqRatio; 
             AccumColor.xyz *= KelvinToRgb(JetTemperature);
@@ -1103,6 +1157,161 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
     }
     return CurrentResult;
 }
+
+// 空间坐标网格
+
+vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
+               vec4 iP_cov, float iE_obs,
+               float PhysicalSpinA, float PhysicalQ,
+               float r_sign) 
+{
+    vec4 CurrentResult = BaseColor;
+    if (CurrentResult.a > 0.99) return CurrentResult;
+
+    const int MaxGrids = 10;
+    float GridRadii[MaxGrids];
+    int GridCount = 0;
+    
+    float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
+    float RH_Outer = 0.5 + sqrt(max(0.0, HorizonDiscrim));
+    float RH_Inner = 0.5 - sqrt(max(0.0, HorizonDiscrim));
+    
+    if (r_sign > 0.0) {
+        GridRadii[GridCount++] = RH_Outer * 1.01; // 紧贴外视界
+        GridRadii[GridCount++] = RH_Outer * 1.5;   // 1.5倍视界 (近似光子球)
+        GridRadii[GridCount++] = 12.0;
+        GridRadii[GridCount++] = 20.0;
+        
+        if (HorizonDiscrim >= 0.0) {
+           GridRadii[GridCount++] = RH_Inner * 0.95; // 紧贴内视界内部
+           GridRadii[GridCount++] = RH_Inner * 0.2;
+        }
+    } else {
+        GridRadii[GridCount++] = RH_Outer; 
+        GridRadii[GridCount++] = 3.0;
+        GridRadii[GridCount++] = 10.0;
+    }
+
+    vec3 O = LastRayPos.xyz;
+    vec3 D_vec = RayPos.xyz - LastRayPos.xyz;
+    
+    // 遍历所有网格
+    for (int i = 0; i < GridCount; i++) {
+        if (CurrentResult.a > 0.99) break;
+
+        float TargetR = GridRadii[i]; 
+
+        
+        // 求解交点 t
+        vec2 roots = IntersectKerrEllipsoid(O, D_vec, TargetR, PhysicalSpinA);
+        
+        // 我们需要处理两个潜在的交点
+        float t_hits[2];
+        t_hits[0] = roots.x;
+        t_hits[1] = roots.y;
+        
+        // 按 t 排序 (从小到大) 确保正确的 alpha 混合
+        if (t_hits[0] > t_hits[1]) {
+            float temp = t_hits[0]; t_hits[0] = t_hits[1]; t_hits[1] = temp;
+        }
+        
+        for (int j = 0; j < 2; j++) {
+            float t = t_hits[j];
+            
+            // 检查 t 是否在当前步长线段内 [0, 1]
+            if (t >= 0.0 && t <= 1.0) {
+                vec3 HitPos = O + D_vec * t;
+                
+                
+                float CheckR = KerrSchildRadius(HitPos, PhysicalSpinA, r_sign);
+                
+       
+                if (CheckR * r_sign < 0.0) continue; 
+                if (abs(abs(CheckR) - TargetR) > 0.1 * TargetR + 0.1) continue; 
+
+                float Omega = GetZamoOmega(TargetR, PhysicalSpinA, PhysicalQ, HitPos.y);
+                
+ 
+                
+                vec3 VelSpatial = Omega * vec3(HitPos.z, 0.0, -HitPos.x);
+                vec4 U_zamo_unnorm = vec4(VelSpatial, 1.0); // t分量为1
+                
+                // 归一化 U
+                KerrGeometry geo_hit;
+                ComputeGeometryScalars(HitPos, PhysicalSpinA, PhysicalQ, 1.0, r_sign, geo_hit);
+                vec4 U_zamo_lower = LowerIndex(U_zamo_unnorm, geo_hit);
+                float norm_sq = dot(U_zamo_unnorm, U_zamo_lower);
+                
+                // 视界内类空，视界外类时。这里只关心能看到的辐射。
+                // 如果 norm_sq > 0 (类空，视界内)，ZAMO 并不是物理观测者，但网格依然可以发光。
+                // 我们取绝对值开方作为归一化因子。
+                float norm = sqrt(max(1e-9, abs(norm_sq)));
+                vec4 U_zamo = U_zamo_unnorm / norm;
+
+                // 计算红蓝移
+                float E_emit = -dot(iP_cov, U_zamo);
+                // 防止 E_emit 为负 (在能层内逆行轨道可能发生，或者视界内)
+                // 取绝对值代表能量交换的强度
+                float Shift = 1.0/iE_obs/ max(1e-6, abs(E_emit)); 
+
+                // --- 纹理生成 ---
+                // 使用开普勒相位或其他方式计算 Phi，保证纹理随时间旋转
+                // 但网格通常是固定的参考系，所以我们不加时间项，或者只加很慢的自旋
+                float Phi = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
+                
+                // 修正 Theta 计算 (精确反解)
+                // cos^2 theta = y^2 / r^2
+                float CosTheta = clamp(HitPos.y / TargetR, -1.0, 1.0);
+                float Theta = acos(CosTheta);
+
+                float DensityPhi = 24.0;
+                float DensityTheta = 12.0;
+
+                // 线宽计算：根据距离和红移调整
+                // 利用 derivatives 或者简单的距离估算
+                float DistFactor = length(HitPos);
+                // 步长很大时，fwidth 可能失效，使用基于距离的固定宽度
+                float LineWidth = 0.002 * DistFactor;
+                LineWidth = clamp(LineWidth, 0.01, 0.1); // 限制最大最小线宽
+
+                float PatternPhi = abs(fract(Phi / (2.0 * kPi) * DensityPhi) - 0.5);
+                float GridPhi = smoothstep(LineWidth, 0.0, PatternPhi);
+
+                float PatternTheta = abs(fract(Theta / kPi * DensityTheta) - 0.5);
+                float GridTheta = smoothstep(LineWidth, 0.0, PatternTheta);
+                
+                float GridIntensity = max(GridPhi, GridTheta);
+                // 赤道和极点增强
+                //if (abs(HitPos.y) < TargetR * LineWidth * 2.0) GridIntensity = 1.0;
+                
+                if (GridIntensity > 0.01) {
+                    float BaseTemp = 6500.0;
+                    float ObsTemp = BaseTemp * Shift;
+                    vec3 BlackbodyColor = KelvinToRgb(ObsTemp);
+                    
+                    // 亮度处理
+                    // 红移(Shift < 1)变暗，蓝移(Shift > 1)变亮
+                    // 限制最大亮度防止过曝
+                    float Intensity = 1.5 * pow(Shift, 4.0); 
+                    Intensity = min(Intensity, 20.0);
+                    
+                    // 在视界内部或者极其靠近视界，红移极大(Shift->0)，亮度消失
+                    // 在能层蓝移区，亮度增加
+                    
+                    vec4 GridCol = vec4(BlackbodyColor * Intensity, 1.0);
+                    float Alpha = GridIntensity * 0.5; // 基础不透明度
+                    
+                    // 混合
+                    CurrentResult.rgb = CurrentResult.rgb + GridCol.rgb * Alpha * (1.0 - CurrentResult.a);
+                    CurrentResult.a   = CurrentResult.a + Alpha * (1.0 - CurrentResult.a);
+                }
+            }
+        }
+    }
+    return CurrentResult;
+}
+
+
 //视界着色，因为优化的提前判断逻辑不是那么可用，若想使用请关闭直接命中和时间分量发散之外的停止判定
 //// Input: HitPos (局部坐标), Radius (视界半径)
 //vec4 GetHorizonGridColor(vec3 HitPos, float Radius, vec3 BaseColor, float Thickness) {
@@ -1248,7 +1457,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     vec3 RayDir = RayDirWorld_Geo;
     vec3 LastDir = RayDir;
     vec3 LastPos = RayPosLocal;
-    float GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * length(RayPosLocal) - 1.0) / 4.0, 1.0), 0.0));
+    float GravityFade = CubicInterpolate(max(min(1.0 - (length(RayPosLocal) - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
 
     if (bShouldContinueMarchRay) {
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
@@ -1365,48 +1574,50 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
         State s0; s0.X = X; s0.P = P_cov;
         State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade, geo);
-
+        if(iGrid==0)
         {
-            float CurrentDr = dot(geo.grad_r, k1.X.xyz);
-            if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
-            if (RadialTurningCounts > 2) 
             {
-                bShouldContinueMarchRay = false; bWaitCalBack = false;
-                //Result = vec4(0.3, 0.0, 0.3, 1.0); 
-                break;//识别剔除奇环附近束缚态光子轨道
-            }
-            LastDr = CurrentDr;
-        }
-
-        if(geo.r > InnerHorizonR && lastR < InnerHorizonR) bIntoInHorizon = true;     //检测穿过内视界 
-        if(geo.r > EventHorizonR && lastR < EventHorizonR) bIntoOutHorizon = true;    //检测穿过外视界 
-
-        if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity)
-        {
-
-
-            float SafetyGap = 0.001;
-            float PhotonShellLimit = ProgradePhotonRadius - SafetyGap; 
-            float preCeiling = min(CameraStartR - SafetyGap, TerminationR + 0.2);
-            if(bIntoInHorizon) { preCeiling = InnerHorizonR + 0.2; } //处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击内视界 的光
-            if(bIntoOutHorizon) { preCeiling = EventHorizonR + 0.2; }//处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击外视界 的光
-            
-            float PruningCeiling = min(iInterRadiusRs, preCeiling);
-            PruningCeiling = min(PruningCeiling, PhotonShellLimit); 
-
-            if (geo.r < PruningCeiling)
-            {
-                float DrDlambda = dot(geo.grad_r, k1.X.xyz);
-                if (DrDlambda > 1e-4) 
+                float CurrentDr = dot(geo.grad_r, k1.X.xyz);
+                if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
+                if (RadialTurningCounts > 2) 
                 {
-                    bShouldContinueMarchRay = false;
-                    bWaitCalBack = false;
-                    //Result = vec4(0.0, 0., 0.3, 0.0);
-                    break; //视界判定情况2，对凝结在视界前的光提前剔除
+                    bShouldContinueMarchRay = false; bWaitCalBack = false;
+                    //Result = vec4(0.3, 0.0, 0.3, 1.0); 
+                    break;//识别剔除奇环附近束缚态光子轨道
+                }
+                LastDr = CurrentDr;
+            }
+            
+            if(geo.r > InnerHorizonR && lastR < InnerHorizonR) bIntoInHorizon = true;     //检测穿过内视界 
+            if(geo.r > EventHorizonR && lastR < EventHorizonR) bIntoOutHorizon = true;    //检测穿过外视界 
+            
+            if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity)
+            {
+            
+            
+                float SafetyGap = 0.001;
+                float PhotonShellLimit = ProgradePhotonRadius - SafetyGap; 
+                float preCeiling = min(CameraStartR - SafetyGap, TerminationR + 0.2);
+                if(bIntoInHorizon) { preCeiling = InnerHorizonR + 0.2; } //处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击内视界 的光
+                if(bIntoOutHorizon) { preCeiling = EventHorizonR + 0.2; }//处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击外视界 的光
+                
+                float PruningCeiling = min(iInterRadiusRs, preCeiling);
+                PruningCeiling = min(PruningCeiling, PhotonShellLimit); 
+            
+                if (geo.r < PruningCeiling)
+                {
+                    float DrDlambda = dot(geo.grad_r, k1.X.xyz);
+                    if (DrDlambda > 1e-4) 
+                    {
+                        bShouldContinueMarchRay = false;
+                        bWaitCalBack = false;
+                        //Result = vec4(0.0, 0., 0.3, 0.0);
+                        break; //视界判定情况2，对凝结在视界前的光提前剔除
+                    }
                 }
             }
         }
-
+        
         //对动量和位置及其导数做自适应步长。对电荷做自适应步长（Q贡献r^-2项
         float rho = length(RayPos.xz);
         float DistRing = sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
@@ -1427,7 +1638,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
         vec4 LastX = X;
         LastPos = X.xyz;
-        GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 1.0) / 4.0, 1.0), 0.0));
+        GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
         
         vec4 P_contra_step = RaiseIndex(P_cov, geo);
         if (P_contra_step.w > 10000.0 && !bIsNakedSingularity && CurrentUniverseSign > 0.0) 
@@ -1458,21 +1669,29 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
 
         //吸积盘和喷流
-        if (CurrentUniverseSign > 0.0) {
-           Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
-                             iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-                             iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
-                             clamp(PhysicalSpinA, -0.49, 0.49), 
-                             PhysicalQ                          
-                             ); 
-           
-           Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
-                             iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
-                             clamp(PhysicalSpinA, -0.049, 0.049), 
-                             PhysicalQ                            
-                             ); 
+        //if (CurrentUniverseSign > 0.0) 
+        //{
+        //   Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+        //                     iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
+        //                     iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
+        //                     clamp(PhysicalSpinA, -0.49, 0.49), 
+        //                     PhysicalQ                          
+        //                     ); 
+        //   
+        //   Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+        //                     iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
+        //                     clamp(PhysicalSpinA, -0.049, 0.049), 
+        //                     PhysicalQ                            
+        //                     ); 
+        //}
+        if(iGrid!=0)
+        {
+            Result = GridColor(Result, X, LastX, 
+                        P_cov, E_conserved,
+                        PhysicalSpinA, 
+                        PhysicalQ, 
+                        CurrentUniverseSign);
         }
-        
         if (Result.a > 0.99) { bShouldContinueMarchRay = false; bWaitCalBack = false; break; }
         
         LastDir = RayDir;
