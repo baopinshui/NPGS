@@ -304,9 +304,9 @@ void ComputeGeometryScalars(vec3 X, float PhysicalSpinA, float PhysicalQ, float 
     geo.a2 = PhysicalSpinA * PhysicalSpinA;
     
     if (PhysicalSpinA == 0.0) {
-        geo.r = length(X);
+        geo.r = r_sign*length(X);
         geo.r2 = geo.r * geo.r;
-        float inv_r = 1.0 / max(EPSILON, geo.r);
+        float inv_r = 1.0 / geo.r;
         float inv_r2 = inv_r * inv_r;
         
         geo.l_up = vec4(X * inv_r, -1.0);
@@ -478,45 +478,51 @@ vec4 GetInitialMomentum(
        
     vec4 U_down = LowerIndex(U_up, geo);
 
-    //换系到指向球心
-    vec3 m1 = -normalize(X.xyz); 
-    
-    float k_radial = dot(RayDir, m1);
-    vec3  vec_tangent = RayDir - k_radial * m1; 
-    float len_tangent = length(vec_tangent);
-    //构造正交标架
+    //构建平直空间参考基
+    //主轴，径向
+    vec3 m_r = -normalize(X.xyz);
 
-    // e1，径向
-    vec4 e1 = vec4(m1, 0.0);
+    vec3 WorldUp = vec3(0.0, 1.0, 0.0);
+    //副轴，环向或X。注意这个系只是中转，在极点强取方向不会改变视线朝向，只会改变畸变方向，而两极处在平行赤道面上正好没有畸变
+    if (abs(dot(m_r, WorldUp)) > 0.999) {
+        WorldUp = vec3(1.0, 0.0, 0.0);
+    }
+    vec3 m_phi = cross(WorldUp, m_r); 
+    m_phi = normalize(m_phi);
+
+    vec3 m_theta = cross(m_phi, m_r); 
+
+    // 分解 RayDir 到这组基底
+    float k_r     = dot(RayDir, m_r);
+    float k_theta = dot(RayDir, m_theta);
+    float k_phi   = dot(RayDir, m_phi);
+
+    //构建弯曲时空物理基底
+
+    vec4 e1 = vec4(m_r, 0.0);
     e1 += dot(e1, U_down) * U_up; 
     vec4 e1_d = LowerIndex(e1, geo);
     float n1 = sqrt(max(1e-9, dot(e1, e1_d)));
-    e1 /= n1; 
-    e1_d /= n1;
-    
-    
-    vec4 S = k_radial * e1;
-    
-    if (len_tangent > 1e-9) {
-        vec3 dir_tangent = vec_tangent / len_tangent;
-        
-        vec4 e_tan = vec4(dir_tangent, 0.0);
-        e_tan += dot(e_tan, U_down) * U_up;
-        e_tan -= dot(e_tan, e1_d) * e1;
-        
-        vec4 e_tan_d = LowerIndex(e_tan, geo);
-        float n_tan  = sqrt(max(1e-9, dot(e_tan, e_tan_d)));
-        e_tan /= n_tan;
-        
-        S += len_tangent * e_tan;
-    }
-    
-    vec4 S_down = LowerIndex(S, geo);
-    float S_norm = sqrt(max(1e-9, dot(S, S_down)));
-    S /= S_norm;
+    e1 /= n1; e1_d /= n1;
 
-    
-    vec4 P_up = U_up - S;
+    vec4 e2 = vec4(m_theta, 0.0);
+    e2 += dot(e2, U_down) * U_up;
+    e2 -= dot(e2, e1_d) * e1;
+    vec4 e2_d = LowerIndex(e2, geo);
+    float n2 = sqrt(max(1e-9, dot(e2, e2_d)));
+    e2 /= n2; e2_d /= n2;
+
+    vec4 e3 = vec4(m_phi, 0.0);
+    e3 += dot(e3, U_down) * U_up;
+    e3 -= dot(e3, e1_d) * e1;
+    e3 -= dot(e3, e2_d) * e2;
+    vec4 e3_d = LowerIndex(e3, geo);
+    float n3 = sqrt(max(1e-9, dot(e3, e3_d)));
+    e3 /= n3;
+
+
+
+    vec4 P_up = U_up - (k_r * e1 + k_theta * e2 + k_phi * e3);
 
     // 返回协变动量 P_mu
     return LowerIndex(P_up, geo);
