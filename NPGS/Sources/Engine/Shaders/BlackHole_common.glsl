@@ -382,9 +382,9 @@ void ComputeGeometryScalars(vec3 X, float PhysicalSpinA, float PhysicalQ, float 
     
     geo.inv_r2_a2 = 1.0 / (geo.r2 + geo.a2);
     
-    float lx = (geo.r * X.x + PhysicalSpinA * X.z) * geo.inv_r2_a2;
+    float lx = (geo.r * X.x - PhysicalSpinA * X.z) * geo.inv_r2_a2;
     float ly = X.y / geo.r;
-    float lz = (geo.r * X.z - PhysicalSpinA * X.x) * geo.inv_r2_a2;
+    float lz = (geo.r * X.z + PhysicalSpinA * X.x) * geo.inv_r2_a2;
     
     geo.l_up = vec4(lx, ly, lz, -1.0);
     geo.l_down = vec4(lx, ly, lz, 1.0); 
@@ -647,19 +647,19 @@ State GetDerivativesAnalytic(State S, float PhysicalSpinA, float PhysicalQ, floa
     // dp_u/dlambda = -dH/dx^u
     vec3 grad_A = (-2.0 * geo.r * geo.inv_r2_a2) * geo.inv_r2_a2 * geo.grad_r;
     
-    float rx_az = geo.r * S.X.x + PhysicalSpinA * S.X.z;
-    float rz_ax = geo.r * S.X.z - PhysicalSpinA * S.X.x;
+    float rx_az = geo.r * S.X.x - PhysicalSpinA * S.X.z;
+    float rz_ax = geo.r * S.X.z + PhysicalSpinA * S.X.x;
     
     vec3 d_num_lx = S.X.x * geo.grad_r; 
     d_num_lx.x += geo.r; 
-    d_num_lx.z += PhysicalSpinA;
+    d_num_lx.z -= PhysicalSpinA;
     vec3 grad_lx = geo.inv_r2_a2 * d_num_lx + rx_az * grad_A;
     
     vec3 grad_ly = (geo.r * vec3(0.0, 1.0, 0.0) - S.X.y * geo.grad_r) / geo.r2;
     
     vec3 d_num_lz = S.X.z * geo.grad_r;
     d_num_lz.z += geo.r;
-    d_num_lz.x -= PhysicalSpinA;
+    d_num_lz.x += PhysicalSpinA;
     vec3 grad_lz = geo.inv_r2_a2 * d_num_lz + rz_ax * grad_A;
     
     vec3 P_dot_grad_l = S.P.x * grad_lx + S.P.y * grad_ly + S.P.z * grad_lz;
@@ -884,7 +884,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  float norm_sq = dot(U_fluid_unnorm, U_fluid_lower);
                  vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
                  float E_emit = -dot(iP_cov, U_fluid);
-                 float FreqRatio =  1.0/iE_obs/ max(1e-6, E_emit);
+                 float FreqRatio =  1.0/ max(1e-6, E_emit);
 
 
 
@@ -1114,7 +1114,7 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
             vec4 U_jet = U_jet_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
             
             float E_emit = -dot(iP_cov, U_jet);
-            float FreqRatio = 1.0/iE_obs/ max(1e-6, E_emit);
+            float FreqRatio = 1.0/max(1e-6, E_emit);
 
             float JetTemperature = 100000.0 * FreqRatio; 
             AccumColor.xyz *= KelvinToRgb(JetTemperature);
@@ -1252,7 +1252,7 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 float E_emit = -dot(iP_cov, U_zamo);
                 // 防止 E_emit 为负 (在能层内逆行轨道可能发生，或者视界内)
                 // 取绝对值代表能量交换的强度
-                float Shift = 1.0/iE_obs/ max(1e-6, abs(E_emit)); 
+                float Shift = 1.0/ max(1e-6, abs(E_emit)); 
 
                 // --- 纹理生成 ---
                 // 使用开普勒相位或其他方式计算 Phi，保证纹理随时间旋转
@@ -1393,7 +1393,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
 
     // [Metric Constants]
-    float PhysicalSpinA = -iSpin * CONST_M;  
+    float PhysicalSpinA = iSpin * CONST_M;  
     float PhysicalQ     = iQ * CONST_M; 
     
     // [Horizons]
@@ -1490,7 +1490,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
         else
         {
-
+        // 落体观者能层合法性检查 todo
         }
         // 确定光线追踪终止半径 (非裸奇点)
         if (!bIsNakedSingularity && CurrentUniverseSign > 0.0) 
@@ -1669,21 +1669,21 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
 
         //吸积盘和喷流
-        //if (CurrentUniverseSign > 0.0) 
-        //{
-        //   Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
-        //                     iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
-        //                     iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
-        //                     clamp(PhysicalSpinA, -0.49, 0.49), 
-        //                     PhysicalQ                          
-        //                     ); 
-        //   
-        //   Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
-        //                     iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
-        //                     clamp(PhysicalSpinA, -0.049, 0.049), 
-        //                     PhysicalQ                            
-        //                     ); 
-        //}
+        if (CurrentUniverseSign > 0.0) 
+        {
+           Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+                             iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
+                             iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
+                             clamp(PhysicalSpinA, -0.49, 0.49), 
+                             PhysicalQ                          
+                             ); 
+           
+           Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+                             iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
+                             clamp(PhysicalSpinA, -0.049, 0.049), 
+                             PhysicalQ                            
+                             ); 
+        }
         if(iGrid!=0)
         {
             Result = GridColor(Result, X, LastX, 
