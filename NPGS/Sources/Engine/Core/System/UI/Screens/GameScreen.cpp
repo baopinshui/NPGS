@@ -404,26 +404,26 @@ void GameScreen::Update(float dt)
             top_info->SetCivilizationData("", "", "", "");
             bottom_info->SetCelestialData("", "", "", "");
         }
-        else if (info_phase == 1)
-        {
-            top_info->SetCivilizationData(
-                Npgs::System::TR("i18ntext.cinematic.title.singularity"),
-                std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass_dominated"), std::make_format_args("2.4e30 kg")),
-                std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.star_systems"), std::make_format_args("14201")),
-                std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.reward"), std::make_format_args("1.875e+21"))
-            );
-            bottom_info->SetCelestialData("191981", Npgs::System::TR("i18ntext.cinematic.type.black_hole"), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass"), std::make_format_args("1.91E+36kg")), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.luminosity"), std::make_format_args("8.10E+30 W")));
-        }
-        else if (info_phase == 2)
-        {
-            top_info->SetCivilizationData(
-                Npgs::System::TR("i18ntext.cinematic.title.type2_civ"),
-                std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.output"), std::make_format_args("3.8e26 W")),
-                std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.progress"), std::make_format_args("84.2%")),
-                Npgs::System::TR("i18ntext.cinematic.stat.status_warning")
-            );
-            bottom_info->SetCelestialData("000001", Npgs::System::TR("i18ntext.cinematic.type.red_giant"), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass"), std::make_format_args("1.91E+29kg")), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.luminosity"), std::make_format_args("8.10E+99 W")));
-        }
+       // else if (info_phase == 1)
+       // {
+       //     top_info->SetCivilizationData(
+       //         Npgs::System::TR("i18ntext.cinematic.title.singularity"),
+       //         std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass_dominated"), std::make_format_args("2.4e30 kg")),
+       //         std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.star_systems"), std::make_format_args("14201")),
+       //         std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.reward"), std::make_format_args("1.875e+21"))
+       //     );
+       //     bottom_info->SetCelestialData("191981", Npgs::System::TR("i18ntext.cinematic.type.black_hole"), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass"), std::make_format_args("1.91E+36kg")), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.luminosity"), std::make_format_args("8.10E+30 W")));
+       // }
+       // else if (info_phase == 2)
+       // {
+       //     top_info->SetCivilizationData(
+       //         Npgs::System::TR("i18ntext.cinematic.title.type2_civ"),
+       //         std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.output"), std::make_format_args("3.8e26 W")),
+       //         std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.progress"), std::make_format_args("84.2%")),
+       //         Npgs::System::TR("i18ntext.cinematic.stat.status_warning")
+       //     );
+       //     bottom_info->SetCelestialData("000001", Npgs::System::TR("i18ntext.cinematic.type.red_giant"), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.mass"), std::make_format_args("1.91E+29kg")), std::vformat(Npgs::System::TR("i18ntext.cinematic.stat.luminosity"), std::make_format_args("8.10E+99 W")));
+       // }
     }
 
     // Update beam button executable state

@@ -37,7 +37,7 @@ void main()
     }
 
 
-    FinalColor = ApplyToneMapping(FinalColor);
+    FinalColor = ApplyToneMapping(FinalColor,CurrentShift);
 
     vec4 PrevColor = texelFetch(iHistoryTex, ivec2(gl_FragCoord.xy), 0);
     FragColor      = (iBlendWeight) * FinalColor + (1.0 - iBlendWeight) * PrevColor;

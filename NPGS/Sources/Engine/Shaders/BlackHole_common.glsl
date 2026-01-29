@@ -223,12 +223,12 @@ vec4 SampleBackground(vec3 Dir, float Shift, float Status)
 }
 
 
-vec4 ApplyToneMapping(vec4 Result)
+vec4 ApplyToneMapping(vec4 Result,float shift)
 {
     float RedFactor   = 3.0 * Result.r / (Result.g + Result.b + Result.g );
     float BlueFactor  = 3.0 * Result.b / (Result.g + Result.b + Result.g );
     float GreenFactor = 3.0 * Result.g / (Result.g + Result.b + Result.g );
-    float BloomMax    = 8.0;
+    float BloomMax    = max(8.0,shift);
     
     vec4 Mapped;
     Mapped.r = min(-4.0 * log( 1.0 - pow(Result.r, 2.2)), BloomMax * RedFactor);
@@ -260,7 +260,7 @@ float GetKeplerianAngularVelocity(float Radius, float Rs, float PhysicalSpinA, f
     float Mr_minus_Q2 = M * Radius - PhysicalQ * PhysicalQ;
     if (Mr_minus_Q2 < 0.0) return 0.0;
     float sqrt_Term = sqrt(Mr_minus_Q2);
-    float denominator = Radius * Radius + PhysicalSpinA * sqrt_Term;
+    float denominator = Radius * Radius + 0.5*PhysicalSpinA * sqrt_Term;
     return sqrt_Term / max(EPSILON, denominator);
 }
 
@@ -630,7 +630,47 @@ void ApplyHamiltonianCorrection(inout vec4 P, vec4 X, float E, float PhysicalSpi
         }
     }
 }
+//通过缩放动量空间部分修正哈密顿量
+void ApplyHamiltonianCorrectionFORTEST(inout vec4 P, vec4 X, float E, float PhysicalSpinA, float PhysicalQ, float fade, float r_sign) {
+    // P.w (Pt) is -E_conserved. 
 
+    P.w = -E; 
+    vec3 p = P.xyz;    
+    
+    KerrGeometry geo;
+    ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, fade, r_sign, geo);
+    
+    
+    float L_dot_p_s = dot(geo.l_up.xyz, p);
+    float Pt = P.w; 
+    
+    float p2 = dot(p, p);
+    float Coeff_A = p2 - geo.f * L_dot_p_s * L_dot_p_s;
+    
+    float Coeff_B = 2.0 * geo.f * L_dot_p_s * Pt;
+    
+    float Coeff_C = -Pt * Pt * (1.0 + geo.f);
+    
+    float disc = Coeff_B * Coeff_B - 4.0 * Coeff_A * Coeff_C;
+    
+    if (disc >= 0.0) {
+        float sqrtDisc = sqrt(disc);
+        float denom = 2.0 * Coeff_A;
+        
+        if (abs(denom) > 1e-9) {
+            float k1 = (-Coeff_B + sqrtDisc) / denom;
+            float k2 = (-Coeff_B - sqrtDisc) / denom;
+            
+
+            float dist1 = abs(k1 - 1.0);
+            float dist2 = abs(k2 - 1.0);
+            
+            float k = (dist1 < dist2) ? k1 : k2;
+            
+            P.xyz *= k1;
+        }
+    }
+}
 //哈密顿量时空导数
 State GetDerivativesAnalytic(State S, float PhysicalSpinA, float PhysicalQ, float fade, inout KerrGeometry geo) {
     State deriv;
@@ -1177,13 +1217,13 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
     float RH_Inner = 0.5 - sqrt(max(0.0, HorizonDiscrim));
     
     if (r_sign > 0.0) {
-        GridRadii[GridCount++] = RH_Outer * 1.01; // 紧贴外视界
-        GridRadii[GridCount++] = RH_Outer * 1.5;   // 1.5倍视界 (近似光子球)
+        GridRadii[GridCount++] = RH_Outer * 1.01; 
+        GridRadii[GridCount++] = RH_Outer * 1.5;  
         GridRadii[GridCount++] = 12.0;
         GridRadii[GridCount++] = 20.0;
         
         if (HorizonDiscrim >= 0.0) {
-           GridRadii[GridCount++] = RH_Inner * 0.95; // 紧贴内视界内部
+           GridRadii[GridCount++] = RH_Inner * 0.95; 
            GridRadii[GridCount++] = RH_Inner * 0.2;
         }
     } else {
@@ -1195,22 +1235,20 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
     vec3 O = LastRayPos.xyz;
     vec3 D_vec = RayPos.xyz - LastRayPos.xyz;
     
-    // 遍历所有网格
+
     for (int i = 0; i < GridCount; i++) {
         if (CurrentResult.a > 0.99) break;
 
         float TargetR = GridRadii[i]; 
 
         
-        // 求解交点 t
         vec2 roots = IntersectKerrEllipsoid(O, D_vec, TargetR, PhysicalSpinA);
         
-        // 我们需要处理两个潜在的交点
+
         float t_hits[2];
         t_hits[0] = roots.x;
         t_hits[1] = roots.y;
         
-        // 按 t 排序 (从小到大) 确保正确的 alpha 混合
         if (t_hits[0] > t_hits[1]) {
             float temp = t_hits[0]; t_hits[0] = t_hits[1]; t_hits[1] = temp;
         }
@@ -1218,7 +1256,6 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
         for (int j = 0; j < 2; j++) {
             float t = t_hits[j];
             
-            // 检查 t 是否在当前步长线段内 [0, 1]
             if (t >= 0.0 && t <= 1.0) {
                 vec3 HitPos = O + D_vec * t;
                 
@@ -1234,9 +1271,8 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
  
                 
                 vec3 VelSpatial = Omega * vec3(HitPos.z, 0.0, -HitPos.x);
-                vec4 U_zamo_unnorm = vec4(VelSpatial, 1.0); // t分量为1
+                vec4 U_zamo_unnorm = vec4(VelSpatial, 1.0); 
                 
-                // 归一化 U
                 KerrGeometry geo_hit;
                 ComputeGeometryScalars(HitPos, PhysicalSpinA, PhysicalQ, 1.0, r_sign, geo_hit);
                 vec4 U_zamo_lower = LowerIndex(U_zamo_unnorm, geo_hit);
@@ -1244,35 +1280,23 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 
                 // 视界内类空，视界外类时。这里只关心能看到的辐射。
                 // 如果 norm_sq > 0 (类空，视界内)，ZAMO 并不是物理观测者，但网格依然可以发光。
-                // 我们取绝对值开方作为归一化因子。
                 float norm = sqrt(max(1e-9, abs(norm_sq)));
                 vec4 U_zamo = U_zamo_unnorm / norm;
 
-                // 计算红蓝移
                 float E_emit = -dot(iP_cov, U_zamo);
-                // 防止 E_emit 为负 (在能层内逆行轨道可能发生，或者视界内)
-                // 取绝对值代表能量交换的强度
                 float Shift = 1.0/ max(1e-6, abs(E_emit)); 
 
-                // --- 纹理生成 ---
-                // 使用开普勒相位或其他方式计算 Phi，保证纹理随时间旋转
-                // 但网格通常是固定的参考系，所以我们不加时间项，或者只加很慢的自旋
                 float Phi = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
                 
-                // 修正 Theta 计算 (精确反解)
-                // cos^2 theta = y^2 / r^2
                 float CosTheta = clamp(HitPos.y / TargetR, -1.0, 1.0);
                 float Theta = acos(CosTheta);
 
                 float DensityPhi = 24.0;
                 float DensityTheta = 12.0;
 
-                // 线宽计算：根据距离和红移调整
-                // 利用 derivatives 或者简单的距离估算
                 float DistFactor = length(HitPos);
-                // 步长很大时，fwidth 可能失效，使用基于距离的固定宽度
                 float LineWidth = 0.002 * DistFactor;
-                LineWidth = clamp(LineWidth, 0.01, 0.1); // 限制最大最小线宽
+                LineWidth = clamp(LineWidth, 0.01, 0.1); 
 
                 float PatternPhi = abs(fract(Phi / (2.0 * kPi) * DensityPhi) - 0.5);
                 float GridPhi = smoothstep(LineWidth, 0.0, PatternPhi);
@@ -1281,6 +1305,33 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 float GridTheta = smoothstep(LineWidth, 0.0, PatternTheta);
                 
                 float GridIntensity = max(GridPhi, GridTheta);
+                // float OutermostR = GridRadii[GridCount - 1];//标识xyz方向
+                //    vec3 Dir = normalize(HitPos);
+                //    
+                //    float MarkerThreshold = 0.995; // 约等于 5 度的圆
+                //    float SmoothEdge = 0.002;
+                //    
+                //    float dotX = dot(Dir, vec3(1.0, 0.0, 0.0));
+                //    float dotY = dot(Dir, vec3(0.0, 1.0, 0.0));
+                //    float dotZ = dot(Dir, vec3(0.0, 0.0, 1.0));
+                //    
+                //    float maskX = smoothstep(MarkerThreshold, MarkerThreshold + SmoothEdge, dotX);
+                //    float maskY = smoothstep(MarkerThreshold, MarkerThreshold + SmoothEdge, dotY);
+                //    float maskZ = smoothstep(MarkerThreshold, MarkerThreshold + SmoothEdge, dotZ);
+                //    
+                //    if (maskX > 0.0 || maskY > 0.0 || maskZ > 0.0) {
+                //        vec3 MarkerColor = 0.3*vec3(1.0, 0.0, 0.0) * maskX + 
+                //                           0.3*vec3(0.0, 1.0, 0.0) * maskY + 
+                //                           0.3*vec3(0.0, 0.0, 1.0) * maskZ;
+                //                           
+                //        vec4 MarkerCol = vec4(MarkerColor * 1.0, 1.0); 
+                //        float MarkerAlpha = max(maskX, max(maskY, maskZ));
+                //        
+                //        CurrentResult.rgb += MarkerCol.rgb * MarkerAlpha * (1.0 - CurrentResult.a);
+                //        CurrentResult.a   += MarkerAlpha * (1.0 - CurrentResult.a);
+                //        
+                //    }
+                
                 // 赤道和极点增强
                 //if (abs(HitPos.y) < TargetR * LineWidth * 2.0) GridIntensity = 1.0;
                 
@@ -1289,19 +1340,12 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                     float ObsTemp = BaseTemp * Shift;
                     vec3 BlackbodyColor = KelvinToRgb(ObsTemp);
                     
-                    // 亮度处理
-                    // 红移(Shift < 1)变暗，蓝移(Shift > 1)变亮
-                    // 限制最大亮度防止过曝
                     float Intensity = 1.5 * pow(Shift, 4.0); 
                     Intensity = min(Intensity, 20.0);
                     
-                    // 在视界内部或者极其靠近视界，红移极大(Shift->0)，亮度消失
-                    // 在能层蓝移区，亮度增加
                     
                     vec4 GridCol = vec4(BlackbodyColor * Intensity, 1.0);
-                    float Alpha = GridIntensity * 0.5; // 基础不透明度
-                    
-                    // 混合
+                    float Alpha = GridIntensity * 0.5; 
                     CurrentResult.rgb = CurrentResult.rgb + GridCol.rgb * Alpha * (1.0 - CurrentResult.a);
                     CurrentResult.a   = CurrentResult.a + Alpha * (1.0 - CurrentResult.a);
                 }
@@ -1311,42 +1355,6 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
     return CurrentResult;
 }
 
-
-//视界着色，因为优化的提前判断逻辑不是那么可用，若想使用请关闭直接命中和时间分量发散之外的停止判定
-//// Input: HitPos (局部坐标), Radius (视界半径)
-//vec4 GetHorizonGridColor(vec3 HitPos, float Radius, vec3 BaseColor, float Thickness) {
-//    // 1. 计算球坐标 (假设 Y 轴向上)
-//    // theta: 0 ~ PI (从北极到南极)
-//    float theta = acos(clamp(HitPos.y / Radius, -1.0, 1.0)); 
-//    // phi: -PI ~ PI
-//    float phi = atan(HitPos.z, HitPos.x); 
-//
-//    // 2. 网格密度
-//    float GridDensityTheta = 12.0; // 纬线数量
-//    float GridDensityPhi = 24.0;   // 经线数量
-//
-//    // 3. 计算网格线 (使用 fract 和 step/smoothstep)
-//    // 经线 (Longitudes)
-//    float wPhi = fwidth(phi) * 1.5; // 抗锯齿宽度
-//    if (wPhi < 1e-4) wPhi = 0.01;
-//    float lPhi = fract(phi / (2.0 * kPi) * GridDensityPhi);
-//    float gridLinePhi = smoothstep(Thickness, Thickness - wPhi, abs(lPhi - 0.5)); // 居中线
-//
-//    // 纬线 (Latitudes)
-//    float wTheta = fwidth(theta) * 1.5;
-//    if (wTheta < 1e-4) wTheta = 0.01;
-//    float lTheta = fract(theta / kPi * GridDensityTheta);
-//    float gridLineTheta = smoothstep(Thickness, Thickness - wTheta, abs(lTheta - 0.5));
-//
-//    // 4. 合并
-//    float gridMask = max(gridLinePhi, gridLineTheta);
-//    
-//    // 5. 增加一点菲涅尔边缘发光感 (可选)
-//    // float fresnel = pow(1.0 - abs(HitPos.y / Radius), 2.0) * 0.5;
-//    
-//    return vec4(BaseColor * (0.2 + 0.8 * gridMask), 1.0); // Alpha = 1.0 (不透明)
-//}
-//
 // =============================================================================
 // SECTION7: main
 // =============================================================================
@@ -1461,8 +1469,10 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
     if (bShouldContinueMarchRay) {
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
+       //P_cov=vec4(-RayDir,-1.0);//debug
     }
     E_conserved = -P_cov.w;
+    //ApplyHamiltonianCorrectionFORTEST(P_cov, X, E_conserved, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);//debug
     // -------------------------------------------------------------------------
     // 初始合法性检查与终结半径
     // -------------------------------------------------------------------------
@@ -1567,26 +1577,28 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         { 
             bShouldContinueMarchRay = false; 
             bWaitCalBack = false;
-            if(bIsNakedSingularity) bWaitCalBack = true;
+            if(bIsNakedSingularity&&RadialTurningCounts <= 2) bWaitCalBack = true;
             //Result = vec4(0.0, 0.3, 0.0, 0.0);
             break; //耗尽步数
         }
 
         State s0; s0.X = X; s0.P = P_cov;
         State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade, geo);
+
+        float CurrentDr = dot(geo.grad_r, k1.X.xyz);
+        if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
+        LastDr = CurrentDr;
+
         if(iGrid==0)
         {
+            
+            if (RadialTurningCounts > 2) 
             {
-                float CurrentDr = dot(geo.grad_r, k1.X.xyz);
-                if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
-                if (RadialTurningCounts > 2) 
-                {
-                    bShouldContinueMarchRay = false; bWaitCalBack = false;
-                    //Result = vec4(0.3, 0.0, 0.3, 1.0); 
-                    break;//识别剔除奇环附近束缚态光子轨道
-                }
-                LastDr = CurrentDr;
+                bShouldContinueMarchRay = false; bWaitCalBack = false;
+                //Result = vec4(0.3, 0.0, 0.3, 1.0); 
+                break;//识别剔除奇环附近束缚态光子轨道
             }
+            
             
             if(geo.r > InnerHorizonR && lastR < InnerHorizonR) bIntoInHorizon = true;     //检测穿过内视界 
             if(geo.r > EventHorizonR && lastR < EventHorizonR) bIntoOutHorizon = true;    //检测穿过外视界 
@@ -1638,7 +1650,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
         vec4 LastX = X;
         LastPos = X.xyz;
-        GravityFade = CubicInterpolate(max(min(1.0 - (0.01 * DistanceToBlackHole - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
+        GravityFade = CubicInterpolate(max(min(1.0 - ( DistanceToBlackHole - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
         
         vec4 P_contra_step = RaiseIndex(P_cov, geo);
         if (P_contra_step.w > 10000.0 && !bIsNakedSingularity && CurrentUniverseSign > 0.0) 
@@ -1717,7 +1729,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     else if (bWaitCalBack) {
         // 状态 1 或 2：命中背景
         res.EscapeDir = LocalToWorldRot * normalize(RayDir);
-        res.FreqShift = clamp(1.0 / max(1e-4, E_conserved), 1.0/2.0, 2.0); 
+        res.FreqShift = clamp(1.0 / max(1e-4, E_conserved), 1.0/100.0, 10.0); 
         
         if (CurrentUniverseSign  > 0.0) res.Status = 1.0; // Sky
         else res.Status = 2.0; // Antiverse

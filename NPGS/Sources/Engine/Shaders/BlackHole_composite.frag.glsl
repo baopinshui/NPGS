@@ -149,7 +149,7 @@ void main()
     // -------------------------------------------------------------------------
     // 3. 后处理
     // -------------------------------------------------------------------------
-    FinalColor = ApplyToneMapping(FinalColor);
+    FinalColor = ApplyToneMapping(FinalColor,CurrentShift);
 
 
     // TAA 混合
