@@ -260,7 +260,7 @@ float GetKeplerianAngularVelocity(float Radius, float Rs, float PhysicalSpinA, f
     float Mr_minus_Q2 = M * Radius - PhysicalQ * PhysicalQ;
     if (Mr_minus_Q2 < 0.0) return 0.0;
     float sqrt_Term = sqrt(Mr_minus_Q2);
-    float denominator = Radius * Radius + 0.5*PhysicalSpinA * sqrt_Term;
+    float denominator = Radius * Radius + PhysicalSpinA * sqrt_Term;
     return sqrt_Term / max(EPSILON, denominator);
 }
 
@@ -785,65 +785,50 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                float BlackbodyIntensityExponent, float RedShiftColorExponent, float RedShiftIntensityExponent,
                float PeakTemperature, float ShiftMax, 
                float PhysicalSpinA, 
-               float PhysicalQ     
+               float PhysicalQ,
+               inout float RayMarchPhase 
                ) 
 {
     vec4 CurrentResult = BaseColor;
+    
 
-    
-    // 1. 垂直包围盒 (Vertical Bounds)
     float MaxDiskHalfHeight = Thin + max(0.0, Hopper * OuterRadius) + 2.0; 
-    
     if (LastRayPos.y > MaxDiskHalfHeight && RayPos.y > MaxDiskHalfHeight) return BaseColor;
     if (LastRayPos.y < -MaxDiskHalfHeight && RayPos.y < -MaxDiskHalfHeight) return BaseColor;
 
-    // 2. 径向包围盒 
     vec2 P0 = LastRayPos.xz;
     vec2 P1 = RayPos.xz;
     vec2 V  = P1 - P0;
     float LenSq = dot(V, V);
-    
     float t_closest = (LenSq > 1e-8) ? clamp(-dot(P0, V) / LenSq, 0.0, 1.0) : 0.0;
     vec2 ClosestPoint = P0 + V * t_closest;
-    float MinDistSq = dot(ClosestPoint, ClosestPoint);
-    
-    float BoundarySq = (OuterRadius * 1.1) * (OuterRadius * 1.1);
-    
-    if (MinDistSq > BoundarySq) return BaseColor;
-
+    if (dot(ClosestPoint, ClosestPoint) > (OuterRadius * 1.1) * (OuterRadius * 1.1)) return BaseColor;
 
     vec3 StartPos = LastRayPos.xyz; 
     vec3 DirVec   = RayDir; 
-    
     float StartTimeLag = LastRayPos.w;
     float EndTimeLag   = RayPos.w;
 
+    float R_Start = KerrSchildRadius(StartPos, PhysicalSpinA, 1.0);
+    float R_End   = KerrSchildRadius(RayPos.xyz, PhysicalSpinA, 1.0);
+    if (max(R_Start, R_End) < InterRadius * 0.9) return BaseColor;
+
+    
     float TotalDist = StepLength;
     float TraveledDist = 0.0;
     
-    float R_Start = KerrSchildRadius(StartPos, PhysicalSpinA, 1.0);
-    float R_End   = KerrSchildRadius(RayPos.xyz, PhysicalSpinA, 1.0);
-    float MaxR = max(R_Start, R_End);
-    
-    if ( MaxR < InterRadius * 0.9) 
-    {
-        return BaseColor;
-    }
-   
-    int MaxSubSteps = 32; 
-    
-    for (int i = 0; i < MaxSubSteps; i++)
+    int SafetyLoopCount = 0;
+    const int MaxLoops = 114514; 
+
+    while (TraveledDist < TotalDist && SafetyLoopCount < MaxLoops)
     {
         if (CurrentResult.a > 0.99) break;
-        if (TraveledDist >= TotalDist) break;
+        SafetyLoopCount++;
 
         vec3 CurrentPos = StartPos + DirVec * TraveledDist;
-        
-        float TimeInterpolant = min(1.0, TraveledDist / max(1e-9, TotalDist));
-        float CurrentRayTimeLag = mix(StartTimeLag, EndTimeLag, TimeInterpolant);
-        float EmissionTime = iBlackHoleTime + CurrentRayTimeLag;
-
         float DistanceToBlackHole = length(CurrentPos); 
+        
+        // 计算局部密度
         float SmallStepBoundary = max(OuterRadius, 12.0);
         float StepSize = 1.0; 
         
@@ -852,22 +837,48 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
         else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary) StepSize *= ((1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0)) * (2.0 * SmallStepBoundary - DistanceToBlackHole) + DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
         else StepSize *= min(1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0), DistanceToBlackHole);
         
-        float dt = min(StepSize, TotalDist - TraveledDist);
-        float Dither = RandomStep(10000.0*(RayPos.zx/OuterRadius), iTime * 4.0 + float(i) * 0.1337);
-        vec3 SamplePos;
+        StepSize = max(0.01, StepSize); 
 
-        if (CurrentPos.y * (CurrentPos + DirVec * dt).y < 0.0) 
+        //  相位与距离计算
+        float DistToNextSample = RayMarchPhase * StepSize;
+        float DistRemainingInRK4 = TotalDist - TraveledDist;
+
+        if (DistToNextSample > DistRemainingInRK4)
         {
-            float t_cross = CurrentPos.y / (CurrentPos.y - (CurrentPos + DirVec * dt).y);
-            vec3 CPoint = CurrentPos + DirVec * (dt * t_cross);
-            float JitterOffset = -1.0 + 2.0 * Dither; 
-            SamplePos = CPoint + min(Thin, dt) * DirVec * JitterOffset;
+            // 情况 A：下一个采样点超出了当前的 RK4 步长范围
+            // 我们走完这段剩余距离，但不进行采样
+            // 并更新相位，表示我们已经走了一部分路程
+            
+            float PhaseProgress = DistRemainingInRK4 / StepSize;
+            RayMarchPhase -= PhaseProgress; // 消耗相位
+            
+            // 确保相位数值稳定
+            if(RayMarchPhase < 0.0) RayMarchPhase = 0.0; // 理论不应发生，除非精度误差
+            
+            TraveledDist = TotalDist; // 结束本段积分
+            break;
         }
-        else
-        {
-            SamplePos = CurrentPos + DirVec * dt * Dither;
-        }
+
+        float dt = DistToNextSample;
         
+        // 移动到采样点
+        TraveledDist += dt;
+        vec3 SamplePos = StartPos + DirVec * TraveledDist;
+        
+        float TimeInterpolant = min(1.0, TraveledDist / max(1e-9, TotalDist));
+        float CurrentRayTimeLag = mix(StartTimeLag, EndTimeLag, TimeInterpolant);
+        float EmissionTime = iBlackHoleTime + CurrentRayTimeLag;
+
+        // 薄盘优化
+        vec3 PreviousPos = CurrentPos; // 这一步的起点
+        //if(PreviousPos.y * SamplePos.y < 0.0)
+        //{
+        //
+        //    vec3 CPoint=(-SamplePos*PreviousPos.y+PreviousPos*SamplePos.y)/(SamplePos.y-PreviousPos.y);
+        //    SamplePos=CPoint+min(Thin,length(CPoint-PreviousPos))*DirVec*(-1.0+2.0*RandomStep(10000.0*(SamplePos.zx/OuterRadius), fract(iTime * 1.0 + 0.5)));
+        //    
+        //
+        //}
         float PosR = KerrSchildRadius(SamplePos, PhysicalSpinA, 1.0);
         float PosY = SamplePos.y;
         
@@ -1010,7 +1021,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  SampleColor.xyz *= Brightmut;
                  SampleColor.a   *= Darkmut;
                  
-                 vec4 StepColor = SampleColor * dt;
+                 vec4 StepColor = SampleColor * StepSize;
                  
                  float aR = 1.0 + Reddening * (1.0 - 1.0);
                  float aG = 1.0 + Reddening * (3.0 - 1.0);
@@ -1043,7 +1054,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
 
             }
         }
-        TraveledDist += dt;
+        RayMarchPhase = 1.0;
     }
     
     return CurrentResult;
@@ -1750,7 +1761,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     bool bIntoInHorizon = false;
     float LastDr = 0.0;           
     int RadialTurningCounts = 0;  
-    
+    float RayMarchPhase = RandomStep(FragUv, iTime); 
     vec3 RayPos = X.xyz; 
 
     while (bShouldContinueMarchRay)
@@ -1887,7 +1898,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                              iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
                              iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
                              clamp(PhysicalSpinA, -0.49, 0.49), 
-                             PhysicalQ                          
+                             PhysicalQ,
+                             RayMarchPhase 
                              ); 
            
            Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
@@ -1936,7 +1948,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     else if (bWaitCalBack) {
         // 状态 1 或 2：命中背景
         res.EscapeDir = LocalToWorldRot * normalize(RayDir);
-        res.FreqShift = clamp(1.0 / max(1e-4, E_conserved), 1.0/100.0, 10.0); 
+        res.FreqShift = clamp(1.0 / max(1e-4, E_conserved), 1.0/2.0, 2.0); 
         
         if (CurrentUniverseSign  > 0.0) res.Status = 1.0; // Sky
         else res.Status = 2.0; // Antiverse
