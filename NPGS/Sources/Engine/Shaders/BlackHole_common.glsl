@@ -50,6 +50,10 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     float iRedShiftColorExponent;        //吸积盘频移——温度指数
     float iRedShiftIntensityExponent;    //吸积盘频移——亮度指数
 
+
+    float iPhotonRingBoost;              //光子环增亮
+    float iPhotonRingColorTempBoost;     //光子环增亮
+
     //吸积盘的亮度限制貌似写死2.2了
     //应该添加背景的频移 亮度和颜色限制系数
 
@@ -225,9 +229,9 @@ vec4 SampleBackground(vec3 Dir, float Shift, float Status)
 
 vec4 ApplyToneMapping(vec4 Result,float shift)
 {
-    float RedFactor   = 3.0 * Result.r / (Result.g + Result.b + Result.g );
-    float BlueFactor  = 3.0 * Result.b / (Result.g + Result.b + Result.g );
-    float GreenFactor = 3.0 * Result.g / (Result.g + Result.b + Result.g );
+    float RedFactor   = 3.0 * Result.r / (Result.r + Result.b + Result.g );
+    float BlueFactor  = 3.0 * Result.b / (Result.r + Result.b + Result.g );
+    float GreenFactor = 3.0 * Result.g / (Result.r + Result.b + Result.g );
     float BloomMax    = max(8.0,shift);
     
     vec4 Mapped;
@@ -786,6 +790,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                float PeakTemperature, float ShiftMax, 
                float PhysicalSpinA, 
                float PhysicalQ,
+               float ThetaInShell,
                inout float RayMarchPhase 
                ) 
 {
@@ -982,7 +987,9 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                      float RelHeight = clamp(abs(PosY) / PerturbedThickness, 0.0, 1.0);
                      SampleColor.xyz *= max(0.0, (0.2 + 2.0 * sqrt(max(0.0, RelHeight * RelHeight + 0.001))));
                  }
-
+    
+                 SampleColor.xyz *=1.0+      iPhotonRingBoost          *smoothstep(0.5,4.0,ThetaInShell);
+                 VisionTemperature *= 1.0 + iPhotonRingColorTempBoost * smoothstep(0.5,4.0,ThetaInShell);
                  // 内侧点缀云
                  // 计算内侧独立坐标系
                  float InnerAngVel = GetKeplerianAngularVelocity(3.0, 1.0, PhysicalSpinA, PhysicalQ);
@@ -1763,7 +1770,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     int RadialTurningCounts = 0;  
     float RayMarchPhase = RandomStep(FragUv, iTime); 
     vec3 RayPos = X.xyz; 
-
+    float ThetaInShell=0;
     while (bShouldContinueMarchRay)
     {
         DistanceToBlackHole = length(RayPos);
@@ -1877,11 +1884,16 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         //    dLambda = RandomStep(FragUv, fract(iTime)); // 光起步步长抖动,但是会让高层光子环变糊，考虑到现在吸积盘的层纹去除逻辑已经挪进体积云噪声内部，建议关着。
         //}
         StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo, k1);
+        float deltar=geo.r-lastR;
         lastR = geo.r;
 
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
         float ActualStepLength = length(StepVec);
+        float drdl=deltar/max(ActualStepLength,1e-9);
+        ThetaInShell+=ActualStepLength/length(0.5*RayPos+0.5*LastPos)/(1.0+1000.0*drdl*drdl);
+
+
         RayDir = (ActualStepLength > 1e-7) ? StepVec / ActualStepLength : LastDir;
         
         //穿过奇环面
@@ -1899,6 +1911,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                              iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
                              clamp(PhysicalSpinA, -0.49, 0.49), 
                              PhysicalQ,
+                             ThetaInShell,
                              RayMarchPhase 
                              ); 
            

@@ -130,6 +130,8 @@ void GameScreen::OnEnter()
         menu->AddThrottle("BlackbodyIntensityExponent", &BlackHoleArgs.BlackbodyIntensityExponent);
         menu->AddThrottle("RedShiftColorExponent", &BlackHoleArgs.RedShiftColorExponent);
         menu->AddThrottle("RedShiftIntensityExponent", &BlackHoleArgs.RedShiftIntensityExponent);
+		menu->AddThrottle("PhotonRingBoost", &BlackHoleArgs.PhotonRingBoost);
+		menu->AddThrottle("PhotonRingColorTempBoost", &BlackHoleArgs.PhotonRingColorTempBoost);
         menu->AddThrottle("JetRedShiftIntensityExponent", &BlackHoleArgs.JetRedShiftIntensityExponent);
         menu->AddThrottle("JetBrightmut", &BlackHoleArgs.JetBrightmut);
         menu->AddThrottle("JetSaturation", &BlackHoleArgs.JetSaturation);

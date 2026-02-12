@@ -332,7 +332,7 @@ void FApplication::ExecuteMainRender()
         .Name = "BlackHoleArgs",
         .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","Grid","ObserverMode","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
-                     , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
+                     , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","PhotonRingBoost","PhotonRingColorTempBoost","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,
         .Binding = 1,
         .Usage = vk::DescriptorType::eUniformBuffer
@@ -694,6 +694,8 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackbodyIntensityExponent = 0.5;
                 BlackHoleArgs.RedShiftColorExponent = 3.0;
                 BlackHoleArgs.RedShiftIntensityExponent = 4.0;
+				BlackHoleArgs.PhotonRingBoost = 0.0;
+				BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
                 BlackHoleArgs.JetRedShiftIntensityExponent = 2.0;
                 BlackHoleArgs.JetBrightmut = 1.0;
                 BlackHoleArgs.JetSaturation = 0.0;

@@ -74,6 +74,8 @@ struct FBlackHoleArgs
     float BlackbodyIntensityExponent;
     float RedShiftColorExponent;
     float RedShiftIntensityExponent;
+    float PhotonRingBoost;
+    float PhotonRingColorTempBoost;
     float JetRedShiftIntensityExponent;
     float JetBrightmut;
     float JetSaturation;
