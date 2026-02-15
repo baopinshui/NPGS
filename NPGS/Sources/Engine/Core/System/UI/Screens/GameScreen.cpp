@@ -114,7 +114,7 @@ void GameScreen::OnEnter()
         menu->AddThrottle("Fov", &cfov);
         menu->AddLinear("Grid", &BlackHoleArgs.Grid, 0, 2);
         menu->AddLinear("Mode", &BlackHoleArgs.ObserverMode, 0, 1);
-        menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol);
+        menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol,0.1f);
         menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);
         menu->AddThrottle("Q", &BlackHoleArgs.Q, 0.1f);
         menu->AddThrottle("Mu", &BlackHoleArgs.Mu);
@@ -130,8 +130,11 @@ void GameScreen::OnEnter()
         menu->AddThrottle("BlackbodyIntensityExponent", &BlackHoleArgs.BlackbodyIntensityExponent);
         menu->AddThrottle("RedShiftColorExponent", &BlackHoleArgs.RedShiftColorExponent);
         menu->AddThrottle("RedShiftIntensityExponent", &BlackHoleArgs.RedShiftIntensityExponent);
+		menu->AddThrottle("HeatHaze", &BlackHoleArgs.HeatHaze);
+		menu->AddThrottle("BackgroundBrightmut", &BlackHoleArgs.BackgroundBrightmut);
 		menu->AddThrottle("PhotonRingBoost", &BlackHoleArgs.PhotonRingBoost);
 		menu->AddThrottle("PhotonRingColorTempBoost", &BlackHoleArgs.PhotonRingColorTempBoost);
+		menu->AddThrottle("BoostRot", &BlackHoleArgs.BoostRot);
         menu->AddThrottle("JetRedShiftIntensityExponent", &BlackHoleArgs.JetRedShiftIntensityExponent);
         menu->AddThrottle("JetBrightmut", &BlackHoleArgs.JetBrightmut);
         menu->AddThrottle("JetSaturation", &BlackHoleArgs.JetSaturation);

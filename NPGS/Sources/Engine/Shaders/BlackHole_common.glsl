@@ -28,6 +28,7 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 
     int   iGrid;                         //绘制网格
     int   iObserverMode;                 //观者模式，0静态，1落体
+
     float iUniverseSign;                 //相机所在空间侧。 +1.0正宇宙  -1.0反宇宙
                         
     float iBlackHoleTime;                //时间。单位 c*s/Rs
@@ -50,10 +51,12 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     float iRedShiftColorExponent;        //吸积盘频移——温度指数
     float iRedShiftIntensityExponent;    //吸积盘频移——亮度指数
 
+    float iHeatHaze;				     //热气流扰动强度
+    float iBackgroundBrightmut;		     //背景亮度乘数  
 
-    float iPhotonRingBoost;              //光子环增亮
-    float iPhotonRingColorTempBoost;     //光子环增亮
-
+    float iPhotonRingBoost;              //光子环亮度增亮
+    float iPhotonRingColorTempBoost;     //光子环颜色增蓝
+    float iBoostRot;                     //增强在自旋非0的非对称程度
     //吸积盘的亮度限制貌似写死2.2了
     //应该添加背景的频移 亮度和颜色限制系数
 
@@ -208,11 +211,19 @@ vec3 WavelengthToRgb(float wavelength) {
 
 vec4 SampleBackground(vec3 Dir, float Shift, float Status)
 {
-    vec4 Backcolor = textureLod(iBackground, Dir, min(1.0, textureQueryLod(iBackground, Dir).x));
-    if (Status > 1.5) { // Antiverse (Status == 2.0)
+    vec4 Backcolor;
+    if (iBlackHoleMassSol>=0.0)
+    {
+        Backcolor = textureLod(iBackground, Dir, min(1.0, textureQueryLod(iBackground, Dir).x));
+        if (Status > 1.5) { // Antiverse (Status == 2.0)
+            Backcolor = textureLod(iAntiground, Dir, min(1.0, textureQueryLod(iAntiground, Dir).x));
+        }
+    }else{
         Backcolor = textureLod(iAntiground, Dir, min(1.0, textureQueryLod(iAntiground, Dir).x));
+        if (Status > 1.5) { // Antiverse (Status == 2.0)
+            Backcolor = textureLod(iBackground, Dir, min(1.0, textureQueryLod(iBackground, Dir).x));
+        }
     }
-
     // 频移着色
     float BackgroundShift = Shift;
     vec3 Rcolor = Backcolor.r * 1.0 * WavelengthToRgb(max(453.0, 645.0 / BackgroundShift));
@@ -223,7 +234,7 @@ vec4 SampleBackground(vec3 Dir, float Shift, float Status)
     float RStrength = 0.3 * Scolor.r + 0.6 * Scolor.g + 0.1 * Scolor.b;
     Scolor *= OStrength / max(RStrength, 0.001);
     
-    return vec4(Scolor, Backcolor.a) * pow(Shift, 4.0);
+    return iBackgroundBrightmut*vec4(Scolor, Backcolor.a) * pow(Shift, 4.0);
 }
 
 
@@ -780,8 +791,322 @@ void StepGeodesicRK4_Optimized(
     P = finalP;
 }
 // =============================================================================
-// SECTION 6: 吸积盘与喷流,经纬网
+// SECTION 6: 热折射，吸积盘与喷流,经纬网
 // =============================================================================
+
+#define ENABLE_HEAT_HAZE        1       // 1 = 开启热浪折射
+#define HAZE_STRENGTH           0.03    // 折射强度
+#define HAZE_SCALE              5.2     // 噪声频率
+#define HAZE_DENSITY_THRESHOLD  0.1     // 密度阈值
+#define HAZE_LAYER_THICKNESS    0.8     // 厚度范围倍数
+#define HAZE_RADIAL_EXPAND      0.8     // 径向范围倍数
+#define HAZE_ROT_SPEED          0.2     // 盘热气旋转速度系数 (相对于开普勒速度)
+#define HAZE_FLOW_SPEED         0.15     // 喷流速度系数
+#define HAZE_PROBE_STEPS        12      // 试探步数
+#define HAZE_STEP_SIZE          0.06    // 每步长度 (Rg)
+
+#define HAZE_DEBUG_MASK         0       // 1 = 显示热气遮罩 Debug
+#define HAZE_DEBUG_VECTOR       0       // 1 = 显示力场向量 Debug
+#define HAZE_DISK_DENSITY_REF   (iBrightmut * 30.0) 
+#define HAZE_JET_DENSITY_REF    (iJetBrightmut * 1.0)
+
+
+//heat haze基本函数
+// heat haze热浪折射，噪声准备
+float HazeNoise01(vec3 p) {
+    return PerlinNoise(p) * 0.5 + 0.5;
+}
+
+// 基础 3D 噪声采样
+float GetBaseNoise(vec3 p)
+{
+    float baseScale = HAZE_SCALE * 0.4; 
+    vec3 pos = p * baseScale;
+    
+    // 给采样坐标加一个任意角度的旋转矩阵，防止噪声晶格与吸积盘平面(XZ)对齐
+    const mat3 rotNoise = mat3(
+         0.80,  0.60,  0.00,
+        -0.48,  0.64,  0.60,
+        -0.36,  0.48, -0.80
+    );
+    pos = rotNoise * pos;
+
+    float n1 = HazeNoise01(pos); 
+    float n2 = HazeNoise01(pos * 3.0 + vec3(13.5, -2.4, 4.1));
+
+    return n1 * 0.6 + n2 * 0.4; 
+}
+
+// 计算吸积盘热浪遮罩
+float GetDiskHazeMask(vec3 pos_Rg, float InterRadius, float OuterRadius, float Thin, float Hopper)
+{
+    float r = length(pos_Rg.xz);
+    float y = abs(pos_Rg.y);
+    
+    float GeometricThin = Thin + max(0.0, (r - 3.0) * Hopper);
+    float diskThickRef = GeometricThin; 
+    
+    float boundaryY = max(0.2, diskThickRef * HAZE_LAYER_THICKNESS);
+    
+    float vMaskDisk = 1.0 - smoothstep(boundaryY * 0.5, boundaryY * 1.5, y);
+    float rMaskDisk = smoothstep(InterRadius * 0.3, InterRadius * 0.8, r) * 
+                      (1.0 - smoothstep(OuterRadius * HAZE_RADIAL_EXPAND * 0.75, OuterRadius * HAZE_RADIAL_EXPAND, r));
+    
+    return vMaskDisk * rMaskDisk;
+}
+
+// 计算喷流热浪遮罩
+float GetJetHazeMask(vec3 pos_Rg, float InterRadius, float OuterRadius)
+{
+    float r = length(pos_Rg.xz);
+    float y = abs(pos_Rg.y);
+    float RhoSq = r * r;
+    
+    // 逻辑复用自 JetColor
+    // 喷流主要由两部分组成：核心 (Core) 和 外壳 (Shell)
+    
+    // 1. 核心半径估计 (Jet Core)
+    float coreRadiusLimit = sqrt(2.0 * InterRadius * InterRadius + 0.03 * 0.03 * y * y);
+    
+    // 2. 外壳半径估计 (Jet Shell)
+    // 对应 JetColor: Rho < 1.3 * InterRadius + 0.25 * Wid
+    float shellRadiusLimit = 1.3 * InterRadius + 0.25 * y;
+    
+    // 取两者较大的作为热浪边界，并稍微膨胀以覆盖辉光
+    float maxJetRadius = max(coreRadiusLimit, shellRadiusLimit) * 1.2;
+    
+    // 3. 垂直长度限制
+    // 喷流在 OuterRadius 附近开始衰减
+    float jLen = OuterRadius * 0.8;
+    
+    // 4. 生成遮罩
+    float rMaskJet = 1.0 - smoothstep(maxJetRadius * 0.8, maxJetRadius * 1.1, r);
+    float hMaskJet = 1.0 - smoothstep(jLen * 0.75, jLen * 1.0, y);
+    
+    // 喷流不应在吸积盘内部太强 (y 接近 0 时)，虽然 JetColor 也有处理，
+    // 这里加一个平滑淡入防止在盘中心产生奇怪的重叠
+    float startYMask = smoothstep(InterRadius * 0.5, InterRadius * 1.5, y);
+    
+    return rMaskJet * hMaskJet * startYMask;
+}
+
+// 包围盒检测优化
+bool IsInHazeBoundingVolume(vec3 pos, float probeDist, float OuterRadius) {
+    float maxR = OuterRadius * 1.2;
+    float maxY = maxR; // 简化包围盒为球或大圆柱
+    float r = length(pos);
+    // 如果当前点在包围盒内，或者射线方向延伸 probeDist 后能碰到包围盒
+    // 这里做个最简单的剔除：如果离原点太远且向外射，则忽略
+    if (r > maxR + probeDist) return false;
+    return true;
+}
+
+// 计算热浪偏移力
+vec3 GetHazeForce(vec3 pos_Rg, float time, float PhysicalSpinA, float PhysicalQ, 
+                  float InterRadius, float OuterRadius, float Thin, float Hopper,
+                  float AccretionRate)
+{
+    // =========================
+    // 1. 吸积盘热浪强度计算
+    // =========================
+    float dDens = HAZE_DISK_DENSITY_REF;
+    float dLimitAbs = 20.0;
+    float dFactorAbs = clamp((log(dDens/dLimitAbs)) / 2.302585, 0.0, 1.0);
+    // 这里喷流密度仅作为参考
+    float jDensRef = HAZE_JET_DENSITY_REF; 
+    float dFactorRel = 1.0;
+    if (jDensRef > 1e-20) dFactorRel = clamp((log(dDens/jDensRef)) / 2.302585, 0.0, 1.0);
+    float diskHazeStrength = dFactorAbs * dFactorRel;
+
+    // =========================
+    // 2. 喷流热浪强度计算
+    // =========================
+    float jetHazeStrength = 0.0;
+    float JetThreshold = 1e-2;
+    
+    // 如果吸积率低于阈值，直接优化跳过
+    if (AccretionRate >= JetThreshold)
+    {
+        // 在 Log 空间内，从 1e-2 到 1.0 进行平滑过渡 (0.0 -> 1.0)
+        // 超过 1.0 则保持最大强度
+        float logRate = log(AccretionRate);
+        float logMin  = log(JetThreshold);
+        float logMax  = log(1.0);
+        
+        float intensity = clamp((logRate - logMin) / (logMax - logMin), 0.0, 1.0);
+        jetHazeStrength = intensity;
+    }
+
+    // 早期退出优化
+    if (diskHazeStrength <= 0.001 && jetHazeStrength <= 0.001) return vec3(0.0);
+
+    vec3 totalForce = vec3(0.0);
+    float eps = 0.1;
+
+    // =========================
+    // 3. 动态循环周期计算
+    // =========================
+    float rotSpeedBase = 100.0 * HAZE_ROT_SPEED; 
+    float jetSpeedBase = 50.0 * HAZE_FLOW_SPEED;
+    
+    // 计算内边缘处的基准角速度 (用于确定噪声刷新的物理节奏)
+    // M=0.5 -> Rs=1.0. 在 Rg 空间计算.
+    float ReferenceOmega = GetKeplerianAngularVelocity(6.0, 1.0, PhysicalSpinA, PhysicalQ);
+    
+    // 设定一个合理的物理周期，内圈每旋转一定圈数，噪声完成一次淡入淡出循环。
+    float AdaptiveFrequency = abs(ReferenceOmega * rotSpeedBase) / (2.0 * kPi * 5.14);
+    
+    // 限制一下最小频率防止除零或过慢
+    AdaptiveFrequency = max(AdaptiveFrequency, 0.1);
+
+    float flowTime = time * AdaptiveFrequency;
+    
+    float phase1 = fract(flowTime);
+    float phase2 = fract(flowTime + 0.5);
+    
+    // 三角波权重 (0->1->0)
+    float weight1 = 1.0 - abs(2.0 * phase1 - 1.0);
+    float weight2 = 1.0 - abs(2.0 * phase2 - 1.0);
+    
+    bool doLayer1 = weight1 > 0.05;
+    bool doLayer2 = weight2 > 0.05;
+    
+    float wTotal = (doLayer1 ? weight1 : 0.0) + (doLayer2 ? weight2 : 0.0);
+    float w1_norm = (doLayer1 && wTotal > 0.0) ? (weight1 / wTotal) : 0.0;
+    float w2_norm = (doLayer2 && wTotal > 0.0) ? (weight2 / wTotal) : 0.0;
+
+    // 时间偏移
+    float t_offset1 = phase1 - 0.5;
+    float t_offset2 = phase2 - 0.5;
+
+    // 引入垂直漂移：让噪声采样点随时间在Y轴移动，消除单调重复感
+    float VerticalDrift1 = t_offset1 * 1.0; 
+    float VerticalDrift2 = t_offset2 * 1.0;
+    
+    // -----------------------------------------------------
+    // A. 吸积盘热浪
+    // -----------------------------------------------------
+    if (diskHazeStrength > 0.001)
+    {
+        float maskDisk = GetDiskHazeMask(pos_Rg, InterRadius, OuterRadius, Thin, Hopper);
+        
+        if (maskDisk > 0.001)
+        {
+            float r_local = length(pos_Rg.xz);
+            float omega = GetKeplerianAngularVelocity(r_local, 1.0, PhysicalSpinA, PhysicalQ);
+            
+            vec3 gradWorldCombined = vec3(0.0);
+            float valCombined = 0.0;
+
+            if (doLayer1)
+            {
+                float angle1 = omega * rotSpeedBase * t_offset1;
+                float c1 = cos(angle1); float s1 = sin(angle1);
+                vec3 pos1 = pos_Rg;
+                pos1.x = pos_Rg.x * c1 - pos_Rg.z * s1;
+                pos1.z = pos_Rg.x * s1 + pos_Rg.z * c1;
+                
+                float val1 = GetBaseNoise(pos1);
+                float nx1 = GetBaseNoise(pos1 + vec3(eps, 0.0, 0.0));
+                float ny1 = GetBaseNoise(pos1 + vec3(0.0, eps, 0.0));
+                float nz1 = GetBaseNoise(pos1 + vec3(0.0, 0.0, eps));
+                vec3 grad1 = vec3(nx1 - val1, ny1 - val1, nz1 - val1);
+                
+                vec3 gradWorld1;
+                gradWorld1.x = grad1.x * c1 + grad1.z * s1;
+                gradWorld1.y = grad1.y;
+                gradWorld1.z = -grad1.x * s1 + grad1.z * c1;
+                
+                gradWorldCombined += gradWorld1 * w1_norm;
+                valCombined += val1 * w1_norm;
+            }
+            
+            if (doLayer2)
+            {
+                float angle2 = omega * rotSpeedBase * t_offset2;
+                float c2 = cos(angle2); float s2 = sin(angle2);
+                vec3 pos2 = pos_Rg;
+                pos2.x = pos_Rg.x * c2 - pos_Rg.z * s2;
+                pos2.z = pos_Rg.x * s2 + pos_Rg.z * c2;
+                
+                float val2 = GetBaseNoise(pos2);
+                float nx2 = GetBaseNoise(pos2 + vec3(eps, 0.0, 0.0));
+                float ny2 = GetBaseNoise(pos2 + vec3(0.0, eps, 0.0));
+                float nz2 = GetBaseNoise(pos2 + vec3(0.0, 0.0, eps));
+                vec3 grad2 = vec3(nx2 - val2, ny2 - val2, nz2 - val2);
+                
+                vec3 gradWorld2;
+                gradWorld2.x = grad2.x * c2 + grad2.z * s2;
+                gradWorld2.y = grad2.y;
+                gradWorld2.z = -grad2.x * s2 + grad2.z * c2;
+                
+                gradWorldCombined += gradWorld2 * w2_norm;
+                valCombined += val2 * w2_norm;
+            }
+            
+            float cloud = max(0.0, valCombined - HAZE_DENSITY_THRESHOLD);
+            cloud /= (1.0 - HAZE_DENSITY_THRESHOLD);
+            cloud = pow(cloud, 1.5);
+            
+            totalForce += gradWorldCombined * maskDisk * cloud * diskHazeStrength;
+        }
+    }
+
+    // -----------------------------------------------------
+    // B. 喷流热浪
+    // -----------------------------------------------------
+    if (jetHazeStrength > 0.001)
+    {
+        float maskJet = GetJetHazeMask(pos_Rg, InterRadius, OuterRadius);
+        
+        if (maskJet > 0.001)
+        {
+            float v_jet_mag = 0.9; 
+            
+            float dist1 = v_jet_mag * jetSpeedBase * t_offset1;
+            float dist2 = v_jet_mag * jetSpeedBase * t_offset2;
+            
+            vec3 gradCombined = vec3(0.0);
+            float valCombined = 0.0;
+            
+            if (doLayer1)
+            {
+                vec3 pos1 = pos_Rg;
+                pos1.y -= sign(pos_Rg.y) * dist1;
+                float val1 = GetBaseNoise(pos1);
+                float nx1 = GetBaseNoise(pos1 + vec3(eps, 0.0, 0.0));
+                float ny1 = GetBaseNoise(pos1 + vec3(0.0, eps, 0.0));
+                float nz1 = GetBaseNoise(pos1 + vec3(0.0, 0.0, eps));
+                vec3 grad1 = vec3(nx1 - val1, ny1 - val1, nz1 - val1);
+                gradCombined += grad1 * w1_norm;
+                valCombined += val1 * w1_norm;
+            }
+            
+            if (doLayer2)
+            {
+                vec3 pos2 = pos_Rg;
+                pos2.y -= sign(pos_Rg.y) * dist2;
+                float val2 = GetBaseNoise(pos2);
+                float nx2 = GetBaseNoise(pos2 + vec3(eps, 0.0, 0.0));
+                float ny2 = GetBaseNoise(pos2 + vec3(0.0, eps, 0.0));
+                float nz2 = GetBaseNoise(pos2 + vec3(0.0, 0.0, eps));
+                vec3 grad2 = vec3(nx2 - val2, ny2 - val2, nz2 - val2);
+                gradCombined += grad2 * w2_norm;
+                valCombined += val2 * w2_norm;
+            }
+            
+            float cloud = max(0.0, valCombined - 0.3-0.7*HAZE_DENSITY_THRESHOLD); // 喷流的heat haze相比吸积盘需要更多空隙，不然看着怪
+            cloud /= clamp((1.0 - 0.3-0.7*HAZE_DENSITY_THRESHOLD),0.0,1.0);
+            cloud = pow(cloud, 1.5);
+            
+            totalForce += gradCombined * maskJet * cloud * jetHazeStrength;
+        }
+    }
+
+    return totalForce;
+}
+
+
 
 vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                vec3 RayDir, vec3 LastRayDir,vec4 iP_cov, float iE_obs,
@@ -891,7 +1216,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
         
         // 计算内侧云参数与包围盒
         float InterCloudEffectiveRadius = (PosR - InterRadius) / min(OuterRadius - InterRadius, 12.0);
-        float InnerCloudBound = max(GeometricThin, Thin * 1.0) * (1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0));
+        float InnerCloudBound = max(GeometricThin, Thin * 1.0) * max(0.0,1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0));
         
         // 外层包围盒取主盘与内侧云的并集
         // GeometricThin * 1.5 是主盘噪声的包围盒，InnerCloudBound 是内侧云的包围盒
@@ -932,15 +1257,45 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  float PosTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
                  float PosLogarithmicTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-2.0 * log(max(1e-6, PosR))), sin(-2.0 * log(max(1e-6, PosR)))));
                  
-                 vec3 FluidVel = AngularVelocity * vec3(SamplePos.z, 0.0, -SamplePos.x);
-                 vec4 U_fluid_unnorm = vec4(FluidVel, 1.0); 
-                 KerrGeometry geo_sample;
-                 ComputeGeometryScalars(SamplePos, PhysicalSpinA, PhysicalQ, 1.0, 1.0, geo_sample);
-                 vec4 U_fluid_lower = LowerIndex(U_fluid_unnorm, geo_sample);
-                 float norm_sq = dot(U_fluid_unnorm, U_fluid_lower);
-                 vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
-                 float E_emit = -dot(iP_cov, U_fluid);
-                 float FreqRatio =  1.0/ max(1e-6, E_emit);
+                 
+                 //vec3 FluidVel = AngularVelocity * vec3(SamplePos.z, 0.0, -SamplePos.x);
+                 //vec4 U_fluid_unnorm = vec4(FluidVel, 1.0); 
+                 //KerrGeometry geo_sample;
+                 //ComputeGeometryScalars(SamplePos, PhysicalSpinA, PhysicalQ, 1.0, 1.0, geo_sample);
+                 //vec4 U_fluid_lower = LowerIndex(U_fluid_unnorm, geo_sample);
+                 //float norm_sq = dot(U_fluid_unnorm, U_fluid_lower);
+                 //vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
+                 //float E_emit = -dot(iP_cov, U_fluid);
+                 //float FreqRatio =  1.0/ max(1e-6, E_emit);
+                 
+
+                 // [修改]解析法计算红移
+                 float inv_r = 1.0 / max(1e-6, PosR);
+                 float inv_r2 = inv_r * inv_r;
+                 
+                 // 无量纲势能项 (M=0.5 -> 2M=1.0)
+                 float V_pot = inv_r - (PhysicalQ * PhysicalQ) * inv_r2;
+                 
+                 // 赤道面度规分量 g_uv
+                 float g_tt = -(1.0 - V_pot);
+                 float g_tphi = -PhysicalSpinA * V_pot; 
+                 float g_phiphi = PosR * PosR + PhysicalSpinA * PhysicalSpinA + PhysicalSpinA * PhysicalSpinA * V_pot;
+                 
+                 // 归一化条件 U.U = -1 => norm * (u^t)^2 = -1
+                 float norm_metric = g_tt + 2.0 * AngularVelocity * g_tphi + AngularVelocity * AngularVelocity * g_phiphi;
+                 
+                 // 防止超光速区域 (norm >= 0) 导致崩溃
+                 float min_norm = -0.01; 
+                 float u_t = inversesqrt(max(abs(min_norm), -norm_metric));
+                 
+                 // 计算角动量 P_phi = x*P_z - z*P_x (这里符号要反一下)
+                 float P_phi = - SamplePos.x * iP_cov.z + SamplePos.z * iP_cov.x;
+                 
+                 // 计算发射能量 E_emit = -u^mu P_mu = u^t * (iE_obs - Omega * P_phi)
+                 // 注：iE_obs 即为传入的守恒能量 E_conserved
+                 float E_emit = u_t * (iE_obs - AngularVelocity * P_phi);
+                 float FreqRatio = 1.0 / max(1e-6, E_emit);
+                 // [修改]解析法计算红移结束
 
 
 
@@ -988,8 +1343,8 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                      SampleColor.xyz *= max(0.0, (0.2 + 2.0 * sqrt(max(0.0, RelHeight * RelHeight + 0.001))));
                  }
     
-                 SampleColor.xyz *=1.0+      iPhotonRingBoost          *smoothstep(0.5,4.0,ThetaInShell);
-                 VisionTemperature *= 1.0 + iPhotonRingColorTempBoost * smoothstep(0.5,4.0,ThetaInShell);
+                 SampleColor.xyz *=1.0+    clamp(  iPhotonRingBoost        ,0.0,10.0)  *clamp(0.3*ThetaInShell-0.1,0.0,1.0);
+                 VisionTemperature *= 1.0 +clamp( iPhotonRingColorTempBoost,0.0,10.0) * clamp(0.3*ThetaInShell-0.1,0.0,1.0);
                  // 内侧点缀云
                  // 计算内侧独立坐标系
                  float InnerAngVel = GetKeplerianAngularVelocity(3.0, 1.0, PhysicalSpinA, PhysicalQ);
@@ -1025,8 +1380,8 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  SampleColor *= BoostFactor;
                  SampleColor.xyz *= mix(1.0, max(1.0, abs(DirVec.y) / 0.2), clamp(0.3 - 0.6 * (PerturbedThickness / max(1e-6, Density) - 1.0), 0.0, 0.3));
                  SampleColor.xyz *=1.0+1.2*max(0.0,max(0.0,min(1.0,3.0-2.0*Thin))*min(0.5,1.0-5.0*Hopper));
-                 SampleColor.xyz *= Brightmut;
-                 SampleColor.a   *= Darkmut;
+                 SampleColor.xyz *= Brightmut*clamp(4.0-18.0*(PosR-InterRadius)/(OuterRadius - InterRadius),1.0,4.0);
+                 SampleColor.a   *= Darkmut*clamp(5.0-24.0*(PosR-InterRadius)/(OuterRadius - InterRadius),1.0,5.0);
                  
                  vec4 StepColor = SampleColor * StepSize;
                  
@@ -1633,6 +1988,10 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float BackgroundShiftMax = 2.0;
     float ShiftMax = 1.0; 
     float CurrentUniverseSign = iUniverseSign;
+    if (iBlackHoleMassSol<0.0)
+    {
+        CurrentUniverseSign=-CurrentUniverseSign;
+    }
 
     // -------------------------------------------------------------------------
     // 相机系统与坐标变换
@@ -1686,11 +2045,177 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float GravityFade = CubicInterpolate(max(min(1.0 - (length(RayPosLocal) - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
 
     if (bShouldContinueMarchRay) {
-       P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
+       P_cov = GetInitialMomentum(RayDir, X, iObserverMode, CurrentUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
        //P_cov=vec4(-RayDir,-1.0);//debug
     }
     E_conserved = -P_cov.w;
     //ApplyHamiltonianCorrectionFORTEST(P_cov, X, E_conserved, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign);//debug
+    //[修改]heat haze主逻辑
+    if(iHeatHaze>0.0&& iBlackHoleMassSol>0.0)
+    {
+        // 1. 坐标与参数准备 (Rg 空间)
+        vec3 pos_Rg_Start = X.xyz; 
+        vec3 rayDirNorm = normalize(RayDir);
+
+        float totalProbeDist = float(HAZE_PROBE_STEPS) * HAZE_STEP_SIZE;
+        
+        // [适配] 使用 iTime，取模防止噪声溢出
+        float hazeTime = mod(iBlackHoleTime, 1000.0); 
+
+        // --- Debug: 体积光线步进可视化 ---
+        #if HAZE_DEBUG_MASK == 1
+        {
+            float debugAccum = 0.0;
+            float debugStep = 1.0; 
+            vec3 debugPos = pos_Rg_Start;
+            
+            // 为了Debug重算一遍参数，与 GetHazeForce 保持一致
+            float rotSpeedBase = 100.0 * HAZE_ROT_SPEED;
+            float jetSpeedBase = 50.0 * HAZE_FLOW_SPEED;
+            
+            // 参数与 GetHazeForce 同步
+            float ReferenceOmega = GetKeplerianAngularVelocity(6.0, 1.0, PhysicalSpinA, PhysicalQ);
+            float AdaptiveFrequency = abs(ReferenceOmega * rotSpeedBase) / (2.0 * kPi * 5.14);
+            AdaptiveFrequency = max(AdaptiveFrequency, 0.1);
+            float flowTime = hazeTime * AdaptiveFrequency;
+
+            float phase1 = fract(flowTime); float phase2 = fract(flowTime + 0.5);
+            float weight1 = 1.0 - abs(2.0 * phase1 - 1.0); float weight2 = 1.0 - abs(2.0 * phase2 - 1.0);
+            float t_offset1 = phase1 - 0.5; float t_offset2 = phase2 - 0.5;
+            
+            // 引入垂直漂移
+            float VerticalDrift1 = t_offset1 * 1.0; 
+            float VerticalDrift2 = t_offset2 * 1.0;
+
+            bool doLayer1 = weight1 > 0.05;
+            bool doLayer2 = weight2 > 0.05;
+            
+            float wTotal = (doLayer1 ? weight1 : 0.0) + (doLayer2 ? weight2 : 0.0);
+            float w1_norm = (doLayer1 && wTotal > 0.0) ? (weight1 / wTotal) : 0.0;
+            float w2_norm = (doLayer2 && wTotal > 0.0) ? (weight2 / wTotal) : 0.0;
+
+            for(int k=0; k<100; k++)
+            {
+                float valCombined = 0.0;
+
+                // A. 盘部分 Debug
+                float maskDisk = GetDiskHazeMask(debugPos, iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper);
+                if (maskDisk > 0.001) {
+                    float r_local = length(debugPos.xz);
+                    float omega = GetKeplerianAngularVelocity(r_local, 1.0, PhysicalSpinA, PhysicalQ);
+                    
+                    float vDisk = 0.0;
+                    if (doLayer1) {
+                        float angle1 = omega * rotSpeedBase * t_offset1;
+                        float c1 = cos(angle1); float s1 = sin(angle1);
+                        vec3 pos1 = debugPos;
+                        pos1.x = debugPos.x * c1 - debugPos.z * s1;
+                        pos1.z = debugPos.x * s1 + debugPos.z * c1;
+                        pos1.y += VerticalDrift1; 
+                        vDisk += GetBaseNoise(pos1) * w1_norm;
+                    }
+                    if (doLayer2) {
+                        float angle2 = omega * rotSpeedBase * t_offset2;
+                        float c2 = cos(angle2); float s2 = sin(angle2);
+                        vec3 pos2 = debugPos;
+                        pos2.x = debugPos.x * c2 - debugPos.z * s2;
+                        pos2.z = debugPos.x * s2 + debugPos.z * c2;
+                        pos2.y += VerticalDrift2;
+                        vDisk += GetBaseNoise(pos2) * w2_norm;
+                    }
+                    valCombined += maskDisk * max(0.0, vDisk - HAZE_DENSITY_THRESHOLD);
+                }
+
+                // B. 喷流部分 Debug
+                float maskJet = GetJetHazeMask(debugPos, iInterRadiusRs, iOuterRadiusRs);
+                if (maskJet > 0.001) {
+                    float v_jet_mag = 0.9;
+                    float vJet = 0.0;
+                    
+                    if (doLayer1) {
+                        float dist1 = v_jet_mag * jetSpeedBase * t_offset1;
+                        vec3 pos1 = debugPos; pos1.y -= sign(debugPos.y) * dist1;
+                        vJet += GetBaseNoise(pos1) * w1_norm;
+                    }
+                    if (doLayer2) {
+                        float dist2 = v_jet_mag * jetSpeedBase * t_offset2;
+                        vec3 pos2 = debugPos; pos2.y -= sign(debugPos.y) * dist2;
+                        vJet += GetBaseNoise(pos2) * w2_norm;
+                    }
+                    valCombined += maskJet * max(0.0, vJet - HAZE_DENSITY_THRESHOLD);
+                }
+                
+                debugAccum += valCombined * 0.1; 
+                debugPos += rayDirNorm * debugStep;
+            }
+            
+            res.Status = 3.0; // Opaque
+            res.AccumColor = vec4(vec3(min(1.0, debugAccum)), 1.0);
+            return res;
+        }
+        #endif
+
+        // 2. 几何剔除优化
+        if (IsInHazeBoundingVolume(pos_Rg_Start, totalProbeDist, iOuterRadiusRs)) 
+        {
+            vec3 accumulatedForce = vec3(0.0);
+            float totalWeight = 0.0;
+
+            // 3. 循环累积探测
+            for (int i = 0; i < HAZE_PROBE_STEPS; i++)
+            {
+                float marchDist = float(i + 1) * HAZE_STEP_SIZE; 
+                vec3 probePos_Rg = pos_Rg_Start + rayDirNorm * marchDist;
+
+                float t = float(i+1) / float(HAZE_PROBE_STEPS);
+                float weight = min(min(3.0*t, 1.0), 3.05 - 3.0*t);
+                
+                vec3 forceSample = GetHazeForce(probePos_Rg, hazeTime, PhysicalSpinA, PhysicalQ,
+                                              iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper,
+                                              iAccretionRate);
+                
+                accumulatedForce += forceSample * weight;
+                totalWeight += weight;
+            }
+
+            vec3 avgHazeForce = accumulatedForce / max(0.001, totalWeight);
+
+            // --- Debug: 向量可视化 ---
+            #if HAZE_DEBUG_VECTOR == 1
+                if (length(avgHazeForce) > 1e-4) {
+                    res.Status = 3.0;
+                    vec3 debugVec = normalize(avgHazeForce) * 0.5 + 0.5;
+                    debugVec *= (0.5 + 10.0 * length(avgHazeForce)); 
+                    res.AccumColor = vec4(debugVec, 1.0);
+                    return res;
+                }
+            #endif
+
+            // 4. 物理偏转应用
+            float forceMagSq = iHeatHaze*dot(avgHazeForce, avgHazeForce);
+            if (forceMagSq > 1e-10)
+            {
+                // 投影到垂直平面，只改变方向
+                vec3 forcePerp = avgHazeForce - dot(avgHazeForce, rayDirNorm) * rayDirNorm;
+                
+                // 施加力度系数
+                vec3 deflection = forcePerp * HAZE_STRENGTH * 25.0; 
+                
+                // 修改初始动量 (协变动量空间部分 P_i)
+                P_cov.xyz += deflection;
+                
+                // 重新归一化以保持能量守恒 (E_conserved = -P_t 保持不变，但 P^u P_u = 0 需要维持)
+                // 原代码后续循环依赖 P_cov 且会重新计算 E，这里简单微扰动量方向即可。
+                // 实际上，为了保持光子性质 (null geodesic)，改变 P.xyz 后 P_t (或 E) 可能不再匹配。
+                // 但由于后续 StepGeodesicRK4 会用 E 重新校准 P，这里只需直接加上扰动。
+                
+                // 同步更新 RayDir (用于第一步步进方向)
+                RayDir = normalize(RayDir + deflection * 0.1); 
+                LastDir = RayDir;
+            }
+        }
+    }
+    //[修改]heat haze主逻辑结束
     // -------------------------------------------------------------------------
     // 初始合法性检查与终结半径
     // -------------------------------------------------------------------------
@@ -1756,7 +2281,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     }
     
     float ProgradePhotonRadius = r;
-
     float MaxStep=150.0+300.0/(1.0+1000.0*(1.0-iSpin*iSpin-iQ*iQ)*(1.0-iSpin*iSpin-iQ*iQ));
     if(bIsNakedSingularity) MaxStep=450;//150.0+300.0/(1.0+10.0*(1.0-iSpin*iSpin-iQ*iQ)*(1.0-iSpin*iSpin-iQ*iQ));
     // -------------------------------------------------------------------------
@@ -1885,15 +2409,18 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         //}
         StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, geo, k1);
         float deltar=geo.r-lastR;
-        lastR = geo.r;
+        
 
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
         float ActualStepLength = length(StepVec);
         float drdl=deltar/max(ActualStepLength,1e-9);
-        ThetaInShell+=ActualStepLength/length(0.5*RayPos+0.5*LastPos)/(1.0+1000.0*drdl*drdl);
 
-
+        float rotfact=clamp(1.0   +   iBoostRot* dot(-StepVec,vec3(X.z,0,-X.x)) /ActualStepLength/length(X.xz)  *clamp(iSpin,-1.0,1.0)   ,0.0,2.0)   ;
+        if( geo.r<1.6+pow(abs(iSpin),0.666666)){
+        ThetaInShell+=ActualStepLength/(0.5*lastR + 0.5*geo.r)/(1.0+1000.0*drdl*drdl)*rotfact*clamp(11.0-10.0*(iSpin*iSpin+iQ*iQ),0.0,1.0);
+        }
+        lastR = geo.r;
         RayDir = (ActualStepLength > 1e-7) ? StepVec / ActualStepLength : LastDir;
         
         //穿过奇环面
@@ -1904,7 +2431,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
 
         //吸积盘和喷流
-        if (CurrentUniverseSign > 0.0) 
+        if (CurrentUniverseSign > 0.0&& iBlackHoleMassSol>0.0) 
         {
            Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
                              iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 

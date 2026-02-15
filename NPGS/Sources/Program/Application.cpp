@@ -332,8 +332,8 @@ void FApplication::ExecuteMainRender()
         .Name = "BlackHoleArgs",
         .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","Grid","ObserverMode","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
-                     , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","PhotonRingBoost","PhotonRingColorTempBoost","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
-        .Set = 0,
+                     , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
+        .Set = 0,                                                                                          
         .Binding = 1,
         .Usage = vk::DescriptorType::eUniformBuffer
     };
@@ -655,7 +655,7 @@ void FApplication::ExecuteMainRender()
 
 
         {
-            float Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
+            float Rs = 2.0 * abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
             if (FrameCount == 0)
             {
                 GameArgs.Resolution = glm::vec2(_WindowSize.width, _WindowSize.height);
@@ -682,20 +682,23 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.Spin = 1.0f;
                 BlackHoleArgs.Q = 0.0f;
                 BlackHoleArgs.Mu = 1.0f;
-                BlackHoleArgs.AccretionRate = (0.01);
-                BlackHoleArgs.InterRadiusRs = 2.1;
-                BlackHoleArgs.OuterRadiusRs = 20;
-                BlackHoleArgs.ThinRs = 0.671;
-                BlackHoleArgs.Hopper = 0.263;
-                BlackHoleArgs.Brightmut = 0.727;
-                BlackHoleArgs.Darkmut = 0.426;
+                BlackHoleArgs.AccretionRate = (5e-4);
+                BlackHoleArgs.InterRadiusRs = 1.5;
+                BlackHoleArgs.OuterRadiusRs = 25;
+                BlackHoleArgs.ThinRs = 0.75;
+                BlackHoleArgs.Hopper = 0.24;
+                BlackHoleArgs.Brightmut = 1.0;
+                BlackHoleArgs.Darkmut = 0.5;
                 BlackHoleArgs.Reddening = 0.3;
                 BlackHoleArgs.Saturation = 0.5;
                 BlackHoleArgs.BlackbodyIntensityExponent = 0.5;
                 BlackHoleArgs.RedShiftColorExponent = 3.0;
                 BlackHoleArgs.RedShiftIntensityExponent = 4.0;
-				BlackHoleArgs.PhotonRingBoost = 0.0;
-				BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
+				BlackHoleArgs.HeatHaze = 1.0;
+				BlackHoleArgs.BackgroundBrightmut = 1.0;
+				BlackHoleArgs.PhotonRingBoost = 7.0;
+				BlackHoleArgs.PhotonRingColorTempBoost = 2.0;
+				BlackHoleArgs.BoostRot = 0.75;
                 BlackHoleArgs.JetRedShiftIntensityExponent = 2.0;
                 BlackHoleArgs.JetBrightmut = 1.0;
                 BlackHoleArgs.JetSaturation = 0.0;
@@ -718,12 +721,12 @@ void FApplication::ExecuteMainRender()
                 ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgsPrepass", PrepassArgs);
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
-                BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
+                BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0f, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
                 BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
             }
 
-            Rs = 2.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
+            Rs = 2.0 * abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
             BlackHoleArgs.BlendWeight = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs / 0.00000465)), 0.5), 0.06)));
             if (!(abs(glm::quat((lastdir - BlackHoleArgs.InverseCamRot)).w - 0.5) < 0.001 * _DeltaTime || abs(glm::quat((lastdir - BlackHoleArgs.InverseCamRot)).w - 0.0) < 0.001 * _DeltaTime) ||
                 glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePosRs)) > (glm::length(glm::vec3(LastBlackHoleRelativePos)) - 1.0) * 0.006 * _DeltaTime)
