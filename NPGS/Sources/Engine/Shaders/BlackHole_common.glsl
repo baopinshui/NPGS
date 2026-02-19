@@ -2430,7 +2430,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     // 1. 非裸奇点 (视界存在)
     // 2. 在正宇宙 (CurrentUniverseSign > 0)
     // 3. 当前光线还需要继续步进 (bShouldContinueMarchRay)
-    if (!bIsNakedSingularity && CurrentUniverseSign > 0.0 && bShouldContinueMarchRay)
+    if (!bIsNakedSingularity && CurrentUniverseSign > 0.0 && bShouldContinueMarchRay && iGrid==0)
     {
         // 预计算剔除启动的阈值半径
         float CullingStartRadius;
@@ -2495,176 +2495,184 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                     float CosOF_Stat = sqrt(max(0.0, 1.0 - SinOF_Stat * SinOF_Stat));
                     
                     float AngleOF = GetDropFrameAngle(SinOF_Stat, CosOF_Stat, r, M, Q, a_abs, iObserverMode);
-                    
-                    // --- 2. 赤道视角 (Equator View) ---
-                    // A点 (缺口/顺行): 对应方程减号项(-2a...), 且取较小根
-                    float u_A = SolveQuarticU(M, Q, a_abs, -1.0, true); 
-                    float r_A_rad = (u_A * u_A + Q2) / M;
+                    float LatFactor = abs(X.y) / length(X.xyz);
 
-                    float u_B = SolveQuarticU(M, Q, a_abs, 1.0, true); 
-                    float r_B_rad = (u_B * u_B + Q2) / M;
-                    
-                    float safe_a = max(1e-5, a_abs);
-                    // Xi_A (缺口侧)
-                    // Formula: xi = (r^2(3M-r) - a^2(M+r) - 2Q^2r) / (a(r-M))
-                    float num_A = r_A_rad * r_A_rad * (3.0 * M - r_A_rad) - a2 * (M + r_A_rad) - 2.0 * Q2 * r_A_rad;
-                    float xi_A = num_A / max(1e-9, safe_a * (r_A_rad - M));
-                    // Xi_B (凸起侧)
-                    float num_B = r_B_rad * r_B_rad * (3.0 * M - r_B_rad) - a2 * (M + r_B_rad) - 2.0 * Q2 * r_B_rad;
-                    float xi_B = num_B / max(1e-9, safe_a * (r_B_rad - M));
-
-                    float Mr_Q2_Shadow = 2.0 * M * r - Q2;
-                    float Sigma_Shadow = r * r; 
-                    // 计算 BL 度规分量 (用于静态投影公式)
-                    float g_tt_stat = -(1.0 - Mr_Q2_Shadow / Sigma_Shadow);
-                    float gtphi_stat = -a_abs * Mr_Q2_Shadow / Sigma_Shadow; 
-                    float D_cyl = gtphi_stat * gtphi_stat - g_tt_stat * (Sigma_Shadow + a2 + Mr_Q2_Shadow * a2 / Sigma_Shadow);
-                    float InvSqrtD = 1.0 / sqrt(max(1e-9, D_cyl));
-                    // 计算坐标系扭曲近似修正，Kerr-Schild 坐标系的径向与 Boyer-Lindquist 不同，存在 phi 方向的偏移。近似修正 a * r / Delta
-                    float TwistCorrection = safe_a * r / max(1e-5, Delta_r);
-
-                    float SinOA_Stat = abs((xi_A + TwistCorrection) * g_tt_stat + gtphi_stat) * InvSqrtD;
-                    float SinOB_Stat = abs((xi_B + TwistCorrection) * g_tt_stat + gtphi_stat) * InvSqrtD;
-                    
-                    // 计算 Cos (锐角)
-                    float CosOA_Stat = sqrt(max(0.0, 1.0 - SinOA_Stat * SinOA_Stat));
-                    float CosOB_Stat = sqrt(max(0.0, 1.0 - SinOB_Stat * SinOB_Stat));
-
-                    // 中心偏移 E
-                    // 经测试，若使用近似公式 a*(rE+M)/(rE-M) ，则结果偏大 (偏向B点)，且a*越大、相机r越小，偏差越明显。此外，使用2.0*a将偏B，使用1.0*a将偏A。故取中间值 a(近时)到a*5/3(远时) 作为基准。
-                    // 同时也叠加 TwistCorrection (因为坐标系扭曲是全局的)。
-                    float xi_E_Corrected = (1.6666-2.0/r) * safe_a + TwistCorrection;
-                    float SinOE_Stat = abs(xi_E_Corrected * g_tt_stat + gtphi_stat) * InvSqrtD;
-                    float CosOE_Stat = sqrt(max(0.0, 1.0 - SinOE_Stat * SinOE_Stat));
-                    
-                    // 转换为落体视角角度
-                    float AngleOA0 = GetDropFrameAngle(SinOA_Stat, CosOA_Stat, r, M, Q, a_abs, iObserverMode);
-                    float AngleOB0 = GetDropFrameAngle(SinOB_Stat, CosOB_Stat, r, M, Q, a_abs, iObserverMode);
-                    float AngleOE0 = GetDropFrameAngle(SinOE_Stat, CosOE_Stat, r, M, Q, a_abs, iObserverMode);
-                    // 垂直半轴 EC 在数学上可证明和相同Q的RN黑洞完全一致
-                    float AngleEC0 = GetShadowHalfAngleRN(r, M, Q, iObserverMode);
-                    
-                    // --- 3. 混合 ---
-                    float LatFactor = abs(RayPosLocal.y) / length(RayPosLocal); 
-                    // 调试：如何选择混合函数。需要是一些凹函数。
-                    float MixWA = clamp(tan(LatFactor*1.48)/10.98338,0.0,1.0);//指数函数在这里会前期太小、后期太大，所以用tan
-                    float MixWB = pow(LatFactor, 2.5);//基本确定2.5
-                    float MixWE = pow(LatFactor, 6.0);//基本确定6.0
-                    float MixWCD = pow(LatFactor, 0.75);//基本确定0.75
-                    
-                    float AngleOA = mix(AngleOA0, AngleOF, MixWA);
-                    float AngleOB = mix(AngleOB0, AngleOF, MixWB);
-                    float AngleEC = mix(AngleEC0, AngleOF, MixWCD);
-                    float AngleOE = mix(AngleOE0, 0.0,     MixWE);
-                    
-                    // --- 4. 视平面判定 (Screen Space Check) ---
-                    // 局部系，Y是自旋轴。ToCenterDir是视线反向
-                    vec3 SpinAxis = vec3(0.0, 1.0, 0.0);
-                    vec3 ScreenUp = normalize(SpinAxis - dot(SpinAxis, ToCenterDir) * ToCenterDir);
-                    vec3 ScreenRight = cross(ToCenterDir, ScreenUp);
-                    vec3 VecToPixel = normalize(RayDir - dot(RayDir, ToCenterDir) * ToCenterDir);
-                    float ProjU = dot(VecToPixel, ScreenRight);
-                    float ProjV = dot(VecToPixel, ScreenUp);
-                    float x_ang = ProjU * RayAngle;
-                    float y_ang = ProjV * RayAngle;
-                    
-                    // 手性：a>0 时，凸起(B)在U轴正向(Right)，缺口(A)在U轴负向(Left)，E 点向 B 侧偏移
-                    float SignChirality = sign(a); 
-                    if (abs(a) < 1e-9) SignChirality = 1.0;
-                    // E 的位置 (在 U 轴上的坐标)
-                    float CenterEx = SignChirality * AngleOE;
-                    float dx = x_ang - CenterEx;
-                    float dy = y_ang;
-                    
-                    float RadiusA_from_E = AngleOA + AngleOE;
-                    float RadiusB_from_E = max(1e-5, AngleOB - AngleOE);
-                    
-                    float CurrentHRadius;
-                    float CurrentVRadius = AngleEC;
-                    
-                    // DEBUG：绘制关键点 A, B, C, D, E, O
-                    #if DEBUG_SHADOW_CULLING == 1
-                    vec2 currP = vec2(x_ang, y_ang);
-                    float dotSize = 0.002; // 调试点大小（弧度）
-
-                    // O是白色
-                    vec2 ptO = vec2(0.0, 0.0);
-                    if (length(currP - ptO) < dotSize) {
-                        res.AccumColor = vec4(1.0, 1.0, 1.0, 1.0);
-                        res.Status = 3.0; return res;
+                    if (LatFactor > 0.9999)
+                    {
+                        float effectiveMult = SHADOW_SIZE_MULTIPLIER ;
+                        if (RayAngle < AngleOF * effectiveMult) bHitShadow = true;
                     }
-
-                    // C、D、E是蓝色
-                    vec2 ptE = vec2(CenterEx, 0.0);
-                    vec2 ptC = vec2(CenterEx,  AngleEC);
-                    vec2 ptD = vec2(CenterEx, -AngleEC);
-                    if (length(currP - ptE) < dotSize || length(currP - ptC) < dotSize || length(currP - ptD) < dotSize) {
-                        res.AccumColor = vec4(0.0, 0.5, 1.0, 1.0);
-                        res.Status = 3.0; return res;
+                    else
+                    {
+                        
+                        // --- 2. 赤道视角 (Equator View) ---
+                        // A点 (缺口/顺行): 对应方程减号项(-2a...), 且取较小根
+                        float u_A = SolveQuarticU(M, Q, a_abs, -1.0, true); 
+                        float r_A_rad = (u_A * u_A + Q2) / M;
+                        
+                        float u_B = SolveQuarticU(M, Q, a_abs, 1.0, true); 
+                        float r_B_rad = (u_B * u_B + Q2) / M;
+                        
+                        float safe_a = max(1e-5, a_abs);
+                        // Xi_A (缺口侧)
+                        // Formula: xi = (r^2(3M-r) - a^2(M+r) - 2Q^2r) / (a(r-M))
+                        float num_A = r_A_rad * r_A_rad * (3.0 * M - r_A_rad) - a2 * (M + r_A_rad) - 2.0 * Q2 * r_A_rad;
+                        float xi_A = num_A / max(1e-9, safe_a * (r_A_rad - M));
+                        // Xi_B (凸起侧)
+                        float num_B = r_B_rad * r_B_rad * (3.0 * M - r_B_rad) - a2 * (M + r_B_rad) - 2.0 * Q2 * r_B_rad;
+                        float xi_B = num_B / max(1e-9, safe_a * (r_B_rad - M));
+                        
+                        float Mr_Q2_Shadow = 2.0 * M * r - Q2;
+                        float Sigma_Shadow = r * r; 
+                        // 计算 BL 度规分量 (用于静态投影公式)
+                        float g_tt_stat = -(1.0 - Mr_Q2_Shadow / Sigma_Shadow);
+                        float gtphi_stat = -a_abs * Mr_Q2_Shadow / Sigma_Shadow; 
+                        float D_cyl = gtphi_stat * gtphi_stat - g_tt_stat * (Sigma_Shadow + a2 + Mr_Q2_Shadow * a2 / Sigma_Shadow);
+                        float InvSqrtD = 1.0 / sqrt(max(1e-9, D_cyl));
+                        // 计算坐标系扭曲近似修正，Kerr-Schild 坐标系的径向与 Boyer-Lindquist 不同，存在 phi 方向的偏移。近似修正 a * r / Delta
+                        float TwistCorrection = safe_a * r / max(1e-5, Delta_r);
+                        
+                        float SinOA_Stat = abs((xi_A + TwistCorrection) * g_tt_stat + gtphi_stat) * InvSqrtD;
+                        float SinOB_Stat = abs((xi_B + TwistCorrection) * g_tt_stat + gtphi_stat) * InvSqrtD;
+                        
+                        // 计算 Cos (锐角)
+                        float CosOA_Stat = sqrt(max(0.0, 1.0 - SinOA_Stat * SinOA_Stat));
+                        float CosOB_Stat = sqrt(max(0.0, 1.0 - SinOB_Stat * SinOB_Stat));
+                        
+                        // 中心偏移 E
+                        // 经测试，若使用近似公式 a*(rE+M)/(rE-M) ，则结果偏大 (偏向B点)，且a*越大、相机r越小，偏差越明显。此外，使用2.0*a将偏B，使用1.0*a将偏A。故取中间值 a(近时)到a*5/3(远时) 作为基准。
+                        // 同时也叠加 TwistCorrection (因为坐标系扭曲是全局的)。
+                        float xi_E_Corrected = (1.6666-2.0/r) * safe_a + TwistCorrection;
+                        float SinOE_Stat = abs(xi_E_Corrected * g_tt_stat + gtphi_stat) * InvSqrtD;
+                        float CosOE_Stat = sqrt(max(0.0, 1.0 - SinOE_Stat * SinOE_Stat));
+                        
+                        // 转换为落体视角角度
+                        float AngleOA0 = GetDropFrameAngle(SinOA_Stat, CosOA_Stat, r, M, Q, a_abs, iObserverMode);
+                        float AngleOB0 = GetDropFrameAngle(SinOB_Stat, CosOB_Stat, r, M, Q, a_abs, iObserverMode);
+                        float AngleOE0 = GetDropFrameAngle(SinOE_Stat, CosOE_Stat, r, M, Q, a_abs, iObserverMode);
+                        // 垂直半轴 EC 在数学上可证明和相同Q的RN黑洞完全一致
+                        float AngleEC0 = GetShadowHalfAngleRN(r, M, Q, iObserverMode);
+                        
+                        // --- 3. 混合 ---
+                        // 调试：如何选择混合函数。需要是一些凹函数。
+                        float MixWA = clamp(tan(LatFactor*1.48)/10.98338,0.0,1.0);//指数函数在这里会前期太小、后期太大，所以用tan
+                        float MixWB = pow(LatFactor, 2.5);//基本确定2.5
+                        float MixWE = pow(LatFactor, 6.0);//基本确定6.0
+                        float MixWCD = pow(LatFactor, 0.75);//基本确定0.75
+                        
+                        float AngleOA = mix(AngleOA0, AngleOF, MixWA);
+                        float AngleOB = mix(AngleOB0, AngleOF, MixWB);
+                        float AngleEC = mix(AngleEC0, AngleOF, MixWCD);
+                        float AngleOE = mix(AngleOE0, 0.0,     MixWE);
+                        
+                        // --- 4. 视平面判定 (Screen Space Check) ---
+                        // 局部系，Y是自旋轴。ToCenterDir是视线反向
+                        vec3 SpinAxis = vec3(0.0, 1.0, 0.0);
+                        vec3 ScreenUp = normalize(SpinAxis - dot(SpinAxis, ToCenterDir) * ToCenterDir);
+                        vec3 ScreenRight = cross(ToCenterDir, ScreenUp);
+                        vec3 VecToPixel = normalize(RayDir - dot(RayDir, ToCenterDir) * ToCenterDir);
+                        float ProjU = dot(VecToPixel, ScreenRight);
+                        float ProjV = dot(VecToPixel, ScreenUp);
+                        float x_ang = ProjU * RayAngle;
+                        float y_ang = ProjV * RayAngle;
+                        
+                        // 手性：a>0 时，凸起(B)在U轴正向(Right)，缺口(A)在U轴负向(Left)，E 点向 B 侧偏移
+                        float SignChirality = sign(a); 
+                        if (abs(a) < 1e-9) SignChirality = 1.0;
+                        // E 的位置 (在 U 轴上的坐标)
+                        float CenterEx = SignChirality * AngleOE;
+                        float dx = x_ang - CenterEx;
+                        float dy = y_ang;
+                        
+                        float RadiusA_from_E = AngleOA + AngleOE;
+                        float RadiusB_from_E = max(1e-5, AngleOB - AngleOE);
+                        
+                        float CurrentHRadius;
+                        float CurrentVRadius = AngleEC;
+                        
+                        // DEBUG：绘制关键点 A, B, C, D, E, O
+                        #if DEBUG_SHADOW_CULLING == 1
+                        vec2 currP = vec2(x_ang, y_ang);
+                        float dotSize = 0.002; // 调试点大小（弧度）
+                        
+                        // O是白色
+                        vec2 ptO = vec2(0.0, 0.0);
+                        if (length(currP - ptO) < dotSize) {
+                            res.AccumColor = vec4(1.0, 1.0, 1.0, 1.0);
+                            res.Status = 3.0; return res;
+                        }
+                        
+                        // C、D、E是蓝色
+                        vec2 ptE = vec2(CenterEx, 0.0);
+                        vec2 ptC = vec2(CenterEx,  AngleEC);
+                        vec2 ptD = vec2(CenterEx, -AngleEC);
+                        if (length(currP - ptE) < dotSize || length(currP - ptC) < dotSize || length(currP - ptD) < dotSize) {
+                            res.AccumColor = vec4(0.0, 0.5, 1.0, 1.0);
+                            res.Status = 3.0; return res;
+                        }
+                        
+                        // A、B是红色
+                        vec2 ptA = vec2(CenterEx - SignChirality * RadiusA_from_E, 0.0);
+                        vec2 ptB = vec2(CenterEx + SignChirality * RadiusB_from_E, 0.0);
+                        if (length(currP - ptA) < dotSize || length(currP - ptB) < dotSize) {
+                            res.AccumColor = vec4(1.0, 0.0, 0.0, 1.0);
+                            res.Status = 3.0; return res;
+                        }
+                        #endif
+                        
+                        // 判断是在 E 的 "A侧" 还是 "B侧"
+                        if (dx * SignChirality > 0.0) {
+                            CurrentHRadius = RadiusB_from_E; // B侧 (凸起)
+                        } else {
+                            CurrentHRadius = RadiusA_from_E; // A侧 (缺口)
+                            // A侧修正系数
+                            float a_star = a_abs / CONST_M; 
+                            float f4 = clamp(1.0-((r-30.0)/(80.0-30.0)),0.0,1.0); // 相机距离较远时，避免拉伸
+                            float f3 = clamp((a_star - 0.9) / 0.1, 0.0, 1.0); // a*不高时，D形不明显，边缘还是接近椭圆的。所以，修正仅在 a* > 0.9 时生效，1.0时达到最大
+                            float f2 = pow(1.0 - LatFactor, 1.0); // 随相机纬度变化。在到达极轴时，应完全没有修正，变回圆形
+                            float u = clamp(abs(dx) / RadiusA_from_E, 0.0, 1.0); // u=1表示在A点(边缘)，u=0表示在E点。
+                            float f1 = 0.36 * pow(u, 3.5); // 使用 pow 确保靠近中心时修正迅速消失
+                            // 缩放使得原本在椭圆外的点被包含进阴影，形成比半椭圆更丰满的"D"形
+                            CurrentVRadius *= (1.0 + f1 * f2 * f3 * f4);
+                            float f5 = (1.0-2.0*LatFactor)*(1.0-pow(abs(iQ),0.1));
+                            CurrentHRadius *= 1.0+25.0*f4*f5*clamp(a_star - 0.98,0.0,0.02)*clamp(a_star - 0.98,0.0,0.02);
+                        }
+                        
+                        float dist_sq = (dx*dx) / (CurrentHRadius*CurrentHRadius) + (dy*dy) / (CurrentVRadius*CurrentVRadius);
+                        if (dist_sq < SHADOW_SIZE_MULTIPLIER * SHADOW_SIZE_MULTIPLIER) bHitShadow = true;
                     }
-
-                    // A、B是红色
-                    vec2 ptA = vec2(CenterEx - SignChirality * RadiusA_from_E, 0.0);
-                    vec2 ptB = vec2(CenterEx + SignChirality * RadiusB_from_E, 0.0);
-                    if (length(currP - ptA) < dotSize || length(currP - ptB) < dotSize) {
-                        res.AccumColor = vec4(1.0, 0.0, 0.0, 1.0);
-                        res.Status = 3.0; return res;
-                    }
-                    #endif
-                    
-                    // 判断是在 E 的 "A侧" 还是 "B侧"
-                    if (dx * SignChirality > 0.0) {
-                        CurrentHRadius = RadiusB_from_E; // B侧 (凸起)
-                    } else {
-                        CurrentHRadius = RadiusA_from_E; // A侧 (缺口)
-                        // A侧修正系数
-                        float a_star = a_abs / CONST_M; 
-                        float f4 = clamp(1.0-((r-30.0)/(80.0-30.0)),0.0,1.0); // 相机距离较远时，避免拉伸
-                        float f3 = clamp((a_star - 0.9) / 0.1, 0.0, 1.0); // a*不高时，D形不明显，边缘还是接近椭圆的。所以，修正仅在 a* > 0.9 时生效，1.0时达到最大
-                        float f2 = pow(1.0 - LatFactor, 1.0); // 随相机纬度变化。在到达极轴时，应完全没有修正，变回圆形
-                        float u = clamp(abs(dx) / RadiusA_from_E, 0.0, 1.0); // u=1表示在A点(边缘)，u=0表示在E点。
-                        float f1 = 0.36 * pow(u, 3.5); // 使用 pow 确保靠近中心时修正迅速消失
-                        // 缩放使得原本在椭圆外的点被包含进阴影，形成比半椭圆更丰满的"D"形
-                        CurrentVRadius *= (1.0 + f1 * f2 * f3 * f4);
-                        float f5 = (1.0-2.0*LatFactor)*(1.0-pow(abs(iQ),0.1));
-CurrentHRadius *= 1.0+25.0*f4*f5*clamp(a_star - 0.98,0.0,0.02)*clamp(a_star - 0.98,0.0,0.02);
-                    }
-                    
-                    float dist_sq = (dx*dx) / (CurrentHRadius*CurrentHRadius) + (dy*dy) / (CurrentVRadius*CurrentVRadius);
-                    if (dist_sq < SHADOW_SIZE_MULTIPLIER * SHADOW_SIZE_MULTIPLIER) bHitShadow = true;
                 }
                 
                 // --- 执行剔除 ---
-                if(iGrid==0){
-                    if (bHitShadow)
+
+                if (bHitShadow)
+                {
+                    bool bHasDisk = IsAccretionDiskVisible(iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut);
+                    bool bHasJet  = IsJetVisible(iAccretionRate, iJetBrightmut);
+                    
+                    if (!bHasDisk && !bHasJet)
                     {
-                        bool bHasDisk = IsAccretionDiskVisible(iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut);
-                        bool bHasJet  = IsJetVisible(iAccretionRate, iJetBrightmut);
-                        
-                        if (!bHasDisk && !bHasJet)
+                        // 纯黑洞，无盘无喷流：立即返回黑色
+                        #if DEBUG_SHADOW_CULLING == 1
+                            res.AccumColor = vec4(0.0, 0.5, 0.0, 1.0); 
+                            res.Status = 3.0; 
+                        #else
+                            res.AccumColor = vec4(0.0, 0.0, 0.0, 1.0); 
+                            res.Status = 3.0;
+                        #endif
+                        res.CurrentSign = CurrentUniverseSign;
+                        res.EscapeDir = vec3(0.0);
+                        res.FreqShift = 0.0;
+                        return res; 
+                    }
+                    else
+                    {
+                        // 有盘或喷流，改终结半径，延迟剔除
+                        float SafeCullRadius = max(iInterRadiusRs, 1.05 * EventHorizonR);
+                        if (SafeCullRadius > TerminationR)
                         {
-                            // 纯黑洞，无盘无喷流：立即返回黑色
-                            #if DEBUG_SHADOW_CULLING == 1
-                                res.AccumColor = vec4(0.0, 0.5, 0.0, 1.0); 
-                                res.Status = 3.0; 
-                            #else
-                                res.AccumColor = vec4(0.0, 0.0, 0.0, 1.0); 
-                                res.Status = 3.0;
-                            #endif
-                            res.CurrentSign = CurrentUniverseSign;
-                            res.EscapeDir = vec3(0.0);
-                            res.FreqShift = 0.0;
-                            return res; 
-                        }
-                        else
-                        {
-                            // 有盘或喷流，改终结半径，延迟剔除
-                            float SafeCullRadius = max(iInterRadiusRs, 1.05 * EventHorizonR);
-                            if (SafeCullRadius > TerminationR)
-                            {
-                                TerminationR = SafeCullRadius;
-                                bDeferredShadowCulling = true; // 标记：这是因为剔除而提升的终结半径
-                            }
+                            TerminationR = SafeCullRadius;
+                            bDeferredShadowCulling = true; // 标记：这是因为剔除而提升的终结半径
                         }
                     }
                 }
