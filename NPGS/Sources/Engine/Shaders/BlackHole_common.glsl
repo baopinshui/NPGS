@@ -2171,7 +2171,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     vec4 X = vec4(RayPosLocal, 0.0);
     
     //[修改5]初始化一个默认的 P_cov 防止未初始化报错，但不调用 GetInitialMomentum，因为 RayDir 还没被 Heat Haze 扭曲
-    vec4 P_cov = vec4(0.0);
+    vec4 P_cov = vec4(0.0,0.0,0.0,-1.0);
 
     float E_conserved = 1.0;
     vec3 RayDir = RayDirWorld_Geo;
@@ -2414,7 +2414,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
 
 #define ENABLE_SHADOW_CULLING     1       // 1:开启剔除优化, 0:关闭 (To compare performance)
-#define DEBUG_SHADOW_CULLING      1       // 1:显示绿色调试层, 0:正常黑色 (To visualize culling)
+#define DEBUG_SHADOW_CULLING      0       // 1:显示绿色调试层, 0:正常黑色 (To visualize culling)
 #define SHADOW_SIZE_MULTIPLIER    0.995     // 阴影半径微调系数 (Multiplier for shadow radius)
 
 
@@ -2662,7 +2662,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                         #endif
                         res.CurrentSign = CurrentUniverseSign;
                         res.EscapeDir = vec3(0.0);
-                        res.FreqShift = 0.0;
+                        res.FreqShift = 1.0;
                         return res; 
                     }
                     else
