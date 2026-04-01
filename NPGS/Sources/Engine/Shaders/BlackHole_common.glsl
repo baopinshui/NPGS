@@ -1572,195 +1572,6 @@ vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
 }
 
 // 空间坐标网格
-vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
-               vec4 iP_cov, float iE_obs,
-               float PhysicalSpinA, float PhysicalQ,
-               float EndStepSign) 
-{
-    vec4 CurrentResult = BaseColor;
-    if (CurrentResult.a > 0.99) return CurrentResult;
-
-    const int MaxGrids = 12; 
-    float SignedGridRadii[MaxGrids]; 
-    int GridCount = 0;
-    
-    float StartStepSign = EndStepSign;
-    bool bHasCrossed = false;
-    float t_cross = -1.0;
-    vec3 DiskHitPos = vec3(0.0);
-    
-    if (LastRayPos.y * RayPos.y < 0.0) {
-        float denom = (LastRayPos.y - RayPos.y);
-        if(abs(denom) > 1e-9) {
-            t_cross = LastRayPos.y / denom;
-            DiskHitPos = mix(LastRayPos.xyz, RayPos.xyz, t_cross);
-            
-            if (length(DiskHitPos.xz) < abs(PhysicalSpinA)) {
-                StartStepSign = -EndStepSign;
-                bHasCrossed = true;
-            }
-        }
-    }
-
-    bool CheckPositive = (StartStepSign > 0.0) || (EndStepSign > 0.0);
-    bool CheckNegative = (StartStepSign < 0.0) || (EndStepSign < 0.0);
-
-    float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
-    float RH_Outer = 0.5 + sqrt(max(0.0, HorizonDiscrim));
-    float RH_Inner = 0.5 - sqrt(max(0.0, HorizonDiscrim));
-
-    if (CheckPositive) {
-        SignedGridRadii[GridCount++] = RH_Outer * 1.05; 
-        SignedGridRadii[GridCount++] = 20.0;
-        
-        if (HorizonDiscrim >= 0.0) {
-           SignedGridRadii[GridCount++] = RH_Inner * 0.95; 
-        }
-    }
-    
-    if (CheckNegative) {
-        SignedGridRadii[GridCount++] = -3.0;  
-        SignedGridRadii[GridCount++] = -10.0; 
-    }
-
-    vec3 O = LastRayPos.xyz;
-    vec3 D_vec = RayPos.xyz - LastRayPos.xyz;
-
-    for (int i = 0; i < GridCount; i++) {
-        if (CurrentResult.a > 0.99) break;
-
-        float TargetSignedR = SignedGridRadii[i];
-        float TargetGeoR = abs(TargetSignedR); 
-
-        vec2 roots = IntersectKerrEllipsoid(O, D_vec, TargetGeoR, PhysicalSpinA);
-        
-        float t_hits[2];
-        t_hits[0] = roots.x;
-        t_hits[1] = roots.y;
-        
-        if (t_hits[0] > t_hits[1]) {
-            float temp = t_hits[0]; t_hits[0] = t_hits[1]; t_hits[1] = temp;
-        }
-        
-        for (int j = 0; j < 2; j++) {
-            float t = t_hits[j];
-            
-            if (t >= 0.0 && t <= 1.0) {
-                
-                float HitPointSign = StartStepSign;
-                if (bHasCrossed) {
-                    if (t > t_cross) {
-                        HitPointSign = EndStepSign;
-                    }
-                }
-
-                if (HitPointSign * TargetSignedR < 0.0) continue;
-
-                vec3 HitPos = O + D_vec * t;
-                float CheckR = KerrSchildRadius(HitPos, PhysicalSpinA, HitPointSign);
-                if (abs(CheckR - TargetSignedR) > 0.1 * TargetGeoR + 0.1) continue; 
-
-                // 计算物理量
-                float Omega = GetZamoOmega(TargetSignedR, PhysicalSpinA, PhysicalQ, HitPos.y);
-                vec3 VelSpatial = Omega * vec3(HitPos.z, 0.0, -HitPos.x);
-                vec4 U_zamo_unnorm = vec4(VelSpatial, 1.0); 
-                
-                KerrGeometry geo_hit;
-                ComputeGeometryScalars(HitPos, PhysicalSpinA, PhysicalQ, 1.0, HitPointSign, geo_hit);
-                
-                vec4 U_zamo_lower = LowerIndex(U_zamo_unnorm, geo_hit);
-                float norm_sq = dot(U_zamo_unnorm, U_zamo_lower);
-                float norm = sqrt(max(1e-9, abs(norm_sq)));
-                vec4 U_zamo = U_zamo_unnorm / norm;
-
-                float E_emit = -dot(iP_cov, U_zamo);
-                float Shift = 1.0/ max(1e-6, abs(E_emit)); 
-
-                // 纹理计算
-                float Phi = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
-                float CosTheta = clamp(HitPos.y / TargetGeoR, -1.0, 1.0);
-                float Theta = acos(CosTheta);
-                float SinTheta = sqrt(max(0.0, 1.0 - CosTheta * CosTheta));
-
-                float DensityPhi = 24.0;
-                float DensityTheta = 12.0;
-                float DistFactor = length(HitPos);
-                float LineWidth = 0.001 * DistFactor;
-                LineWidth = clamp(LineWidth, 0.01, 0.1); 
-
-                float PatternPhi = abs(fract(Phi / (2.0 * kPi) * DensityPhi) - 0.5);
-                float GridPhi = smoothstep(LineWidth / max(0.005, SinTheta), 0.0, PatternPhi);
-
-                float PatternTheta = abs(fract(Theta / kPi * DensityTheta) - 0.5);
-                float GridTheta = smoothstep(LineWidth, 0.0, PatternTheta);
-                
-                float GridIntensity = max(GridPhi, GridTheta);
-
-                if (GridIntensity > 0.01) {
-                    // 常规网格着色
-                    float BaseTemp = 6500.0;
-                    vec3 BlackbodyColor = KelvinToRgb(BaseTemp * Shift);
-                    float Intensity = min(1.5 * pow(Shift, 4.0), 20.0);
-                    vec4 GridCol = vec4(BlackbodyColor * Intensity, 1.0);
-                    
-                    float Alpha = GridIntensity * 0.5; 
-                    CurrentResult.rgb += GridCol.rgb * Alpha * (1.0 - CurrentResult.a);
-                    CurrentResult.a   += Alpha * (1.0 - CurrentResult.a);
-                }
-            }
-        }
-    }
-
-    //  单独处理 r=0 
-    if (bHasCrossed && CurrentResult.a < 0.99) {
-        
-        
-        float HitRho = length(DiskHitPos.xz);
-        float a_abs = abs(PhysicalSpinA);
-        
-        float Phi = Vec2ToTheta(normalize(DiskHitPos.zx), vec2(0.0, 1.0));
-        
-        float DensityPhi = 24.0;
-        float DistFactor = length(DiskHitPos); 
-        float LineWidth = 0.001 * DistFactor;
-        LineWidth = clamp(LineWidth, 0.01, 0.1);
-
-        float PatternPhi = abs(fract(Phi / (2.0 * kPi) * DensityPhi) - 0.5);
-        float GridPhi = smoothstep(LineWidth / max(0.1, HitRho / a_abs), 0.0, PatternPhi);
-
-        float NormalizedRho = HitRho / max(1e-6, a_abs);
-        float DensityRho = 5.0; 
-        float PatternRho = abs(fract(NormalizedRho * DensityRho) - 0.5);
-        float GridRho = smoothstep(LineWidth, 0.0, PatternRho);
-        
-        float GridIntensity = max(GridPhi, GridRho);
-
-
-        if (GridIntensity > 0.01) {
-            float Omega0 = 0.0; 
-            
-            vec3 VelSpatial = vec3(0.0); 
-            vec4 U_zero = vec4(0.0, 0.0, 0.0, 1.0); 
-            
-            float E_emit = -dot(iP_cov, U_zero); 
-            float Shift = 1.0 / max(1e-6, abs(E_emit));
-            
-            float BaseTemp = 6500.0; 
-            vec3 BlackbodyColor = KelvinToRgb(BaseTemp * Shift);
-            float Intensity = min(2.0 * pow(Shift, 4.0), 30.0);
-            
-            vec4 GridCol = vec4(BlackbodyColor * Intensity, 1.0);
-            
-            float Alpha = GridIntensity * 0.5;
-            CurrentResult.rgb += GridCol.rgb * Alpha * (1.0 - CurrentResult.a);
-            CurrentResult.a   += Alpha * (1.0 - CurrentResult.a);
-        }
-    }
-
-    return CurrentResult;
-}
-
-
 vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                float PhysicalSpinA, float PhysicalQ,
                float EndStepSign) 
@@ -1860,7 +1671,14 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 float CheckR = KerrSchildRadius(HitPos, PhysicalSpinA, HitPointSign);
                 if (abs(CheckR - TargetSignedR) > 0.1 * TargetGeoR + 0.1) continue; 
 
-                float Phi = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
+                // [核心修改 4]：插值HitTime并获取局部拖拽角速度
+                float HitTime = mix(LastRayPos.w, RayPos.w, t);
+                float Omega = GetZamoOmega(TargetSignedR, PhysicalSpinA, PhysicalQ, HitPos.y);
+
+                float Phi_raw = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
+                // 进行坐标时间补偿与真实时间推进
+                float Phi = Phi_raw + Omega * (HitTime + iBlackHoleTime);
+                
                 float CosTheta = clamp(HitPos.y / TargetGeoR, -1.0, 1.0);
                 float Theta = acos(CosTheta);
                 float SinTheta = sqrt(max(0.0, 1.0 - CosTheta * CosTheta));
@@ -1895,7 +1713,12 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
         float HitRho = length(DiskHitPos.xz);
         float a_abs = abs(PhysicalSpinA);
         
-        float Phi = Vec2ToTheta(normalize(DiskHitPos.zx), vec2(0.0, 1.0));
+        // [核心修改 5]：处理r=0时的盘面补偿
+        float HitTime_disk = mix(LastRayPos.w, RayPos.w, t_cross);
+        float Omega_disk = GetZamoOmega(0.0, PhysicalSpinA, PhysicalQ, 0.0);
+
+        float Phi_raw = Vec2ToTheta(normalize(DiskHitPos.zx), vec2(0.0, 1.0));
+        float Phi = Phi_raw + Omega_disk * (HitTime_disk + iBlackHoleTime);
         
         float DensityPhi = 24.0;
         float DistFactor = length(DiskHitPos); 
@@ -1917,6 +1740,198 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
             vec4 GridCol = vec4(RingColor * 5.0, 1.0);
             
             float Alpha = GridIntensity * 0.8;
+            CurrentResult.rgb += GridCol.rgb * Alpha * (1.0 - CurrentResult.a);
+            CurrentResult.a   += Alpha * (1.0 - CurrentResult.a);
+        }
+    }
+
+    return CurrentResult;
+}
+vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
+               vec4 iP_cov, float iE_obs,
+               float PhysicalSpinA, float PhysicalQ,
+               float EndStepSign)
+{
+    vec4 CurrentResult = BaseColor;
+    if (CurrentResult.a > 0.99) return CurrentResult;
+
+    const int MaxGrids = 12; 
+    float SignedGridRadii[MaxGrids]; 
+    int GridCount = 0;
+    
+    float StartStepSign = EndStepSign;
+    bool bHasCrossed = false;
+    float t_cross = -1.0;
+    vec3 DiskHitPos = vec3(0.0);
+    
+    if (LastRayPos.y * RayPos.y < 0.0) {
+        float denom = (LastRayPos.y - RayPos.y);
+        if(abs(denom) > 1e-9) {
+            t_cross = LastRayPos.y / denom;
+            DiskHitPos = mix(LastRayPos.xyz, RayPos.xyz, t_cross);
+            
+            if (length(DiskHitPos.xz) < abs(PhysicalSpinA)) {
+                StartStepSign = -EndStepSign;
+                bHasCrossed = true;
+            }
+        }
+    }
+
+    bool CheckPositive = (StartStepSign > 0.0) || (EndStepSign > 0.0);
+    bool CheckNegative = (StartStepSign < 0.0) || (EndStepSign < 0.0);
+
+    float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
+    float RH_Outer = 0.5 + sqrt(max(0.0, HorizonDiscrim));
+    float RH_Inner = 0.5 - sqrt(max(0.0, HorizonDiscrim));
+
+    if (CheckPositive) {
+        SignedGridRadii[GridCount++] = RH_Outer * 1.05; 
+        SignedGridRadii[GridCount++] = 20.0;
+        
+        if (HorizonDiscrim >= 0.0) {
+           SignedGridRadii[GridCount++] = RH_Inner * 0.95; 
+        }
+    }
+    
+    if (CheckNegative) {
+        SignedGridRadii[GridCount++] = -3.0;  
+        SignedGridRadii[GridCount++] = -10.0; 
+    }
+
+    vec3 O = LastRayPos.xyz;
+    vec3 D_vec = RayPos.xyz - LastRayPos.xyz;
+
+    for (int i = 0; i < GridCount; i++) {
+        if (CurrentResult.a > 0.99) break;
+
+        float TargetSignedR = SignedGridRadii[i];
+        float TargetGeoR = abs(TargetSignedR); 
+
+        vec2 roots = IntersectKerrEllipsoid(O, D_vec, TargetGeoR, PhysicalSpinA);
+        
+        float t_hits[2];
+        t_hits[0] = roots.x;
+        t_hits[1] = roots.y;
+        
+        if (t_hits[0] > t_hits[1]) {
+            float temp = t_hits[0]; t_hits[0] = t_hits[1]; t_hits[1] = temp;
+        }
+        
+        for (int j = 0; j < 2; j++) {
+            float t = t_hits[j];
+            
+            if (t >= 0.0 && t <= 1.0) {
+                
+                float HitPointSign = StartStepSign;
+                if (bHasCrossed) {
+                    if (t > t_cross) {
+                        HitPointSign = EndStepSign;
+                    }
+                }
+
+                if (HitPointSign * TargetSignedR < 0.0) continue;
+
+                vec3 HitPos = O + D_vec * t;
+                float CheckR = KerrSchildRadius(HitPos, PhysicalSpinA, HitPointSign);
+                if (abs(CheckR - TargetSignedR) > 0.1 * TargetGeoR + 0.1) continue; 
+
+                // [核心修改 1]：插值获取精确的击中时间
+                float HitTime = mix(LastRayPos.w, RayPos.w, t);
+
+                // 计算物理量 (这里的 Omega 刚好作为拖拽角速度使用)
+                float Omega = GetZamoOmega(TargetSignedR, PhysicalSpinA, PhysicalQ, HitPos.y);
+                vec3 VelSpatial = Omega * vec3(HitPos.z, 0.0, -HitPos.x);
+                vec4 U_zamo_unnorm = vec4(VelSpatial, 1.0); 
+                
+                KerrGeometry geo_hit;
+                ComputeGeometryScalars(HitPos, PhysicalSpinA, PhysicalQ, 1.0, HitPointSign, geo_hit);
+                
+                vec4 U_zamo_lower = LowerIndex(U_zamo_unnorm, geo_hit);
+                float norm_sq = dot(U_zamo_unnorm, U_zamo_lower);
+                float norm = sqrt(max(1e-9, abs(norm_sq)));
+                vec4 U_zamo = U_zamo_unnorm / norm;
+
+                float E_emit = -dot(iP_cov, U_zamo);
+                float Shift = 1.0/ max(1e-6, abs(E_emit)); 
+
+                // [核心修改 2]：坐标时间补偿 Phi 相位
+                float Phi_raw = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
+                // 逆向追踪时 HitTime 是递减的负数。减去 Omega * HitTime 意味着回退到最初始的网格角度，抵消掉时间带来的无限缠绕。
+                float Phi = Phi_raw + Omega * (HitTime + iBlackHoleTime);
+                
+                float CosTheta = clamp(HitPos.y / TargetGeoR, -1.0, 1.0);
+                float Theta = acos(CosTheta);
+                float SinTheta = sqrt(max(0.0, 1.0 - CosTheta * CosTheta));
+
+                float DensityPhi = 24.0;
+                float DensityTheta = 12.0;
+                float DistFactor = length(HitPos);
+                float LineWidth = 0.001 * DistFactor;
+                LineWidth = clamp(LineWidth, 0.01, 0.1); 
+
+                float PatternPhi = abs(fract(Phi / (2.0 * kPi) * DensityPhi) - 0.5);
+                float GridPhi = smoothstep(LineWidth / max(0.005, SinTheta), 0.0, PatternPhi);
+
+                float PatternTheta = abs(fract(Theta / kPi * DensityTheta) - 0.5);
+                float GridTheta = smoothstep(LineWidth, 0.0, PatternTheta);
+                
+                float GridIntensity = max(GridPhi, GridTheta);
+
+                if (GridIntensity > 0.01) {
+                    float BaseTemp = 6500.0;
+                    vec3 BlackbodyColor = KelvinToRgb(BaseTemp * Shift);
+                    float Intensity = min(1.5 * pow(Shift, 4.0), 20.0);
+                    vec4 GridCol = vec4(BlackbodyColor * Intensity, 1.0);
+                    
+                    float Alpha = GridIntensity * 0.5; 
+                    CurrentResult.rgb += GridCol.rgb * Alpha * (1.0 - CurrentResult.a);
+                    CurrentResult.a   += Alpha * (1.0 - CurrentResult.a);
+                }
+            }
+        }
+    }
+
+    // 单独处理 r=0 (圆环奇点 / Disk)
+    if (bHasCrossed && CurrentResult.a < 0.99) {
+        
+        float HitRho = length(DiskHitPos.xz);
+        float a_abs = abs(PhysicalSpinA);
+        
+        // [核心修改 3]：计算 r=0 处的 HitTime 和 Omega 并进行补偿
+        float HitTime_disk = mix(LastRayPos.w, RayPos.w, t_cross);
+        // r=0处的拖拽角速度 (对于 Kerr 是 1/a)
+        float Omega_disk = GetZamoOmega(0.0, PhysicalSpinA, PhysicalQ, 0.0); 
+        
+        float Phi_raw = Vec2ToTheta(normalize(DiskHitPos.zx), vec2(0.0, 1.0));
+        float Phi = Phi_raw + Omega_disk * (HitTime_disk + iBlackHoleTime);
+        
+        float DensityPhi = 24.0;
+        float DistFactor = length(DiskHitPos); 
+        float LineWidth = 0.001 * DistFactor;
+        LineWidth = clamp(LineWidth, 0.01, 0.1);
+
+        float PatternPhi = abs(fract(Phi / (2.0 * kPi) * DensityPhi) - 0.5);
+        float GridPhi = smoothstep(LineWidth / max(0.1, HitRho / a_abs), 0.0, PatternPhi);
+
+        float NormalizedRho = HitRho / max(1e-6, a_abs);
+        float DensityRho = 5.0; 
+        float PatternRho = abs(fract(NormalizedRho * DensityRho) - 0.5);
+        float GridRho = smoothstep(LineWidth, 0.0, PatternRho);
+        
+        float GridIntensity = max(GridPhi, GridRho);
+
+        if (GridIntensity > 0.01) {
+            vec4 U_zero = vec4(0.0, 0.0, 0.0, 1.0); 
+            float E_emit = -dot(iP_cov, U_zero); 
+            float Shift = 1.0 / max(1e-6, abs(E_emit));
+            
+            float BaseTemp = 6500.0; 
+            vec3 BlackbodyColor = KelvinToRgb(BaseTemp * Shift);
+            float Intensity = min(2.0 * pow(Shift, 4.0), 30.0);
+            
+            vec4 GridCol = vec4(BlackbodyColor * Intensity, 1.0);
+            
+            float Alpha = GridIntensity * 0.5;
             CurrentResult.rgb += GridCol.rgb * Alpha * (1.0 - CurrentResult.a);
             CurrentResult.a   += Alpha * (1.0 - CurrentResult.a);
         }

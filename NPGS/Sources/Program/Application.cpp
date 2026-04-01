@@ -750,10 +750,10 @@ void FApplication::ExecuteMainRender()
 
             // 获取当前帧相机世界坐标及 UniverseSign 更新逻辑
             glm::vec3 currentPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
-            if (LastCameraWorldPos.y * currentPos.y < 0.0f && FrameCount > 0)
+            if (LastCameraWorldPos.y * currentPos.y <= 0.0f && FrameCount > 1)
             {
                 float denom = LastCameraWorldPos.y - currentPos.y;
-                if (std::abs(denom) > 1e-9f)
+                if (std::abs(denom) >0)
                 {
                     float t = LastCameraWorldPos.y / denom;
                     float intersectX = LastCameraWorldPos.x + t * (currentPos.x - LastCameraWorldPos.x);
