@@ -330,7 +330,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","Grid","ObserverMode","UniverseSign",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","DEBUG","Grid","EnableHearHaze","ObserverMode","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
@@ -646,7 +646,7 @@ void FApplication::ExecuteMainRender()
         // =========================================================================
 
         // Render other standard ImGui windows
-       // RenderDebugUI();
+        RenderDebugUI();
 
         _uiRenderer->EndFrame();
         // Uniform update
@@ -674,7 +674,9 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
                 BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+                BlackHoleArgs.DEBUG = 0;
                 BlackHoleArgs.Grid = 0;
+				BlackHoleArgs.EnableHearHaze = 1;
                 BlackHoleArgs.ObserverMode = 0;
                 BlackHoleArgs.UniverseSign = 1.0;
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
@@ -1814,48 +1816,213 @@ void FApplication::HandleScroll(double OffsetX, double OffsetY)
     _buffered_scroll_y += (float)OffsetY;
 }
 // 添加调试 UI 渲染函数
+#include <vector>
+#include <cmath>
+// 确保引入了 ImGui
+// #include "imgui.h"
+#include "imgui.h"
+#include <cmath>
+#include <vector>
 void FApplication::RenderDebugUI()
 {
-    // 显示帧率信息
-    ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+    // 如果你已经有全局的 ImGui::Begin()，请确保这里的名字不冲突
+    ImGui::Begin("Black Hole Topology Map", nullptr, ImGuiWindowFlags_NoScrollbar);
 
-    if (ImGui::Begin("Black Hole Renderer Info"))
+    // 1. 获取基础物理参数与坐标 (按 Rs 归一化)
+    float Rs = 2.0f * std::abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / std::pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
+    if (Rs < 1e-6f) Rs = 1.0f; // 防御性除零
+
+    float M = 0.5f; // 以 Rs 为单位，M 恒为 0.5
+    float a = BlackHoleArgs.Spin * M;
+    float Q = BlackHoleArgs.Q * M;
+    float a2 = a * a;
+    float Q2 = Q * Q;
+
+    // 获取相机位置和朝向，并转化到 Rs 单位空间
+    glm::vec3 camPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition) / Rs;
+    glm::vec3 camDir = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kFront);
+
+    // 判断是否是裸奇点
+    float delta_discriminant = M * M - a2 - Q2;
+    bool isNakedSingularity = (delta_discriminant < 0.0f);
+    float r_outer = isNakedSingularity ? 0.0f : M + std::sqrt(delta_discriminant);
+    float r_inner = isNakedSingularity ? 0.0f : M - std::sqrt(delta_discriminant);
+
+    // 获取画布信息
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
+    ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
+    if (canvas_sz.x < 100.0f) canvas_sz.x = 100.0f;
+    if (canvas_sz.y < 50.0f) canvas_sz.y = 50.0f;
+
+    // 2. 绘制背景颜色
+    ImU32 bgColor = (BlackHoleArgs.UniverseSign > 0.0f) ? IM_COL32(15, 20, 30, 255) : IM_COL32(40, 10, 15, 255);
+    draw_list->AddRectFilled(canvas_p0, ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y), bgColor);
+
+    // 划分为左右两个视图
+    float halfWidth = canvas_sz.x * 0.5f;
+    ImVec2 centerSide = ImVec2(canvas_p0.x + halfWidth * 0.5f, canvas_p0.y + canvas_sz.y * 0.5f);
+    ImVec2 centerTop = ImVec2(canvas_p0.x + halfWidth * 1.5f, canvas_p0.y + canvas_sz.y * 0.5f);
+
+    // === 核心修改点 1: 动态缩放逻辑 ===
+    // 计算相机到原点的实际距离
+    float camDist = glm::length(camPos);
+    // 当相机距离过远时，画面容纳 (camDist * 1.2f) 以确保相机一直可见
+    // 当相机靠得很近时，固定显示至少半径为 3.0 Rs 的区域，阻止曲线被无限放大撑破屏幕
+    float displayRadius = std::max(1.5f, camDist * 1.2f);
+    float scale = std::min(halfWidth, canvas_sz.y) / (2.0f * displayRadius);
+
+    // 坐标转换 Lambda 工具
+    auto ToSideScreen = [&](float x, float y) -> ImVec2 { return ImVec2(centerSide.x + x * scale, centerSide.y - y * scale); };
+    auto ToTopScreen = [&](float x, float z) -> ImVec2 { return ImVec2(centerTop.x + x * scale, centerTop.y - z * scale); };
+
+    // 3. 绘制辅助网格和标题 (逻辑不变)
+    ImU32 axisColor = IM_COL32(100, 100, 100, 150);
+    draw_list->AddLine(ImVec2(canvas_p0.x, centerSide.y), ImVec2(canvas_p0.x + halfWidth, centerSide.y), axisColor, 1.0f);
+    draw_list->AddLine(ImVec2(centerSide.x, canvas_p0.y), ImVec2(centerSide.x, canvas_p0.y + canvas_sz.y), axisColor, 1.0f);
+    draw_list->AddLine(ImVec2(canvas_p0.x + halfWidth, centerTop.y), ImVec2(canvas_p0.x + canvas_sz.x, centerTop.y), axisColor, 1.0f);
+    draw_list->AddLine(ImVec2(centerTop.x, canvas_p0.y), ImVec2(centerTop.x, canvas_p0.y + canvas_sz.y), axisColor, 1.0f);
+    draw_list->AddLine(ImVec2(canvas_p0.x + halfWidth, canvas_p0.y), ImVec2(canvas_p0.x + halfWidth, canvas_p0.y + canvas_sz.y), IM_COL32(200, 200, 200, 255), 2.0f);
+
+    draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Meridian (Y-X) Plane");
+    draw_list->AddText(ImVec2(canvas_p0.x + halfWidth + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Top-Down (X-Z) Plane");
+    std::string univText = BlackHoleArgs.UniverseSign > 0.0f ? "Status: r > 0 (Universe)" : "Status: r < 0 (Antiverse)";
+    draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 30), IM_COL32(200, 255, 200, 255), univText.c_str());
+
+    ImU32 colOuterHorizon = IM_COL32(255, 100, 100, 255);
+    ImU32 colInnerHorizon = IM_COL32(100, 150, 255, 255);
+    ImU32 colErgosphere = IM_COL32(150, 255, 150, 200);
+    ImU32 colInnerErgo = IM_COL32(255, 200, 50, 200);
+    ImU32 colSingularity = IM_COL32(255, 0, 255, 255);
+
+    // 4. 计算和绘制几何边界
+    const int segments = 256;
+    std::vector<ImVec2> sideOutPts, sideInPts;
+
+    // 用于记录上一帧的静界点，方便逐线段绘制（避免裸奇点画出多余的横线）
+    ImVec2 prev_ergo_out, prev_ergo_in;
+    bool prev_ergo_valid = false;
+
+    for (int i = 0; i <= segments; ++i)
     {
-        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-        ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
-        ImGui::Text("Window Size: %d x %d", _WindowSize.width, _WindowSize.height);
-        ImGui::Separator();
+        float theta = (static_cast<float>(i) / segments) * 2.0f * 3.14159265f;
+        float cosTheta = std::cos(theta);
+        float sinTheta = std::sin(theta);
 
-        // 显示相机信息
-        auto cameraPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition);
-        ImGui::Text("Camera Position: (%.13f, %.13f, %.13f)",
-            cameraPos.x, cameraPos.y, cameraPos.z);
-        ImGui::Text("Camera FOV: %.1f", _FreeCamera->GetCameraZoom());
+        // === 核心修改点 2: 静界判别逻辑 ===
+        float ergo_discriminant = M * M - a2 * cosTheta * cosTheta - Q2;
+        bool ergo_valid = (ergo_discriminant >= 0.0f); // 某些角度下（裸奇点极区），能层不存在实数解
 
-        ImGui::Separator();
-        // 显示黑洞参数
-        ImGui::Text("Black Hole Time: %.2e ", GameTime);
-        ImGui::Text("Black Hole Mass: %.2e Solar Masses", BlackHoleArgs.BlackHoleMassSol);
-        ImGui::Text("Accretion Rate: %.2e", BlackHoleArgs.AccretionRate);
-        ImGui::Text("Blend Weight: %.3f", BlackHoleArgs.BlendWeight);
+        if (ergo_valid)
+        {
+            float sqrt_disc = std::sqrt(ergo_discriminant);
+            float r_ergo_out = M + sqrt_disc;
+            float r_ergo_in = M - sqrt_disc;
+
+            float ergo_out_rho = std::sqrt(r_ergo_out * r_ergo_out + a2) * sinTheta;
+            float ergo_out_y = r_ergo_out * cosTheta;
+            ImVec2 pt_ergo_out = ToSideScreen(ergo_out_rho, ergo_out_y);
+
+            float ergo_in_rho = std::sqrt(r_ergo_in * r_ergo_in + a2) * sinTheta;
+            float ergo_in_y = r_ergo_in * cosTheta;
+            ImVec2 pt_ergo_in = ToSideScreen(ergo_in_rho, ergo_in_y);
+
+            if (prev_ergo_valid)
+            {
+                // 如果连续有效，连线绘制外/内静界曲线
+                draw_list->AddLine(prev_ergo_out, pt_ergo_out, colErgosphere, 1.5f);
+                draw_list->AddLine(prev_ergo_in, pt_ergo_in, colInnerErgo, 1.5f);
+            }
+            else if (i > 0)
+            {
+                // 刚从"无解"进入"有解"区，连接内外静界点闭合能层尖端（月牙形闭合点）
+                draw_list->AddLine(pt_ergo_out, pt_ergo_in, colErgosphere, 1.5f);
+            }
+
+            prev_ergo_out = pt_ergo_out;
+            prev_ergo_in = pt_ergo_in;
+        }
+        else
+        {
+            if (prev_ergo_valid)
+            {
+                // 刚从"有解"区进入"无解"区，闭合另一个尖端
+                draw_list->AddLine(prev_ergo_out, prev_ergo_in, colErgosphere, 1.5f);
+            }
+        }
+        prev_ergo_valid = ergo_valid;
+
+        // 俯视图边界是赤道面上的圆 (cosTheta=0)
+        if (i == 0)
+        {
+            float eq_disc = M * M - Q2;
+            if (eq_disc >= 0.0f) // 只有赤道面存在解才画俯视图圆
+            {
+                float r_ergo_eq_out = M + std::sqrt(eq_disc);
+                draw_list->AddCircle(centerTop, std::sqrt(r_ergo_eq_out * r_ergo_eq_out + a2) * scale, colErgosphere, 64, 1.5f);
+
+                float r_ergo_eq_in = M - std::sqrt(eq_disc);
+                draw_list->AddCircle(centerTop, std::sqrt(r_ergo_eq_in * r_ergo_eq_in + a2) * scale, colInnerErgo, 64, 1.5f);
+            }
+        }
+
+        if (!isNakedSingularity)
+        {
+            float out_rho = std::sqrt(r_outer * r_outer + a2) * sinTheta;
+            float out_y = r_outer * cosTheta;
+            sideOutPts.push_back(ToSideScreen(out_rho, out_y));
+            if (i == 0) draw_list->AddCircle(centerTop, std::sqrt(r_outer * r_outer + a2) * scale, colOuterHorizon, 64, 2.0f);
+
+            float in_rho = std::sqrt(r_inner * r_inner + a2) * sinTheta;
+            float in_y = r_inner * cosTheta;
+            sideInPts.push_back(ToSideScreen(in_rho, in_y));
+            if (i == 0) draw_list->AddCircle(centerTop, std::sqrt(r_inner * r_inner + a2) * scale, colInnerHorizon, 64, 2.0f);
+        }
     }
-    ImGui::End();
 
-    // 显示控制说明
-    ImGui::SetNextWindowPos(ImVec2(20, 240), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
-
-    if (ImGui::Begin("Controls"))
+    if (!isNakedSingularity)
     {
-        ImGui::Text("WASD: Move Camera");
-        ImGui::Text("RF: Move Up/Down");
-        ImGui::Text("QE: Roll Camera");
-        ImGui::Text("Mouse + Left Click: Rotate Camera");
-        ImGui::Text("Mouse Wheel: Zoom");
-        ImGui::Text("T: Toggle Camera Mode");
-        ImGui::Text("ESC: Exit");
+        draw_list->AddPolyline(sideOutPts.data(), sideOutPts.size(), colOuterHorizon, ImDrawFlags_Closed, 2.0f);
+        draw_list->AddPolyline(sideInPts.data(), sideInPts.size(), colInnerHorizon, ImDrawFlags_Closed, 2.0f);
     }
+    // 删除了你之前代码里不小心复制粘贴导致重复的绘制段落
+
+    // 5. 绘制奇环 (a)
+    draw_list->AddCircleFilled(ToSideScreen(std::abs(a), 0.0f), 4.0f, colSingularity);
+    draw_list->AddCircleFilled(ToSideScreen(-std::abs(a), 0.0f), 4.0f, colSingularity);
+    draw_list->AddCircle(centerTop, std::abs(a) * scale, colSingularity, 64, 2.0f);
+
+    // 6. 绘制相机位置和朝向
+    ImU32 camColor = IM_COL32(255, 255, 0, 255);
+    float rho_cam = std::sqrt(camPos.x * camPos.x + camPos.z * camPos.z);
+    ImVec2 camSidePos = ToSideScreen(rho_cam, camPos.y);
+
+    float drho = (rho_cam > 1e-6f) ? ((camPos.x * camDir.x + camPos.z * camDir.z) / rho_cam) : std::sqrt(camDir.x * camDir.x + camDir.z * camDir.z);
+
+    // 动态调整朝向线条长度：如果在极远处，保持方向线相对明显（至少占距离的15% 或 最低 1.5 Rs）
+    float camLineLen = std::max(1.5f, camDist * 0.15f);
+
+    ImVec2 camSideDir = ToSideScreen(rho_cam + drho * camLineLen, camPos.y + camDir.y * camLineLen);
+    ImVec2 camTopPos = ToTopScreen(camPos.x, camPos.z);
+    ImVec2 camTopDir = ToTopScreen(camPos.x + camDir.x * camLineLen, camPos.z + camDir.z * camLineLen);
+
+    auto IsInCanvas = [&](ImVec2 p)
+    {
+        return p.x >= canvas_p0.x && p.x <= canvas_p0.x + canvas_sz.x &&
+            p.y >= canvas_p0.y && p.y <= canvas_p0.y + canvas_sz.y;
+    };
+
+    if (IsInCanvas(camSidePos))
+    {
+        draw_list->AddLine(camSidePos, camSideDir, camColor, 2.0f);
+        draw_list->AddCircleFilled(camSidePos, 5.0f, camColor);
+    }
+    if (IsInCanvas(camTopPos))
+    {
+        draw_list->AddLine(camTopPos, camTopDir, camColor, 2.0f);
+        draw_list->AddCircleFilled(camTopPos, 5.0f, camColor);
+    }
+
     ImGui::End();
 }
 _NPGS_END

@@ -25,8 +25,9 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     vec4  iBlackHoleRelativeDiskNormal;  //黑洞在相机系下吸积盘法向兼自旋正方向。单位倍Rs
     vec4  iBlackHoleRelativeDiskTangen;  //黑洞在相机系下吸积盘切向。单位倍Rs
 
-
+    int   iDEBUG;
     int   iGrid;                         //绘制网格
+    int   iEnableHearHaze;               //热折射
     int   iObserverMode;                 //观者模式，0静态，1落体
 
     float iUniverseSign;                 //相机所在空间侧。 +1.0正宇宙  -1.0反宇宙
@@ -596,9 +597,9 @@ vec4 GetInitialMomentum(
     // 返回协变动量 P_mu
     return LowerIndex(P_up, geo);
 }
-// -----------------------------------------------------------------------------
+// =============================================================================
 // 5.积分器
-// -----------------------------------------------------------------------------
+// =============================================================================
 struct State {
     vec4 X; // x^u
     vec4 P; // p_u
@@ -794,7 +795,6 @@ void StepGeodesicRK4_Optimized(
 // SECTION 6: 热折射，吸积盘与喷流,经纬网
 // =============================================================================
 
-#define ENABLE_HEAT_HAZE        1       // 1 = 开启热浪折射
 #define HAZE_STRENGTH           0.2    // 折射强度
 #define HAZE_SCALE              5.2     // 噪声频率
 #define HAZE_DENSITY_THRESHOLD  0.1     // 密度阈值
@@ -822,8 +822,6 @@ float GetBaseNoise(vec3 p)
 {
     float baseScale = HAZE_SCALE * 0.4; 
     vec3 pos = p * baseScale;
-    
-    // 给采样坐标加一个任意角度的旋转矩阵，防止噪声晶格与吸积盘平面(XZ)对齐
     const mat3 rotNoise = mat3(
          0.80,  0.60,  0.00,
         -0.48,  0.64,  0.60,
@@ -861,30 +859,24 @@ float GetJetHazeMask(vec3 pos_Rg, float InterRadius, float OuterRadius)
     float r = length(pos_Rg.xz);
     float y = abs(pos_Rg.y);
     float RhoSq = r * r;
-    
-    // 逻辑复用自 JetColor
-    // 喷流主要由两部分组成：核心 (Core) 和 外壳 (Shell)
-    
-    // 1. 核心半径估计 (Jet Core)
+
+    //核心半径估计 (Jet Core)
     float coreRadiusLimit = sqrt(2.0 * InterRadius * InterRadius + 0.03 * 0.03 * y * y);
     
-    // 2. 外壳半径估计 (Jet Shell)
+    //外壳半径估计 (Jet Shell)
     // 对应 JetColor: Rho < 1.3 * InterRadius + 0.25 * Wid
     float shellRadiusLimit = 1.3 * InterRadius + 0.25 * y;
     
     // 取两者较大的作为热浪边界，并稍微膨胀以覆盖辉光
     float maxJetRadius = max(coreRadiusLimit, shellRadiusLimit) * 1.2;
     
-    // 3. 垂直长度限制
+    //垂直长度限制
     // 喷流在 OuterRadius 附近开始衰减
     float jLen = OuterRadius * 0.8;
     
-    // 4. 生成遮罩
     float rMaskJet = 1.0 - smoothstep(maxJetRadius * 0.8, maxJetRadius * 1.1, r);
     float hMaskJet = 1.0 - smoothstep(jLen * 0.75, jLen * 1.0, y);
     
-    // 喷流不应在吸积盘内部太强 (y 接近 0 时)，虽然 JetColor 也有处理，
-    // 这里加一个平滑淡入防止在盘中心产生奇怪的重叠
     float startYMask = smoothstep(InterRadius * 0.5, InterRadius * 1.5, y);
     
     return rMaskJet * hMaskJet * startYMask;
@@ -893,10 +885,8 @@ float GetJetHazeMask(vec3 pos_Rg, float InterRadius, float OuterRadius)
 // 包围盒检测优化
 bool IsInHazeBoundingVolume(vec3 pos, float probeDist, float OuterRadius) {
     float maxR = OuterRadius * 1.2;
-    float maxY = maxR; // 简化包围盒为球或大圆柱
+    float maxY = maxR; 
     float r = length(pos);
-    // 如果当前点在包围盒内，或者射线方向延伸 probeDist 后能碰到包围盒
-    // 这里做个最简单的剔除：如果离原点太远且向外射，则忽略
     if (r > maxR + probeDist) return false;
     return true;
 }
@@ -906,29 +896,22 @@ vec3 GetHazeForce(vec3 pos_Rg, float time, float PhysicalSpinA, float PhysicalQ,
                   float InterRadius, float OuterRadius, float Thin, float Hopper,
                   float AccretionRate)
 {
-    // =========================
-    // 1. 吸积盘热浪强度计算
-    // =========================
+    //吸积盘热浪强度计算
     float dDens = HAZE_DISK_DENSITY_REF;
     float dLimitAbs = 20.0;
     float dFactorAbs = clamp((log(dDens/dLimitAbs)) / 2.302585, 0.0, 1.0);
-    // 这里喷流密度仅作为参考
+    //喷流密度仅作参考
     float jDensRef = HAZE_JET_DENSITY_REF; 
     float dFactorRel = 1.0;
     if (jDensRef > 1e-20) dFactorRel = clamp((log(dDens/jDensRef)) / 2.302585, 0.0, 1.0);
     float diskHazeStrength = dFactorAbs * dFactorRel;
 
-    // =========================
-    // 2. 喷流热浪强度计算
-    // =========================
+    //喷流热浪强度计算
     float jetHazeStrength = 0.0;
     float JetThreshold = 1e-2;
     
-    // 如果吸积率低于阈值，直接优化跳过
     if (AccretionRate >= JetThreshold)
     {
-        // 在 Log 空间内，从 1e-2 到 1.0 进行平滑过渡 (0.0 -> 1.0)
-        // 超过 1.0 则保持最大强度
         float logRate = log(AccretionRate);
         float logMin  = log(JetThreshold);
         float logMax  = log(1.0);
@@ -937,26 +920,22 @@ vec3 GetHazeForce(vec3 pos_Rg, float time, float PhysicalSpinA, float PhysicalQ,
         jetHazeStrength = intensity;
     }
 
-    // 早期退出优化
+    //退出优化
     if (diskHazeStrength <= 0.001 && jetHazeStrength <= 0.001) return vec3(0.0);
 
     vec3 totalForce = vec3(0.0);
     float eps = 0.1;
 
-    // =========================
-    // 3. 动态循环周期计算
-    // =========================
+    //循环周期计算
     float rotSpeedBase = 100.0 * HAZE_ROT_SPEED; 
     float jetSpeedBase = 50.0 * HAZE_FLOW_SPEED;
     
-    // 计算内边缘处的基准角速度 (用于确定噪声刷新的物理节奏)
-    // M=0.5 -> Rs=1.0. 在 Rg 空间计算.
+    // 计算内边缘角速度
     float ReferenceOmega = GetKeplerianAngularVelocity(6.0, 1.0, PhysicalSpinA, PhysicalQ);
     
-    // 设定一个合理的物理周期，内圈每旋转一定圈数，噪声完成一次淡入淡出循环。
+    //内圈每旋转一定圈数，噪声完成一次淡入淡出循环
     float AdaptiveFrequency = abs(ReferenceOmega * rotSpeedBase) / (2.0 * kPi * 5.14);
     
-    // 限制一下最小频率防止除零或过慢
     AdaptiveFrequency = max(AdaptiveFrequency, 0.1);
 
     float flowTime = time * AdaptiveFrequency;
@@ -964,7 +943,6 @@ vec3 GetHazeForce(vec3 pos_Rg, float time, float PhysicalSpinA, float PhysicalQ,
     float phase1 = fract(flowTime);
     float phase2 = fract(flowTime + 0.5);
     
-    // 三角波权重 (0->1->0)
     float weight1 = 1.0 - abs(2.0 * phase1 - 1.0);
     float weight2 = 1.0 - abs(2.0 * phase2 - 1.0);
     
@@ -979,13 +957,11 @@ vec3 GetHazeForce(vec3 pos_Rg, float time, float PhysicalSpinA, float PhysicalQ,
     float t_offset1 = phase1 - 0.5;
     float t_offset2 = phase2 - 0.5;
 
-    // 引入垂直漂移：让噪声采样点随时间在Y轴移动，消除单调重复感
+    // 垂直漂移
     float VerticalDrift1 = t_offset1 * 1.0; 
     float VerticalDrift2 = t_offset2 * 1.0;
     
-    // -----------------------------------------------------
-    // A. 吸积盘热浪
-    // -----------------------------------------------------
+    //吸积盘热浪
     if (diskHazeStrength > 0.001)
     {
         float maskDisk = GetDiskHazeMask(pos_Rg, InterRadius, OuterRadius, Thin, Hopper);
@@ -1052,9 +1028,7 @@ vec3 GetHazeForce(vec3 pos_Rg, float time, float PhysicalSpinA, float PhysicalQ,
         }
     }
 
-    // -----------------------------------------------------
-    // B. 喷流热浪
-    // -----------------------------------------------------
+    //喷流热浪
     if (jetHazeStrength > 0.001)
     {
         float maskJet = GetJetHazeMask(pos_Rg, InterRadius, OuterRadius);
@@ -1617,11 +1591,11 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
         GridCount++;
 
         if (HasHorizon) {
-            SignedGridRadii[GridCount] = RH_Outer * 1.01 + 0.05; 
+            SignedGridRadii[GridCount] = RH_Outer * 1.06; 
             GridColors[GridCount] = 0.3*vec3(0.0, 1.0, 0.0); 
             GridCount++;
             
-            SignedGridRadii[GridCount] = RH_Inner * 0.99 - 0.05; 
+            SignedGridRadii[GridCount] = RH_Inner * 0.94; 
             GridColors[GridCount] =0.3* vec3(1.0, 0.0, 0.0); 
             GridCount++;
         }
@@ -1671,13 +1645,13 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 float CheckR = KerrSchildRadius(HitPos, PhysicalSpinA, HitPointSign);
                 if (abs(CheckR - TargetSignedR) > 0.1 * TargetGeoR + 0.1) continue; 
 
-                // [核心修改 4]：插值HitTime并获取局部拖拽角速度
+                //插值HitTime获取局部拖拽角速度
                 float HitTime = mix(LastRayPos.w, RayPos.w, t);
                 float Omega = GetZamoOmega(TargetSignedR, PhysicalSpinA, PhysicalQ, HitPos.y);
 
                 float Phi_raw = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
-                // 进行坐标时间补偿与真实时间推进
-                float Phi = Phi_raw + Omega * (HitTime + iBlackHoleTime);
+                //坐标时间补偿与真实时间推进
+                float Phi = Phi_raw + Omega * HitTime + iBlackHoleTime*GetZamoOmega(TargetSignedR, PhysicalSpinA, PhysicalQ, 0.0);
                 
                 float CosTheta = clamp(HitPos.y / TargetGeoR, -1.0, 1.0);
                 float Theta = acos(CosTheta);
@@ -1713,12 +1687,11 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
         float HitRho = length(DiskHitPos.xz);
         float a_abs = abs(PhysicalSpinA);
         
-        // [核心修改 5]：处理r=0时的盘面补偿
         float HitTime_disk = mix(LastRayPos.w, RayPos.w, t_cross);
         float Omega_disk = GetZamoOmega(0.0, PhysicalSpinA, PhysicalQ, 0.0);
 
         float Phi_raw = Vec2ToTheta(normalize(DiskHitPos.zx), vec2(0.0, 1.0));
-        float Phi = Phi_raw + Omega_disk * (HitTime_disk + iBlackHoleTime);
+        float Phi = Phi_raw;// + Omega_disk * HitTime_disk + iBlackHoleTime*GetZamoOmega(0.0, PhysicalSpinA, PhysicalQ, 0.0);
         
         float DensityPhi = 24.0;
         float DistFactor = length(DiskHitPos); 
@@ -1785,11 +1758,11 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
     float RH_Inner = 0.5 - sqrt(max(0.0, HorizonDiscrim));
 
     if (CheckPositive) {
-        SignedGridRadii[GridCount++] = RH_Outer * 1.05; 
+        SignedGridRadii[GridCount++] = RH_Outer * 1.06; 
         SignedGridRadii[GridCount++] = 20.0;
         
         if (HorizonDiscrim >= 0.0) {
-           SignedGridRadii[GridCount++] = RH_Inner * 0.95; 
+           SignedGridRadii[GridCount++] = RH_Inner * 0.94; 
         }
     }
     
@@ -1835,10 +1808,8 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 float CheckR = KerrSchildRadius(HitPos, PhysicalSpinA, HitPointSign);
                 if (abs(CheckR - TargetSignedR) > 0.1 * TargetGeoR + 0.1) continue; 
 
-                // [核心修改 1]：插值获取精确的击中时间
                 float HitTime = mix(LastRayPos.w, RayPos.w, t);
 
-                // 计算物理量 (这里的 Omega 刚好作为拖拽角速度使用)
                 float Omega = GetZamoOmega(TargetSignedR, PhysicalSpinA, PhysicalQ, HitPos.y);
                 vec3 VelSpatial = Omega * vec3(HitPos.z, 0.0, -HitPos.x);
                 vec4 U_zamo_unnorm = vec4(VelSpatial, 1.0); 
@@ -1854,10 +1825,8 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 float E_emit = -dot(iP_cov, U_zamo);
                 float Shift = 1.0/ max(1e-6, abs(E_emit)); 
 
-                // [核心修改 2]：坐标时间补偿 Phi 相位
                 float Phi_raw = Vec2ToTheta(normalize(HitPos.zx), vec2(0.0, 1.0));
-                // 逆向追踪时 HitTime 是递减的负数。减去 Omega * HitTime 意味着回退到最初始的网格角度，抵消掉时间带来的无限缠绕。
-                float Phi = Phi_raw + Omega * (HitTime + iBlackHoleTime);
+                float Phi = Phi_raw + Omega * HitTime + iBlackHoleTime*GetZamoOmega(TargetSignedR, PhysicalSpinA, PhysicalQ, 1.0);
                 
                 float CosTheta = clamp(HitPos.y / TargetGeoR, -1.0, 1.0);
                 float Theta = acos(CosTheta);
@@ -1891,19 +1860,16 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
         }
     }
 
-    // 单独处理 r=0 (圆环奇点 / Disk)
     if (bHasCrossed && CurrentResult.a < 0.99) {
         
         float HitRho = length(DiskHitPos.xz);
         float a_abs = abs(PhysicalSpinA);
         
-        // [核心修改 3]：计算 r=0 处的 HitTime 和 Omega 并进行补偿
         float HitTime_disk = mix(LastRayPos.w, RayPos.w, t_cross);
-        // r=0处的拖拽角速度 (对于 Kerr 是 1/a)
         float Omega_disk = GetZamoOmega(0.0, PhysicalSpinA, PhysicalQ, 0.0); 
         
         float Phi_raw = Vec2ToTheta(normalize(DiskHitPos.zx), vec2(0.0, 1.0));
-        float Phi = Phi_raw + Omega_disk * (HitTime_disk + iBlackHoleTime);
+        float Phi = Phi_raw;// + Omega_disk * HitTime_disk + iBlackHoleTime*GetZamoOmega(0.0, PhysicalSpinA, PhysicalQ, 1.0);
         
         float DensityPhi = 24.0;
         float DistFactor = length(DiskHitPos); 
@@ -1945,24 +1911,17 @@ vec4 GridColor(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
 // SECTION7: KN阴影计算
 // =============================================================================
 
-// 判断吸积盘是否“视觉上存在”
 bool IsAccretionDiskVisible(float InterR, float OuterR, float Thin, float Hopper, float Bright, float Dark)
 {
-    // 条件1: 内半径大于等于外半径 -> 不存在
     if (InterR >= OuterR) return false;
-    // 条件2: 几何厚度为0 (Thin<=0 且 Hopper==0) -> 不存在
     if (Thin <= 0.0 && Hopper == 0.0) return false;
-    // 条件3: 既不发光也不遮挡 (Bright<=0 且 Dark<0) -> 不存在
-    // 注意: Darkmut通常是正数表示遮挡能力，题目说 Dark<0 视为“没有”，遵照执行
     if (Bright <= 0.0 && Dark < 0.0) return false;
     
     return true;
 }
 
-// 判断喷流是否“视觉上存在”
 bool IsJetVisible(float AccretionRate, float JetBright)
 {
-    // 吸积率过低 或 亮度<=0 -> 不存在
     if (AccretionRate < 1e-2) return false;
     if (JetBright <= 0.0) return false;
     return true;
@@ -1986,15 +1945,15 @@ float SolveQuarticU(float M, float Q, float a, float sign_term, bool is_max_root
     
     // 系数
     float c2 = 2.0 * Q2 - 3.0 * M2;
-    float c1 = sign_term * (-2.0 * a * M2); // 注意：文档说"减号版本"即系数为负
+    float c1 = sign_term * (-2.0 * a * M2);
     float c0 = Q2 * Q2 - M2 * Q2;
     
     // 初始猜测：
-    // 对于顺行(A, 小根)，u 较小 (r 接近 M 或 2M)
-    // 对于逆行(B, 大根)，u 较大 (r 接近 3M 或 4M)
+    // 顺行(A, 小根)，u 较小 (r 接近 M 或 2M)
+    // 逆行(B, 大根)，u 较大 (r 接近 3M 或 4M)
     float u = is_max_root ? 2.2 * M : 0.8 * M; 
     
-    // 牛顿迭代求解多项式根 (多项式非常平滑，收敛极快)
+    // 牛顿迭代求解
     for(int i=0; i<8; i++) {
         float u2 = u * u;
         float u3 = u2 * u;
@@ -2005,18 +1964,17 @@ float SolveQuarticU(float M, float Q, float a, float sign_term, bool is_max_root
         if (abs(df) < 1e-6) break;
         u = u - f / df;
     }
-    return abs(u); // u = sqrt(...) 必须为正
+    return abs(u); 
 }
 
 // 将静态观测者的正弦值转换为落体观测者
 float GetDropFrameAngle(float SinThetaStat, float CosThetaStat, float r, float M, float Q, float a, int ObserverMode) {
-    // 1. 静态观者 (ObserverMode == 0)
-    // 用 atan2 计算角度，自动处理 CosThetaStat < 0 (钝角) 的情况
+    // 静态观者 (ObserverMode == 0)
     if (ObserverMode == 0) {
         return atan(SinThetaStat, CosThetaStat);
     }
     
-    // 2. 自由落体观者 (ObserverMode == 1)
+    // 落体观者 (ObserverMode == 1)
     // 虽然Static Observer 是固定在 KS 坐标系下的，而非 ZAMO，但因为一些误差，这里denominator_v直接使用r*r会出问题。
     float numerator_v = 2.0 * M * r - Q * Q;
     float denominator_v = r * r - 2.0*r*a*a; // -2.0*r*a*a是为了修正误差
@@ -2033,26 +1991,25 @@ float GetDropFrameAngle(float SinThetaStat, float CosThetaStat, float r, float M
     float sin_fall = SinThetaStat * sqrt(max(0.0, 1.0 - v_sq));
     float cos_fall = CosThetaStat + v;
     
-    // 使用 atan2 自动处理所有象限和归一化问题
     return atan(sin_fall, cos_fall);
 }
 
-// 计算 Reissner-Nordstrom (a=0) 黑洞的阴影半张角 (弧度)
+// 计算 R-N (a=0) 黑洞的阴影半张角 
 float GetShadowHalfAngleRN(float r, float M, float Q, int ObserverMode)
 {
     float M2 = M * M;
     float Q2 = Q * Q;
     float r2 = r * r;
     
-    // 1. 光子球半径 r_ps
+    // 光子球半径 r_ps
     float term_root = sqrt(max(0.0, 9.0 * M2 - 8.0 * Q2));
     float r_ps = 0.5 * (3.0 * M + term_root);
     
-    // 2. 临界碰撞参数 b_c
+    // 临界碰撞参数 b_c
     float metric_factor_ps = 1.0 - 2.0 * M / r_ps + Q2 / (r_ps * r_ps);
     float b_c = r_ps / sqrt(max(1e-6, metric_factor_ps));
     
-    // 3. 计算静态观者的 Sine 和 Cosine
+    // 计算静态观者的 Sin 和 Cos
     // f(r) = 1 - 2M/r + Q^2/r^2
     float f_r = 1.0 - 2.0 * M / r + Q2 / r2;
     float sqrt_f = sqrt(max(0.0, f_r));
@@ -2065,10 +2022,10 @@ float GetShadowHalfAngleRN(float r, float M, float Q, int ObserverMode)
     // 增加一个微小的 epsilon 防止 r == r_ps 时闪烁
     float cos_sign = (r >= r_ps - 1e-4) ? 1.0 : -1.0;
     
-    // 计算 Cos: sqrt(1 - sin^2)
+    // 计算 Cos
     float cos_theta_stat = cos_sign * sqrt(max(0.0, 1.0 - sin_theta_stat * sin_theta_stat));
     
-    // 4. 转换坐标系
+    // 换坐标系
     return GetDropFrameAngle(sin_theta_stat, cos_theta_stat, r, M, Q, 0.0, ObserverMode);
 }
 
@@ -2103,7 +2060,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     // -------------------------------------------------------------------------
     // 物理常数与黑洞参数
     // -------------------------------------------------------------------------
-    // [Spin & ISCO Parameters]
+    // 吸积盘相关参量
     float iSpinclamp = clamp(iSpin, -0.99, 0.99);
     float a2 = iSpinclamp * iSpinclamp;
     float abs_a = abs(iSpinclamp);
@@ -2115,25 +2072,24 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float RmsRatio = Rms_M / 2.0; 
     float AccretionEffective = sqrt(max(0.001, 1.0 - (2.0 / 3.0) / Rms_M));
 
-    // [Temperature & Accretion]
     const float kPhysicsFactor = 1.52491e30; 
     float DiskArgument = kPhysicsFactor / iBlackHoleMassSol * (iMu / AccretionEffective) * (iAccretionRate);
     float PeakTemperature = pow(DiskArgument * 0.05665278, 0.25);
 
-    // [Metric Constants]
+    // 自旋/电荷 量纲化
     float PhysicalSpinA = iSpin * CONST_M;  
     float PhysicalQ     = iQ * CONST_M; 
     
-    // [Horizons]
+    // 视界位置
     float HorizonDiscrim = 0.25 - PhysicalSpinA * PhysicalSpinA - PhysicalQ * PhysicalQ;
     float EventHorizonR = 0.5 + sqrt(max(0.0, HorizonDiscrim));
     float InnerHorizonR = 0.5 - sqrt(max(0.0, HorizonDiscrim));
     bool  bIsNakedSingularity = HorizonDiscrim < 0.0;
 
-    // [Rendering Limits]
+    // 包围球
     float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
     float BackgroundShiftMax = 2.0;
-    float ShiftMax = 1.0; 
+    float ShiftMax = 1.0; //吸积盘亮度最大值
     float CurrentUniverseSign = iUniverseSign;
     if (iBlackHoleMassSol<0.0)
     {
@@ -2185,7 +2141,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
     vec4 X = vec4(RayPosLocal, 0.0);
     
-    //[修改5]初始化一个默认的 P_cov 防止未初始化报错，但不调用 GetInitialMomentum，因为 RayDir 还没被 Heat Haze 扭曲
     vec4 P_cov = vec4(0.0,0.0,0.0,-1.0);
 
     float E_conserved = 1.0;
@@ -2195,7 +2150,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float GravityFade = CubicInterpolate(max(min(1.0 - (length(RayPosLocal) - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
 
     
-    #if ENABLE_HEAT_HAZE == 1
+    if (iEnableHearHaze == 1)
     {
         // 1. 坐标与参数准备 (Rg 空间)
         vec3 pos_Rg_Start = X.xyz; 
@@ -2206,18 +2161,15 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         // [适配] 使用 iTime，取模防止噪声溢出
         float hazeTime = mod(iBlackHoleTime, 1000.0); 
 
-        // --- Debug: 体积光线步进可视化 ---
-        #if HAZE_DEBUG_MASK == 1
+        if(iDEBUG==1)
         {
             float debugAccum = 0.0;
             float debugStep = 1.0; 
             vec3 debugPos = pos_Rg_Start;
             
-            // 为了Debug重算一遍参数，与 GetHazeForce 保持一致
             float rotSpeedBase = 100.0 * HAZE_ROT_SPEED;
             float jetSpeedBase = 50.0 * HAZE_FLOW_SPEED;
             
-            // 参数与 GetHazeForce 同步
             float ReferenceOmega = GetKeplerianAngularVelocity(6.0, 1.0, PhysicalSpinA, PhysicalQ);
             float AdaptiveFrequency = abs(ReferenceOmega * rotSpeedBase) / (2.0 * kPi * 5.14);
             AdaptiveFrequency = max(AdaptiveFrequency, 0.1);
@@ -2227,7 +2179,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             float weight1 = 1.0 - abs(2.0 * phase1 - 1.0); float weight2 = 1.0 - abs(2.0 * phase2 - 1.0);
             float t_offset1 = phase1 - 0.5; float t_offset2 = phase2 - 0.5;
             
-            // 引入垂直漂移
             float VerticalDrift1 = t_offset1 * 1.0; 
             float VerticalDrift2 = t_offset2 * 1.0;
 
@@ -2242,7 +2193,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             {
                 float valCombined = 0.0;
 
-                // A. 盘部分 Debug
                 float maskDisk = GetDiskHazeMask(debugPos, iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper);
                 if (maskDisk > 0.001) {
                     float r_local = length(debugPos.xz);
@@ -2270,7 +2220,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                     valCombined += maskDisk * max(0.0, vDisk - HAZE_DENSITY_THRESHOLD);
                 }
 
-                // B. 喷流部分 Debug
                 float maskJet = GetJetHazeMask(debugPos, iInterRadiusRs, iOuterRadiusRs);
                 if (maskJet > 0.001) {
                     float v_jet_mag = 0.9;
@@ -2293,19 +2242,17 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                 debugPos += rayDirNorm * debugStep;
             }
             
-            res.Status = 3.0; // Opaque
-            res.AccumColor = vec4(vec3(min(1.0, debugAccum)), 1.0);
-            return res;
+           Result += 0.1*vec4(vec3(min(1.0, debugAccum)), 1.0);
         }
-        #endif
+        
 
-        // 2. 几何剔除优化
+        //几何剔除优化
         if (IsInHazeBoundingVolume(pos_Rg_Start, totalProbeDist, iOuterRadiusRs)) 
         {
             vec3 accumulatedForce = vec3(0.0);
             float totalWeight = 0.0;
 
-            // 3. 循环累积探测
+            // 累积探测
             for (int i = 0; i < HAZE_PROBE_STEPS; i++)
             {
                 float marchDist = float(i + 1) * HAZE_STEP_SIZE; 
@@ -2324,37 +2271,27 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
             vec3 avgHazeForce = accumulatedForce / max(0.001, totalWeight);
 
-            // --- Debug: 向量可视化 ---
-            #if HAZE_DEBUG_VECTOR == 1
-                if (length(avgHazeForce) > 1e-4) {
-                    res.Status = 3.0;
-                    vec3 debugVec = normalize(avgHazeForce) * 0.5 + 0.5;
-                    debugVec *= (0.5 + 10.0 * length(avgHazeForce)); 
-                    res.AccumColor = vec4(debugVec, 1.0);
-                    return res;
-                }
-            #endif
-
-            // [修改7]替换掉下面这节
-            // 4. 物理偏转应用
+            // 偏转应用
             float forceMagSq = dot(avgHazeForce, avgHazeForce);
             if (forceMagSq > 1e-10)
             {
-                // 投影到垂直平面，确保只改变方向不改变速度大小
                 vec3 forcePerp = avgHazeForce - dot(avgHazeForce, rayDirNorm) * rayDirNorm;
-                
-                // 计算总偏转量。可能需要微调系数以保持视觉强度正常
+                // 计算总偏转量
                 vec3 deflection = forcePerp * HAZE_STRENGTH * 25.0; 
-
-                // 系数 0.1 是为了防止极端扭曲导致数值爆炸，可以根据画面效果微调这个 0.1
                 RayDir = normalize(RayDir + deflection * 0.1); 
-                
-                // 同步更新 LastDir
                 LastDir = RayDir;
             }
+            if(iDEBUG==1)
+            {
+                if (length(avgHazeForce) > 1e-4) {
+                    vec3 debugVec = normalize(avgHazeForce) * 0.5 + 0.5;
+                    debugVec *= (0.5 + 10.0 * length(avgHazeForce)); 
+                    Result += 0.1*vec4(debugVec, 1.0);
+                }
+            }
         }
+
     }
-    #endif
     
     if (bShouldContinueMarchRay) {
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
@@ -2428,23 +2365,19 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float ProgradePhotonRadius = r;
 
 
-#define ENABLE_SHADOW_CULLING     1       // 1:开启剔除优化, 0:关闭 (To compare performance)
-#define DEBUG_SHADOW_CULLING      0       // 1:显示绿色调试层, 0:正常黑色 (To visualize culling)
 #define SHADOW_SIZE_MULTIPLIER    0.995     // 阴影半径微调系数 (Multiplier for shadow radius)
 
 
     // -------------------------------------------------------------------------
     // 阴影剔除逻辑
     // -------------------------------------------------------------------------
-    #if ENABLE_SHADOW_CULLING == 1
-    // 条件：非裸奇点、在universe侧、距离足够远(>RN视界或KN逆行光子轨道)、当前还需要继续步进
+
+    //非裸奇点、在universe侧、距离足够远(>RN视界或KN逆行光子轨道)、当前还需要继续步进
     float AbsSpinA = abs(CONST_M * iSpin);
     bool bIsRot = AbsSpinA > 1e-5;
     
-    // 初步判定是否需要尝试剔除：
-    // 1. 非裸奇点 (视界存在)
-    // 2. 在正宇宙 (CurrentUniverseSign > 0)
-    // 3. 当前光线还需要继续步进 (bShouldContinueMarchRay)
+    // 判定是否需要剔除：
+    // 非裸奇点 (视界存在),在正宇宙 (CurrentUniverseSign > 0),当前光线还需要继续步进 (bShouldContinueMarchRay)
     if (!bIsNakedSingularity && CurrentUniverseSign > 0.0 && bShouldContinueMarchRay && iGrid==0)
     {
         // 预计算剔除启动的阈值半径
@@ -2454,14 +2387,13 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             // 纯RN/史瓦西黑洞：允许进入光子球内部，直到非常接近视界
             CullingStartRadius = 1.005 * EventHorizonR;
         } else {
-            // 旋转黑洞：计算逆行光子轨道半径 r_B (凸出侧)
+            // 计算逆行光子轨道半径 r_B (凸出侧)
             // 使用 SolveQuarticU 计算 r_B (对应参数 +1.0)
             float u_B_calc = SolveQuarticU(CONST_M, PhysicalQ, AbsSpinA, 1.0, true);
             float r_B_calc = (u_B_calc * u_B_calc + PhysicalQ * PhysicalQ) / CONST_M;
 
             CullingStartRadius = r_B_calc + 0.05;
         }
-        // 只有当相机(或当前光线起点)在安全半径外，才进行剔除
         if (CameraStartR > CullingStartRadius)
         {
  // 计算视线与黑洞中心的夹角
@@ -2469,17 +2401,17 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             float CosAlpha = dot(normalize(RayDir), ToCenterDir);
             float RayAngle = acos(clamp(CosAlpha, -1.0, 1.0)); // 当前像素视线与黑洞中心的夹角
 
-            // 估算阴影的大致可能张角，仅在这个区域内进行进一步计算
+            // 估算阴影的大致可能张角，仅在这个区域内进一步计算
             float SafetyFactor = 2.5 + 1.1 * abs(iSpin) - iQ;
             float MaxShadowAngleEstimate = SafetyFactor * (2.0 * CONST_M) / max(1e-6, CameraStartR);
-            if (RayAngle < MaxShadowAngleEstimate || CameraStartR < 3.0*EventHorizonR) // 只有大致朝向黑洞或在光子球里才计算
+            if (RayAngle < MaxShadowAngleEstimate || CameraStartR < 3.0*EventHorizonR) // 大致朝向黑洞或在光子球内
             {
                 float RayAngle = acos(CosAlpha); // 当前像素视线与黑洞中心的夹角
-                bool bHitShadow = false; // 是否命中阴影
+                bool bHitShadow = false; 
                 
                 if (!bIsRot)
                 {
-                    // === 情况 1: 纯RN或纯史瓦西黑洞 (a=0) ===
+                    //球对称
                     float ShadowHalfAngle = GetShadowHalfAngleRN(CameraStartR, CONST_M, PhysicalQ, iObserverMode);
                     ShadowHalfAngle *= SHADOW_SIZE_MULTIPLIER;
                     
@@ -2487,16 +2419,15 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                 }
                 else
                 {
-                    // === 情况 2: 有自旋黑洞 (a!=0) ===
                     float M = CONST_M;
                     float Q = PhysicalQ;
-                    float a = PhysicalSpinA; // 保留原始符号用于手性判断
-                    float a_abs = AbsSpinA;  // 几何计算绝对值
+                    float a = PhysicalSpinA; 
+                    float a_abs = AbsSpinA; 
                     float Q2 = Q*Q;
                     float a2 = a_abs*a_abs;
                     float r = CameraStartR;
                     
-                    // --- 1. 极轴视角 ---
+                    //极轴视角
                     float P = a2 + 2.0*Q2 - 3.0*M*M;
                     float K = 2.0*Q2*M + 2.0*M*a2 - 2.0*M*M*M;
                     float x_pole = SolveCubicMaxReal(P, K);
@@ -2512,7 +2443,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                     float AngleOF = GetDropFrameAngle(SinOF_Stat, CosOF_Stat, r, M, Q, a_abs, iObserverMode);
                     float LatFactor = abs(X.y) / length(X.xyz);
 
-                    if (LatFactor > 0.9999)
+                    if (LatFactor > 0.99999)
                     {
                         float effectiveMult = SHADOW_SIZE_MULTIPLIER ;
                         if (RayAngle < AngleOF * effectiveMult) bHitShadow = true;
@@ -2520,7 +2451,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                     else
                     {
                         
-                        // --- 2. 赤道视角 (Equator View) ---
+                        // 赤道视角
                         // A点 (缺口/顺行): 对应方程减号项(-2a...), 且取较小根
                         float u_A = SolveQuarticU(M, Q, a_abs, -1.0, true); 
                         float r_A_rad = (u_A * u_A + Q2) / M;
@@ -2568,7 +2499,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                         // 垂直半轴 EC 在数学上可证明和相同Q的RN黑洞完全一致
                         float AngleEC0 = GetShadowHalfAngleRN(r, M, Q, iObserverMode);
                         
-                        // --- 3. 混合 ---
+                        // 混合
                         // 调试：如何选择混合函数。需要是一些凹函数。
                         float MixWA = clamp(tan(LatFactor*1.48)/10.98338,0.0,1.0);//指数函数在这里会前期太小、后期太大，所以用tan
                         float MixWB = pow(LatFactor, 2.5);//基本确定2.5
@@ -2580,7 +2511,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                         float AngleEC = mix(AngleEC0, AngleOF, MixWCD);
                         float AngleOE = mix(AngleOE0, 0.0,     MixWE);
                         
-                        // --- 4. 视平面判定 (Screen Space Check) ---
+                        // 视平面判定
                         // 局部系，Y是自旋轴。ToCenterDir是视线反向
                         vec3 SpinAxis = vec3(0.0, 1.0, 0.0);
                         vec3 ScreenUp = normalize(SpinAxis - dot(SpinAxis, ToCenterDir) * ToCenterDir);
@@ -2599,41 +2530,41 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                         float dx = x_ang - CenterEx;
                         float dy = y_ang;
                         
-                        float RadiusA_from_E = AngleOA + AngleOE;
+                        float RadiusA_from_E = 0.99*(AngleOA + AngleOE);
                         float RadiusB_from_E = max(1e-5, AngleOB - AngleOE);
                         
                         float CurrentHRadius;
                         float CurrentVRadius = AngleEC;
                         
-                        // DEBUG：绘制关键点 A, B, C, D, E, O
-                        #if DEBUG_SHADOW_CULLING == 1
-                        vec2 currP = vec2(x_ang, y_ang);
-                        float dotSize = 0.002; // 调试点大小（弧度）
-                        
-                        // O是白色
-                        vec2 ptO = vec2(0.0, 0.0);
-                        if (length(currP - ptO) < dotSize) {
-                            res.AccumColor = vec4(1.0, 1.0, 1.0, 1.0);
-                            res.Status = 3.0; return res;
+                        if (iDEBUG == 1)
+                        {
+                            vec2 currP = vec2(x_ang, y_ang);
+                            float dotSize = 0.002; // 调试点大小（弧度）
+                            
+                            // O是白色
+                            vec2 ptO = vec2(0.0, 0.0);
+                            if (length(currP - ptO) < dotSize) {
+                                Result += 0.3*vec4(1.0, 1.0, 1.0, 1.0);
+                                res.Status = 3.0; return res;
+                            }
+                            
+                            // C、D、E是蓝色
+                            vec2 ptE = vec2(CenterEx, 0.0);
+                            vec2 ptC = vec2(CenterEx,  AngleEC);
+                            vec2 ptD = vec2(CenterEx, -AngleEC);
+                            if (length(currP - ptE) < dotSize || length(currP - ptC) < dotSize || length(currP - ptD) < dotSize) {
+                                Result += 0.3*vec4(0.0, 0.5, 1.0, 1.0);
+                                res.Status = 3.0; return res;
+                            }
+                            
+                            // A、B是红色
+                            vec2 ptA = vec2(CenterEx - SignChirality * RadiusA_from_E, 0.0);
+                            vec2 ptB = vec2(CenterEx + SignChirality * RadiusB_from_E, 0.0);
+                            if (length(currP - ptA) < dotSize || length(currP - ptB) < dotSize) {
+                                Result += 0.3*vec4(1.0, 0.0, 0.0, 1.0);
+                                res.Status = 3.0; return res;
+                            }
                         }
-                        
-                        // C、D、E是蓝色
-                        vec2 ptE = vec2(CenterEx, 0.0);
-                        vec2 ptC = vec2(CenterEx,  AngleEC);
-                        vec2 ptD = vec2(CenterEx, -AngleEC);
-                        if (length(currP - ptE) < dotSize || length(currP - ptC) < dotSize || length(currP - ptD) < dotSize) {
-                            res.AccumColor = vec4(0.0, 0.5, 1.0, 1.0);
-                            res.Status = 3.0; return res;
-                        }
-                        
-                        // A、B是红色
-                        vec2 ptA = vec2(CenterEx - SignChirality * RadiusA_from_E, 0.0);
-                        vec2 ptB = vec2(CenterEx + SignChirality * RadiusB_from_E, 0.0);
-                        if (length(currP - ptA) < dotSize || length(currP - ptB) < dotSize) {
-                            res.AccumColor = vec4(1.0, 0.0, 0.0, 1.0);
-                            res.Status = 3.0; return res;
-                        }
-                        #endif
                         
                         // 判断是在 E 的 "A侧" 还是 "B侧"
                         if (dx * SignChirality > 0.0) {
@@ -2658,7 +2589,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                     }
                 }
                 
-                // --- 执行剔除 ---
+                //执行剔除
 
                 if (bHitShadow)
                 {
@@ -2668,13 +2599,14 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                     if (!bHasDisk && !bHasJet)
                     {
                         // 纯黑洞，无盘无喷流：立即返回黑色
-                        #if DEBUG_SHADOW_CULLING == 1
+                        if(iDEBUG==1)
+                        {
                             res.AccumColor = vec4(0.0, 0.5, 0.0, 1.0); 
                             res.Status = 3.0; 
-                        #else
+                        }else{
                             res.AccumColor = vec4(0.0, 0.0, 0.0, 1.0); 
                             res.Status = 3.0;
-                        #endif
+                        }
                         res.CurrentSign = CurrentUniverseSign;
                         res.EscapeDir = vec3(0.0);
                         res.FreqShift = 1.0;
@@ -2694,7 +2626,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             }
         }
     }
-    #endif
 
 
 
@@ -2729,7 +2660,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         { 
             bShouldContinueMarchRay = false;
             bWaitCalBack = false;
-            //Result = vec4(0.0, 0.3, 0.3, 0.0); 
+            if(iDEBUG==1) Result += vec4(0.0, 0.3, 0.3, 0.0); 
             break; //视界判定情况1，直接进入视界判定区
         }
         if (Count > MaxStep) 
@@ -2737,7 +2668,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             bShouldContinueMarchRay = false; 
             bWaitCalBack = false;
             if(bIsNakedSingularity&&RadialTurningCounts <= 2) bWaitCalBack = true;
-            //Result = vec4(0.0, 0.3, 0.0, 0.0);
+            if(iDEBUG==1) Result += vec4(0.0, 0.3, 0.0, 0.0);
             break; //耗尽步数
         }
 
@@ -2754,7 +2685,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             if (RadialTurningCounts > 2) 
             {
                 bShouldContinueMarchRay = false; bWaitCalBack = false;
-                //Result = vec4(0.3, 0.0, 0.3, 1.0); 
+                if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
                 break;//识别剔除奇环附近束缚态光子轨道
             }
             
@@ -2767,10 +2698,11 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             
             
                 float SafetyGap = 0.001;
+                float ToHorizonGap=0.2;
                 float PhotonShellLimit = ProgradePhotonRadius - SafetyGap; 
-                float preCeiling = min(CameraStartR - SafetyGap, TerminationR + 0.2);
-                if(bIntoInHorizon) { preCeiling = InnerHorizonR + 0.2; } //处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击内视界 的光
-                if(bIntoOutHorizon) { preCeiling = EventHorizonR + 0.2; }//处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击外视界 的光
+                float preCeiling = min(CameraStartR - SafetyGap, TerminationR + ToHorizonGap);
+                if(bIntoInHorizon) {               preCeiling = InnerHorizonR + ToHorizonGap; } //处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击内视界 的光
+                if(bIntoOutHorizon) {              preCeiling = EventHorizonR + ToHorizonGap; }//处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击外视界 的光
                 
                 float PruningCeiling = min(iInterRadiusRs, preCeiling);
                 PruningCeiling = min(PruningCeiling, PhotonShellLimit); 
@@ -2782,7 +2714,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                     {
                         bShouldContinueMarchRay = false;
                         bWaitCalBack = false;
-                        //Result = vec4(0.0, 0., 0.3, 0.0);
+                        if(iDEBUG==1) Result += vec4(0.0, 0., 0.3, 0.0);
                         break; //视界判定情况2，对凝结在视界前的光提前剔除
                     }
                 }
@@ -2816,7 +2748,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         { 
             bShouldContinueMarchRay = false; 
             bWaitCalBack = false;
-            //Result = vec4(0.3, 0.3, 0.2, 0.0);  
+            if(iDEBUG==1) Result += vec4(0.3, 0.3, 0.2, 0.0);  
             break; //视界判定情况3，凝结在视界
         }
 
@@ -2894,38 +2826,30 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     res.CurrentSign = CurrentUniverseSign;
     res.AccumColor  = Result;
 
-        // [修改10] 阴影剔除的 Debug 颜色
-    // 如果被剔除，且 Result 的透明度没满（说明没被盘完全挡住），则补上剔除色
-    #if ENABLE_SHADOW_CULLING == 1
+    //阴影剔除的 Debug 颜色
     if (bDeferredShadowCulling && !bIsNakedSingularity)
     {
         // 检查是否是因为撞到了我们设定的 TerminationR 而退出的
-        // 使用 length(RayPos) 而不是 geo.r，确保变量可见性
         float FinalR = length(RayPos);
         
-        // 判定条件：位置在截断半径内，或者已经不再继续步进（说明撞击了物体）
-        // 宽松一点的容差 +0.1，防止边界闪烁
+        // 在截断半径内，或不再继续步进）容差 +0.1防闪烁
         if (FinalR <= TerminationR + 0.1 || !bShouldContinueMarchRay)
         {
-            #if DEBUG_SHADOW_CULLING == 1
-                // 混合前 clamp Alpha，防止负数
-                // 逻辑：(已有颜色) + (绿色 * 剩余透明度)
+            if(iDEBUG==1) 
+            {
                 float RemainingAlpha = max(0.0, 1.0 - res.AccumColor.a);
                 res.AccumColor.rgb += vec3(0.0, 0.5, 0.0) * RemainingAlpha;
-                res.AccumColor.a = 1.0; // 强制不透明
+                res.AccumColor.a = 1.0;
                 
-                res.Status = 3.0; // 标记为实体
-            #else
-                // 正常模式：补齐黑色
+                res.Status = 3.0; 
+            }else{
                 res.AccumColor.a = 1.0;
                 res.Status = 3.0;
-            #endif
+            }
             
-            // 如果触发了剔除，直接返回，不再执行下面的 Status 1.0/2.0 判断
             return res;
         }
     }
-    #endif
 
 
     // 状态位定义:
