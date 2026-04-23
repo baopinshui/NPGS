@@ -143,6 +143,23 @@ void main()
     if (FinalColor.a < 0.99 && CurrentStatus > 0.5 && CurrentStatus < 2.5) 
     {
         vec4 Bg = SampleBackground(CurrentDir, CurrentShift, CurrentStatus);
+        if(iInAnotherUniverse==0)
+        {
+            FinalColor += 0.9999 * Bg * vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
+        }
+        else if(CurrentStatus < 1.5)
+        {
+            FinalColor += 0.09999 * Bg *vec4(0.5,1.0,1.0,1.0)* vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
+        }
+        else
+        {
+            FinalColor += 0.9999 * Bg * vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
+        }
+    }
+
+    if (FinalColor.a < 0.99 && CurrentStatus > 3.5) 
+    {
+        vec4 Bg = SampleBackground(CurrentDir, CurrentShift, CurrentStatus);
         FinalColor += 0.9999 * Bg * vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
     }
 

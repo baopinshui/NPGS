@@ -54,7 +54,10 @@ struct FBlackHoleArgs
     glm::vec4 BlackHoleRelativePosRs;
     glm::vec4 BlackHoleRelativeDiskNormal;
     glm::vec4 BlackHoleRelativeDiskTangen;
+    glm::vec4 CameraVelocity;
     int   DEBUG;
+    int   Whitehole;
+    int   InAnotherUniverse;
     int   Grid;
     int   EnableHearHaze;
     int   ObserverMode;

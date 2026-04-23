@@ -113,9 +113,11 @@ void GameScreen::OnEnter()
         menu->AddLinear("B", &ctx.m_theme.color_accent.z, 0.0f, 1.0f);
         menu->AddThrottle("Fov", &cfov);
         menu->AddLinear("DEBUG", &BlackHoleArgs.DEBUG, 0, 1);
+		menu->AddLinear("Whitehole", &BlackHoleArgs.Whitehole, 0, 1);
+		menu->AddLinear("InAnotherUniverse", &BlackHoleArgs.InAnotherUniverse, 0, 1);
         menu->AddLinear("Grid", &BlackHoleArgs.Grid, -1, 2);
         menu->AddLinear("EnableHearHaze", &BlackHoleArgs.EnableHearHaze, 0, 1);
-        menu->AddLinear("Mode", &BlackHoleArgs.ObserverMode, 0, 1);
+        menu->AddLinear("Mode", &BlackHoleArgs.ObserverMode, 0, 2);
         menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol,0.1f);
         menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);
         menu->AddThrottle("Q", &BlackHoleArgs.Q, 0.1f);

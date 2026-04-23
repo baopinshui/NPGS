@@ -330,7 +330,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","DEBUG","Grid","EnableHearHaze","ObserverMode","UniverseSign",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Whitehole","InAnotherUniverse","Grid","EnableHearHaze","ObserverMode","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
@@ -674,7 +674,10 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0 * BlackHoleArgs.BlackHoleMassSol * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
                 BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+                BlackHoleArgs.CameraVelocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
                 BlackHoleArgs.DEBUG = 0;
+				BlackHoleArgs.Whitehole = 0;
+				BlackHoleArgs.InAnotherUniverse = 0;
                 BlackHoleArgs.Grid = 0;
 				BlackHoleArgs.EnableHearHaze = 1;
                 BlackHoleArgs.ObserverMode = 0;
@@ -726,6 +729,11 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0f, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
                 BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+
+
+
+
+                BlackHoleArgs.CameraVelocity = glm::vec4(( _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)- LastCameraWorldPos)/ float(_DeltaTime * kSpeedOfLight / Rs / kLightYearToMeter),0.0);
             }
 
             Rs = 2.0 * abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;

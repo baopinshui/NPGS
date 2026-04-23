@@ -25,8 +25,6 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     vec4  iBlackHoleRelativeDiskNormal;  //黑洞在相机系下吸积盘法向兼自旋正方向。单位倍Rs
     vec4  iBlackHoleRelativeDiskTangen;  //黑洞在相机系下吸积盘切向。单位倍Rs
 
-    vec4  iCameraVelocity;               //相机坐标速度
-
     int   iDEBUG;
     int   iWhitehole;                    //最大延拓  
     int   iInAnotherUniverse;            //相机出白洞
@@ -553,17 +551,6 @@ vec4 GetInitialMomentum(
         }
         U_up = mix(U_up,vec4(U_spatial, Ut),GravityFade);//在包围盒边界回退到静态观者
 
-    }else if (iObserverMode == 2) {
-        // --- 模式 2: 任意四速观测者 (基于坐标速度) ---
-        vec3 v_in = iCameraVelocity.xyz;
-        vec4 V_up = vec4(v_in, 1.0);
-        vec4 V_down = LowerIndex(V_up, geo);
-        float V_sq = dot(V_up, V_down);
-        if (V_sq < -1e-5) {
-            U_up = V_up * inversesqrt(-V_sq);
-        } else {
-            return vec4(114514.0);
-        }
     }
        
     vec4 U_down = LowerIndex(U_up, geo);
@@ -1482,9 +1469,6 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
     
     return CurrentResult;
 }
-
-
-
 vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
               vec3 RayDir, vec3 LastRayDir,vec4 iP_cov, float iE_obs,
               float InterRadius, float OuterRadius, float JetRedShiftIntensityExponent, float JetBrightmut, float JetReddening, float JetSaturation, float AccretionRate, float JetShiftMax, 
@@ -2386,12 +2370,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     if (bShouldContinueMarchRay) {
        P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
     }
-    if (P_cov==vec4(114514.0))
-    {
-        bShouldContinueMarchRay=false;
-        bWaitCalBack=false;
-        Result=vec4(0.0,0.0,0.0,1.0);
-    }
     E_conserved = -P_cov.w;
 
     // -------------------------------------------------------------------------
@@ -2474,7 +2452,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     
     // 判定是否需要剔除：
     // 非裸奇点 (视界存在),在正宇宙 (CurrentUniverseSign > 0),当前光线还需要继续步进 (bShouldContinueMarchRay)
-    if (!bIsNakedSingularity && CurrentUniverseSign > 0.0 && bShouldContinueMarchRay && iGrid==0 && iWhitehole==0 &&(iObserverMode==0 || iObserverMode==1 ))
+    if (!bIsNakedSingularity && CurrentUniverseSign > 0.0 && bShouldContinueMarchRay && iGrid==0 && iWhitehole==0)
     {
         // 预计算剔除启动的阈值半径
         float CullingStartRadius;
@@ -2726,8 +2704,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
 
     float MaxStep=150.0+300.0/(1.0+1000.0*(1.0-iSpin*iSpin-iQ*iQ)*(1.0-iSpin*iSpin-iQ*iQ));
-    if(iWhitehole==1) MaxStep=1145;
-    if(bIsNakedSingularity) MaxStep=450;//150.0+300.0/(1.0+10.0*(1.0-iSpin*iSpin-iQ*iQ)*(1.0-iSpin*iSpin-iQ*iQ));
+    if(iWhitehole==1) MaxStep=450;
+    if(bIsNakedSingularity) MaxStep=1145;//150.0+300.0/(1.0+10.0*(1.0-iSpin*iSpin-iQ*iQ)*(1.0-iSpin*iSpin-iQ*iQ));
 
     // -------------------------------------------------------------------------
     // 主循环
@@ -2812,7 +2790,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         if(geo.r < EventHorizonR && lastR > EventHorizonR) bEscapeOutHorizon = true;    //检测穿进(追踪方向)外视界 
 
 
-        if(iGrid==0 && iWhitehole==0)
+        if(iGrid==0)
         {
             
             if (RadialTurningCounts > 2) 
