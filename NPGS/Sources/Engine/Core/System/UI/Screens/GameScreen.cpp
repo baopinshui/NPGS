@@ -112,6 +112,7 @@ void GameScreen::OnEnter()
         menu->AddLinear("G", &ctx.m_theme.color_accent.y, 0.0f, 1.0f);
         menu->AddLinear("B", &ctx.m_theme.color_accent.z, 0.0f, 1.0f);
         menu->AddThrottle("Fov", &cfov);
+        menu->AddLinear("camsmth", &camsmth, 0.0f, 100.0f);
         menu->AddLinear("DEBUG", &BlackHoleArgs.DEBUG, 0, 1);
 		menu->AddLinear("Whitehole", &BlackHoleArgs.Whitehole, 0, 1);
 		menu->AddLinear("InAnotherUniverse", &BlackHoleArgs.InAnotherUniverse, 0, 1);

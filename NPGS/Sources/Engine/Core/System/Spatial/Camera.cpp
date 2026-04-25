@@ -11,7 +11,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _Orientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)),
     _Position(Position),
     _Sensitivity(Sensitivity),
-    _RotationSmoothCoefficient(100.0f),
+    _RotationSmoothCoefficient(30.0f),
     _OrbitDistanceRotationSmoothCoefficient(9.6),
     _OrbitAxisChangeSmoothCoefficient(3.0),
     _OrbitCenterChangeSmoothCoefficient(3.0),
@@ -78,17 +78,21 @@ void FCamera::ProcessKeyboard(EMovement Direction)
 {
     switch (Direction)
     {
-    case EMovement::kForward:
+    case EMovement::kForward: // W键
         _InputTranslationVector += _Front;
+        _InputOrbitAxis.y -= 1.0f; // 向上绕转 (纬度)
         break;
-    case EMovement::kBack:
+    case EMovement::kBack:    // S键
         _InputTranslationVector -= _Front;
+        _InputOrbitAxis.y += 1.0f; // 向下绕转 (纬度)
         break;
-    case EMovement::kLeft:
+    case EMovement::kLeft:    // A键
         _InputTranslationVector -= _Right;
+        _InputOrbitAxis.x -= 1.0f; // 向左绕转 (经度)
         break;
-    case EMovement::kRight:
+    case EMovement::kRight:   // D键
         _InputTranslationVector += _Right;
+        _InputOrbitAxis.x += 1.0f; // 向右绕转 (经度)
         break;
     case EMovement::kUp:
         _InputTranslationVector += _Up;
@@ -97,13 +101,12 @@ void FCamera::ProcessKeyboard(EMovement Direction)
         _InputTranslationVector -= _Up;
         break;
     case EMovement::kRollLeft:
-        _InputRollValue -= 1.0f; // 向左滚
+        _InputRollValue -= 1.0f;
         break;
     case EMovement::kRollRight:
-        _InputRollValue += 1.0f; // 向右滚
+        _InputRollValue += 1.0f;
         break;
     }
-    // 注意：这里不再调用 UpdateVectors，因为位置还没变
 }
 
 void FCamera::ProcessMouseMovement(double OffsetX, double OffsetY)
@@ -162,47 +165,67 @@ void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
 }
 void FCamera::ProcessTimeEvolution(double DeltaTime)
 {
+    // ================= 1. 新增：处理键盘轨道输入 =================
+    if (_bIsOrbiting)
+    {
+        // 设定键盘控制的恒定绕转速度（例如 90度/秒，可根据需求提取到 .h 中作为成员变量）
+        constexpr double kOrbitKeyboardSpeed = 90.0;
+
+        // S = V * T (计算本帧因按键产生的理想角位移)
+        double keyDeltaX = _InputOrbitAxis.x * kOrbitKeyboardSpeed * DeltaTime;
+        double keyDeltaY = _InputOrbitAxis.y * kOrbitKeyboardSpeed * DeltaTime;
+
+        if (_Sensitivity > 1e-6) // 防止除零危险
+        {
+            // 【核心魔法】：将键盘的位移逆向转换为鼠标像素单位，直接注入待处理池
+            // 这样键盘输入就能完美蹭到鼠标的平滑阻尼算法，产生平滑启停效果
+            _ObjectivetOffsetX += (keyDeltaX / _Sensitivity);
+            _ObjectivetOffsetY += (keyDeltaY / _Sensitivity);
+        }
+    }
+    // ==============================================================
+
+    // ================= 2. 计算平滑消耗（上次修复的核心） =================
     double smoothFactor = 1.0f - exp(-_RotationSmoothCoefficient * static_cast<double>(DeltaTime));
 
-    _OffsetX += (_ObjectivetOffsetX - _OffsetX) * smoothFactor;
-    _OffsetY += (_ObjectivetOffsetY - _OffsetY) * smoothFactor;
+    double ConsumeX = _ObjectivetOffsetX * smoothFactor;
+    double ConsumeY = _ObjectivetOffsetY * smoothFactor;
 
+    _ObjectivetOffsetX -= ConsumeX;
+    _ObjectivetOffsetY -= ConsumeY;
+    // ==============================================================
 
-    _ObjectivetOffsetX = 0.0f;
-    _ObjectivetOffsetY = 0.0f;
     if (!_bIsOrbiting)
     {
         if (glm::length(_InputTranslationVector) > 0.001f)
         {
             glm::vec3 NormalizedDirection = glm::normalize(_InputTranslationVector);
-
-            // S = V * t (位移 = 速度 * 时间)
             float Velocity = static_cast<float>(_Speed * DeltaTime);
             _Position += NormalizedDirection * Velocity;
         }
 
-            // 300.0f * 0.25f 是你原来的旋转速度系数
         float RollVelocity = 300.0f * 0.25f * static_cast<float>(DeltaTime);
-        
-        float HorizontalAngle = static_cast<float>(_Sensitivity * -_OffsetX);
-        float VerticalAngle   = static_cast<float>(_Sensitivity * -_OffsetY);
+        float HorizontalAngle = static_cast<float>(_Sensitivity * -ConsumeX);
+        float VerticalAngle = static_cast<float>(_Sensitivity * -ConsumeY);
 
         ProcessRotation(HorizontalAngle, VerticalAngle, _InputRollValue * RollVelocity);
     }
     else
     {
-
         _DistanceToOrbitalCenter += (_ObjectivetTargetDistanceToOrbitalCenter - _DistanceToOrbitalCenter) * std::min(1.0, _OrbitDistanceRotationSmoothCoefficient * DeltaTime);
         if (glm::length(_ObjectivetAxisDir - _AxisDir) > 0 && abs(asin(glm::length((_ObjectivetAxisDir - _AxisDir)) / 2.0f)) > 1e-10)
         {
             _AxisDir = glm::normalize(_AxisDir + (std::min(1.0f, _OrbitAxisChangeSmoothCoefficient * static_cast<float>(DeltaTime)) * 2.0f * asin(glm::length((_ObjectivetAxisDir - _AxisDir)) / 2.0f) * glm::normalize(glm::cross(glm::cross(_AxisDir, (_ObjectivetAxisDir - _AxisDir)), _AxisDir))));
-        }//绕转轴更新平滑
+        }
         _OrbitalCenter += (_ObjectivetOrbitalCenter - _OrbitalCenter) * std::min(1.0f, _OrbitCenterChangeSmoothCoefficient * static_cast<float>(DeltaTime));
-        ProcessOrbital(_Sensitivity * _OffsetX, _Sensitivity * _OffsetY);
-    }//鼠标拖动平滑更新
+
+        ProcessOrbital(_Sensitivity * ConsumeX, _Sensitivity * ConsumeY);
+    }
 
     _InputTranslationVector = glm::vec3(0.0f);
     _InputRollValue = 0.0f;
+    _InputOrbitAxis = glm::vec2(0.0f); 
+
     if (_TimeSinceModeChange < 10.0)
     {
         _TimeSinceModeChange += DeltaTime;

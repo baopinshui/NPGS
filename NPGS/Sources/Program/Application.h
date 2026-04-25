@@ -104,7 +104,9 @@ private:
     double LastFrameTime = 0.0;
     int    FramePerSec= 0;
     long long int  FrameCount = 0;
+         
     double                                    _DeltaTime   = 0.0;
+    double                                    _LastDeltaTime   = 0.0;
     double                                    _DragStartX  = 0.0;
     double                                    _DragStartY  = 0.0;
     double                                    _LastX       = 0.0;

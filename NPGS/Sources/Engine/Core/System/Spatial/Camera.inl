@@ -39,6 +39,14 @@ NPGS_INLINE void FCamera::SetFov(float Fov)
 {
     _Zoom = Fov;
 }
+NPGS_INLINE void FCamera::SetRotationSmoothCoefficient(float RotationSmoothCoefficient)
+{
+    _RotationSmoothCoefficient = RotationSmoothCoefficient;
+}
+NPGS_INLINE float FCamera::getRotationSmoothCoefficient()
+{
+    return _RotationSmoothCoefficient;
+}
 NPGS_INLINE float FCamera::GetFov() const
 {
     return _Zoom;

@@ -122,3 +122,4 @@ extern FBlackHoleArgs BlackHoleArgs;
 extern FMatrices Matrices;
 extern FLightMaterial LightMaterial;
 extern float cfov;
+extern float camsmth;

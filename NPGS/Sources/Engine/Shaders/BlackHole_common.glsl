@@ -496,12 +496,13 @@ vec4 GetInitialMomentum(
     float universesign,
     float PhysicalSpinA,  
     float PhysicalQ,      
-    float GravityFade
+    float GravityFade,
+    bool isOutgoing
 )
 {
 
     KerrGeometry geo;
-    ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, universesign,false, geo);
+    ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, universesign,isOutgoing, geo);
 
     //确定观者四维速度 U_up 
     vec4 U_up;
@@ -559,7 +560,7 @@ vec4 GetInitialMomentum(
         vec4 V_up = vec4(v_in, 1.0);
         vec4 V_down = LowerIndex(V_up, geo);
         float V_sq = dot(V_up, V_down);
-        if (V_sq < -1e-5) {
+        if (V_sq < 0) {
             U_up = V_up * inversesqrt(-V_sq);
         } else {
             return vec4(114514.0);
@@ -2230,7 +2231,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
 
     vec4 X = vec4(RayPosLocal, 0.0);
-    
+
     vec4 P_cov = vec4(0.0,0.0,0.0,-1.0);
 
     float E_conserved = 1.0;
@@ -2238,7 +2239,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     vec3 LastDir = RayDir;
     vec3 LastPos = RayPosLocal;
     float GravityFade = CubicInterpolate(max(min(1.0 - (length(RayPosLocal) - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
-
+    
+    
     
     if (iEnableHearHaze == 1 &&  iInAnotherUniverse==0 && CurrentUniverseSign>0.0)
     {
@@ -2383,14 +2385,81 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
     }
     
+    bool isoutgoing = false; 
+    //if(iWhitehole==1) isoutgoing=true;//test
+    //if (bShouldContinueMarchRay) {
+    //    // --- 测试 Ingoing 系 ---
+    //    vec4 P_in = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade, false);
+    //    float score_in = 1e38; // 评分标准：|P^t|，越小越好
+    //    if (P_in != vec4(114514.0)) {
+    //        KerrGeometry geo_in;
+    //        ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, iUniverseSign, false, geo_in);
+    //        score_in = abs(RaiseIndex(P_in, geo_in).w); 
+    //    }
+    //
+    //    // --- 测试 Outgoing 系 (仅在允许最大延拓时进行，常规黑洞无需测试) ---
+    //    vec4 P_out = vec4(114514.0);
+    //    float score_out = 1e38;
+    //    if (iWhitehole == 1) {
+    //        P_out = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade, true);
+    //        if (P_out != vec4(114514.0)) {
+    //            KerrGeometry geo_out;
+    //            ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, iUniverseSign, true, geo_out);
+    //            score_out = abs(RaiseIndex(P_out, geo_out).w);
+    //        }
+    //    }
+    //
+    //    // --- 竞态选择最优坐标系 ---
+    //    if (score_out < score_in && P_out != vec4(114514.0)) {
+    //        isoutgoing = true;
+    //        P_cov = P_out;
+    //    } else {
+    //        isoutgoing = false;
+    //        P_cov = P_in;
+    //    }
+    //}
+    //
+    //// 两边都崩溃了，或者不符合物理规范，直接黑屏
+    //if (P_cov == vec4(114514.0)) {
+    //    bShouldContinueMarchRay = false;
+    //    bWaitCalBack = false;
+    //    Result = vec4(0.0, 0.0, 0.0, 1.0);
+    //}
     if (bShouldContinueMarchRay) {
-       P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade);
+       P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade, isoutgoing);
+       
+       // 如果被拦截（观者在该系下变成类空），且允许最大延拓，说明这是向外运动(如出白洞)的观者
+       if (P_cov == vec4(114514.0) && iWhitehole == 1) {    //注意，此处有未定位的bug，导致角度变化
+       //    // 1. 记录旧的坐标用于反解旋转矩阵
+       //    vec4 X_old = X;
+       //    vec4 dummyP = vec4(0.0); // 传入一个假动量，因为我们这步只需要变 X
+       //    
+       //    // 2. 将坐标变换到 Outgoing 系 (out_to_in = false)
+       //    // transformKerrSchild_YSpin(X, iUniverseSign, dummyP, CONST_M, PhysicalSpinA, PhysicalQ, false);
+       //    
+       //    // 3. 反解旋转矩阵的 sin 和 cos，并同步旋转 RayDir
+       //    float rho2 = X_old.x * X_old.x + X_old.z * X_old.z;
+       //    if (rho2 > 1e-12) {
+       //        float cos_a = (X_old.x * X.x + X_old.z * X.z) / rho2;
+       //        float sin_a = (X_old.z * X.x - X_old.x * X.z) / rho2;
+       //        
+       //        vec3 oldDir = RayDir;
+       //        RayDir.x = oldDir.z * sin_a + oldDir.x * cos_a;
+       //        RayDir.z = oldDir.z * cos_a - oldDir.x * sin_a;
+       //    }
+       //
+       //    // 4. 切换坐标系标识
+           isoutgoing = true; 
+       //    
+       //    // 5. 在正确的 Outgoing 坐标系下，使用变换后的 X 和 RayDir 重新计算合法的初始动量
+           P_cov = GetInitialMomentum(RayDir, X, iObserverMode, iUniverseSign, PhysicalSpinA, PhysicalQ, GravityFade, isoutgoing);
+       }
     }
-    if (P_cov==vec4(114514.0))
+    if (P_cov == vec4(114514.0))
     {
-        bShouldContinueMarchRay=false;
-        bWaitCalBack=false;
-        Result=vec4(0.0,0.0,0.0,1.0);
+        bShouldContinueMarchRay = false;
+        bWaitCalBack = false;
+        Result = vec4(0.0,0.0,0.0,1.0);
     }
     E_conserved = -P_cov.w;
 
@@ -2743,7 +2812,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float RayMarchPhase = RandomStep(FragUv, iTime); 
     vec3 RayPos = X.xyz; 
     float ThetaInShell=0;
-    bool isoutgoing=false;
     bool shiftinout=false;
     bool fromwhitehole=false;
     //if(iWhitehole==1 &&!bIsNakedSingularity)
@@ -2788,11 +2856,10 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         float CurrentDr = dot(geo.grad_r, k1.X.xyz);
         shiftinout=false;
 
+        if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
 
-
-        if (Count > 0 &&abs(RaiseIndex(P_cov, geo).w)>100.0) 
+        if (Count > 0 &&abs(RaiseIndex(P_cov, geo).w)>10.0) 
         {
-            RadialTurningCounts++;
             if(iWhitehole==1 &&!bIsNakedSingularity)
             {
             transformKerrSchild_YSpin(X, CurrentUniverseSign,P_cov, CONST_M, PhysicalSpinA, PhysicalQ,isoutgoing);

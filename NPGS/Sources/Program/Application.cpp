@@ -30,6 +30,7 @@ FBlackHoleArgs BlackHoleArgs{};
 FMatrices Matrices;
 FLightMaterial LightMaterial;
 float cfov = 60.0f;
+float camsmth = 30.0f;
 _NPGS_BEGIN
 
 namespace Art = Runtime::Asset;
@@ -656,7 +657,7 @@ void FApplication::ExecuteMainRender()
 
         {
             float Rs = 2.0 * abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
-            if (FrameCount == 0)
+            if (FrameCount <= 10)
             {
                 GameArgs.Resolution = glm::vec2(_WindowSize.width, _WindowSize.height);
                 GameArgs.FovRadians = glm::radians(_FreeCamera->GetCameraZoom());
@@ -733,13 +734,13 @@ void FApplication::ExecuteMainRender()
 
 
 
-                BlackHoleArgs.CameraVelocity = glm::vec4(( _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)- LastCameraWorldPos)/ float(_DeltaTime * kSpeedOfLight / Rs / kLightYearToMeter),0.0);
+                BlackHoleArgs.CameraVelocity += float(1.0-exp(-_DeltaTime/0.1))*(glm::vec4(( _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)- LastCameraWorldPos)/ float(_LastDeltaTime * TimeRate * kSpeedOfLight / Rs / kLightYearToMeter),0.0)- BlackHoleArgs.CameraVelocity);
             }
 
             Rs = 2.0 * abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
             BlackHoleArgs.BlendWeight = (1.0 - pow(0.5, (_DeltaTime) / std::max(std::min((0.131 * 36.0 / (GameArgs.TimeRate) * (Rs / 0.00000465)), 0.5), 0.06)));
             if (!(abs(glm::quat((lastdir - BlackHoleArgs.InverseCamRot)).w - 0.5) < 0.001 * _DeltaTime || abs(glm::quat((lastdir - BlackHoleArgs.InverseCamRot)).w - 0.0) < 0.001 * _DeltaTime) ||
-                glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePosRs)) > (glm::length(glm::vec3(LastBlackHoleRelativePos)) - 1.0) * 0.006 * _DeltaTime)
+                glm::length(glm::vec3(LastBlackHoleRelativePos - BlackHoleArgs.BlackHoleRelativePosRs)) > (glm::length(glm::vec3(LastBlackHoleRelativePos)) - 1.0) * 0.006 * _DeltaTime  || glm::length(BlackHoleArgs.CameraVelocity)>0.0001)
             {
                 BlackHoleArgs.BlendWeight = 1.0f;
             }
@@ -1564,10 +1565,11 @@ void FApplication::InitializeInputCallbacks()
 
 void FApplication::update()
 {
-
+    _FreeCamera->SetRotationSmoothCoefficient(camsmth);
     _FreeCamera->ProcessTimeEvolution(_DeltaTime);
 
     CurrentTime = glfwGetTime();
+    _LastDeltaTime = _DeltaTime;
     _DeltaTime = CurrentTime - LastFrameTime;
     RealityTime += _DeltaTime;;
     GameTime += TimeRate * _DeltaTime;
@@ -1893,7 +1895,7 @@ void FApplication::RenderDebugUI()
     draw_list->AddLine(ImVec2(canvas_p0.x + halfWidth, canvas_p0.y), ImVec2(canvas_p0.x + halfWidth, canvas_p0.y + canvas_sz.y), IM_COL32(200, 200, 200, 255), 2.0f);
 
     draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Meridian (Y-X) Plane");
-    draw_list->AddText(ImVec2(canvas_p0.x + halfWidth + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Top-Down (X-Z) Plane");
+    draw_list->AddText(ImVec2(canvas_p0.x + halfWidth + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Top-Down (X-(-Z)) Plane");
     std::string univText = BlackHoleArgs.UniverseSign > 0.0f ? "Status: r > 0 (Universe)" : "Status: r < 0 (Antiverse)";
     draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 30), IM_COL32(200, 255, 200, 255), univText.c_str());
 
@@ -2011,8 +2013,8 @@ void FApplication::RenderDebugUI()
     float camLineLen = std::max(1.5f, camDist * 0.15f);
 
     ImVec2 camSideDir = ToSideScreen(rho_cam + drho * camLineLen, camPos.y + camDir.y * camLineLen);
-    ImVec2 camTopPos = ToTopScreen(camPos.x, camPos.z);
-    ImVec2 camTopDir = ToTopScreen(camPos.x + camDir.x * camLineLen, camPos.z + camDir.z * camLineLen);
+    ImVec2 camTopPos = ToTopScreen(camPos.x, -camPos.z);
+    ImVec2 camTopDir = ToTopScreen(camPos.x + camDir.x * camLineLen, -camPos.z - camDir.z * camLineLen);
 
     auto IsInCanvas = [&](ImVec2 p)
     {

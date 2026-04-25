@@ -57,6 +57,8 @@ public:
     void SetTargetOrbitCenter(glm::vec3 Center);
     void SetTargetOrbitAxis(glm::vec3 Axis);
     void SetFov(float Fov);
+    void SetRotationSmoothCoefficient(float RotationSmoothCoefficient);
+    float getRotationSmoothCoefficient();
     float GetFov() const;
     const glm::quat& GetOrientation() const;
     const glm::vec3& GetCameraVector(EVectorType Type) const;
@@ -79,6 +81,7 @@ private:
     glm::vec3 _WorldUp;
     glm::vec3 _InputTranslationVector{ 0.0f };
     float     _InputRollValue{ 0.0f };
+    glm::vec2 _InputOrbitAxis{ 0.0f, 0.0f };
 
     glm::vec3 _AxisDir;
     glm::vec3 _ObjectivetAxisDir;
