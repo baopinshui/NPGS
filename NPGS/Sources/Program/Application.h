@@ -111,6 +111,15 @@ private:
     double                                    _DragStartY  = 0.0;
     double                                    _LastX       = 0.0;
     double                                    _LastY       = 0.0;
+
+    bool   _bRightMousePressedInWorld = false;
+    bool   _bIsDraggingRightInWorld = false;
+    bool   _bFirstMouseRight = true;
+    double _DragRightStartX = 0.0;
+    double _DragRightStartY = 0.0;
+    double _LastRightX = 0.0;
+    double _LastRightY = 0.0;
+
     float _buffered_scroll_y = 0.0f;
     bool                                      _bFirstMouse = true;
 };

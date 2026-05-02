@@ -734,7 +734,19 @@ void FApplication::ExecuteMainRender()
 
 
 
-                BlackHoleArgs.CameraVelocity += float(1.0-exp(-_DeltaTime/0.1))*(glm::vec4(( _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition)- LastCameraWorldPos)/ float(_LastDeltaTime * TimeRate * kSpeedOfLight / Rs / kLightYearToMeter),0.0)- BlackHoleArgs.CameraVelocity);
+                // 修正后的代码
+                glm::vec3 posDiff = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition) - LastCameraWorldPos;
+
+                // 计算真实的无量纲物理速度 (v / c)
+                // posDiff 的单位是光年，转成米后除以 (时间 * 光速)
+                glm::vec3 currentDimVelocity = posDiff * (kLightYearToMeter / float(_LastDeltaTime * TimeRate * kSpeedOfLight));
+
+                // 平滑过渡
+                BlackHoleArgs.CameraVelocity += float(1.0 - exp(-_DeltaTime / 0.1)) * (glm::vec4(currentDimVelocity, 0.0f) - BlackHoleArgs.CameraVelocity);
+                if (glm::any(glm::isnan(BlackHoleArgs.CameraVelocity)) || glm::any(glm::isinf(BlackHoleArgs.CameraVelocity)))
+				{
+					BlackHoleArgs.CameraVelocity = glm::vec4(0.0f);
+				}
             }
 
             Rs = 2.0 * abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
@@ -1596,29 +1608,36 @@ void FApplication::ProcessInput()
     bool bKeyboardBlocked = io.WantCaptureKeyboard || (ui_ctx.m_focused_element != nullptr);
 
     // -----------------------------------------------------------
-    // 2. 处理鼠标旋转 (带冷却机制)
+    // 2. 获取当前鼠标位置
     // -----------------------------------------------------------
     double currX, currY;
     glfwGetCursorPos(_Window, &currX, &currY);
 
-    // 检测左键状态
+    // -----------------------------------------------------------
+    // 3. 处理中键：平滑归零摆头 (新增)
+    // -----------------------------------------------------------
+    bool isMiddleDown = glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;
+    if (isMiddleDown && !bMouseBlocked)
+    {
+        _FreeCamera->ResetSway();
+    }
+
+    // -----------------------------------------------------------
+    // 4. 处理左键：绕轨道旋转中心 (原有逻辑)
+    // -----------------------------------------------------------
     bool isLeftDown = glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
     static bool wasLeftDown = false; // 上一帧状态
 
-    // [新增] 冷却计数器：防止松开鼠标后的瞬间再次误触或跳变
-    static int s_FrameCooldown = 0;
-    if (s_FrameCooldown > 0)
+    static int s_LeftFrameCooldown = 0;
+    if (s_LeftFrameCooldown > 0)
     {
-        s_FrameCooldown--;
+        s_LeftFrameCooldown--;
     }
 
     // [Case A]: 刚按下左键 (Rising Edge)
     if (isLeftDown && !wasLeftDown)
     {
-        // 判定条件：
-        // 1. UI 没有捕获鼠标
-        // 2. 冷却时间已过 (s_FrameCooldown == 0)
-        if (!bMouseBlocked && s_FrameCooldown == 0)
+        if (!bMouseBlocked && s_LeftFrameCooldown == 0)
         {
             _bLeftMousePressedInWorld = true;
             _DragStartX = currX;
@@ -1626,8 +1645,6 @@ void FApplication::ProcessInput()
 
             _bIsDraggingInWorld = true;
             glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-            // 标记 FirstMouse，让 Case C 在下一帧重置坐标基准
             _bFirstMouse = true;
         }
     }
@@ -1639,25 +1656,23 @@ void FApplication::ProcessInput()
             _bLeftMousePressedInWorld = false;
             _bIsDraggingInWorld = false;
 
-            glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            // 仅当右键没有在拖动时才恢复鼠标显示，防止左右键冲突
+            if (!_bIsDraggingRightInWorld)
+            {
+                glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
 
-            // 归位光标
             glfwSetCursorPos(_Window, _DragStartX, _DragStartY);
             io.MousePos = ImVec2((float)_DragStartX, (float)_DragStartY);
 
-            // [核心修改] 强制冷却 3 帧
-            // 这期间即便 isLeftDown 为 true (极快连点) 或数据波动，也不会进入 Case A
-            s_FrameCooldown = 3;
+            s_LeftFrameCooldown = 3;
         }
     }
     // [Case C]: 持续按住并拖动
-    // 只有在冷却完毕，且确实处于旋转模式下才执行
-    else if (_bLeftMousePressedInWorld && _bIsDraggingInWorld && s_FrameCooldown == 0)
+    else if (_bLeftMousePressedInWorld && _bIsDraggingInWorld && s_LeftFrameCooldown == 0)
     {
         if (_bFirstMouse)
         {
-            // 模式切换后的第一帧数据，仅用于重置基准，不移动
-            // 此时 currX 是 DISABLED 模式下的新坐标
             _LastX = currX;
             _LastY = currY;
             _bFirstMouse = false;
@@ -1667,7 +1682,6 @@ void FApplication::ProcessInput()
             double deltaX = currX - _LastX;
             double deltaY = currY - _LastY;
 
-            // 立即更新基准
             _LastX = currX;
             _LastY = currY;
 
@@ -1678,11 +1692,83 @@ void FApplication::ProcessInput()
         }
     }
 
-    // 更新按键历史
+    // -----------------------------------------------------------
+    // 5. 处理右键：摄像机摆头 (新增逻辑，与左键高度对称)
+    // -----------------------------------------------------------
+    bool isRightDown = glfwGetMouseButton(_Window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+    static bool wasRightDown = false; // 上一帧状态
+
+    static int s_RightFrameCooldown = 0;
+    if (s_RightFrameCooldown > 0)
+    {
+        s_RightFrameCooldown--;
+    }
+
+    // [Case A]: 刚按下右键 (Rising Edge)
+    if (isRightDown && !wasRightDown)
+    {
+        if (!bMouseBlocked && s_RightFrameCooldown == 0)
+        {
+            _bRightMousePressedInWorld = true;
+            _DragRightStartX = currX;
+            _DragRightStartY = currY;
+
+            _bIsDraggingRightInWorld = true;
+            glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            _bFirstMouseRight = true;
+        }
+    }
+    // [Case B]: 刚松开右键 (Falling Edge)
+    else if (!isRightDown && wasRightDown)
+    {
+        if (_bRightMousePressedInWorld)
+        {
+            _bRightMousePressedInWorld = false;
+            _bIsDraggingRightInWorld = false;
+
+            // 仅当左键没有在拖动时才恢复鼠标显示
+            if (!_bIsDraggingInWorld)
+            {
+                glfwSetInputMode(_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
+
+            glfwSetCursorPos(_Window, _DragRightStartX, _DragRightStartY);
+            io.MousePos = ImVec2((float)_DragRightStartX, (float)_DragRightStartY);
+
+            s_RightFrameCooldown = 3;
+        }
+    }
+    // [Case C]: 右键持续按住并拖动
+    else if (_bRightMousePressedInWorld && _bIsDraggingRightInWorld && s_RightFrameCooldown == 0)
+    {
+        if (_bFirstMouseRight)
+        {
+            _LastRightX = currX;
+            _LastRightY = currY;
+            _bFirstMouseRight = false;
+        }
+        else
+        {
+            double deltaX = currX - _LastRightX;
+            double deltaY = currY - _LastRightY;
+
+            _LastRightX = currX;
+            _LastRightY = currY;
+
+            if (deltaX != 0.0 || deltaY != 0.0)
+            {
+                // 调用新增的摆头处理函数
+                _FreeCamera->ProcessSwayMovement(deltaX, deltaY);
+            }
+        }
+    }
+
+    // 更新鼠标按键历史状态
     wasLeftDown = isLeftDown;
+    wasRightDown = isRightDown;
 
     // -----------------------------------------------------------
-    // 3. 处理滚轮缩放 (消费 Buffer)
+    // 6. 处理滚轮缩放 (消费 Buffer)
     // -----------------------------------------------------------
     if (_buffered_scroll_y != 0.0f)
     {
@@ -1694,7 +1780,7 @@ void FApplication::ProcessInput()
     }
 
     // -----------------------------------------------------------
-    // 4. 处理键盘移动
+    // 7. 处理键盘移动
     // -----------------------------------------------------------
     if (!bKeyboardBlocked)
     {
@@ -1706,7 +1792,6 @@ void FApplication::ProcessInput()
             _FreeCamera->ProcessModeChange();
         }
         wasTDown = isTDown;
-
 
         if (glfwGetKey(_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         {
@@ -1738,6 +1823,7 @@ void FApplication::ProcessInput()
             _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollRight);
     }
 }
+
 void FApplication::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
     auto* App = static_cast<FApplication*>(glfwGetWindowUserPointer(window));
@@ -1852,7 +1938,8 @@ void FApplication::RenderDebugUI()
     glm::vec3 camPos = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kPosition) / Rs;
     glm::vec3 camDir = _FreeCamera->GetCameraVector(System::Spatial::FCamera::EVectorType::kFront);
 
-    // 判断是否是裸奇点
+    // 判断所在宇宙状态与裸奇点
+    bool isAntiverse = (BlackHoleArgs.UniverseSign < 0.0f);
     float delta_discriminant = M * M - a2 - Q2;
     bool isNakedSingularity = (delta_discriminant < 0.0f);
     float r_outer = isNakedSingularity ? 0.0f : M + std::sqrt(delta_discriminant);
@@ -1866,7 +1953,7 @@ void FApplication::RenderDebugUI()
     if (canvas_sz.y < 50.0f) canvas_sz.y = 50.0f;
 
     // 2. 绘制背景颜色
-    ImU32 bgColor = (BlackHoleArgs.UniverseSign > 0.0f) ? IM_COL32(15, 20, 30, 255) : IM_COL32(40, 10, 15, 255);
+    ImU32 bgColor = isAntiverse ? IM_COL32(40, 10, 15, 255) : IM_COL32(15, 20, 30, 255);
     draw_list->AddRectFilled(canvas_p0, ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y), bgColor);
 
     // 划分为左右两个视图
@@ -1874,11 +1961,8 @@ void FApplication::RenderDebugUI()
     ImVec2 centerSide = ImVec2(canvas_p0.x + halfWidth * 0.5f, canvas_p0.y + canvas_sz.y * 0.5f);
     ImVec2 centerTop = ImVec2(canvas_p0.x + halfWidth * 1.5f, canvas_p0.y + canvas_sz.y * 0.5f);
 
-    // === 核心修改点 1: 动态缩放逻辑 ===
-    // 计算相机到原点的实际距离
+    // 动态缩放逻辑
     float camDist = glm::length(camPos);
-    // 当相机距离过远时，画面容纳 (camDist * 1.2f) 以确保相机一直可见
-    // 当相机靠得很近时，固定显示至少半径为 3.0 Rs 的区域，阻止曲线被无限放大撑破屏幕
     float displayRadius = std::max(1.5f, camDist * 1.2f);
     float scale = std::min(halfWidth, canvas_sz.y) / (2.0f * displayRadius);
 
@@ -1886,7 +1970,7 @@ void FApplication::RenderDebugUI()
     auto ToSideScreen = [&](float x, float y) -> ImVec2 { return ImVec2(centerSide.x + x * scale, centerSide.y - y * scale); };
     auto ToTopScreen = [&](float x, float z) -> ImVec2 { return ImVec2(centerTop.x + x * scale, centerTop.y - z * scale); };
 
-    // 3. 绘制辅助网格和标题 (逻辑不变)
+    // 3. 绘制辅助网格和标题
     ImU32 axisColor = IM_COL32(100, 100, 100, 150);
     draw_list->AddLine(ImVec2(canvas_p0.x, centerSide.y), ImVec2(canvas_p0.x + halfWidth, centerSide.y), axisColor, 1.0f);
     draw_list->AddLine(ImVec2(centerSide.x, canvas_p0.y), ImVec2(centerSide.x, canvas_p0.y + canvas_sz.y), axisColor, 1.0f);
@@ -1896,22 +1980,69 @@ void FApplication::RenderDebugUI()
 
     draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Meridian (Y-X) Plane");
     draw_list->AddText(ImVec2(canvas_p0.x + halfWidth + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Top-Down (X-(-Z)) Plane");
-    std::string univText = BlackHoleArgs.UniverseSign > 0.0f ? "Status: r > 0 (Universe)" : "Status: r < 0 (Antiverse)";
-    draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 30), IM_COL32(200, 255, 200, 255), univText.c_str());
+    std::string univText = !isAntiverse ? "Status: r > 0 (Universe)" : "Status: r < 0 (Antiverse)";
+    draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 30), !isAntiverse ? IM_COL32(200, 255, 200, 255) : IM_COL32(255, 150, 150, 255), univText.c_str());
 
-    ImU32 colOuterHorizon = IM_COL32(255, 100, 100, 255);
-    ImU32 colInnerHorizon = IM_COL32(100, 150, 255, 255);
-    ImU32 colErgosphere = IM_COL32(150, 255, 150, 200);
-    ImU32 colInnerErgo = IM_COL32(255, 200, 50, 200);
-    ImU32 colSingularity = IM_COL32(255, 0, 255, 255);
+    // === 核心修改点 1: 根据是否处于反宇宙，调整线条透明度 ===
+    ImU32 alphaStandard = isAntiverse ? 25 : 255;  // 正常宇宙边界在反宇宙中极其淡化
+    ImU32 alphaErgo = isAntiverse ? 15 : 200;
+    ImU32 alphaCTC = isAntiverse ? 255 : 25;  // CTC 边界在反宇宙中高亮，在正常宇宙中极其淡化
+
+    ImU32 colOuterHorizon = IM_COL32(255, 100, 100, alphaStandard);
+    ImU32 colInnerHorizon = IM_COL32(100, 150, 255, alphaStandard);
+    ImU32 colErgosphere = IM_COL32(150, 255, 150, alphaErgo);
+    ImU32 colInnerErgo = IM_COL32(255, 200, 50, alphaErgo);
+    ImU32 colCTC = IM_COL32(200, 100, 255, alphaCTC); // 紫色代表时光机区域
+    ImU32 colSingularity = IM_COL32(255, 0, 255, 255);        // 奇环作为连通点，恒定不褪色
+
+    // === 核心修改点 2: 求解 CTC (Closed Timelike Curves) 边界的 Lambda ===
+    // 求解 g_phi_phi = 0 在 r < 0 侧的根。方程为: (r^2+a^2)(r^2+a^2 cos^2T) + a^2 sin^2T (2Mr - Q^2) = 0
+    auto GetCTCRoots = [&](float cosT, float sinT, float& r_out, float& r_in) -> bool
+    {
+        auto G = [&](float r)
+        {
+            float r2 = r * r;
+            return (r2 + a2) * (r2 + a2 * cosT * cosT) + a2 * sinT * sinT * (2.0f * M * r - Q2);
+        };
+        float r_start = 0.0f, r_end = -10.0f; // 扫描 Antiverse 区间
+        int steps = 200;
+        float dr = (r_end - r_start) / steps;
+        std::vector<float> roots;
+        float prev_G = G(r_start);
+
+        if (std::abs(prev_G) < 1e-5f)
+        { // 特殊处理赤道且 Q=0 时 r=0 是根的情况
+            roots.push_back(0.0f);
+            prev_G = G(r_start + dr * 0.1f);
+        }
+        for (int k = 1; k <= steps; ++k)
+        {
+            float r = r_start + k * dr;
+            float curr_G = G(r);
+            if (curr_G * prev_G < 0.0f)
+            {
+                roots.push_back(r - dr * curr_G / (curr_G - prev_G)); // 线性插值求根
+            }
+            prev_G = curr_G;
+        }
+        if (roots.size() >= 2)
+        {
+            r_out = roots[0]; r_in = roots.back();
+            return true;
+        }
+        else if (roots.size() == 1)
+        {
+            r_out = 0.0f; r_in = roots[0];
+            return true;
+        }
+        return false;
+    };
 
     // 4. 计算和绘制几何边界
-    const int segments = 256;
+    const int segments = 511;
     std::vector<ImVec2> sideOutPts, sideInPts;
-
-    // 用于记录上一帧的静界点，方便逐线段绘制（避免裸奇点画出多余的横线）
-    ImVec2 prev_ergo_out, prev_ergo_in;
-    bool prev_ergo_valid = false;
+    ImVec2 prev_ergo_out, prev_ergo_in, prev_ctc_out, prev_ctc_in;
+    bool prev_ergo_valid = false, prev_ctc_valid = false;
 
     for (int i = 0; i <= segments; ++i)
     {
@@ -1919,74 +2050,79 @@ void FApplication::RenderDebugUI()
         float cosTheta = std::cos(theta);
         float sinTheta = std::sin(theta);
 
-        // === 核心修改点 2: 静界判别逻辑 ===
+        // --- 绘制正常宇宙下的静界 (Ergosphere) ---
         float ergo_discriminant = M * M - a2 * cosTheta * cosTheta - Q2;
-        bool ergo_valid = (ergo_discriminant >= 0.0f); // 某些角度下（裸奇点极区），能层不存在实数解
-
+        bool ergo_valid = (ergo_discriminant >= 0.0f);
         if (ergo_valid)
         {
             float sqrt_disc = std::sqrt(ergo_discriminant);
-            float r_ergo_out = M + sqrt_disc;
-            float r_ergo_in = M - sqrt_disc;
-
-            float ergo_out_rho = std::sqrt(r_ergo_out * r_ergo_out + a2) * sinTheta;
-            float ergo_out_y = r_ergo_out * cosTheta;
-            ImVec2 pt_ergo_out = ToSideScreen(ergo_out_rho, ergo_out_y);
-
-            float ergo_in_rho = std::sqrt(r_ergo_in * r_ergo_in + a2) * sinTheta;
-            float ergo_in_y = r_ergo_in * cosTheta;
-            ImVec2 pt_ergo_in = ToSideScreen(ergo_in_rho, ergo_in_y);
+            float r_ergo_out = M + sqrt_disc, r_ergo_in = M - sqrt_disc;
+            ImVec2 pt_ergo_out = ToSideScreen(std::sqrt(r_ergo_out * r_ergo_out + a2) * sinTheta, r_ergo_out * cosTheta);
+            ImVec2 pt_ergo_in = ToSideScreen(std::sqrt(r_ergo_in * r_ergo_in + a2) * sinTheta, r_ergo_in * cosTheta);
 
             if (prev_ergo_valid)
             {
-                // 如果连续有效，连线绘制外/内静界曲线
                 draw_list->AddLine(prev_ergo_out, pt_ergo_out, colErgosphere, 1.5f);
                 draw_list->AddLine(prev_ergo_in, pt_ergo_in, colInnerErgo, 1.5f);
             }
             else if (i > 0)
             {
-                // 刚从"无解"进入"有解"区，连接内外静界点闭合能层尖端（月牙形闭合点）
                 draw_list->AddLine(pt_ergo_out, pt_ergo_in, colErgosphere, 1.5f);
             }
-
-            prev_ergo_out = pt_ergo_out;
-            prev_ergo_in = pt_ergo_in;
+            prev_ergo_out = pt_ergo_out; prev_ergo_in = pt_ergo_in;
         }
-        else
-        {
-            if (prev_ergo_valid)
-            {
-                // 刚从"有解"区进入"无解"区，闭合另一个尖端
-                draw_list->AddLine(prev_ergo_out, prev_ergo_in, colErgosphere, 1.5f);
-            }
-        }
+        else if (prev_ergo_valid) draw_list->AddLine(prev_ergo_out, prev_ergo_in, colErgosphere, 1.5f);
         prev_ergo_valid = ergo_valid;
 
-        // 俯视图边界是赤道面上的圆 (cosTheta=0)
+        // --- 绘制反宇宙中的 CTC 边界 ---
+        float r_ctc_out, r_ctc_in;
+        bool ctc_valid = GetCTCRoots(cosTheta, sinTheta, r_ctc_out, r_ctc_in);
+        if (ctc_valid)
+        {
+            // 对于 r < 0, 映射到伪笛卡尔坐标系的公式同样是 Rho = sqrt(r^2+a^2)*sin(t), Z = r*cos(t)
+            ImVec2 pt_ctc_out = ToSideScreen(std::sqrt(r_ctc_out * r_ctc_out + a2) * sinTheta, r_ctc_out * cosTheta);
+            ImVec2 pt_ctc_in = ToSideScreen(std::sqrt(r_ctc_in * r_ctc_in + a2) * sinTheta, r_ctc_in * cosTheta);
+
+            if (prev_ctc_valid)
+            {
+                draw_list->AddLine(prev_ctc_out, pt_ctc_out, colCTC, 1.5f);
+                draw_list->AddLine(prev_ctc_in, pt_ctc_in, colCTC, 1.5f);
+            }
+            else if (i > 0)
+            {
+                draw_list->AddLine(pt_ctc_out, pt_ctc_in, colCTC, 1.5f);
+            }
+            prev_ctc_out = pt_ctc_out; prev_ctc_in = pt_ctc_in;
+        }
+        else if (prev_ctc_valid) draw_list->AddLine(prev_ctc_out, prev_ctc_in, colCTC, 1.5f);
+        prev_ctc_valid = ctc_valid;
+
+        // --- 俯视图绘制 (赤道面) ---
         if (i == 0)
         {
             float eq_disc = M * M - Q2;
-            if (eq_disc >= 0.0f) // 只有赤道面存在解才画俯视图圆
+            if (eq_disc >= 0.0f)
             {
-                float r_ergo_eq_out = M + std::sqrt(eq_disc);
-                draw_list->AddCircle(centerTop, std::sqrt(r_ergo_eq_out * r_ergo_eq_out + a2) * scale, colErgosphere, 64, 1.5f);
-
-                float r_ergo_eq_in = M - std::sqrt(eq_disc);
-                draw_list->AddCircle(centerTop, std::sqrt(r_ergo_eq_in * r_ergo_eq_in + a2) * scale, colInnerErgo, 64, 1.5f);
+                draw_list->AddCircle(centerTop, std::sqrt(std::pow(M + std::sqrt(eq_disc), 2) + a2) * scale, colErgosphere, 64, 1.5f);
+                draw_list->AddCircle(centerTop, std::sqrt(std::pow(M - std::sqrt(eq_disc), 2) + a2) * scale, colInnerErgo, 64, 1.5f);
+            }
+            if (ctc_valid)
+            {
+                draw_list->AddCircle(centerTop, std::sqrt(r_ctc_out * r_ctc_out + a2) * scale, colCTC, 64, 1.5f);
+                draw_list->AddCircle(centerTop, std::sqrt(r_ctc_in * r_ctc_in + a2) * scale, colCTC, 64, 1.5f);
             }
         }
 
+        // --- 绘制正常宇宙视界 ---
         if (!isNakedSingularity)
         {
-            float out_rho = std::sqrt(r_outer * r_outer + a2) * sinTheta;
-            float out_y = r_outer * cosTheta;
-            sideOutPts.push_back(ToSideScreen(out_rho, out_y));
-            if (i == 0) draw_list->AddCircle(centerTop, std::sqrt(r_outer * r_outer + a2) * scale, colOuterHorizon, 64, 2.0f);
-
-            float in_rho = std::sqrt(r_inner * r_inner + a2) * sinTheta;
-            float in_y = r_inner * cosTheta;
-            sideInPts.push_back(ToSideScreen(in_rho, in_y));
-            if (i == 0) draw_list->AddCircle(centerTop, std::sqrt(r_inner * r_inner + a2) * scale, colInnerHorizon, 64, 2.0f);
+            sideOutPts.push_back(ToSideScreen(std::sqrt(r_outer * r_outer + a2) * sinTheta, r_outer * cosTheta));
+            sideInPts.push_back(ToSideScreen(std::sqrt(r_inner * r_inner + a2) * sinTheta, r_inner * cosTheta));
+            if (i == 0)
+            {
+                draw_list->AddCircle(centerTop, std::sqrt(r_outer * r_outer + a2) * scale, colOuterHorizon, 64, 2.0f);
+                draw_list->AddCircle(centerTop, std::sqrt(r_inner * r_inner + a2) * scale, colInnerHorizon, 64, 2.0f);
+            }
         }
     }
 
@@ -1995,9 +2131,8 @@ void FApplication::RenderDebugUI()
         draw_list->AddPolyline(sideOutPts.data(), sideOutPts.size(), colOuterHorizon, ImDrawFlags_Closed, 2.0f);
         draw_list->AddPolyline(sideInPts.data(), sideInPts.size(), colInnerHorizon, ImDrawFlags_Closed, 2.0f);
     }
-    // 删除了你之前代码里不小心复制粘贴导致重复的绘制段落
 
-    // 5. 绘制奇环 (a)
+    // 5. 绘制奇环 (a) (永远完全不透明显示，作为两个宇宙的连接点)
     draw_list->AddCircleFilled(ToSideScreen(std::abs(a), 0.0f), 4.0f, colSingularity);
     draw_list->AddCircleFilled(ToSideScreen(-std::abs(a), 0.0f), 4.0f, colSingularity);
     draw_list->AddCircle(centerTop, std::abs(a) * scale, colSingularity, 64, 2.0f);
@@ -2009,9 +2144,7 @@ void FApplication::RenderDebugUI()
 
     float drho = (rho_cam > 1e-6f) ? ((camPos.x * camDir.x + camPos.z * camDir.z) / rho_cam) : std::sqrt(camDir.x * camDir.x + camDir.z * camDir.z);
 
-    // 动态调整朝向线条长度：如果在极远处，保持方向线相对明显（至少占距离的15% 或 最低 1.5 Rs）
     float camLineLen = std::max(1.5f, camDist * 0.15f);
-
     ImVec2 camSideDir = ToSideScreen(rho_cam + drho * camLineLen, camPos.y + camDir.y * camLineLen);
     ImVec2 camTopPos = ToTopScreen(camPos.x, -camPos.z);
     ImVec2 camTopDir = ToTopScreen(camPos.x + camDir.x * camLineLen, -camPos.z - camDir.z * camLineLen);

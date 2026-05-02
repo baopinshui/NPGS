@@ -557,6 +557,7 @@ vec4 GetInitialMomentum(
     }else if (iObserverMode == 2) {
         // --- 模式 2: 任意四速观测者 (基于坐标速度) ---
         vec3 v_in = iCameraVelocity.xyz;
+        if (any(isnan(v_in)) || any(isinf(v_in))) {v_in=vec3(0.0);}
         vec4 V_up = vec4(v_in, 1.0);
         vec4 V_down = LowerIndex(V_up, geo);
         float V_sq = dot(V_up, V_down);
@@ -2857,19 +2858,44 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         shiftinout=false;
 
         if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
+        if (Count==0) lastR=geo.r;
 
-        if (Count > 0 &&abs(RaiseIndex(P_cov, geo).w)>10.0) 
+
+
+
+       if (iWhitehole == 1 && !bIsNakedSingularity && !(geo.r > InnerHorizonR && geo.r < EventHorizonR)) 
         {
-            if(iWhitehole==1 &&!bIsNakedSingularity)
+            // 1. 获取当前坐标系下的逆变动量 P^u
+            vec4 P_contra = RaiseIndex(P_cov, geo);
+            // 2. 计算当前系动量各分量绝对值之和 (对应 C 语言的 fabs(vel[0]) + ... + fabs(vel[3]))
+            // 在 GLSL 中可以使用 dot(abs(v), vec4(1.0)) 快速求 L1 范数
+            float current_Sum = dot(abs(P_contra), vec4(1.0));
+            
+            // 试探换系
+            vec4 test_X = X;
+            vec4 test_P = P_cov;
+            transformKerrSchild_YSpin(test_X, CurrentUniverseSign, test_P, CONST_M, PhysicalSpinA, PhysicalQ, isoutgoing);
+            
+            KerrGeometry test_geo;
+            ComputeGeometryScalars(test_X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, !isoutgoing, test_geo);
+            
+            // 3. 获取试探系下的逆变动量 test_P^u
+            vec4 test_P_contra = RaiseIndex(test_P, test_geo);
+            // 4. 计算试探系动量各分量绝对值之和
+            float test_Sum = dot(abs(test_P_contra), vec4(1.0));
+            
+            // 5. 若当前系的分量绝对值之和 > 5倍的试探系分量绝对值之和，则执行换系 (与 C 语言版本严格对齐)
+            if (current_Sum > 2.0 * test_Sum) 
             {
-            transformKerrSchild_YSpin(X, CurrentUniverseSign,P_cov, CONST_M, PhysicalSpinA, PhysicalQ,isoutgoing);
-            isoutgoing=!isoutgoing;
-
-            ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign,isoutgoing, geo);
-            s0.X = X; s0.P = P_cov;
-            k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade,isoutgoing, geo);
-            CurrentDr = dot(geo.grad_r, k1.X.xyz);
-            shiftinout=true;
+                X = test_X;
+                P_cov = test_P;
+                isoutgoing = !isoutgoing;
+                geo = test_geo;
+                s0.X = X; 
+                s0.P = P_cov;
+                k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade, isoutgoing, geo);
+                CurrentDr = dot(geo.grad_r, k1.X.xyz);
+                shiftinout = true;
             }
         }
         LastDr = CurrentDr;
@@ -2878,16 +2904,19 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         if(geo.r < InnerHorizonR && lastR > InnerHorizonR) bEscapeInHorizon = true;     //检测穿进(追踪方向)内视界 
         if(geo.r < EventHorizonR && lastR > EventHorizonR) bEscapeOutHorizon = true;    //检测穿进(追踪方向)外视界 
 
-
-        if(iGrid==0 && iWhitehole==0)
-        {
-            
-            if (RadialTurningCounts > 2) 
+            if (iGrid==0 && RadialTurningCounts > 2) 
             {
                 bShouldContinueMarchRay = false; bWaitCalBack = false;
                 if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
                 break;//识别剔除奇环附近束缚态光子轨道
             }
+
+
+
+        if(iGrid==0 && iWhitehole==0)
+        {
+            
+
             
             
             if(geo.r > InnerHorizonR && lastR < InnerHorizonR) bIntoInHorizon = true;     //检测穿出(追踪方向)内视界 
@@ -2980,7 +3009,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
 
         //吸积盘和喷流
-        if (CurrentUniverseSign > 0.0&& iBlackHoleMassSol>0.0 && !( iInAnotherUniverse==1 && !(bEscapeInHorizon|| bEscapeOutHorizon)  )  ) 
+        if (CurrentUniverseSign > 0.0&& iBlackHoleMassSol>0.0 && !( iInAnotherUniverse==1 && !(bEscapeInHorizon|| bEscapeOutHorizon||(iUniverseSign*CameraStartR<InnerHorizonR))  )  ) 
         {
            if(IsAccretionDiskVisible(iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut))
            {
@@ -3072,7 +3101,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         if (CurrentUniverseSign  > 0.0) res.Status = 1.0; // Sky
         else res.Status = 2.0; // Antiverse
         
-        if(iWhitehole==1&&(bEscapeInHorizon|| bEscapeOutHorizon) && res.Status == 1.0)//来自白洞
+        if(iWhitehole==1&&(bEscapeInHorizon|| bEscapeOutHorizon||(iUniverseSign*CameraStartR<InnerHorizonR)) && res.Status == 1.0)//来自白洞
         {
             res.Status=4.0;
         }

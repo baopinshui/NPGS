@@ -50,6 +50,8 @@ public:
     void ProcessOrbital(double OffsetX, double OffsetY);
     void ProcessTimeEvolution(double DeltaTime);
     void ProcessModeChange();
+    void ProcessSwayMovement(double OffsetX, double OffsetY);
+    void ResetSway();
     void SetOrientation(const glm::quat& Orientation);
     void SetCameraVector(EVectorType Type, const glm::vec3& NewVector);
     void SetCameraMode(bool bIsOrbiting);
@@ -82,6 +84,11 @@ private:
     glm::vec3 _InputTranslationVector{ 0.0f };
     float     _InputRollValue{ 0.0f };
     glm::vec2 _InputOrbitAxis{ 0.0f, 0.0f };
+
+    float     _ObjectiveSwayYaw{ 0.0f };
+    float     _ObjectiveSwayPitch{ 0.0f };
+    float     _CurrentSwayYaw{ 0.0f };
+    float     _CurrentSwayPitch{ 0.0f };
 
     glm::vec3 _AxisDir;
     glm::vec3 _ObjectivetAxisDir;

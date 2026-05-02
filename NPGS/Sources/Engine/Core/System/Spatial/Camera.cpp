@@ -30,7 +30,11 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _DistanceToOrbitalCenter(1.0f),
     _ObjectivetTargetDistanceToOrbitalCenter(0.0001f),
     _TimeSinceModeChange(10.0),
-    _bIsOrbiting(true)
+    _bIsOrbiting(true),
+    _ObjectiveSwayYaw(0.0f),
+    _ObjectiveSwayPitch(0.0f),
+    _CurrentSwayYaw(0.0f),
+    _CurrentSwayPitch(0.0f)
 {
     SetTargetOrbitAxis(glm::vec3(0., 1., 0.));
     UpdateVectors();
@@ -127,41 +131,36 @@ void FCamera::ProcessRotation(float Yaw, float Pitch, float Roll)
 }
 void FCamera::ProcessOrbital(double OffsetX, double OffsetY)
 {
-    if(!_bIsOrbiting)
-    {
-        return;
-    }
+    if (!_bIsOrbiting) return;
+
     _AxisDir = glm::normalize(_AxisDir);
-    _Theta += static_cast<float>( OffsetX);
-    if (_Theta >= 360.0f) 
-    {
-        _Theta -= 360.0f; 
-    }
-    else if (_Theta < 0.0f)
-    {
-        _Theta += 360.0f; 
-    }
+    _Theta += static_cast<float>(OffsetX);
+    if (_Theta >= 360.0f) { _Theta -= 360.0f; }
+    else if (_Theta < 0.0f) { _Theta += 360.0f; }
+
     _Phi += static_cast<float>(OffsetY);
-    {
-        if (_Phi > 180.0f) 
-        {
-            _Phi = 180.f; 
-        }
-        else if (_Phi < 0.0f) 
-        {
-            _Phi = 0.0f; 
-        }
-    }
+    if (_Phi > 180.0f) { _Phi = 180.f; }
+    else if (_Phi < 0.0f) { _Phi = 0.0f; }
+
     glm::quat ThetaRotate = glm::angleAxis(glm::radians(_Theta), glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::quat PhiRotate   = glm::angleAxis(glm::radians(_Phi), glm::vec3(1.0f, 0.0f, 0.0f));
-    glm::quat ToAxisRotate   = CalculateToAxisRotate();
-    glm::quat ToCenterOrient = ToAxisRotate * (ThetaRotate * (PhiRotate * glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)))) ;
-    _Orientation = glm::conjugate(ToCenterOrient);
+    glm::quat PhiRotate = glm::angleAxis(glm::radians(_Phi), glm::vec3(1.0f, 0.0f, 0.0f));
+    glm::quat ToAxisRotate = CalculateToAxisRotate();
+    // 1. 获取基础 Camera-To-World 四元数
+    glm::quat Cam2WorldBase = ToAxisRotate * (ThetaRotate * (PhiRotate * glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f))));
+    // 2. [终极魔法：绝对零滚转的无奇点摆头 - 欧拉角版本]
+    // 偏航角绕局部 Y 轴旋转，俯仰角绕局部 X 轴旋转
+    // 顺序为 Yaw * Pitch，确保在看左右的同时上下看不会发生奇怪的扭曲
+    glm::quat SwayYawQuat = glm::angleAxis(glm::radians(_CurrentSwayYaw), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::quat SwayPitchQuat = glm::angleAxis(glm::radians(_CurrentSwayPitch), glm::vec3(1.0f, 0.0f, 0.0f));
+    glm::quat SwayQuat = SwayYawQuat * SwayPitchQuat;
+    // 3. 将摆头应用在基础姿态的局部空间 (右乘 Camera-To-World)
+    glm::quat Cam2WorldFinal = Cam2WorldBase * SwayQuat;
+    // 4. 更新 _Orientation (View 旋转是 Camera-To-World 的共轭)
+    _Orientation = glm::conjugate(Cam2WorldFinal);
     UpdateVectors();
-    SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter - _DistanceToOrbitalCenter * _Front);
-    glm::quat sway = glm::angleAxis(glm::radians(-0.0f), glm::vec3(_Up));
-    _Orientation = glm::conjugate(sway*ToCenterOrient);
-    UpdateVectors();
+    // 5. 相机在世界中的位置严格由 Base 状态决定，确保相机一直在球面轨道上
+    glm::vec3 BaseFront = glm::normalize(Cam2WorldBase * glm::vec3(0.0f, 0.0f, -1.0f));
+    SetCameraVector(FCamera::EVectorType::kPosition, _OrbitalCenter - _DistanceToOrbitalCenter * BaseFront);
 }
 void FCamera::ProcessTimeEvolution(double DeltaTime)
 {
@@ -193,10 +192,17 @@ void FCamera::ProcessTimeEvolution(double DeltaTime)
 
     _ObjectivetOffsetX -= ConsumeX;
     _ObjectivetOffsetY -= ConsumeY;
-    // ==============================================================
 
+    _CurrentSwayYaw += (_ObjectiveSwayYaw - _CurrentSwayYaw) * static_cast<float>(smoothFactor);
+    _CurrentSwayPitch += (_ObjectiveSwayPitch - _CurrentSwayPitch) * static_cast<float>(smoothFactor);
+    // ==============================================================
     if (!_bIsOrbiting)
     {
+        // 非环绕模式下，复位摆头角度
+        _ObjectiveSwayYaw = 0.0f;
+        _ObjectiveSwayPitch = 0.0f;
+        _CurrentSwayYaw = 0.0f;
+        _CurrentSwayPitch = 0.0f;
         if (glm::length(_InputTranslationVector) > 0.001f)
         {
             glm::vec3 NormalizedDirection = glm::normalize(_InputTranslationVector);
@@ -254,6 +260,24 @@ void FCamera::ProcessModeChange()
                 ProcessOrbital(0.0, 0.0);
         }
     }
+}
+void FCamera::ProcessSwayMovement(double OffsetX, double OffsetY)
+{
+    if (_bIsOrbiting)
+    {
+        // 直接累加到目标偏航角和俯仰角上 (带负号以匹配原有的直觉)
+        _ObjectiveSwayYaw -= static_cast<float>(OffsetX * _Sensitivity);
+        _ObjectiveSwayPitch -= static_cast<float>(OffsetY * _Sensitivity);
+        // [极其重要] 限制俯仰角，防止“看破自己的肚子”或者导致翻转 (死锁)
+        // 限制在 -89.0 到 89.0 度之间
+        _ObjectiveSwayPitch = std::clamp(_ObjectiveSwayPitch, -89.0f, 89.0f);
+    }
+}
+void FCamera::ResetSway()
+{
+    // 复位时，只需将目标角度归零
+    _ObjectiveSwayYaw = 0.0f;
+    _ObjectiveSwayPitch = 0.0f;
 }
 void FCamera::UpdateVectors()
 {
