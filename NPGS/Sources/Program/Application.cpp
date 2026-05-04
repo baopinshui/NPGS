@@ -24,6 +24,9 @@
 #include "Engine/Core/System/UI/Screens/GameScreen.h"
 
 #include <chrono>
+#include <fstream>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp> 
 
 FGameArgs GameArgs{};
 FBlackHoleArgs BlackHoleArgs{};
@@ -1595,7 +1598,100 @@ void FApplication::update()
         PreviousTime = CurrentTime;
     }
 }
+void FApplication::DumpArgsToJson(const std::string& filepath)
+{
 
+    std::ofstream out(filepath);
+    if (!out.is_open())
+    {
+        std::cout << "Failed to open file for dumping args!" << std::endl;
+        return;
+    }
+
+    out << "{\n";
+
+    // ==========================================
+    // 导出 FGameArgs
+    // ==========================================
+    out << "  \"FGameArgs\": {\n";
+
+    // 宏定义：方便打印标量和 glm 变量（用完即抛）
+#define DUMP_G(var) out << "    \"" #var "\": " << GameArgs.var << ",\n"
+#define DUMP_G_GLM(var) out << "    \"" #var "\": \"" << glm::to_string(glm::vec2(GameArgs.var)) << "\",\n"
+
+    DUMP_G_GLM(Resolution);
+    DUMP_G(FovRadians);
+    DUMP_G(Time);
+    DUMP_G(GameTime);
+    DUMP_G(TimeDelta);
+    DUMP_G(TimeRate);
+
+#undef DUMP_G
+#undef DUMP_G_GLM
+    out << "    \"__end__\": 0\n"; // 防止最后一个逗号导致 JSON 解析报错
+    out << "  },\n";
+
+    // ==========================================
+    // 导出 FBlackHoleArgs
+    // ==========================================
+    out << "  \"FBlackHoleArgs\": {\n";
+
+#define DUMP_B(var) out << "    \"" #var "\": " << BlackHoleArgs.var << ",\n"
+#define DUMP_B_GLM(var) out << "    \"" #var "\": \"" << glm::to_string(BlackHoleArgs.var) << "\",\n"
+
+    // 向量与矩阵
+    DUMP_B_GLM(InverseCamRot);
+    DUMP_B_GLM(BlackHoleRelativePosRs);
+    DUMP_B_GLM(BlackHoleRelativeDiskNormal);
+    DUMP_B_GLM(BlackHoleRelativeDiskTangen);
+    DUMP_B_GLM(CameraVelocity);
+
+    // 标量
+    DUMP_B(DEBUG);
+    DUMP_B(Whitehole);
+    DUMP_B(InAnotherUniverse);
+    DUMP_B(Grid);
+    DUMP_B(EnableHearHaze);
+    DUMP_B(ObserverMode);
+    DUMP_B(UniverseSign);
+    DUMP_B(BlackHoleTime);
+    DUMP_B(BlackHoleMassSol);
+    DUMP_B(Spin);
+    DUMP_B(Q);
+    DUMP_B(Mu);
+    DUMP_B(AccretionRate);
+    DUMP_B(InterRadiusRs);
+    DUMP_B(OuterRadiusRs);
+    DUMP_B(ThinRs);
+    DUMP_B(Hopper);
+    DUMP_B(Brightmut);
+    DUMP_B(Darkmut);
+    DUMP_B(Reddening);
+    DUMP_B(Saturation);
+    DUMP_B(BlackbodyIntensityExponent);
+    DUMP_B(RedShiftColorExponent);
+    DUMP_B(RedShiftIntensityExponent);
+    DUMP_B(HeatHaze);
+    DUMP_B(BackgroundBrightmut);
+    DUMP_B(PhotonRingBoost);
+    DUMP_B(PhotonRingColorTempBoost);
+    DUMP_B(BoostRot);
+    DUMP_B(JetRedShiftIntensityExponent);
+    DUMP_B(JetBrightmut);
+    DUMP_B(JetSaturation);
+    DUMP_B(JetShiftMax);
+    DUMP_B(BlendWeight);
+
+#undef DUMP_B
+#undef DUMP_B_GLM
+    out << "    \"__end__\": 0\n";
+    out << "  }\n";
+
+    out << "}\n";
+    out.close();
+
+    std::cout << "Successfully dumped shader parameters to: " << filepath << std::endl;
+}
 void FApplication::ProcessInput()
 {
     // -----------------------------------------------------------
@@ -1792,6 +1888,19 @@ void FApplication::ProcessInput()
             _FreeCamera->ProcessModeChange();
         }
         wasTDown = isTDown;
+
+
+        // 找个不冲突的按键，比如 'P' 键 (Print)
+        static bool wasPDown = false;
+        bool isPDown = glfwGetKey(_Window, GLFW_KEY_P) == GLFW_PRESS;
+        if (isPDown && !wasPDown)
+        {
+            // 每次按下 P 键，导出一个包含当前时间的 JSON 文件
+            std::string filename = "C:/Users/bcy00/Desktop/python乱七八糟/ShaderArgs_" + std::to_string(FrameCount) + ".json";
+            DumpArgsToJson(filename);
+        }
+        wasPDown = isPDown;
+
 
         if (glfwGetKey(_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         {

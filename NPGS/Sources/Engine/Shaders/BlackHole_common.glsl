@@ -525,11 +525,11 @@ vec4 GetInitialMomentum(
         float U_r_KS = -Xi / max(1e-9, rho2);
         
         float inv_r2_a2 = 1.0 / (r2 + a2);
-        float Ux_rad = (r * X.x + a * X.z) * inv_r2_a2 * U_r_KS;
-        float Uz_rad = (r * X.z - a * X.x) * inv_r2_a2 * U_r_KS;
+        float Ux_rad = (r * X.x - a * X.z) * inv_r2_a2 * U_r_KS;
+        float Uz_rad = (r * X.z + a * X.x) * inv_r2_a2 * U_r_KS;
         float Uy_rad = (X.y / r) * U_r_KS;
-        float Ux_tan = -X.z * U_phi_KS;
-        float Uz_tan =  X.x * U_phi_KS;
+        float Ux_tan =  X.z * U_phi_KS;
+        float Uz_tan = -X.x * U_phi_KS;
         
         vec3 U_spatial = vec3(Ux_rad + Ux_tan, Uy_rad, Uz_rad + Uz_tan);
         
@@ -619,7 +619,105 @@ vec4 GetInitialMomentum(
     // 返回协变动量 P_mu
     return LowerIndex(P_up, geo);
 }
+// =============================================================================
+// 调试函数：检查初始动量合法性并可视化局部动量方向
+// =============================================================================
+vec3 DebugInitialMomentum(
+    vec4 P_cov, 
+    vec4 X, 
+    int ObserverMode, 
+    float universesign, 
+    float PhysicalSpinA, 
+    float PhysicalQ, 
+    float GravityFade, 
+    bool isOutgoing, 
+    vec3 CameraVelocity
+) {
+    if (P_cov == vec4(114514.0)) return vec3(0.0);
 
+    KerrGeometry geo;
+    ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, universesign, isOutgoing, geo);
+
+    // 升指标得到逆变动量，计算模长平方（测试类光条件）
+    vec4 P_up = RaiseIndex(P_cov, geo);
+    float norm_sq = dot(P_cov, P_up);
+
+    // ====================================
+    // 重建观者四维速度和局部平直标架
+    // ====================================
+    vec4 U_up;
+    float g_tt = -1.0 + geo.f;
+    float time_comp = 1.0 / sqrt(max(1e-9, -g_tt));
+    U_up = vec4(0.0, 0.0, 0.0, time_comp);
+    
+    if (ObserverMode == 1) {
+        float r = geo.r; float r2 = geo.r2; float a = PhysicalSpinA; float a2 = geo.a2;
+        float y_phys = X.y; 
+        float rho2 = r2 + a2 * (y_phys * y_phys) / (r2 + 1e-9);
+        float Q2 = PhysicalQ * PhysicalQ;
+        float MassChargeTerm = 2.0 * CONST_M * r - Q2;
+        float Xi = sqrt(max(0.0, MassChargeTerm * (r2 + a2)));
+        float DenomPhi = rho2 * (MassChargeTerm + Xi);
+        float U_phi_KS = (abs(DenomPhi) > 1e-9) ? (-MassChargeTerm * a / DenomPhi) : 0.0;
+        float U_r_KS = -Xi / max(1e-9, rho2);
+        float inv_r2_a2 = 1.0 / (r2 + a2);
+        float Ux_rad = (r * X.x - a * X.z) * inv_r2_a2 * U_r_KS;
+        float Uz_rad = (r * X.z + a * X.x) * inv_r2_a2 * U_r_KS;
+        float Uy_rad = (X.y / r) * U_r_KS;
+        float Ux_tan =  X.z * U_phi_KS;
+        float Uz_tan = -X.x * U_phi_KS;
+        
+        vec3 U_spatial = vec3(Ux_rad + Ux_tan, Uy_rad, Uz_rad + Uz_tan);
+        float l_dot_u_spatial = dot(geo.l_down.xyz, U_spatial);
+        float U_spatial_sq = dot(U_spatial, U_spatial);
+        float A = -1.0 + geo.f;
+        float B = 2.0 * geo.f * l_dot_u_spatial;
+        float C = U_spatial_sq + geo.f * (l_dot_u_spatial * l_dot_u_spatial) + 1.0; 
+        float Det = max(0.0, B*B - 4.0 * A * C);
+        float Ut = (abs(A) < 1e-7) ? (-C / max(1e-9, B)) : ((B < 0.0) ? (2.0 * C / (-B + sqrt(Det))) : ((-B - sqrt(Det)) / (2.0 * A)));
+        
+        U_up = mix(vec4(0.0, 0.0, 0.0, time_comp), vec4(U_spatial, Ut), GravityFade);
+    } else if (ObserverMode == 2) {
+        vec3 v_in = CameraVelocity;
+        if (any(isnan(v_in)) || any(isinf(v_in))) v_in = vec3(0.0);
+        vec4 V_up = vec4(v_in, 1.0);
+        vec4 V_down = LowerIndex(V_up, geo);
+        float V_sq = dot(V_up, V_down);
+        if (V_sq < 0.0) U_up = V_up * inversesqrt(-V_sq);
+    }
+    vec4 U_down = LowerIndex(U_up, geo);
+
+    vec3 m_r = -normalize(X.xyz);
+    vec3 WorldUp = vec3(0.0, 1.0, 0.0);
+    if (abs(dot(m_r, WorldUp)) > 0.999) WorldUp = vec3(1.0, 0.0, 0.0);
+    vec3 m_phi = normalize(cross(WorldUp, m_r)); 
+    vec3 m_theta = cross(m_phi, m_r); 
+
+    vec4 e1 = vec4(m_r, 0.0); e1 += dot(e1, U_down) * U_up; vec4 e1_d = LowerIndex(e1, geo); float n1 = sqrt(max(1e-9, dot(e1, e1_d))); e1 /= n1; e1_d /= n1;
+    vec4 e2 = vec4(m_theta, 0.0); e2 += dot(e2, U_down) * U_up; e2 -= dot(e2, e1_d) * e1; vec4 e2_d = LowerIndex(e2, geo); float n2 = sqrt(max(1e-9, dot(e2, e2_d))); e2 /= n2; e2_d /= n2;
+    vec4 e3 = vec4(m_phi, 0.0); e3 += dot(e3, U_down) * U_up; e3 -= dot(e3, e1_d) * e1; e3 -= dot(e3, e2_d) * e2; vec4 e3_d = LowerIndex(e3, geo); e3 /= sqrt(max(1e-9, dot(e3, e3_d)));
+
+    // ====================================
+    // 合法性检查与局部方向投影
+    // ====================================
+    // 计算光在观者局部正交标架下的空间动量: P_local^i = P_mu e_i^mu
+    vec3 p_local = vec3(dot(P_cov, e1), dot(P_cov, e2), dot(P_cov, e3));
+    vec3 local_dir = normalize(p_local); 
+
+    // r通道：检查所有约束条件是否满足
+    bool is_lightlike = abs(norm_sq) < 1e-4;    // 约束1：必须严格类光
+    float E_loc = -dot(P_cov, U_up);
+    bool is_energy_pos = true;//E_loc > 0.0;           // 约束2：观者测量的局部能量必须为正
+    bool is_forward = true;//P_up.w > 0.0;             // 约束3：坐标时间分量一般向未来流动
+
+    float valid_r = (is_lightlike && is_energy_pos && is_forward) ? 1.0 : 0.0;
+
+    // g,b通道：将局部光线的x、y方向投影到 [0, 1] 颜色区间
+    float g_chan = local_dir.x * 0.5 + 0.5;
+    float b_chan = local_dir.y * 0.5 + 0.5;
+
+    return vec3(valid_r, g_chan, b_chan);
+}
 //inout换系
 
 // 物理常量与数值容差定义
@@ -2068,11 +2166,15 @@ float GetDropFrameAngle(float SinThetaStat, float CosThetaStat, float r, float M
     
     // 落体观者 (ObserverMode == 1)
     // 虽然Static Observer 是固定在 KS 坐标系下的，而非 ZAMO，但因为一些误差，这里denominator_v直接使用r*r会出问题。
-    float numerator_v = 2.0 * M * r - Q * Q;
-    float denominator_v = r * r - 2.0*r*a*a; // -2.0*r*a*a是为了修正误差
+    float a2 = a * a;
+    float r2 = r * r;
+    float MassChargeTerm = 2.0 * M * r - Q * Q;
+    
+    float numerator_v = MassChargeTerm * (r2 + a2);
+    float denominator_v = r2 * (r2 + a2) + a2 * MassChargeTerm;
     
     float v_sq = numerator_v / max(1e-9, denominator_v);
-    v_sq = min(0.9999, max(0.0, v_sq)); 
+    v_sq = (1.0+0.05*a)*min(0.9999, max(0.0, v_sq)); //略微加速、增强收缩，作为冗余
     float v = sqrt(v_sq);
     
     // 应用相对论光行差
@@ -2462,6 +2564,26 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         bWaitCalBack = false;
         Result = vec4(0.0,0.0,0.0,1.0);
     }
+        if (P_cov == vec4(114514.0))
+    {
+        bShouldContinueMarchRay = false;
+        bWaitCalBack = false;
+        Result = vec4(0.0,0.0,0.0,1.0);
+    }
+
+    // ==== 新增的调试接管分支 ====
+    if (iDEBUG == 2 && bShouldContinueMarchRay)
+    {
+        vec3 dbgColor = DebugInitialMomentum(
+            P_cov, X, iObserverMode, iUniverseSign, 
+            PhysicalSpinA, PhysicalQ, GravityFade, isoutgoing, iCameraVelocity.xyz
+        );
+        res.AccumColor = vec4(dbgColor, 1.0);
+        res.Status = 3.0; // 设置为不透明直接返回，绘制到屏幕
+        return res;
+    }
+    // ========================
+
     E_conserved = -P_cov.w;
 
     // -------------------------------------------------------------------------
@@ -2676,7 +2798,16 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                         float AngleOB = mix(AngleOB0, AngleOF, MixWB);
                         float AngleEC = mix(AngleEC0, AngleOF, MixWCD);
                         float AngleOE = mix(AngleOE0, 0.0,     MixWE);
-                        
+
+                        float AberrationShift = 0.0;
+                        if (iObserverMode == 1) {
+                            // gtphi_stat是在赤道面上算出的，实际上切向速度随纬度变化(在两极处为0)
+                            float SinTheta = sqrt(max(0.0, 1.0 - LatFactor * LatFactor));
+                            float SinAberration = abs(gtphi_stat) * InvSqrtD * SinTheta; 
+                            float CosAberration = sqrt(max(0.0, 1.0 - SinAberration * SinAberration));
+                            // 算出横向光行差导致的视角偏移量
+                            AberrationShift = 2.0*0.6666*a_abs*GetDropFrameAngle(SinAberration, CosAberration, r, M, Q, a_abs, iObserverMode); //其中0.6666*a_abs*是为了弥补误差
+                        }
                         // 视平面判定
                         // 局部系，Y是自旋轴。ToCenterDir是视线反向
                         vec3 SpinAxis = vec3(0.0, 1.0, 0.0);
@@ -2692,7 +2823,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                         float SignChirality = sign(a); 
                         if (abs(a) < 1e-9) SignChirality = 1.0;
                         // E 的位置 (在 U 轴上的坐标)
-                        float CenterEx = SignChirality * AngleOE;
+                        float CenterEx = SignChirality * (AngleOE + AberrationShift);
                         float dx = x_ang - CenterEx;
                         float dy = y_ang;
                         
