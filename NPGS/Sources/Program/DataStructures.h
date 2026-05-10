@@ -57,7 +57,7 @@ struct FBlackHoleArgs
     glm::vec4 CameraVelocity;
     int   DEBUG;
     int   Whitehole;
-    int   InAnotherUniverse;
+    int   InWhichUniverse;
     int   Grid;
     int   EnableHearHaze;
     int   ObserverMode;
@@ -68,6 +68,7 @@ struct FBlackHoleArgs
     float Q;
     float Mu;
     float AccretionRate;
+    float BackShiftMax;
     float InterRadiusRs;
     float OuterRadiusRs;
     float ThinRs;

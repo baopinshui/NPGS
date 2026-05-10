@@ -281,10 +281,22 @@ void FApplication::ExecuteMainRender()
     AssetManager->AddAsset<Art::FShader>("GaussBlur", GaussBlurShaderFiles, ComputeResourceInfo);
     AssetManager->AddAsset<Art::FShader>("Blend", BlendShaderFiles, BlendResourceInfo);
     AssetManager->AddAsset<Art::FTextureCube>(
-        "Background", TextureAllocationCreateInfo, "UNSkybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        "Background0", TextureAllocationCreateInfo, "Universe0Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
         vk::ImageCreateFlagBits::eMutableFormat, true, false);
     AssetManager->AddAsset<Art::FTextureCube>(
-        "Antiground", TextureAllocationCreateInfo, "Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        "Antiground0", TextureAllocationCreateInfo, "Antiverse0Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        vk::ImageCreateFlagBits::eMutableFormat, true, false);
+    AssetManager->AddAsset<Art::FTextureCube>(
+        "Background1", TextureAllocationCreateInfo, "Universe1Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        vk::ImageCreateFlagBits::eMutableFormat, true, false);
+    AssetManager->AddAsset<Art::FTextureCube>(
+        "Antiground1", TextureAllocationCreateInfo, "Antiverse1Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        vk::ImageCreateFlagBits::eMutableFormat, true, false);
+    AssetManager->AddAsset<Art::FTextureCube>(
+        "Background2", TextureAllocationCreateInfo, "Universe2Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
+        vk::ImageCreateFlagBits::eMutableFormat, true, false);
+    AssetManager->AddAsset<Art::FTextureCube>(
+        "Antiground2", TextureAllocationCreateInfo, "Antiverse2Skybox", vk::Format::eR8G8B8A8Unorm, vk::Format::eR8G8B8A8Unorm,
         vk::ImageCreateFlagBits::eMutableFormat, true, false);
 	AssetManager->AddAsset<Art::FTexture2D>(
 		"RKKV", TextureAllocationCreateInfo, "ButtonMap/rkkv0.png", vk::Format::eR8G8B8A8Unorm,
@@ -312,8 +324,12 @@ void FApplication::ExecuteMainRender()
     auto* PreBloomShader = AssetManager->GetAsset<Art::FShader>("PreBloom");
     auto* GaussBlurShader = AssetManager->GetAsset<Art::FShader>("GaussBlur");
     auto* BlendShader = AssetManager->GetAsset<Art::FShader>("Blend");
-    auto* Background = AssetManager->GetAsset<Art::FTextureCube>("Background");
-    auto* Antiground = AssetManager->GetAsset<Art::FTextureCube>("Antiground");
+    auto* Background0 = AssetManager->GetAsset<Art::FTextureCube>("Background0");
+    auto* Antiground0 = AssetManager->GetAsset<Art::FTextureCube>("Antiground0");
+    auto* Background1 = AssetManager->GetAsset<Art::FTextureCube>("Background1");
+    auto* Antiground1 = AssetManager->GetAsset<Art::FTextureCube>("Antiground1");
+    auto* Background2 = AssetManager->GetAsset<Art::FTextureCube>("Background2");
+    auto* Antiground2 = AssetManager->GetAsset<Art::FTextureCube>("Antiground2");
     auto* RKKV = AssetManager->GetAsset<Art::FTexture2D>("RKKV");
     auto* stage0 = AssetManager->GetAsset<Art::FTexture2D>("stage0");
     auto* stage1 = AssetManager->GetAsset<Art::FTexture2D>("stage1");
@@ -334,8 +350,8 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Whitehole","InAnotherUniverse","Grid","EnableHearHaze","ObserverMode","UniverseSign",
-                     "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Whitehole","InWhichUniverse","Grid","EnableHearHaze","ObserverMode","UniverseSign",
+                     "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate","BackShiftMax", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
         .Binding = 1,
@@ -366,13 +382,30 @@ void FApplication::ExecuteMainRender()
     auto CreatePostDescriptors = [&]() -> void
     {
         ImageInfos.clear();
-        ImageInfos.push_back(Background->CreateDescriptorImageInfo(Sampler));
+        ImageInfos.push_back(Background0->CreateDescriptorImageInfo(Sampler));
         PrepassShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
-        // Binding 2: Antiground
         ImageInfos.clear();
-        ImageInfos.push_back(Antiground->CreateDescriptorImageInfo(Sampler));
+        ImageInfos.push_back(Antiground0->CreateDescriptorImageInfo(Sampler));
         PrepassShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Background1->CreateDescriptorImageInfo(Sampler));
+        PrepassShader->WriteSharedDescriptors(1, 3, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Antiground1->CreateDescriptorImageInfo(Sampler));
+        PrepassShader->WriteSharedDescriptors(1, 4, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Background2->CreateDescriptorImageInfo(Sampler));
+        PrepassShader->WriteSharedDescriptors(1, 5, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Antiground2->CreateDescriptorImageInfo(Sampler));
+        PrepassShader->WriteSharedDescriptors(1, 6, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
         // 2. Composite Descriptors (Set 1)
         // ----------------------------------------------------
@@ -382,27 +415,44 @@ void FApplication::ExecuteMainRender()
         ImageInfos.push_back(HistoryFrameImageInfo);
         CompositeShader->WriteSharedDescriptors(1, 0, vk::DescriptorType::eSampledImage, ImageInfos);
 
-        // Binding 1: Background
         ImageInfos.clear();
-        ImageInfos.push_back(Background->CreateDescriptorImageInfo(Sampler));
+        ImageInfos.push_back(Background0->CreateDescriptorImageInfo(Sampler));
         CompositeShader->WriteSharedDescriptors(1, 1, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
-        // Binding 2: Antiground
         ImageInfos.clear();
-        ImageInfos.push_back(Antiground->CreateDescriptorImageInfo(Sampler));
+        ImageInfos.push_back(Antiground0->CreateDescriptorImageInfo(Sampler));
         CompositeShader->WriteSharedDescriptors(1, 2, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
-        // Binding 3: Distortion (Output from Prepass) - Use Point Sampler
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Background1->CreateDescriptorImageInfo(Sampler));
+        CompositeShader->WriteSharedDescriptors(1, 3, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Antiground1->CreateDescriptorImageInfo(Sampler));
+        CompositeShader->WriteSharedDescriptors(1, 4, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Background2->CreateDescriptorImageInfo(Sampler));
+        CompositeShader->WriteSharedDescriptors(1, 5, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+        ImageInfos.clear();
+        ImageInfos.push_back(Antiground2->CreateDescriptorImageInfo(Sampler));
+        CompositeShader->WriteSharedDescriptors(1, 6, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
+
+
+
         ImageInfos.clear();
         vk::DescriptorImageInfo DistortionImageInfo(*PointSampler, *DistortionAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
         ImageInfos.push_back(DistortionImageInfo);
-        CompositeShader->WriteSharedDescriptors(1, 3, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+        CompositeShader->WriteSharedDescriptors(1, 7, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
-        // Binding 4: Volumetric (Output from Prepass) - Use Linear Sampler
         ImageInfos.clear();
         vk::DescriptorImageInfo VolumetricImageInfo(*FramebufferSampler, *VolumetricAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
         ImageInfos.push_back(VolumetricImageInfo);
-        CompositeShader->WriteSharedDescriptors(1, 4, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+        CompositeShader->WriteSharedDescriptors(1, 8, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
         vk::DescriptorImageInfo BlackHoleImageInfo(
             *FramebufferSampler, *BlackHoleAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -681,17 +731,18 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.CameraVelocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
                 BlackHoleArgs.DEBUG = 0;
 				BlackHoleArgs.Whitehole = 0;
-				BlackHoleArgs.InAnotherUniverse = 0;
+				BlackHoleArgs.InWhichUniverse = 0;
                 BlackHoleArgs.Grid = 0;
 				BlackHoleArgs.EnableHearHaze = 1;
                 BlackHoleArgs.ObserverMode = 0;
                 BlackHoleArgs.UniverseSign = 1.0;
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
-                BlackHoleArgs.Spin = 1.0f;
-                BlackHoleArgs.Q = 0.0f;
+                BlackHoleArgs.Spin = 0.7f;
+                BlackHoleArgs.Q = 0.7f;
                 BlackHoleArgs.Mu = 1.0f;
                 BlackHoleArgs.AccretionRate = (5e-4);
+				BlackHoleArgs.BackShiftMax = 1.02f;
                 BlackHoleArgs.InterRadiusRs = 1.5;
                 BlackHoleArgs.OuterRadiusRs = 25;
                 BlackHoleArgs.ThinRs = 0.75;
@@ -705,7 +756,7 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.RedShiftIntensityExponent = 4.0;
 				BlackHoleArgs.HeatHaze = 1.0;
 				BlackHoleArgs.BackgroundBrightmut = 1.0;
-				BlackHoleArgs.PhotonRingBoost = 7.0;
+				BlackHoleArgs.PhotonRingBoost = 0.0;
 				BlackHoleArgs.PhotonRingColorTempBoost = 2.0;
 				BlackHoleArgs.BoostRot = 0.75;
                 BlackHoleArgs.JetRedShiftIntensityExponent = 2.0;
@@ -826,7 +877,19 @@ void FApplication::ExecuteMainRender()
                 horizon_outer = M + sqrt_delta;
                 horizon_inner = M - sqrt_delta;
             }
+            static float s_last_r = r; // 记录上一帧的 BL 半径 r
+            // 仅在内视界存在且观测模式为 2 时执行
+            if (!isNakedSingularity && BlackHoleArgs.Whitehole == 1 )
+            {
+                // 若上一帧还在内视界之外，当前帧进入了内视界（向内穿过）
+                if (s_last_r > horizon_inner && r <= horizon_inner&& BlackHoleArgs.UniverseSign==1.0f)
+                {
+                    // 在 0 和 1 之间翻转 InWhichUniverse
+                    BlackHoleArgs.InWhichUniverse = (BlackHoleArgs.InWhichUniverse +1)%3;
+                }
+            }
 
+            s_last_r = r; // 逻辑判断完后更新 s_last_r 供下一帧使用
             // 6. 区域判定 & 观测者限制警告
             std::string locationStatus = "";
             std::string warningMsg = "";
@@ -1498,6 +1561,7 @@ void FApplication::Terminate()
     glfwTerminate();
 }
 
+
 bool FApplication::InitializeWindow()
 {
     if (glfwInit() == GLFW_FALSE)
@@ -1505,11 +1569,25 @@ bool FApplication::InitializeWindow()
         NpgsCoreError("Failed to initialize GLFW.");
         return false;
     };
-
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true);
+    // 注意：全屏模式下透明缓冲通常无效或会导致兼容性问题，根据需求保留
+    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true); 
+    GLFWmonitor* PrimaryMonitor = nullptr;
+    
+    if (_bEnableFullscreen)
+    {
+        // 获取主显示器
+        PrimaryMonitor = glfwGetPrimaryMonitor();
+        
 
-    _Window = glfwCreateWindow(_WindowSize.width, _WindowSize.height, _WindowTitle.c_str(), nullptr, nullptr);
+        const GLFWvidmode* mode = glfwGetVideoMode(PrimaryMonitor);
+        _WindowSize.width = mode->width;
+        _WindowSize.height = mode->height;
+        
+    }
+    // 将 PrimaryMonitor 传给第四个参数
+    _Window = glfwCreateWindow(_WindowSize.width, _WindowSize.height, _WindowTitle.c_str(), PrimaryMonitor, nullptr);
+    
     if (_Window == nullptr)
     {
         NpgsCoreError("Failed to create GLFW window.");
@@ -1649,7 +1727,7 @@ void FApplication::DumpArgsToJson(const std::string& filepath)
     // 标量
     DUMP_B(DEBUG);
     DUMP_B(Whitehole);
-    DUMP_B(InAnotherUniverse);
+    DUMP_B(InWhichUniverse);
     DUMP_B(Grid);
     DUMP_B(EnableHearHaze);
     DUMP_B(ObserverMode);
@@ -1890,12 +1968,10 @@ void FApplication::ProcessInput()
         wasTDown = isTDown;
 
 
-        // 找个不冲突的按键，比如 'P' 键 (Print)
         static bool wasPDown = false;
         bool isPDown = glfwGetKey(_Window, GLFW_KEY_P) == GLFW_PRESS;
         if (isPDown && !wasPDown)
         {
-            // 每次按下 P 键，导出一个包含当前时间的 JSON 文件
             std::string filename = "C:/Users/bcy00/Desktop/python乱七八糟/ShaderArgs_" + std::to_string(FrameCount) + ".json";
             DumpArgsToJson(filename);
         }

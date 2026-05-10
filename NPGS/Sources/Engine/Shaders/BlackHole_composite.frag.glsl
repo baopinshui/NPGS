@@ -5,8 +5,8 @@
 layout(location = 0) out vec4 FragColor;
 
 // 绑定低分辨率预计算结果 (必须在外部设置为 Nearest)
-layout(set = 1, binding = 3) uniform sampler2D iPrepassDistortion; // Point Filter: XYZ=Dir*Shift, W=Flag，不要插值！不然会破坏标志位
-layout(set = 1, binding = 4) uniform sampler2D iPrepassVolumetric; // Point Filter: RGBA=Volumetric
+layout(set = 1, binding = 7) uniform sampler2D iPrepassDistortion; // Point Filter: XYZ=Dir*Shift, W=Flag，不要插值！不然会破坏标志位
+layout(set = 1, binding = 8) uniform sampler2D iPrepassVolumetric; // Point Filter: RGBA=Volumetric
 
 #include "BlackHole_common.glsl"
 
@@ -19,7 +19,7 @@ const float EDGE_STATUS_TOLERANCE = 0.1;  // 状态位必须一致
 // 敏感边界判定：忽略涉及 Opaque(3.0) 的边界，只关心 Sky/EventHorizon/Antiverse 之间的边界
 bool IsSensitiveBoundary(float sA, float sB)
 {
-    if (sA > 2.5 || sB > 2.5) return false;
+    if ((sA < 2.5|| sA > 3.5) ||(sB < 2.5|| sB > 3.5)) return false;
 
     return abs(sA - sB) > 0.1;
 }
@@ -92,12 +92,12 @@ void main()
     // 几何不连续性检测
     // 如果中心点是 Opaque (3.0)，跳过几何检测
     bool IsEdgeGeo = false;
-    if (FlagC < 2.5) {
+    if (FlagC < 2.5|| FlagC > 3.5) {
         vec3 DirC = normalize(CenterData.xyz + 1e-6);
-        if (FlagL < 2.5 && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2(-1, 0), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
-        else if (FlagR < 2.5 && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2( 1, 0), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
-        else if (FlagU < 2.5 && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2( 0,-1), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
-        else if (FlagD < 2.5 && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2( 0, 1), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
+        if (     (FlagC < 2.5|| FlagC > 3.5) && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2(-1, 0), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
+        else if ((FlagC < 2.5|| FlagC > 3.5) && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2( 1, 0), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
+        else if ((FlagC < 2.5|| FlagC > 3.5) && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2( 0,-1), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
+        else if ((FlagC < 2.5|| FlagC > 3.5) && dot(normalize(texelFetch(iPrepassDistortion, CenterCoord + ivec2( 0, 1), 0).xyz + 1e-6), DirC) < EDGE_NORMAL_THRESHOLD) IsEdgeGeo = true;
     }
 
     // -------------------------------------------------------------------------
@@ -140,27 +140,14 @@ void main()
     // 背景采样
     // -------------------------------------------------------------------------
 
-    if (FinalColor.a < 0.99 && CurrentStatus > 0.5 && CurrentStatus < 2.5) 
+    if (FinalColor.a < 0.99 && ((CurrentStatus > 0.5 && CurrentStatus < 2.5) || CurrentStatus > 3.5)) 
     {
         vec4 Bg = SampleBackground(CurrentDir, CurrentShift, CurrentStatus);
-        if(iInAnotherUniverse==0)
-        {
-            FinalColor += 0.9999 * Bg * vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
-        }
-        else if(CurrentStatus < 1.5)
-        {
-            FinalColor += 0.09999 * Bg *vec4(0.5,1.0,1.0,1.0)* vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
-        }
-        else
-        {
-            FinalColor += 0.9999 * Bg * vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
-        }
-    }
-
-    if (FinalColor.a < 0.99 && CurrentStatus > 3.5) 
-    {
-        vec4 Bg = SampleBackground(CurrentDir, CurrentShift, CurrentStatus);
-        FinalColor += 0.9999 * Bg * vec4(pow((1.0 - FinalColor.a),1.0+0.3*(1.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(3.0-1.0)),pow((1.0 - FinalColor.a),1.0+0.3*(6.0-1.0)),1.0);
+        
+        float invA = 1.0 - FinalColor.a;
+        vec4 colorFactor = vec4(pow(invA, 1.0), pow(invA, 1.6), pow(invA, 2.5), 1.0);
+        
+        FinalColor += 0.9999 * Bg * colorFactor;
     }
 
     // -------------------------------------------------------------------------

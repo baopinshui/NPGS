@@ -29,7 +29,7 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 
     int   iDEBUG;
     int   iWhitehole;                    //最大延拓  
-    int   iInAnotherUniverse;            //相机出白洞
+    int   iInWhichUniverse;            //相机出白洞
     int   iGrid;                         //绘制网格
     int   iEnableHearHaze;               //热折射
     int   iObserverMode;                 //观者模式，0静态，1落体
@@ -43,6 +43,8 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 
     float iMu;                           //吸积物质比荷
     float iAccretionRate;                //吸积率 单位倍爱丁顿吸积率
+
+    float iBackShiftMax;			     //背景最大频移
 
     float iInterRadiusRs;                //吸积盘内半径。单位倍Rs
     float iOuterRadiusRs;                //吸积盘外半径。单位倍Rs
@@ -74,8 +76,12 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 };
 
 layout(set = 1, binding = 0) uniform texture2D iHistoryTex;
-layout(set = 1, binding = 1) uniform samplerCube iBackground;
-layout(set = 1, binding = 2) uniform samplerCube iAntiground;
+layout(set = 1, binding = 1) uniform samplerCube iBackground0;
+layout(set = 1, binding = 2) uniform samplerCube iAntiground0;
+layout(set = 1, binding = 3) uniform samplerCube iBackground1;
+layout(set = 1, binding = 4) uniform samplerCube iAntiground1;
+layout(set = 1, binding = 5) uniform samplerCube iBackground2;
+layout(set = 1, binding = 6) uniform samplerCube iAntiground2;
 
 // =============================================================================
 // SECTION 2: 基础工具函数 (噪声、插值、随机)
@@ -217,19 +223,30 @@ vec3 WavelengthToRgb(float wavelength) {
 vec4 SampleBackground(vec3 Dir, float Shift, float Status)
 {
     vec4 Backcolor;
-    if (iBlackHoleMassSol>=0.0)
+
+    
+    int useContground =0; 
+    if (Status > 3.5) useContground =-1;
+    
+    
+    //  Background 和 Antiground 逻辑
+    bool isNegativeMass = (iBlackHoleMassSol < 0.0);
+    bool isAntiverse    = (Status > 1.5 && Status < 2.5)||(Status > 4.5 && Status < 5.5);
+
+    if (isNegativeMass != isAntiverse) 
     {
-        Backcolor = textureLod(iBackground, Dir, min(1.0, textureQueryLod(iBackground, Dir).x));
-        if (Status > 1.5 && Status < 2.5) { // Antiverse (Status == 2.0)
-            Backcolor = textureLod(iAntiground, Dir, min(1.0, textureQueryLod(iAntiground, Dir).x));
-        }
-    }else{
-        Backcolor = textureLod(iAntiground, Dir, min(1.0, textureQueryLod(iAntiground, Dir).x));
-        if (Status > 1.5 && Status < 2.5) { // Antiverse (Status == 2.0)
-            Backcolor = textureLod(iBackground, Dir, min(1.0, textureQueryLod(iBackground, Dir).x));
-        }
+        if      (int(iInWhichUniverse+3+useContground)%3==0) Backcolor = textureLod(iAntiground0, Dir, min(1.0, textureQueryLod(iAntiground0, Dir).x));
+        else if (int(iInWhichUniverse+3+useContground)%3==1) Backcolor = textureLod(iAntiground1, Dir, min(1.0, textureQueryLod(iAntiground1, Dir).x));
+        else if (int(iInWhichUniverse+3+useContground)%3==2) Backcolor = textureLod(iAntiground2, Dir, min(1.0, textureQueryLod(iAntiground2, Dir).x));
+    } 
+    else 
+    {
+        
+        if      (int(iInWhichUniverse+3+useContground)%3==0) Backcolor = textureLod(iBackground0, Dir, min(1.0, textureQueryLod(iBackground0, Dir).x));
+        else if (int(iInWhichUniverse+3+useContground)%3==1) Backcolor = textureLod(iBackground1, Dir, min(1.0, textureQueryLod(iBackground1, Dir).x));
+        else if (int(iInWhichUniverse+3+useContground)%3==2) Backcolor = textureLod(iBackground2, Dir, min(1.0, textureQueryLod(iBackground2, Dir).x));
     }
-    // 频移着色
+
     float BackgroundShift = Shift;
     vec3 Rcolor = Backcolor.r * 1.0 * WavelengthToRgb(max(453.0, 645.0 / BackgroundShift));
     vec3 Gcolor = Backcolor.g * 1.5 * WavelengthToRgb(max(416.0, 510.0 / BackgroundShift));
@@ -239,7 +256,7 @@ vec4 SampleBackground(vec3 Dir, float Shift, float Status)
     float RStrength = 0.3 * Scolor.r + 0.6 * Scolor.g + 0.1 * Scolor.b;
     Scolor *= OStrength / max(RStrength, 0.001);
     
-    return iBackgroundBrightmut*vec4(Scolor, Backcolor.a) * pow(Shift, 4.0);
+    return iBackgroundBrightmut * vec4(Scolor, Backcolor.a) * pow(Shift, 4.0);
 }
 
 
@@ -258,7 +275,7 @@ vec4 ApplyToneMapping(vec4 Result,float shift)
     return Mapped;
 }
 // =============================================================================
-// SECTION 4: 广相计算。Y为自旋方向，ingoing方向笛卡尔形式kerrscild系。+++-。
+// SECTION 4: 广相计算。Y为自旋方向，ins/outgoing方向笛卡尔形式kerrscild系。+++-。
 // =============================================================================
 
 const float CONST_M = 0.5; // [PHYS] Mass M = 0.5
@@ -544,7 +561,7 @@ vec4 GetInitialMomentum(
         
         float Ut;
         if (abs(A) < 1e-7) {
-            Ut = -C / max(1e-9, B); 
+            Ut = -C / max(1e-19, B); 
         } else {
             if (B < 0.0) {
                  Ut = 2.0 * C / (-B + sqrtDet);
@@ -674,7 +691,7 @@ vec3 DebugInitialMomentum(
         float B = 2.0 * geo.f * l_dot_u_spatial;
         float C = U_spatial_sq + geo.f * (l_dot_u_spatial * l_dot_u_spatial) + 1.0; 
         float Det = max(0.0, B*B - 4.0 * A * C);
-        float Ut = (abs(A) < 1e-7) ? (-C / max(1e-9, B)) : ((B < 0.0) ? (2.0 * C / (-B + sqrt(Det))) : ((-B - sqrt(Det)) / (2.0 * A)));
+        float Ut = (abs(A) < 1e-7) ? (-C / max(1e-19, B)) : ((B < 0.0) ? (2.0 * C / (-B + sqrt(Det))) : ((-B - sqrt(Det)) / (2.0 * A)));
         
         U_up = mix(vec4(0.0, 0.0, 0.0, time_comp), vec4(U_spatial, Ut), GravityFade);
     } else if (ObserverMode == 2) {
@@ -721,7 +738,7 @@ vec3 DebugInitialMomentum(
 //inout换系
 
 // 物理常量与数值容差定义
-const float EPS = 1e-6; // 防止除0和对数域爆炸的安全容差
+const float EPS = 1e-16; // 防止除0和对数域爆炸的安全容差
 
 //
 // 笛卡尔 Kerr-Schild 坐标系 Ingoing/Outgoing 相互变换 (Y轴自旋版)
@@ -746,9 +763,15 @@ void transformKerrSchild_YSpin(inout vec4 X, in float r_sign, inout vec4 P,
     // 2. 解径向方程求 r (Y 为自旋轴)
     float R2 = x*x + y*y + z*z;
     float u = R2 - a2;
-    float v = 4.0 * a2 * y * y; // 原先的 z 替换为 y
-    // 使用稳定形式求二次方程正根
-    float r2 = 0.5 * (u + sqrt(max(u*u + v, 0.0))); 
+    float v = 4.0 * a2 * y * y; 
+    
+    float r2;
+    if (u >= 0.0) {
+        r2 = 0.5 * (u + sqrt(u*u + v));
+    } else {
+        r2 = 0.5 * v / max(1e-20, sqrt(u*u + v) - u);
+    }
+    
     float r = r_sign * sqrt(max(r2, 0.0));
 
     // 3. 计算视界函数 Delta 与空间底度规项 D
@@ -806,13 +829,13 @@ void transformKerrSchild_YSpin(inout vec4 X, in float r_sign, inout vec4 P,
         g_r = -2.0 * a / safe_rM;
     }
 
+    g_r += 2.0 * atan(a, r); 
     // 6. 计算导数与动量标量 K_p
     float F_prime = 2.0 * (2.0 * M * r - Q2) / safe_Delta;
-    float g_prime = 2.0 * a / safe_Delta;
+    
+    float g_prime = 2.0 * a / safe_Delta - 2.0 * a / (r * r + a * a);
 
-    // 角动量 Ly (自旋轴为 y，对应的轨道角动量守恒量，基于原 Lz 的替换)
-    // 原公式 Lz = x_old * p_y_old - y_old * p_x_old
-    // 代入 x_old=z, y_old=x, p_y_old=px, p_x_old=pz 得到:
+    // 角动量 Ly (自旋轴为 y，对应的轨道角动量守恒量)
     float Ly = z * px - x * pz; 
     float K_p = F_prime * pt + g_prime * Ly;
 
@@ -831,14 +854,14 @@ void transformKerrSchild_YSpin(inout vec4 X, in float r_sign, inout vec4 P,
     float sin_a = sin(angle);
 
     // 10. 赋值回原变量 (应用 Z-X 平面的旋转和时间偏移)
-    X.x = z * sin_a + x * cos_a; // 原公式的 y'
+    X.x = x * cos_a + z * sin_a; // 原公式的 y'
     X.y = y;                     // Y 坐标(自旋轴)不变
     X.z = z * cos_a - x * sin_a; // 原公式的 x'
     X.w = t + time_shift;
 
-    P.x = P_tilde.z * sin_a + P_tilde.x * cos_a;
-    P.y = P_tilde.y;             // P_y(自旋方向动量)不变
-    P.z = P_tilde.z * cos_a - P_tilde.x * sin_a;
+    P.x =   P_tilde.z * sin_a + P_tilde.x * cos_a;
+    P.y =   P_tilde.y;             // P_y(自旋方向动量)不变
+    P.z = - P_tilde.x * sin_a + P_tilde.z * cos_a;
     P.w = pt;                    // 能量 Pt 不变
 }
 
@@ -1508,7 +1531,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  VisionTemperature *= 1.0 +clamp( iPhotonRingColorTempBoost,0.0,10.0) * clamp(0.3*ThetaInShell-0.1,0.0,1.0);
                  // 内侧点缀云
                  // 计算内侧独立坐标系
-                 float InnerAngVel = GetKeplerianAngularVelocity(3.0, 1.0, PhysicalSpinA, PhysicalQ);
+                 float InnerAngVel = GetKeplerianAngularVelocity(max(3.0,InterRadius), 1.0, PhysicalSpinA, PhysicalQ);
                  float InnerCloudTimePhase = kPi / (kPi / max(1e-6, InnerAngVel)) * EmissionTime; 
                  float InnerRotArg = 0.666666 * InnerCloudTimePhase;
                  float PosThetaForInnerCloud = Vec2ToTheta(SamplePos.zx, vec2(cos(InnerRotArg), sin(InnerRotArg)));
@@ -2165,7 +2188,6 @@ float GetDropFrameAngle(float SinThetaStat, float CosThetaStat, float r, float M
     }
     
     // 落体观者 (ObserverMode == 1)
-    // 虽然Static Observer 是固定在 KS 坐标系下的，而非 ZAMO，但因为一些误差，这里denominator_v直接使用r*r会出问题。
     float a2 = a * a;
     float r2 = r * r;
     float MassChargeTerm = 2.0 * M * r - Q * Q;
@@ -2231,7 +2253,7 @@ float GetShadowHalfAngleRN(float r, float M, float Q, int ObserverMode)
 struct TraceResult {
     vec3  EscapeDir;      // 最终逸出方向 (World Space)
     float FreqShift;      // 频移 (E_emit / E_obs)
-    float Status;         // 0=Stop, 1=Sky, 2=Antiverse,3=不透明体积,4=来自另一个宇宙（出白洞）
+    float Status;         // 0=Stop, 1=Sky, 2=Antiverse,3=不透明体积,4=光来自上个宇宙（出白洞）,5=光来自上个宇宙的antiverse
     vec4  AccumColor;     // 体积光颜色 (吸积盘+喷流)
     float CurrentSign;    // 最终宇宙符号
 };
@@ -2281,7 +2303,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     bool  bIsNakedSingularity = HorizonDiscrim < 0.0;
 
     // 包围球
-    float RaymarchingBoundary = max(iOuterRadiusRs + 1.0, 501.0);
+    float RaymarchingBoundary = max(max(iOuterRadiusRs + 1.0, 501.0),iSpin*2.0);
     float BackgroundShiftMax = 2.0;
     float ShiftMax = 1.0; //吸积盘亮度最大值
     float CurrentUniverseSign = iUniverseSign;
@@ -2345,7 +2367,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     
     
     
-    if (iEnableHearHaze == 1 &&  iInAnotherUniverse==0 && CurrentUniverseSign>0.0)
+    if (iEnableHearHaze == 1 &&  iInWhichUniverse==0 && CurrentUniverseSign>0.0)//热折射
     {
         // 1. 坐标与参数准备 (Rg 空间)
         vec3 pos_Rg_Start = X.xyz; 
@@ -2521,7 +2543,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     //        P_cov = P_in;
     //    }
     //}
-    //
+    
     //// 两边都崩溃了，或者不符合物理规范，直接黑屏
     //if (P_cov == vec4(114514.0)) {
     //    bShouldContinueMarchRay = false;
@@ -2564,12 +2586,12 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         bWaitCalBack = false;
         Result = vec4(0.0,0.0,0.0,1.0);
     }
-        if (P_cov == vec4(114514.0))
-    {
-        bShouldContinueMarchRay = false;
-        bWaitCalBack = false;
-        Result = vec4(0.0,0.0,0.0,1.0);
-    }
+    //    if (P_cov == vec4(114514.0))
+    //{
+    //    bShouldContinueMarchRay = false;
+    //    bWaitCalBack = false;
+    //    Result = vec4(0.0,0.0,0.0,1.0);
+    //}
 
     // ==== 新增的调试接管分支 ====
     if (iDEBUG == 2 && bShouldContinueMarchRay)
@@ -2585,7 +2607,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     // ========================
 
     E_conserved = -P_cov.w;
-
+    if(E_conserved<0.0){ res.FreqShift=0.0;res.AccumColor=vec4(0.0);  res.Status = 0.0; return res;}//剔除最大延拓解下II/IV区内从 平行宇宙 去往/来自 平行虫洞 的光。（视界内和观者相向而行）
     // -------------------------------------------------------------------------
     // 初始合法性检查与终结半径
     // -------------------------------------------------------------------------
@@ -2690,7 +2712,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             float RayAngle = acos(clamp(CosAlpha, -1.0, 1.0)); // 当前像素视线与黑洞中心的夹角
 
             // 估算阴影的大致可能张角，仅在这个区域内进一步计算
-            float SafetyFactor = 2.5 + 1.1 * abs(iSpin) - iQ;
+            float SafetyFactor = 2.5 + 1.1 * abs(iSpin) - 0.5*iQ;
             float MaxShadowAngleEstimate = SafetyFactor * (2.0 * CONST_M) / max(1e-6, CameraStartR);
             if (RayAngle < MaxShadowAngleEstimate || CameraStartR < 3.0*EventHorizonR) // 大致朝向黑洞或在光子球内
             {
@@ -2806,7 +2828,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                             float SinAberration = abs(gtphi_stat) * InvSqrtD * SinTheta; 
                             float CosAberration = sqrt(max(0.0, 1.0 - SinAberration * SinAberration));
                             // 算出横向光行差导致的视角偏移量
-                            AberrationShift = 2.0*0.6666*a_abs*GetDropFrameAngle(SinAberration, CosAberration, r, M, Q, a_abs, iObserverMode); //其中0.6666*a_abs*是为了弥补误差
+                            AberrationShift = 2.0*0.6666*a_abs*GetDropFrameAngle(SinAberration, CosAberration, r, M, Q, a_abs, iObserverMode); 
                         }
                         // 视平面判定
                         // 局部系，Y是自旋轴。ToCenterDir是视线反向
@@ -2946,12 +2968,25 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     float ThetaInShell=0;
     bool shiftinout=false;
     bool fromwhitehole=false;
-    //if(iWhitehole==1 &&!bIsNakedSingularity)
-    //{
-    //    transformKerrSchild_YSpin(X, CurrentUniverseSign,P_cov, CONST_M, PhysicalSpinA, PhysicalQ,isoutgoing);
-    //    isoutgoing=!isoutgoing;
-    //
-    //}
+    vec4 LastX_ingoing     ;
+    vec3 LastPos_ingoing   ;
+    vec3 LastDir_ingoing   ;
+    vec3 RayDir_ingoing    ;
+    vec4 X_ingoing = X;
+    vec4 P_cov_ingoing = P_cov;
+    if(P_cov== vec4(0.0,0.0,0.0,-1.0))	{
+        RayDir_ingoing = RayDir;
+    }else
+    {
+    if (isoutgoing) {
+        transformKerrSchild_YSpin(X_ingoing, CurrentUniverseSign, P_cov_ingoing, CONST_M, PhysicalSpinA, PhysicalQ, isoutgoing);
+    }
+     LastX_ingoing = X_ingoing;
+     LastPos_ingoing = X_ingoing.xyz;
+     LastDir_ingoing = normalize(P_cov_ingoing.xyz); 
+     RayDir_ingoing = LastDir_ingoing; // 修复：用初始动量方向赋予初值，防止 0 步跳出导致 NaN
+    }
+    // ----------------------------------------
 
     while (bShouldContinueMarchRay)
     {
@@ -2960,18 +2995,18 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         { 
             bShouldContinueMarchRay = false; 
             bWaitCalBack = true; 
-            break; //离开足够远
+            break;  //离开足够远
         }
         
         KerrGeometry geo;
-        ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign,isoutgoing, geo);
+        ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, isoutgoing, geo);
 
         if (CurrentUniverseSign > 0.0 && geo.r < TerminationR && !bIsNakedSingularity && TerminationR != -1.0 && iWhitehole==0) 
         { 
             bShouldContinueMarchRay = false;
             bWaitCalBack = false;
             if(iDEBUG==1) Result += vec4(0.0, 0.3, 0.3, 0.0); 
-            break; //视界判定情况1，直接进入视界判定区
+            break;  //视界判定情况1，直接进入视界判定区
         }
         if (Count > MaxStep) 
         { 
@@ -2983,25 +3018,18 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
 
         State s0; s0.X = X; s0.P = P_cov;
-        State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade,isoutgoing, geo);
+        State k1 = GetDerivativesAnalytic(s0, PhysicalSpinA, PhysicalQ, GravityFade, isoutgoing, geo);
 
         float CurrentDr = dot(geo.grad_r, k1.X.xyz);
-        shiftinout=false;
+        shiftinout = false;
 
         if (Count > 0 && CurrentDr * LastDr < 0.0) RadialTurningCounts++;
-        if (Count==0) lastR=geo.r;
+        if (Count==0) lastR = geo.r;
 
-
-
-
-       if (iWhitehole == 1 && !bIsNakedSingularity && !(geo.r > InnerHorizonR && geo.r < EventHorizonR)) 
+        if ((iWhitehole == 1|| (CameraStartR>(EventHorizonR+0.1)&& iGrid==0)|| bIsNakedSingularity||iMu>2.0)&&(geo.r>0.3*InnerHorizonR || bIsNakedSingularity))
         {
-            // 1. 获取当前坐标系下的逆变动量 P^u
             vec4 P_contra = RaiseIndex(P_cov, geo);
-            // 2. 计算当前系动量各分量绝对值之和 (对应 C 语言的 fabs(vel[0]) + ... + fabs(vel[3]))
-            // 在 GLSL 中可以使用 dot(abs(v), vec4(1.0)) 快速求 L1 范数
             float current_Sum = dot(abs(P_contra), vec4(1.0));
-            
             // 试探换系
             vec4 test_X = X;
             vec4 test_P = P_cov;
@@ -3010,12 +3038,9 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             KerrGeometry test_geo;
             ComputeGeometryScalars(test_X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, !isoutgoing, test_geo);
             
-            // 3. 获取试探系下的逆变动量 test_P^u
             vec4 test_P_contra = RaiseIndex(test_P, test_geo);
-            // 4. 计算试探系动量各分量绝对值之和
             float test_Sum = dot(abs(test_P_contra), vec4(1.0));
             
-            // 5. 若当前系的分量绝对值之和 > 5倍的试探系分量绝对值之和，则执行换系 (与 C 语言版本严格对齐)
             if (current_Sum > 2.0 * test_Sum) 
             {
                 X = test_X;
@@ -3031,38 +3056,29 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
         LastDr = CurrentDr;
 
+        if(geo.r < InnerHorizonR && lastR > InnerHorizonR) bEscapeInHorizon = true;    //检测穿进(追踪方向)内视界   
+        if(geo.r < EventHorizonR && lastR > EventHorizonR) bEscapeOutHorizon = true;   //检测穿进(追踪方向)外视界   
 
-        if(geo.r < InnerHorizonR && lastR > InnerHorizonR) bEscapeInHorizon = true;     //检测穿进(追踪方向)内视界 
-        if(geo.r < EventHorizonR && lastR > EventHorizonR) bEscapeOutHorizon = true;    //检测穿进(追踪方向)外视界 
-
-            if (iGrid==0 && RadialTurningCounts > 2) 
-            {
-                bShouldContinueMarchRay = false; bWaitCalBack = false;
-                if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
-                break;//识别剔除奇环附近束缚态光子轨道
-            }
-
-
+        if (iGrid==0 && RadialTurningCounts > 2) 
+        {
+            bShouldContinueMarchRay = false; bWaitCalBack = false;
+            if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
+            break;//识别剔除束缚态光子轨道
+        }
 
         if(iGrid==0 && iWhitehole==0)
         {
-            
-
-            
-            
-            if(geo.r > InnerHorizonR && lastR < InnerHorizonR) bIntoInHorizon = true;     //检测穿出(追踪方向)内视界 
-            if(geo.r > EventHorizonR && lastR < EventHorizonR) bIntoOutHorizon = true;    //检测穿出(追踪方向)外视界 
+            if(geo.r > InnerHorizonR && lastR < InnerHorizonR) bIntoInHorizon = true;   //检测穿出(追踪方向)内视界    
+            if(geo.r > EventHorizonR && lastR < EventHorizonR) bIntoOutHorizon = true;  //检测穿出(追踪方向)外视界    
 
             if (CurrentUniverseSign > 0.0 && !bIsNakedSingularity && iWhitehole==0)
             {
-            
-            
                 float SafetyGap = 0.001;
-                float ToHorizonGap=0.2;
+                float ToHorizonGap = 0.2;
                 float PhotonShellLimit = ProgradePhotonRadius - SafetyGap; 
                 float preCeiling = min(CameraStartR - SafetyGap, TerminationR + ToHorizonGap);
-                if(bIntoInHorizon) {               preCeiling = InnerHorizonR + ToHorizonGap; } //处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击内视界 的光
-                if(bIntoOutHorizon) {              preCeiling = EventHorizonR + ToHorizonGap; }//处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击外视界 的光
+                if(bIntoInHorizon)  { preCeiling = InnerHorizonR + ToHorizonGap; } //处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击内视界 的光
+                if(bIntoOutHorizon) { preCeiling = EventHorizonR + ToHorizonGap; } //处理 射线从相机出发 -> 向外运动 -> 调头 -> 向内运动 -> 撞击外视界 的光
                 
                 float PruningCeiling = min(iInterRadiusRs, preCeiling);
                 PruningCeiling = min(PruningCeiling, PhotonShellLimit); 
@@ -3075,7 +3091,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                         bShouldContinueMarchRay = false;
                         bWaitCalBack = false;
                         if(iDEBUG==1) Result += vec4(0.0, 0., 0.3, 0.0);
-                        break; //视界判定情况2，对凝结在视界前的光提前剔除
+                        break;  //视界判定情况2，对凝结在视界前的光提前剔除
                     }
                 }
             }
@@ -3091,7 +3107,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         float PotentialTerm = (PhysicalQ * PhysicalQ) / (geo.r2 + 0.01);
         float QDamping = 1.0 / (1.0 + 1.0 * PotentialTerm); 
         
-      
         float ErrorTolerance = 0.5 * QDamping;
         float StepGeo =  DistRing / (Vel_Mag + 1e-9);
         float StepForce = Mom_Mag / (Force_Mag + 1e-15);
@@ -3101,6 +3116,11 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
         vec4 LastX = X;
         LastPos = X.xyz;
+
+        LastX_ingoing = X_ingoing;
+        LastPos_ingoing = X_ingoing.xyz;
+        // --------------------------------------------------
+
         GravityFade = CubicInterpolate(max(min(1.0 - ( DistanceToBlackHole - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
         
         vec4 P_contra_step = RaiseIndex(P_cov, geo);
@@ -3112,86 +3132,112 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             break; //视界判定情况3，凝结在视界
         }
 
-        //if (Count == 0)
-        //{
-        //    dLambda = RandomStep(FragUv, fract(iTime)); // 光起步步长抖动,但是会让高层光子环变糊，考虑到现在吸积盘的层纹去除逻辑已经挪进体积云噪声内部，建议关着。
-        //}
-        StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign,isoutgoing, geo, k1);
-        float deltar=geo.r-lastR;
-        
+        StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, isoutgoing, geo, k1);
+        float deltar = geo.r - lastR;
+
+
+        // 大概在这里分界，上面的内容基本上对 inout 不敏感，比如半径。
+
+        // 将步进结果转换为统一的 Ingoing 系供后续渲染
+
+        //获取当前步在 Ingoing 系下的状态
+        X_ingoing = X;
+        P_cov_ingoing = P_cov;
+        if (isoutgoing) {
+            transformKerrSchild_YSpin(X_ingoing, CurrentUniverseSign, P_cov_ingoing, CONST_M, PhysicalSpinA, PhysicalQ, isoutgoing);
+        }
 
         RayPos = X.xyz;
         vec3 StepVec = RayPos - LastPos;
         float ActualStepLength = length(StepVec);
-        float drdl=deltar/max(ActualStepLength,1e-9);
 
-        float rotfact=clamp(1.0   +   iBoostRot* dot(-StepVec,vec3(X.z,0,-X.x)) /ActualStepLength/length(X.xz)  *clamp(iSpin,-1.0,1.0)   ,0.0,2.0)   ;
-        if( geo.r<1.6+pow(abs(iSpin),0.666666)){
-        ThetaInShell+=ActualStepLength/(0.5*lastR + 0.5*geo.r)/(1.0+1000.0*drdl*drdl)*rotfact*clamp(11.0-10.0*(iSpin*iSpin+iQ*iQ),0.0,1.0);
+        vec3 StepVec_ingoing = X_ingoing.xyz - LastPos_ingoing;
+        float ActualStepLength_ingoing = length(StepVec_ingoing);
+        RayDir_ingoing = (ActualStepLength_ingoing > 1e-7) ? StepVec_ingoing / ActualStepLength_ingoing : LastDir_ingoing;
+
+        float drdl = deltar / max(ActualStepLength_ingoing, 1e-9);
+
+        float rotfact = clamp(1.0 + iBoostRot * dot(-StepVec_ingoing, vec3(X_ingoing.z, 0.0, -X_ingoing.x)) / ActualStepLength_ingoing / length(X_ingoing.xz) * clamp(iSpin, -1.0, 1.0), 0.0, 2.0);
+        if( geo.r < 1.6 + pow(abs(iSpin), 0.666666)){
+            ThetaInShell += ActualStepLength_ingoing / (0.5*lastR + 0.5*geo.r) / (1.0 + 1000.0*drdl*drdl) * rotfact * clamp(11.0 - 10.0*(iSpin*iSpin + iQ*iQ), 0.0, 1.0);
         }
+
         lastR = geo.r;
         RayDir = (ActualStepLength > 1e-7) ? StepVec / ActualStepLength : LastDir;
         
-        //穿过奇环面
+        // 穿过奇环面
         if (LastPos.y * RayPos.y < 0.0) {
             float t_cross = LastPos.y / (LastPos.y - RayPos.y);
             float rho_cross = length(mix(LastPos.xz, RayPos.xz, t_cross));
             if (rho_cross < abs(PhysicalSpinA)) CurrentUniverseSign *= -1.0;
         }
 
-        //吸积盘和喷流
-        if (CurrentUniverseSign > 0.0&& iBlackHoleMassSol>0.0 && !( iInAnotherUniverse==1 && !(bEscapeInHorizon|| bEscapeOutHorizon||(iUniverseSign*CameraStartR<InnerHorizonR))  )  ) 
+       
+        if (CurrentUniverseSign > 0.0 && iBlackHoleMassSol > 0.0 &&   ((bIsNakedSingularity&&iInWhichUniverse==0)||   (iInWhichUniverse -int(bEscapeInHorizon|| bEscapeOutHorizon||(iUniverseSign*CameraStartR<InnerHorizonR)))==0 &&!bIsNakedSingularity)  ) 
         {
            if(IsAccretionDiskVisible(iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut))
            {
-           Result = DiskColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+               Result = DiskColor(Result, ActualStepLength_ingoing, X_ingoing, LastX_ingoing, RayDir_ingoing, LastDir_ingoing, P_cov_ingoing, E_conserved,
                              iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut, iReddening, iSaturation, DiskArgument, 
                              iBlackbodyIntensityExponent, iRedShiftColorExponent, iRedShiftIntensityExponent, PeakTemperature, ShiftMax, 
                              clamp(PhysicalSpinA, -0.49, 0.49), 
-                             PhysicalQ,isoutgoing,
+                             PhysicalQ, false, 
                              ThetaInShell,
                              RayMarchPhase 
                              ); 
            }
            if(IsJetVisible(iAccretionRate, iJetBrightmut)){
-           Result = JetColor(Result, ActualStepLength, X, LastX, RayDir, LastDir, P_cov, E_conserved,
+               Result = JetColor(Result, ActualStepLength_ingoing, X_ingoing, LastX_ingoing, RayDir_ingoing, LastDir_ingoing, P_cov_ingoing, E_conserved,
                              iInterRadiusRs, iOuterRadiusRs, iJetRedShiftIntensityExponent, iJetBrightmut, iReddening, iJetSaturation, iAccretionRate, iJetShiftMax, 
                              clamp(PhysicalSpinA, -0.049, 0.049), 
-                             PhysicalQ ,isoutgoing               
+                             PhysicalQ , false         
                              ); 
            }
         }
         if(iGrid==1)
         {
-            Result = GridColor(Result, X, LastX, 
-                        P_cov, E_conserved,
+            Result = GridColor(Result, X_ingoing, LastX_ingoing, 
+                        P_cov_ingoing, E_conserved,
                         PhysicalSpinA, 
-                        PhysicalQ, isoutgoing,
+                        PhysicalQ, false,
                         CurrentUniverseSign);
         }
         else if(iGrid==2)
         {
-            Result = GridColorSimple(Result, X, LastX, 
+            Result = GridColorSimple(Result, X_ingoing, LastX_ingoing, 
                         PhysicalSpinA, 
                         PhysicalQ, 
                         CurrentUniverseSign);
         }
+
         if (Result.a > 0.99) { bShouldContinueMarchRay = false; bWaitCalBack = false; break; }
         
+        LastDir_ingoing = RayDir_ingoing;
         LastDir = RayDir;
         Count++;
     }
-
-    //结果打包
+        if (iDEBUG == 3)
+    {
+        // 将步数归一化（0.0 到 1.0），MaxStep 是循环的最大限制
+        float stepHeat = float(Count) / MaxStep;
+        
+        // 也可以使用简单的热力图颜色：蓝色(少) -> 红色(多)
+        res.AccumColor = vec4(mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), stepHeat), 1.0);
+        
+        // 或者简单的灰度显示：
+        // res.AccumColor = vec4(vec3(stepHeat), 1.0);
+        
+        res.Status = 3.0; // 强制标记为不透明，直接输出颜色
+        return res;
+    }
+    // 结果打包
     res.CurrentSign = CurrentUniverseSign;
     res.AccumColor  = Result;
 
     //阴影剔除的 Debug 颜色
     if (bDeferredShadowCulling && !bIsNakedSingularity)
-    {
-        // 检查是否是因为撞到了我们设定的 TerminationR 而退出的
+    {// 检查是否是因为撞到了我们设定的 TerminationR 而退出的
         float FinalR = length(RayPos);
-        
         // 在截断半径内，或不再继续步进）容差 +0.1防闪烁
         if (FinalR <= TerminationR + 0.1 || !bShouldContinueMarchRay)
         {
@@ -3200,45 +3246,44 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                 float RemainingAlpha = max(0.0, 1.0 - res.AccumColor.a);
                 res.AccumColor.rgb += vec3(0.0, 0.5, 0.0) * RemainingAlpha;
                 res.AccumColor.a = 1.0;
-                
                 res.Status = 3.0; 
-            }else{
+            } else {
                 res.AccumColor.a = 1.0;
                 res.Status = 3.0;
             }
-            
             return res;
         }
     }
-
-
     // 状态位定义:
     // 0.0 = Absorbed/Lost (视界/超时，且未被体积光完全遮挡)
     // 1.0 = Sky (Universe +1)
     // 2.0 = Antiverse (Universe -1)
     // 3.0 = Opaque (Result.a > 0.99，体积光完全遮挡，其边界与前三者交界不做检查)
-
+    // 4.0 = last universe
+    // 5.0 = last anti-universe
     if (Result.a > 0.99) {
-        // 状态 3：不透明体积
         res.Status = 3.0; 
         res.EscapeDir = vec3(0.0); 
         res.FreqShift = 0.0;
     } 
     else if (bWaitCalBack) {
-        // 状态 1 或 2：命中背景
-        res.EscapeDir = LocalToWorldRot * normalize(RayDir);
-        res.FreqShift = clamp(1.0 / max(1e-4, E_conserved), 1.0/2.0, 2.0); 
+        // 天空盒方向使用Ingoing系射线方向
+        res.EscapeDir = LocalToWorldRot * normalize(RayDir_ingoing);
+        res.FreqShift = clamp(1.0 / max(1e-4, E_conserved), 1.0/iBackShiftMax, iBackShiftMax); 
         
-        if (CurrentUniverseSign  > 0.0) res.Status = 1.0; // Sky
-        else res.Status = 2.0; // Antiverse
         
-        if(iWhitehole==1&&(bEscapeInHorizon|| bEscapeOutHorizon||(iUniverseSign*CameraStartR<InnerHorizonR)) && res.Status == 1.0)//来自白洞
-        {
-            res.Status=4.0;
-        }
+        if (CurrentUniverseSign  > 0.0) res.Status = 1.0; 
+        else res.Status = 2.0; 
+        
+    if (iWhitehole == 1 && !bIsNakedSingularity && (bEscapeInHorizon || bEscapeOutHorizon || (CameraStartR < InnerHorizonR)))
+    {
+        if (res.Status == 1.0)
+            res.Status = 4.0;
+        else if (res.Status == 2.0)
+            res.Status = 5.0;
+    }
     } 
     else {
-        // 状态 0：该方向无吸积盘和喷流以外任何光
         res.Status = 0.0; 
         res.EscapeDir = vec3(0.0);
         res.FreqShift = 0.0;
@@ -3246,4 +3291,3 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
     return res;
 }
-
