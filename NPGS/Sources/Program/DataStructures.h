@@ -59,7 +59,7 @@ struct FBlackHoleArgs
     int   Whitehole;
     int   InWhichUniverse;
     int   Grid;
-    int   EnableHearHaze;
+    int   EnableHeatHaze;
     int   ObserverMode;
     float UniverseSign;
     float BlackHoleTime;

@@ -29,10 +29,10 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
 
     int   iDEBUG;
     int   iWhitehole;                    //最大延拓  
-    int   iInWhichUniverse;            //相机出白洞
+    int   iInWhichUniverse;              //当前最大延拓宇宙编号
     int   iGrid;                         //绘制网格
-    int   iEnableHearHaze;               //热折射
-    int   iObserverMode;                 //观者模式，0静态，1落体
+    int   iEnableHeatHaze;               //热折射
+    int   iObserverMode;                 //观者模式，0静态，1落体，2使用外传相机三维平直坐标速度，自动解析为ingoing分量或outgoing分量
 
     float iUniverseSign;                 //相机所在空间侧。 +1.0正宇宙  -1.0反宇宙
                         
@@ -222,6 +222,9 @@ vec3 WavelengthToRgb(float wavelength) {
 
 vec4 SampleBackground(vec3 Dir, float Shift, float Status)
 {
+
+
+
     vec4 Backcolor;
 
     
@@ -265,8 +268,7 @@ vec4 ApplyToneMapping(vec4 Result,float shift)
     float RedFactor   = 3.0 * Result.r / (Result.r + Result.b + Result.g );
     float BlueFactor  = 3.0 * Result.b / (Result.r + Result.b + Result.g );
     float GreenFactor = 3.0 * Result.g / (Result.r + Result.b + Result.g );
-    float BloomMax    = max(8.0,shift);
-    
+    float BloomMax    = max(8.0,shift)+log(max(shift-8.0+1.0,1.0));
     vec4 Mapped;
     Mapped.r = min(-4.0 * log( 1.0 - pow(Result.r, 2.2)), BloomMax * RedFactor);
     Mapped.g = min(-4.0 * log( 1.0 - pow(Result.g, 2.2)), BloomMax * GreenFactor);
@@ -2367,7 +2369,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     
     
     
-    if (iEnableHearHaze == 1 &&  iInWhichUniverse==0 && CurrentUniverseSign>0.0)//热折射
+    if (iEnableHeatHaze == 1 &&  iInWhichUniverse==0 && CurrentUniverseSign>0.0)//热折射
     {
         // 1. 坐标与参数准备 (Rg 空间)
         vec3 pos_Rg_Start = X.xyz; 
@@ -2607,7 +2609,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     // ========================
 
     E_conserved = -P_cov.w;
-    if(E_conserved<0.0){ res.FreqShift=0.0;res.AccumColor=vec4(0.0);  res.Status = 0.0; return res;}//剔除最大延拓解下II/IV区内从 平行宇宙 去往/来自 平行虫洞 的光。（视界内和观者相向而行）
+    //if(iGrid==0 && E_conserved<0.0){ res.FreqShift=0.0;res.AccumColor=vec4(0.0);  res.Status = 0.0; return res;}//剔除最大延拓解下II/IV区内从 平行宇宙 去往/来自 平行虫洞 的光。（视界内和观者相向而行）    开启网格时会误伤能层内部分从网格发出的光线，igrid非0时的剔除改为视界间进行
     // -------------------------------------------------------------------------
     // 初始合法性检查与终结半径
     // -------------------------------------------------------------------------
@@ -3096,7 +3098,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                 }
             }
         }
-        
+        //if( (  (geo.r > InnerHorizonR && geo.r < EventHorizonR ) || (geo.r > EventHorizonR && lastR < InnerHorizonR) || (lastR > EventHorizonR && geo.r < InnerHorizonR) ) && E_conserved<0.0){ bShouldContinueMarchRay = false;bWaitCalBack = false;break; }
         //对动量和位置及其导数做自适应步长。对电荷做自适应步长（Q贡献r^-2项
         float rho = length(RayPos.xz);
         float DistRing = sqrt(RayPos.y * RayPos.y + pow(rho - abs(PhysicalSpinA), 2.0));
@@ -3173,7 +3175,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
 
        
-        if (CurrentUniverseSign > 0.0 && iBlackHoleMassSol > 0.0 &&   ((bIsNakedSingularity&&iInWhichUniverse==0)||   (iInWhichUniverse -int(bEscapeInHorizon|| bEscapeOutHorizon||(iUniverseSign*CameraStartR<InnerHorizonR)))==0 &&!bIsNakedSingularity)  ) 
+        if (CurrentUniverseSign > 0.0 && iBlackHoleMassSol > 0.0 &&   ((iInWhichUniverse -int(iWhitehole == 1 && !bIsNakedSingularity && (bEscapeInHorizon || bEscapeOutHorizon || (CameraStartR < InnerHorizonR))))==0 )       )
         {
            if(IsAccretionDiskVisible(iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut))
            {
@@ -3261,6 +3263,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     // 3.0 = Opaque (Result.a > 0.99，体积光完全遮挡，其边界与前三者交界不做检查)
     // 4.0 = last universe
     // 5.0 = last anti-universe
+
+    //小数位.0 .2区分能量正负，用于上色平行宇宙
     if (Result.a > 0.99) {
         res.Status = 3.0; 
         res.EscapeDir = vec3(0.0); 
@@ -3269,9 +3273,17 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     else if (bWaitCalBack) {
         // 天空盒方向使用Ingoing系射线方向
         res.EscapeDir = LocalToWorldRot * normalize(RayDir_ingoing);
-        res.FreqShift = clamp(1.0 / max(1e-4, E_conserved), 1.0/iBackShiftMax, iBackShiftMax); 
+        res.FreqShift = clamp(1.0 / max(1e-14, abs(E_conserved)), 1.0/iBackShiftMax, iBackShiftMax); 
         
+        if (iDEBUG == 4)
+        {
+
+            res.AccumColor = vec4(mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), 0.5*(log(iBackShiftMax)+log(res.FreqShift))/(log(iBackShiftMax))), 1.0);
+
         
+            res.Status = 3.0; // 强制标记为不透明，直接输出颜色
+            return res;
+        }
         if (CurrentUniverseSign  > 0.0) res.Status = 1.0; 
         else res.Status = 2.0; 
         
@@ -3288,6 +3300,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         res.EscapeDir = vec3(0.0);
         res.FreqShift = 0.0;
     }
+    float energyFlag = (E_conserved >= 0.0) ? 0.0 : 0.2; 
+    res.Status       +=  energyFlag;    
 
     return res;
 }

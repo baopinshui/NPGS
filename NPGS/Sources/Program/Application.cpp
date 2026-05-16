@@ -350,7 +350,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Whitehole","InWhichUniverse","Grid","EnableHearHaze","ObserverMode","UniverseSign",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","ObserverMode","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate","BackShiftMax", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
@@ -733,7 +733,7 @@ void FApplication::ExecuteMainRender()
 				BlackHoleArgs.Whitehole = 0;
 				BlackHoleArgs.InWhichUniverse = 0;
                 BlackHoleArgs.Grid = 0;
-				BlackHoleArgs.EnableHearHaze = 1;
+				BlackHoleArgs.EnableHeatHaze = 1;
                 BlackHoleArgs.ObserverMode = 0;
                 BlackHoleArgs.UniverseSign = 1.0;
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
@@ -1729,7 +1729,7 @@ void FApplication::DumpArgsToJson(const std::string& filepath)
     DUMP_B(Whitehole);
     DUMP_B(InWhichUniverse);
     DUMP_B(Grid);
-    DUMP_B(EnableHearHaze);
+    DUMP_B(EnableHeatHaze);
     DUMP_B(ObserverMode);
     DUMP_B(UniverseSign);
     DUMP_B(BlackHoleTime);
@@ -2143,7 +2143,11 @@ void FApplication::RenderDebugUI()
 
     // 划分为左右两个视图
     float halfWidth = canvas_sz.x * 0.5f;
-    ImVec2 centerSide = ImVec2(canvas_p0.x + halfWidth * 0.5f, canvas_p0.y + canvas_sz.y * 0.5f);
+
+    // === 修改点 1: 调整左图中心位置 ===
+    // 将左图原点移到靠左侧边缘 (留 30 像素防贴边)，只用来展示正半轴
+    float leftPadding = 30.0f;
+    ImVec2 centerSide = ImVec2(canvas_p0.x + leftPadding, canvas_p0.y + canvas_sz.y * 0.5f);
     ImVec2 centerTop = ImVec2(canvas_p0.x + halfWidth * 1.5f, canvas_p0.y + canvas_sz.y * 0.5f);
 
     // 动态缩放逻辑
@@ -2157,31 +2161,34 @@ void FApplication::RenderDebugUI()
 
     // 3. 绘制辅助网格和标题
     ImU32 axisColor = IM_COL32(100, 100, 100, 150);
-    draw_list->AddLine(ImVec2(canvas_p0.x, centerSide.y), ImVec2(canvas_p0.x + halfWidth, centerSide.y), axisColor, 1.0f);
+
+    // === 修改点 2: 左图的横轴只画右半段 ===
+    draw_list->AddLine(ImVec2(centerSide.x, centerSide.y), ImVec2(canvas_p0.x + halfWidth, centerSide.y), axisColor, 1.0f);
     draw_list->AddLine(ImVec2(centerSide.x, canvas_p0.y), ImVec2(centerSide.x, canvas_p0.y + canvas_sz.y), axisColor, 1.0f);
+
+    // 右图辅助线保持不变
     draw_list->AddLine(ImVec2(canvas_p0.x + halfWidth, centerTop.y), ImVec2(canvas_p0.x + canvas_sz.x, centerTop.y), axisColor, 1.0f);
     draw_list->AddLine(ImVec2(centerTop.x, canvas_p0.y), ImVec2(centerTop.x, canvas_p0.y + canvas_sz.y), axisColor, 1.0f);
+    // 中间分隔线
     draw_list->AddLine(ImVec2(canvas_p0.x + halfWidth, canvas_p0.y), ImVec2(canvas_p0.x + halfWidth, canvas_p0.y + canvas_sz.y), IM_COL32(200, 200, 200, 255), 2.0f);
 
-    draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Meridian (Y-X) Plane");
+    // 调整左侧标题位置，使其靠着新原点
+    draw_list->AddText(ImVec2(centerSide.x + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Meridian (Y-X) Plane");
     draw_list->AddText(ImVec2(canvas_p0.x + halfWidth + 10, canvas_p0.y + 10), IM_COL32(255, 255, 255, 255), "Top-Down (X-(-Z)) Plane");
     std::string univText = !isAntiverse ? "Status: r > 0 (Universe)" : "Status: r < 0 (Antiverse)";
-    draw_list->AddText(ImVec2(canvas_p0.x + 10, canvas_p0.y + 30), !isAntiverse ? IM_COL32(200, 255, 200, 255) : IM_COL32(255, 150, 150, 255), univText.c_str());
+    draw_list->AddText(ImVec2(centerSide.x + 10, canvas_p0.y + 30), !isAntiverse ? IM_COL32(200, 255, 200, 255) : IM_COL32(255, 150, 150, 255), univText.c_str());
 
-    // === 核心修改点 1: 根据是否处于反宇宙，调整线条透明度 ===
-    ImU32 alphaStandard = isAntiverse ? 25 : 255;  // 正常宇宙边界在反宇宙中极其淡化
+    ImU32 alphaStandard = isAntiverse ? 25 : 255;
     ImU32 alphaErgo = isAntiverse ? 15 : 200;
-    ImU32 alphaCTC = isAntiverse ? 255 : 25;  // CTC 边界在反宇宙中高亮，在正常宇宙中极其淡化
+    ImU32 alphaCTC = isAntiverse ? 255 : 25;
 
     ImU32 colOuterHorizon = IM_COL32(255, 100, 100, alphaStandard);
     ImU32 colInnerHorizon = IM_COL32(100, 150, 255, alphaStandard);
     ImU32 colErgosphere = IM_COL32(150, 255, 150, alphaErgo);
     ImU32 colInnerErgo = IM_COL32(255, 200, 50, alphaErgo);
-    ImU32 colCTC = IM_COL32(200, 100, 255, alphaCTC); // 紫色代表时光机区域
-    ImU32 colSingularity = IM_COL32(255, 0, 255, 255);        // 奇环作为连通点，恒定不褪色
+    ImU32 colCTC = IM_COL32(200, 100, 255, alphaCTC);
+    ImU32 colSingularity = IM_COL32(255, 0, 255, 255);
 
-    // === 核心修改点 2: 求解 CTC (Closed Timelike Curves) 边界的 Lambda ===
-    // 求解 g_phi_phi = 0 在 r < 0 侧的根。方程为: (r^2+a^2)(r^2+a^2 cos^2T) + a^2 sin^2T (2Mr - Q^2) = 0
     auto GetCTCRoots = [&](float cosT, float sinT, float& r_out, float& r_in) -> bool
     {
         auto G = [&](float r)
@@ -2189,14 +2196,14 @@ void FApplication::RenderDebugUI()
             float r2 = r * r;
             return (r2 + a2) * (r2 + a2 * cosT * cosT) + a2 * sinT * sinT * (2.0f * M * r - Q2);
         };
-        float r_start = 0.0f, r_end = -10.0f; // 扫描 Antiverse 区间
+        float r_start = 0.0f, r_end = -10.0f;
         int steps = 200;
         float dr = (r_end - r_start) / steps;
         std::vector<float> roots;
         float prev_G = G(r_start);
 
         if (std::abs(prev_G) < 1e-5f)
-        { // 特殊处理赤道且 Q=0 时 r=0 是根的情况
+        {
             roots.push_back(0.0f);
             prev_G = G(r_start + dr * 0.1f);
         }
@@ -2206,7 +2213,7 @@ void FApplication::RenderDebugUI()
             float curr_G = G(r);
             if (curr_G * prev_G < 0.0f)
             {
-                roots.push_back(r - dr * curr_G / (curr_G - prev_G)); // 线性插值求根
+                roots.push_back(r - dr * curr_G / (curr_G - prev_G));
             }
             prev_G = curr_G;
         }
@@ -2231,7 +2238,9 @@ void FApplication::RenderDebugUI()
 
     for (int i = 0; i <= segments; ++i)
     {
-        float theta = (static_cast<float>(i) / segments) * 2.0f * 3.14159265f;
+        // === 修改点 3: 限制 theta 范围 ===
+        // 原本是 * 2.0f * PI，现在改为只乘 PI (即 0 到 180 度)，这样 sin(theta) 始终为正，只生成右半面数据
+        float theta = (static_cast<float>(i) / segments) * 3.14159265f;
         float cosTheta = std::cos(theta);
         float sinTheta = std::sin(theta);
 
@@ -2264,7 +2273,6 @@ void FApplication::RenderDebugUI()
         bool ctc_valid = GetCTCRoots(cosTheta, sinTheta, r_ctc_out, r_ctc_in);
         if (ctc_valid)
         {
-            // 对于 r < 0, 映射到伪笛卡尔坐标系的公式同样是 Rho = sqrt(r^2+a^2)*sin(t), Z = r*cos(t)
             ImVec2 pt_ctc_out = ToSideScreen(std::sqrt(r_ctc_out * r_ctc_out + a2) * sinTheta, r_ctc_out * cosTheta);
             ImVec2 pt_ctc_in = ToSideScreen(std::sqrt(r_ctc_in * r_ctc_in + a2) * sinTheta, r_ctc_in * cosTheta);
 
@@ -2282,7 +2290,7 @@ void FApplication::RenderDebugUI()
         else if (prev_ctc_valid) draw_list->AddLine(prev_ctc_out, prev_ctc_in, colCTC, 1.5f);
         prev_ctc_valid = ctc_valid;
 
-        // --- 俯视图绘制 (赤道面) ---
+        // --- 俯视图绘制 (赤道面) 不受影响 ---
         if (i == 0)
         {
             float eq_disc = M * M - Q2;
@@ -2313,16 +2321,18 @@ void FApplication::RenderDebugUI()
 
     if (!isNakedSingularity)
     {
-        draw_list->AddPolyline(sideOutPts.data(), sideOutPts.size(), colOuterHorizon, ImDrawFlags_Closed, 2.0f);
-        draw_list->AddPolyline(sideInPts.data(), sideInPts.size(), colInnerHorizon, ImDrawFlags_Closed, 2.0f);
+        // 由于上面 theta 的范围是 [0, PI]，半圆用 ImDrawFlags_Closed 闭合时，会天然沿着 Y 轴画一条直线闭合，非常完美地展现半切面截断效果。
+        draw_list->AddPolyline(sideOutPts.data(), sideOutPts.size(), colOuterHorizon, ImDrawFlags_None, 2.0f);
+        draw_list->AddPolyline(sideInPts.data(), sideInPts.size(), colInnerHorizon, ImDrawFlags_None, 2.0f);
     }
 
     // 5. 绘制奇环 (a) (永远完全不透明显示，作为两个宇宙的连接点)
     draw_list->AddCircleFilled(ToSideScreen(std::abs(a), 0.0f), 4.0f, colSingularity);
-    draw_list->AddCircleFilled(ToSideScreen(-std::abs(a), 0.0f), 4.0f, colSingularity);
+    // === 修改点 4: 注释掉左侧对称奇环点的绘制 ===
+    // draw_list->AddCircleFilled(ToSideScreen(-std::abs(a), 0.0f), 4.0f, colSingularity);
     draw_list->AddCircle(centerTop, std::abs(a) * scale, colSingularity, 64, 2.0f);
 
-    // 6. 绘制相机位置和朝向
+    // 6. 绘制相机位置和朝向 (由于 Rho 恒大于 0，天然会画在右半图)
     ImU32 camColor = IM_COL32(255, 255, 0, 255);
     float rho_cam = std::sqrt(camPos.x * camPos.x + camPos.z * camPos.z);
     ImVec2 camSidePos = ToSideScreen(rho_cam, camPos.y);
