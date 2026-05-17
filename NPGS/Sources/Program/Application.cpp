@@ -350,7 +350,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","ObserverMode","UniverseSign",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Prepass","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","ObserverMode","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate","BackShiftMax", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
@@ -730,6 +730,7 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
                 BlackHoleArgs.CameraVelocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
                 BlackHoleArgs.DEBUG = 0;
+                BlackHoleArgs.Prepass = 1;
 				BlackHoleArgs.Whitehole = 0;
 				BlackHoleArgs.InWhichUniverse = 0;
                 BlackHoleArgs.Grid = 0;

@@ -19,6 +19,6 @@
   "Skybox.frag.spv": "7672e6086dd94688e587f22057cacc97",
   "ShadowMap.vert.spv": "c367b9841b6b072b632513ebdcee91cd",
   "Skybox.vert.spv": "d279238f1d899e8dac15a5a9923fc2ea",
-  "BlackHole_composite.frag.spv": "393b79c16e200d16263280330677f1f4",
+  "BlackHole_composite.frag.spv": "d38a6730f31732ef5c2006d5f893a83a",
   "BlackHole_prepass.frag.spv": "5b6aea9b1f8db5efa04a8003518f8b1b"
 }

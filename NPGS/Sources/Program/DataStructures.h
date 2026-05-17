@@ -56,6 +56,7 @@ struct FBlackHoleArgs
     glm::vec4 BlackHoleRelativeDiskTangen;
     glm::vec4 CameraVelocity;
     int   DEBUG;
+    int   Prepass;
     int   Whitehole;
     int   InWhichUniverse;
     int   Grid;

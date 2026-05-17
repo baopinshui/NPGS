@@ -107,7 +107,7 @@ void main()
     vec3  CurrentDir;
     float CurrentShift;
 
-    if (IsEdgeStatus || IsEdgeGeo)
+    if ((IsEdgeStatus || IsEdgeGeo) || iPrepass==0)
     {
         // 边缘路径重算
         TraceResult res = TraceRay(Uv, iResolution);
@@ -143,24 +143,25 @@ void main()
     if (FinalColor.a < 0.99 && ((CurrentStatus > 0.5 && CurrentStatus < 2.5) || CurrentStatus > 3.5)) 
     {
         vec4 Bg = SampleBackground(CurrentDir, CurrentShift, CurrentStatus);
-        
+        float rawStatus = CurrentStatus;            // 备份带小数的原始状态位
+        CurrentStatus   = round(rawStatus);         // 立即还原为纯整数，确保下方的判断不受影响
+        bool IsPositiveEnergy = abs(rawStatus - CurrentStatus) < 0.1;
+        if (!IsPositiveEnergy) 
+        {
+            float cMax = max(max(Bg.r, Bg.g), Bg.b);
+            float cMin = min(min(Bg.r, Bg.g), Bg.b);
+            Bg.rgb = vec3(cMax + cMin) - Bg.rgb;
+        }
         float invA = 1.0 - FinalColor.a;
         vec4 colorFactor = vec4(pow(invA, 1.0), pow(invA, 1.6), pow(invA, 2.5), 1.0);
         
         FinalColor += 0.9999999 * Bg * colorFactor;
     }
-       float rawStatus = CurrentStatus;            // 备份带小数的原始状态位
-    CurrentStatus   = round(rawStatus);         // 立即还原为纯整数，确保下方的判断不受影响
+
     
     // 如果原始值和整数的差值极小 (< 0.1)，说明小数部分是 0.0，即正能量
     // 如果差值较大 (约为 0.2)，则为负能量
-    bool IsPositiveEnergy = abs(rawStatus - CurrentStatus) < 0.1;
-    if (!IsPositiveEnergy) 
-    {
-        float cMax = max(max(FinalColor.r, FinalColor.g), FinalColor.b);
-        float cMin = min(min(FinalColor.r, FinalColor.g), FinalColor.b);
-        FinalColor.rgb = vec3(cMax + cMin) - FinalColor.rgb;
-    }
+
 
     // -------------------------------------------------------------------------
     // 3. 后处理
