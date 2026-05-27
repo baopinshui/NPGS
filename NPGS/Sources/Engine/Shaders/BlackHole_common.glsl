@@ -35,6 +35,8 @@ layout(set = 0, binding = 1) uniform BlackHoleArgs
     int   iEnableHeatHaze;               //热折射
     int   iObserverMode;                 //观者模式，0静态，1落体，2使用外传相机三维平直坐标速度，自动解析为ingoing分量或outgoing分量
 
+    float iQuality;                      
+
     float iUniverseSign;                 //相机所在空间侧。 +1.0正宇宙  -1.0反宇宙
                         
     float iBlackHoleTime;                //时间。单位 c*s/Rs
@@ -229,13 +231,16 @@ vec4 SampleBackground(vec3 Dir, float Shift, float Status)
     vec4 Backcolor;
 
     
-    int useContground =0; 
-    if (Status > 3.5) useContground =-1;
-    
+    float rStatus = round(Status);
+    int offset = 0;
+    if (rStatus > 3.0) {
+        offset = int(round((rStatus - 1.0) / 3.0));
+    }
+    int useContground = -offset;
     
     //  Background 和 Antiground 逻辑
     bool isNegativeMass = (iBlackHoleMassSol < 0.0);
-    bool isAntiverse    = (Status > 1.5 && Status < 2.5)||(Status > 4.5 && Status < 5.5);
+    bool isAntiverse    = (mod(rStatus, 3.0) == 2.0); // 完美囊括 2, 5, 8... 所有反宇宙
 
     if (isNegativeMass != isAntiverse) 
     {
@@ -276,6 +281,7 @@ vec4 ApplyToneMapping(vec4 Result,float shift)
     Mapped.b = min(-4.0 * log( 1.0 - pow(Result.b, 2.2)), BloomMax * BlueFactor);
     Mapped.a = min(-4.0 * log( 1.0 - pow(Result.a, 2.2)), 4.0);
     return Mapped;
+    //return Result;
 }
 // =============================================================================
 // SECTION 4: 广相计算。Y为自旋方向，ins/outgoing方向笛卡尔形式kerrscild系。+++-。
@@ -414,7 +420,7 @@ void ComputeGeometryScalars(vec3 X, float PhysicalSpinA, float PhysicalQ, float 
         geo.f = (2.0 * CONST_M * inv_r - (PhysicalQ * PhysicalQ) * inv_r2) * fade;
         
         geo.inv_r2_a2 = inv_r2; 
-        geo.inv_den_f = 0.0; 
+        geo.inv_den_f = inv_r2 * inv_r2; 
         return;
     }
 
@@ -453,11 +459,7 @@ void ComputeGeometryGradients(vec3 X, float PhysicalSpinA, float PhysicalQ, floa
         return;
     }
 
-    float R2 = dot(X, X);
-    float D = 2.0 * geo.r2 - R2 + geo.a2;
-    float denom_grad = geo.r * D;
-    if (abs(denom_grad) < 1e-9) denom_grad = sign(geo.r) * 1e-9;
-    float inv_denom_grad = 1.0 / denom_grad;
+    float inv_denom_grad = geo.r * geo.inv_den_f;
     
     geo.grad_r = vec3(
         X.x * geo.r2,
@@ -577,6 +579,17 @@ vec4 GetInitialMomentum(
     }else if (iObserverMode == 2) {
         // --- 模式 2: 任意四速观测者 (基于坐标速度) ---
         vec3 v_in = iCameraVelocity.xyz;
+        if (any(isnan(v_in)) || any(isinf(v_in))) {v_in=vec3(0.0);}
+        vec4 V_up = vec4(v_in, 1.0);
+        vec4 V_down = LowerIndex(V_up, geo);
+        float V_sq = dot(V_up, V_down);
+        if (V_sq < 0) {
+            U_up = V_up * inversesqrt(-V_sq);
+        } else {
+            return vec4(114514.0);
+        }
+    }else if (iObserverMode == 3) {
+        vec3 v_in = -iCameraVelocity.xyz;
         if (any(isnan(v_in)) || any(isinf(v_in))) {v_in=vec3(0.0);}
         vec4 V_up = vec4(v_in, 1.0);
         vec4 V_down = LowerIndex(V_up, geo);
@@ -932,7 +945,7 @@ State GetDerivativesAnalytic(State S, float PhysicalSpinA, float PhysicalQ, floa
     d_num_lx.z -= PhysicalSpinA;
     vec3 grad_lx = geo.inv_r2_a2 * d_num_lx + rx_az * grad_A;
     
-    vec3 grad_ly = dirSign * (geo.r * vec3(0.0, 1.0, 0.0) - S.X.y * geo.grad_r) / geo.r2;
+    vec3 grad_ly = dirSign * (geo.r * geo.inv_den_f) * vec3(-S.X.x * S.X.y, geo.r2 - S.X.y * S.X.y, -S.X.z * S.X.y);
     
     vec3 d_num_lz = dirSign * S.X.z * geo.grad_r;
     d_num_lz.z += dirSign * geo.r;
@@ -1482,6 +1495,7 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
                  // 注：iE_obs 即为传入的守恒能量 E_conserved
                  float E_emit = u_t * (iE_obs - AngularVelocity * P_phi);
                  float FreqRatio = 1.0 / max(1e-6, E_emit);
+                 if(E_emit<0.0) FreqRatio =  0.0;
                  // [修改]解析法计算红移结束
 
 
@@ -1626,7 +1640,236 @@ vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
     return CurrentResult;
 }
 
-
+//vec4 DiskColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
+//               vec3 RayDir, vec3 LastRayDir,vec4 iP_cov, float iE_obs,
+//               float InterRadius, float OuterRadius, float Thin, float Hopper, float Brightmut, float Darkmut, float Reddening, float Saturation, float DiskTemperatureArgument,
+//               float BlackbodyIntensityExponent, float RedShiftColorExponent, float RedShiftIntensityExponent,
+//               float PeakTemperature, float ShiftMax, 
+//               float PhysicalSpinA, 
+//               float PhysicalQ, bool isoutgoing,
+//               float ThetaInShell,
+//               inout float RayMarchPhase 
+//               ) 
+//{
+//    vec4 CurrentResult = BaseColor;
+//    
+//
+//    float MaxDiskHalfHeight = Thin + max(0.0, Hopper * OuterRadius) + 2.0; 
+//    if (LastRayPos.y > MaxDiskHalfHeight && RayPos.y > MaxDiskHalfHeight) return BaseColor;
+//    if (LastRayPos.y < -MaxDiskHalfHeight && RayPos.y < -MaxDiskHalfHeight) return BaseColor;
+//
+//    vec2 P0 = LastRayPos.xz;
+//    vec2 P1 = RayPos.xz;
+//    vec2 V  = P1 - P0;
+//    float LenSq = dot(V, V);
+//    float t_closest = (LenSq > 1e-8) ? clamp(-dot(P0, V) / LenSq, 0.0, 1.0) : 0.0;
+//    vec2 ClosestPoint = P0 + V * t_closest;
+//    if (dot(ClosestPoint, ClosestPoint) > (OuterRadius * 1.1) * (OuterRadius * 1.1)) return BaseColor;
+//
+//    vec3 StartPos = LastRayPos.xyz; 
+//    vec3 DirVec   = RayDir; 
+//    float StartTimeLag = LastRayPos.w;
+//    float EndTimeLag   = RayPos.w;
+//
+//    float R_Start = KerrSchildRadius(StartPos, PhysicalSpinA, 1.0);
+//    float R_End   = KerrSchildRadius(RayPos.xyz, PhysicalSpinA, 1.0);
+//    if (max(R_Start, R_End) < InterRadius * 0.9) return BaseColor;
+//
+//    
+//    float TotalDist = StepLength;
+//    float TraveledDist = 0.0;
+//    
+//    int SafetyLoopCount = 0;
+//    const int MaxLoops = 114514; 
+//
+//    while (TraveledDist < TotalDist && SafetyLoopCount < MaxLoops)
+//    {
+//        if (CurrentResult.a > 0.99) break;
+//        SafetyLoopCount++;
+//
+//        vec3 CurrentPos = StartPos + DirVec * TraveledDist;
+//        float DistanceToBlackHole = length(CurrentPos); 
+//        
+//        // 计算局部密度
+//        float SmallStepBoundary = max(OuterRadius, 12.0);
+//        float StepSize = 1.0; 
+//        
+//        StepSize *= 0.15 + 0.25 * min(max(0.0, 0.5 * (0.5 * DistanceToBlackHole / max(10.0 , SmallStepBoundary) - 1.0)), 1.0);
+//        if ((DistanceToBlackHole) >= 2.0 * SmallStepBoundary) StepSize *= DistanceToBlackHole;
+//        else if ((DistanceToBlackHole) >= 1.0 * SmallStepBoundary) StepSize *= ((1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0)) * (2.0 * SmallStepBoundary - DistanceToBlackHole) + DistanceToBlackHole * (DistanceToBlackHole - SmallStepBoundary)) / SmallStepBoundary;
+//        else StepSize *= min(1.0 + 0.25 * max(DistanceToBlackHole - 12.0, 0.0), DistanceToBlackHole);
+//        
+//        StepSize = max(0.01, StepSize); 
+//
+//        //  相位与距离计算
+//        float DistToNextSample = RayMarchPhase * StepSize;
+//        float DistRemainingInRK4 = TotalDist - TraveledDist;
+//
+//        if (DistToNextSample > DistRemainingInRK4)
+//        {
+//            // 情况 A：下一个采样点超出了当前的 RK4 步长范围
+//            // 我们走完这段剩余距离，但不进行采样
+//            // 并更新相位，表示我们已经走了一部分路程
+//            
+//            float PhaseProgress = DistRemainingInRK4 / StepSize;
+//            RayMarchPhase -= PhaseProgress; // 消耗相位
+//            
+//            // 确保相位数值稳定
+//            if(RayMarchPhase < 0.0) RayMarchPhase = 0.0; // 理论不应发生，除非精度误差
+//            
+//            TraveledDist = TotalDist; // 结束本段积分
+//            break;
+//        }
+//
+//        float dt = DistToNextSample;
+//        
+//        // 移动到采样点
+//        TraveledDist += dt;
+//        vec3 SamplePos = StartPos + DirVec * TraveledDist;
+//        
+//        float TimeInterpolant = min(1.0, TraveledDist / max(1e-9, TotalDist));
+//        float CurrentRayTimeLag = mix(StartTimeLag, EndTimeLag, TimeInterpolant);
+//        float EmissionTime = iBlackHoleTime + CurrentRayTimeLag;
+//
+//        // 薄盘优化
+//        vec3 PreviousPos = CurrentPos; // 这一步的起点
+//        //if(PreviousPos.y * SamplePos.y < 0.0)
+//        //{
+//        //
+//        //    vec3 CPoint=(-SamplePos*PreviousPos.y+PreviousPos*SamplePos.y)/(SamplePos.y-PreviousPos.y);
+//        //    SamplePos=CPoint+min(Thin,length(CPoint-PreviousPos))*DirVec*(-1.0+2.0*RandomStep(10000.0*(SamplePos.zx/OuterRadius), fract(iTime * 1.0 + 0.5)));
+//        //    
+//        //
+//        //}
+//        float PosR = KerrSchildRadius(SamplePos, PhysicalSpinA, 1.0);
+//        float PosY = SamplePos.y;
+//        
+//        float GeometricThin = length(SamplePos.xz) * Hopper+Thin;
+//        
+//        // 计算内侧云参数与包围盒
+//        float InterCloudEffectiveRadius = (PosR - InterRadius) / min(OuterRadius - InterRadius, 12.0);
+//        float InnerCloudBound = max(GeometricThin, Thin * 1.0) * max(0.0,1.0 - 5.0 * pow(InterCloudEffectiveRadius, 2.0));
+//        
+//        // 外层包围盒取主盘与内侧云的并集
+//        // GeometricThin * 1.5 是主盘噪声的包围盒，InnerCloudBound 是内侧云的包围盒
+//        float UnionBound = (GeometricThin * 1.0);
+//
+//        if (abs(PosY) < UnionBound && PosR < OuterRadius && PosR > InterRadius)
+//        {
+//
+//
+//             {
+//                 float AngularVelocity = GetKeplerianAngularVelocity(max(InterRadius, PosR), 1.0, PhysicalSpinA, PhysicalQ);
+//                 
+//                 float u = sqrt(max(1e-6, PosR));
+//                 float k_cubed = PhysicalSpinA * 0.70710678;
+//                 float SpiralTheta;
+//                 if (abs(k_cubed) < 0.001 * u * u * u) {
+//                     float inv_u = 1.0 / u; float eps3 = k_cubed * pow(inv_u, 3.0);
+//                     SpiralTheta = -16.9705627 * inv_u * (1.0 - 0.25 * eps3 + 0.142857 * eps3 * eps3);
+//                 } else {
+//                     float k = sign(k_cubed) * pow(abs(k_cubed), 0.33333333);
+//                     float logTerm = (PosR - k*u + k*k) / max(1e-9, pow(u+k, 2.0));
+//                     SpiralTheta = (5.6568542 / k) * (0.5 * log(max(1e-9, logTerm)) + 1.7320508 * (atan(2.0*u - k, 1.7320508 * k) - 1.5707963));
+//                 }
+//                 float PosTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-SpiralTheta), sin(-SpiralTheta)));
+//                 float PosLogarithmicTheta = Vec2ToTheta(SamplePos.zx, vec2(cos(-2.0 * log(max(1e-6, PosR))), sin(-2.0 * log(max(1e-6, PosR)))));
+//                 
+//                 
+//                 //vec3 FluidVel = AngularVelocity * vec3(SamplePos.z, 0.0, -SamplePos.x);
+//                 //vec4 U_fluid_unnorm = vec4(FluidVel, 1.0); 
+//                 //KerrGeometry geo_sample;
+//                 //ComputeGeometryScalars(SamplePos, PhysicalSpinA, PhysicalQ, 1.0, 1.0, geo_sample);
+//                 //vec4 U_fluid_lower = LowerIndex(U_fluid_unnorm, geo_sample);
+//                 //float norm_sq = dot(U_fluid_unnorm, U_fluid_lower);
+//                 //vec4 U_fluid = U_fluid_unnorm * inversesqrt(max(1e-6, abs(norm_sq)));
+//                 //float E_emit = -dot(iP_cov, U_fluid);
+//                 //float FreqRatio =  1.0/ max(1e-6, E_emit);
+//                 
+//
+//                 // [修改]解析法计算红移
+//                 float inv_r = 1.0 / max(1e-6, PosR);
+//                 float inv_r2 = inv_r * inv_r;
+//                 
+//                 // 无量纲势能项 (M=0.5 -> 2M=1.0)
+//                 float V_pot = inv_r - (PhysicalQ * PhysicalQ) * inv_r2;
+//                 
+//                 // 赤道面度规分量 g_uv
+//                 float g_tt = -(1.0 - V_pot);
+//                 float g_tphi = -PhysicalSpinA * V_pot; 
+//                 float g_phiphi = PosR * PosR + PhysicalSpinA * PhysicalSpinA + PhysicalSpinA * PhysicalSpinA * V_pot;
+//                 
+//                 // 归一化条件 U.U = -1 => norm * (u^t)^2 = -1
+//                 float norm_metric = g_tt + 2.0 * AngularVelocity * g_tphi + AngularVelocity * AngularVelocity * g_phiphi;
+//                 
+//                 // 防止超光速区域 (norm >= 0) 导致崩溃
+//                 float min_norm = -0.01; 
+//                 float u_t = inversesqrt(max(abs(min_norm), -norm_metric));
+//                 
+//                 // 计算角动量 P_phi = x*P_z - z*P_x (这里符号要反一下)
+//                 float P_phi = - SamplePos.x * iP_cov.z + SamplePos.z * iP_cov.x;
+//                 
+//                 // 计算发射能量 E_emit = -u^mu P_mu = u^t * (iE_obs - Omega * P_phi)
+//                 // 注：iE_obs 即为传入的守恒能量 E_conserved
+//                 float E_emit = u_t * (iE_obs - AngularVelocity * P_phi);
+//                 float FreqRatio = 1.0 / max(1e-6, E_emit);
+//                 // [修改]解析法计算红移结束
+//                 if(E_emit<0.0) FreqRatio =  0.0;
+//
+//
+//
+//
+//                 float DiskTemperature = pow(DiskTemperatureArgument * pow(1.0 / max(1e-6, PosR), 3.0) * max(1.0 - sqrt(InterRadius / max(1e-6, PosR)), 0.000001), 0.25);
+//                 float VisionTemperature = DiskTemperature * pow(FreqRatio, RedShiftColorExponent); 
+//                 float BrightWithoutRedshift = 1.0;
+//                 BrightWithoutRedshift *= pow(DiskTemperature / PeakTemperature, BlackbodyIntensityExponent); 
+//                 
+//                 float RotPosR = PosR + 0.25 / 3.0 * EmissionTime;
+//                 float Density = 1.0;
+//                 
+//                 vec4 SampleColor = vec4(0.0);
+//
+//                 
+//
+//                     SampleColor.xyz =vec3(BrightWithoutRedshift) ;
+//                     SampleColor.a=Density;
+//    
+//                 SampleColor.xyz *= BrightWithoutRedshift * vec3(1.0,0.0,0.0); 
+//                 SampleColor.xyz *= pow(FreqRatio, RedShiftIntensityExponent); 
+//                 
+//
+//                 
+//
+//                  SampleColor.xyz *= Brightmut;
+//                  SampleColor.a   *= Darkmut;
+//
+//                  SampleColor*=pow(InterRadius/1.0,4.0);
+//
+//                 bool IsPositiveEnergy =iE_obs>0.0;
+//                 if (!IsPositiveEnergy) 
+//                 {
+//                     float cMax = max(max(SampleColor.r, SampleColor.g), SampleColor.b);
+//                     float cMin = min(min(SampleColor.r, SampleColor.g), SampleColor.b);
+//                     SampleColor.rgb = vec3(cMax + cMin) - SampleColor.rgb;
+//                 }
+//
+//
+//
+//
+//
+//                 vec4 StepColor = SampleColor * StepSize;
+//                 
+//
+//                 CurrentResult = CurrentResult + StepColor * pow((1.0 - CurrentResult.a), 1.0);
+//
+//            }
+//        }
+//        RayMarchPhase = 1.0;
+//    }
+//    
+//    return CurrentResult;
+//}
+//
 
 vec4 JetColor(vec4 BaseColor, float StepLength, vec4 RayPos, vec4 LastRayPos,
               vec3 RayDir, vec3 LastRayDir,vec4 iP_cov, float iE_obs,
@@ -1857,7 +2100,7 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
     bool HasHorizon = HorizonDiscrim >= 0.0;
 
     if (CheckPositive) {
-        SignedGridRadii[GridCount] = 20.0;
+        SignedGridRadii[GridCount] = 70.0;
         GridColors[GridCount] = 0.3*vec3(0.0, 1.0, 1.0); 
         GridCount++;
 
@@ -1873,7 +2116,7 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
     }
     
     if (CheckNegative) {
-        SignedGridRadii[GridCount] = -20.0;  
+        SignedGridRadii[GridCount] = -70.0;  
         GridColors[GridCount] = 0.3*vec3(1.0, 0.0, 1.0); 
         GridCount++;
     }
@@ -1939,8 +2182,8 @@ vec4 GridColorSimple(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                 float SinTheta = sqrt(max(0.0, 1.0 - CosTheta * CosTheta));
 
                 float DensityPhi = 24.0;
-                float DensityTheta = 12.0;
-                float DistFactor = length(PatternPos);
+                float DensityTheta = 13.0;
+                float DistFactor = min(20.0,length(PatternPos));
                 float LineWidth = 0.002 * DistFactor; 
                 LineWidth = clamp(LineWidth, 0.01, 0.15); 
 
@@ -3059,6 +3302,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
     bool bIntoInHorizon = false;
     bool bEscapeOutHorizon = false;
     bool bEscapeInHorizon = false;
+    int universeoffset=0;
+    if(iWhitehole == 1 && !bIsNakedSingularity && CameraStartR <InnerHorizonR) universeoffset++;
     float LastDr = 0.0;           
     int RadialTurningCounts = 0;  
     float RayMarchPhase = RandomStep(FragUv, iTime); 
@@ -3106,7 +3351,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             if(iDEBUG==1) Result += vec4(0.0, 0.3, 0.3, 0.0); 
             break;  //视界判定情况1，直接进入视界判定区
         }
-        if (Count > MaxStep) 
+        if (Count >int(float( MaxStep)*iQuality*(1.0+0.3*iQuality))) 
         { 
             bShouldContinueMarchRay = false; 
             bWaitCalBack = false;
@@ -3157,12 +3402,19 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         if(geo.r < InnerHorizonR && lastR > InnerHorizonR) bEscapeInHorizon = true;    //检测穿进(追踪方向)内视界   
         if(geo.r < EventHorizonR && lastR > EventHorizonR) bEscapeOutHorizon = true;   //检测穿进(追踪方向)外视界   
 
-        if (iGrid==0 && RadialTurningCounts > 2) 
+        if (iWhitehole==0 && RadialTurningCounts > 2 ) 
         {
             bShouldContinueMarchRay = false; bWaitCalBack = false;
             if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
             break;//识别剔除束缚态光子轨道
+        }else if(RadialTurningCounts > 7) 
+        {
+            bShouldContinueMarchRay = false; bWaitCalBack = false;
+            if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
+            break;
         }
+
+        if(iWhitehole == 1 && !bIsNakedSingularity && geo.r < InnerHorizonR && lastR > InnerHorizonR) universeoffset++;    
 
         if(iGrid==0 && iWhitehole==0)
         {
@@ -3222,7 +3474,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         GravityFade = CubicInterpolate(max(min(1.0 - ( DistanceToBlackHole - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
         
         vec4 P_contra_step = RaiseIndex(P_cov, geo);
-        if (P_contra_step.w > 10000.0 && !bIsNakedSingularity && CurrentUniverseSign > 0.0) 
+        if (P_contra_step.w > 10000.0*iQuality && !bIsNakedSingularity && CurrentUniverseSign > 0.0) 
         { 
             bShouldContinueMarchRay = false; 
             bWaitCalBack = false;
@@ -3230,7 +3482,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             break; //视界判定情况3，凝结在视界
         }
 
-        StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, isoutgoing, geo, k1);
+        StepGeodesicRK4_Optimized(X, P_cov, E_conserved, -dLambda/iQuality, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, isoutgoing, geo, k1);
         float deltar = geo.r - lastR;
 
 
@@ -3271,7 +3523,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
 
        
-        if (CurrentUniverseSign > 0.0 && iBlackHoleMassSol > 0.0 &&   ((iInWhichUniverse -int(iWhitehole == 1 && !bIsNakedSingularity && (bEscapeInHorizon || bEscapeOutHorizon || (CameraStartR < InnerHorizonR))))==0 )       )
+        if (CurrentUniverseSign > 0.0 && iBlackHoleMassSol > 0.0 &&   int(33+iInWhichUniverse-universeoffset)%3==0       )
         {
            if(IsAccretionDiskVisible(iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut))
            {
@@ -3385,12 +3637,12 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         if (CurrentUniverseSign  > 0.0) res.Status = 1.0; 
         else res.Status = 2.0; 
         
-    if (iWhitehole == 1 && !bIsNakedSingularity && (bEscapeInHorizon || bEscapeOutHorizon || (CameraStartR < InnerHorizonR)))
+    if (iWhitehole == 1 && !bIsNakedSingularity && universeoffset>0)
     {
         if (res.Status == 1.0)
-            res.Status = 4.0;
+            res.Status = 1.0+3.0*float(universeoffset);
         else if (res.Status == 2.0)
-            res.Status = 5.0;
+            res.Status = 2.0+3.0*float(universeoffset);
     }
     } 
     else {

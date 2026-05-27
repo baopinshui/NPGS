@@ -119,7 +119,8 @@ void GameScreen::OnEnter()
 		menu->AddLinear("InWhichUniverse", &BlackHoleArgs.InWhichUniverse, 0, 2);
         menu->AddLinear("Grid", &BlackHoleArgs.Grid, -1, 2);
         menu->AddLinear("EnableHeatHaze", &BlackHoleArgs.EnableHeatHaze, 0, 1);
-        menu->AddLinear("Mode", &BlackHoleArgs.ObserverMode, 0, 2);
+        menu->AddLinear("Mode", &BlackHoleArgs.ObserverMode, 0, 3);
+        menu->AddThrottle("Quality", &BlackHoleArgs.Quality);
         menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol,0.1f);
         menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);
         menu->AddThrottle("Q", &BlackHoleArgs.Q, 0.1f);

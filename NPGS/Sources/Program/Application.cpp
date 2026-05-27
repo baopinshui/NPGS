@@ -27,12 +27,25 @@
 #include <fstream>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp> 
+// 在 Application.cpp 的 #include 区域添加
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+#include <iomanip>
+#include <filesystem>
+#include <iostream> // for std::cerr
+#include <algorithm> // for std::max
+#include <cmath> // for std::sqrt
+
+#include <glm/gtc/packing.hpp>
+// 添加一个全局的截图请求标志位
+static bool g_bRequestScreenshot = false;
+
 
 FGameArgs GameArgs{};
 FBlackHoleArgs BlackHoleArgs{};
 FMatrices Matrices;
 FLightMaterial LightMaterial;
-float cfov = 60.0f;
+float cfov = 20.0f;
 float camsmth = 30.0f;
 _NPGS_BEGIN
 
@@ -41,7 +54,93 @@ namespace Grt = Runtime::Graphics;
 namespace SysSpa = System::Spatial;
 namespace UI = Npgs::System::UI;
 
+double get_orbit_energy(double x, double a, double q2)
+{
+    if (x < q2) return 1e100; // 低于理论极限，返回极大罚值防止越界
 
+    // sqrt(x - q^2) 是广义相对论测地线方程中提取出的公共项
+    double sq = std::sqrt(std::max(0.0, x - q2));
+
+    // 分母内部的判别式，其最大根对应光子球 (Photon Sphere)
+    double F = x * x - 3.0 * x + 2.0 * q2 + 2.0 * a * sq;
+
+    // 如果处在光子球内部或边界，轨道不稳定或不存在，赋予极大的能量值
+    if (F <= 1e-15) return 1e100;
+
+    // 分子部分
+    double num = x * x - 2.0 * x + q2 + a * sq;
+
+    // 完整的圆轨道能量公式
+    return num / (x * std::sqrt(F));
+}
+
+/**
+ * @brief 核心函数：计算 Kerr-Newman 黑洞的最内稳定圆轨道 (ISCO) 半径
+ *
+ * @param M 黑洞质量
+ * @param a_star 无量纲自旋参数 a/M (绝对值 <= 1, 带符号表示顺/逆行)
+ * @param Q_star 无量纲电荷参数 Q/M
+ * @return double ISCO 半径
+ */
+double calculate_KN_ISCO(double M, double a_star, double Q_star)
+{
+    double a = a_star;
+    double q2 = Q_star * Q_star;
+
+    // 1. 物理有效性检查：必须满足 a^2 + Q^2 <= M^2
+    if (a * a + q2 > 1.0 + 1e-9)
+    {
+        std::cerr << "错误: 参数不构成黑洞 (a^2 + Q^2 > M^2)，为裸奇点。" << std::endl;
+        return -1.0;
+    }
+
+    // 2. 特殊情况拦截：极端 Kerr 顺行轨道
+    // 在极端Kerr下，ISCO 刚好位于视界 (x=1)，此时 E(x) 出现 0/0 奇点。
+    // 在此直接返回已知的解析极限结果。
+    if (abs(a - 1.0) < 1e-7 && q2 < 1e-7)
+    {
+        return M * 1.0;
+    }
+
+    // 3. 黄金分割搜索求极小值点 (ISCO 对应 E(x) 曲线的最低点)
+    double left = std::max(1.0, q2) + 1e-5;
+    double right = 15.0; // ISCO 理论最大值为 9M (逆行极端Kerr)，设 15 为安全上限
+
+    const double invphi = (std::sqrt(5.0) - 1.0) / 2.0;
+    const double invphi2 = (3.0 - std::sqrt(5.0)) / 2.0;
+
+    double c = left + invphi2 * (right - left);
+    double d = left + invphi * (right - left);
+
+    double fc = get_orbit_energy(c, a, q2);
+    double fd = get_orbit_energy(d, a, q2);
+
+    double tol = 1e-11; // 极高精度容差
+
+    while ((right - left) > tol)
+    {
+        if (fc < fd)
+        {
+            right = d;
+            d = c;
+            fd = fc;
+            c = left + invphi2 * (right - left);
+            fc = get_orbit_energy(c, a, q2);
+        }
+        else
+        {
+            left = c;
+            c = d;
+            fc = fd;
+            d = left + invphi * (right - left);
+            fd = get_orbit_energy(d, a, q2);
+        }
+    }
+
+    // 返回最低点对应的半径
+    double x_isco = 0.5 * (left + right);
+    return x_isco * M;
+}
 
 FApplication::FApplication(const vk::Extent2D& WindowSize, const std::string& WindowTitle,
     bool bEnableVSync, bool bEnableFullscreen)
@@ -350,7 +449,7 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Prepass","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","ObserverMode","UniverseSign",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Prepass","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","ObserverMode","Quality","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate","BackShiftMax", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
@@ -557,6 +656,8 @@ void FApplication::ExecuteMainRender()
     // =========================================================================
     // [创建] Pipelines
     // =========================================================================
+    std::vector<vk::DynamicState> dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+
     auto* PipelineManager = Grt::FPipelineManager::GetInstance();
     vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState = vk::PipelineColorBlendAttachmentState()
         .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
@@ -579,7 +680,10 @@ void FApplication::ExecuteMainRender()
         -static_cast<float>(HalfWindowSize.height), 0.0f, 1.0f
     );
     PrepassCreateInfoPack.Scissors.emplace_back(vk::Offset2D(), HalfWindowSize);
-
+    PrepassCreateInfoPack.DynamicStates = dynamicStates;
+    // [可选] 建议将原本的 Viewports 和 Scissors 清空，因为它们会被动态设置覆盖
+    PrepassCreateInfoPack.Viewports.clear();
+    PrepassCreateInfoPack.Scissors.clear();
     PipelineManager->CreateGraphicsPipeline("BlackHolePrepassPipeline", "BlackHolePrepass", PrepassCreateInfoPack);
 
     // 2. Composite Pipeline (1 Output)
@@ -594,13 +698,19 @@ void FApplication::ExecuteMainRender()
     CompositeCreateInfoPack.ColorBlendAttachmentStates.emplace_back(ColorBlendAttachmentState);
     CompositeCreateInfoPack.Viewports.emplace_back(0.0f, static_cast<float>(_WindowSize.height), static_cast<float>(_WindowSize.width), -static_cast<float>(_WindowSize.height), 0.0f, 1.0f);
     CompositeCreateInfoPack.Scissors.emplace_back(vk::Offset2D(), _WindowSize);
-
+    CompositeCreateInfoPack.DynamicStates = dynamicStates;
+    CompositeCreateInfoPack.Viewports.clear();
+    CompositeCreateInfoPack.Scissors.clear();
     PipelineManager->CreateGraphicsPipeline("BlackHoleCompositePipeline", "BlackHoleComposite", CompositeCreateInfoPack);
 
     // 3. Other Pipelines
     std::array<vk::Format, 1> SceneColorFormat{ vk::Format::eR8G8B8A8Unorm };
     vk::PipelineRenderingCreateInfo BlendRenderingCreateInfo = vk::PipelineRenderingCreateInfo().setColorAttachmentCount(1).setColorAttachmentFormats(SceneColorFormat);
     Grt::FGraphicsPipelineCreateInfoPack BlendCreateInfoPack = CompositeCreateInfoPack; // 复用配置
+    // 3. 修改 BlendPipeline 配置
+    BlendCreateInfoPack.DynamicStates = dynamicStates;
+    BlendCreateInfoPack.Viewports.clear();
+    BlendCreateInfoPack.Scissors.clear();
     BlendCreateInfoPack.GraphicsPipelineCreateInfo.setPNext(&BlendRenderingCreateInfo);
 
     PipelineManager->CreateGraphicsPipeline("BlendPipeline", "Blend", BlendCreateInfoPack);
@@ -685,6 +795,446 @@ void FApplication::ExecuteMainRender()
 
         glfwPollEvents();
         // 开始 UI 帧
+
+
+// ==== 将这段代码直接放在 glfwPollEvents(); 的下一行 ====
+        if (g_bRequestScreenshot)
+        {
+            g_bRequestScreenshot = false;
+            std::cout << "[Screenshot] Starting Automated 4K High-Quality Batch Capture..." << std::endl;
+
+            _VulkanContext->WaitIdle();
+
+            // 1. 备份当前帧状态
+            vk::Extent2D OldWindowSize = _WindowSize;
+            FGameArgs OldGameArgs = GameArgs;
+            FBlackHoleArgs OldBlackHoleArgs = BlackHoleArgs;
+            float Old_cfov = cfov; // 备份相机FOV
+
+            // 2. 覆盖全局渲染设定为 4K (3840x2160) 和高精度
+            _WindowSize = vk::Extent2D{ 3840, 2160 };
+            GameArgs.Resolution = glm::vec2(3840.0f, 2160.0f);
+            BlackHoleArgs.Prepass = 0;       // 强制禁用 Prepass，全分辨率采样
+            BlackHoleArgs.Quality = 10.0f;   // 高精度步长
+
+            // 重新创建 4K 的 Framebuffers 和 Descriptors
+            CreateFramebuffers();
+            CreatePostDescriptors();
+
+            // 提前为主机拷贝准备 Staging Buffer (只需分配一次)
+            vk::Device device = _VulkanContext->GetDevice();
+            vk::DeviceSize bufferSize = 3840 * 2160 * 8; // R16G16B16A16
+            vk::BufferCreateInfo bufInfo({}, bufferSize, vk::BufferUsageFlagBits::eTransferDst);
+            vk::Buffer stagingBuffer = device.createBuffer(bufInfo);
+
+            vk::MemoryRequirements memReqs = device.getBufferMemoryRequirements(stagingBuffer);
+            vk::PhysicalDeviceMemoryProperties memProperties = _VulkanContext->GetPhysicalDevice().getMemoryProperties();
+            uint32_t memTypeIndex = 0;
+            for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+            {
+                if ((memReqs.memoryTypeBits & (1 << i)) &&
+                    (memProperties.memoryTypes[i].propertyFlags & (vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent)) ==
+                    (vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent))
+                {
+                    memTypeIndex = i;
+                    break;
+                }
+            }
+            vk::MemoryAllocateInfo allocInfo(memReqs.size, memTypeIndex);
+            vk::DeviceMemory stagingMemory = device.allocateMemory(allocInfo);
+            device.bindBufferMemory(stagingBuffer, stagingMemory, 0);
+
+            // ================= [新增] 物理参数配置列表 (a, Q) =================
+            struct PhysicsConfig
+            {
+                float a;
+                float Q;
+            };
+            std::vector<PhysicsConfig> physicsConfigs = {
+                {-0.2f, 0.0f},
+                {-0.5f, 0.0f},
+                {-0.8f, 0.0f},
+                {-1.0f, 0.0f},
+                {-0.7f, 0.7f},
+                {0.2f, 0.0f},
+                {0.5f, 0.0f},
+                {0.8f, 0.0f},
+                {1.0f, 0.0f},
+                {0.7f, 0.7f}
+            };
+            struct DiskShapeConfig
+            {
+                float Hopper;
+                float ThinRs;
+            };
+            std::vector<DiskShapeConfig> diskConfigs = {
+                {0.0f, 0.075f},
+                {0.0f, 0.5f},
+                {0.0f, 2.0f},
+                {0.0f, 25.0f},
+                {0.5f, 0.0f}
+            };
+            // ================= 批量截图任务列表 =================
+            struct ScreenshotTask
+            {
+                int Universe;
+                float FOV;
+                int Grid;
+                float Phi;
+                std::string NameSuffix;
+            };
+            std::vector<ScreenshotTask> captureTasks = {
+                {0, 20.0f, 0, 45.0f, "Univ0_FOV20_Grid0_Phi45"},
+                {1, 15.0f, 0, 80.0f, "Univ1_FOV15_Grid0_Phi80"},
+                {1, 15.0f, 0, 0.0f,  "Univ1_FOV15_Grid0_Phi0"},
+                {1, 15.0f, 0, 45.0f, "Univ1_FOV15_Grid0_Phi45"},
+                {1, 15.0f, 0, 90.0f, "Univ1_FOV15_Grid0_Phi90"},
+            };
+
+            // 获取时间前缀并创建目录
+            auto now = std::chrono::system_clock::now();
+            auto time = std::chrono::system_clock::to_time_t(now);
+            char timeStr[64];
+            std::strftime(timeStr, sizeof(timeStr), "%Y%m%d_%H%M%S", std::localtime(&time));
+
+            std::string folderName = "Screenshot_Batch_" + std::string(timeStr);
+            std::filesystem::create_directories(folderName); // 创建文件夹
+
+            const int AccumulationFrames = 8; // 渲染多帧进行等权重混合，消除噪点
+
+            // ================= 开始双重遍历任务 =================
+            for (const auto& phys : physicsConfigs)
+            {
+                // 设置当前循环的 a 和 Q
+                BlackHoleArgs.Spin = phys.a;
+                BlackHoleArgs.Q = phys.Q;
+
+
+
+
+                // ================= [新增] 动态计算最内稳定轨道 (ISCO) 和视界 =================
+                {
+                    double a_star = phys.a;
+                    double q_star = phys.Q;
+                    double q2_star = q_star * q_star;
+
+                    // 计算 ISCO 半径 (单位: Rs)
+                    double isco_Rs = calculate_KN_ISCO(0.5, a_star, q_star);
+
+                    // 计算外视界半径 (单位: Rs)
+                    double horizon_discriminant = 1.0 - a_star * a_star - q2_star;
+                    double outer_horizon_Rs = 0.0;
+                    if (horizon_discriminant >= 0.0)
+                    {
+                        outer_horizon_Rs = 0.5 * (1.0 + sqrt(horizon_discriminant));
+                    }
+
+                    // 设置吸积盘内边界为 ISCO 和 (视界+0.1) 中的较大值
+                    BlackHoleArgs.InterRadiusRs = std::max((float)isco_Rs, (float)outer_horizon_Rs + 0.1f);
+
+                    // 打印日志，方便调试
+                    std::cout << "  [Param Update] a*=" << a_star << ", Q*=" << q_star
+                        << " -> ISCO=" << isco_Rs << " Rs, Horizon+ =" << outer_horizon_Rs << " Rs"
+                        << " -> InterRadiusRs set to " << BlackHoleArgs.InterRadiusRs << std::endl;
+                }
+                // =================================================================================
+
+
+
+                for (const auto& disk : diskConfigs)
+                {
+                    // 设置当前循环的 ThinRs 和 Hopper
+                    BlackHoleArgs.ThinRs = disk.ThinRs;
+                    BlackHoleArgs.Hopper = disk.Hopper;
+
+
+
+                    for (const auto& task : captureTasks)
+                    {
+                        std::cout << "[Screenshot] Capturing: a=" << phys.a << ", Q=" << phys.Q
+                            << " | Thin=" << disk.ThinRs << ", Hop=" << disk.Hopper
+                            << " | Task: " << task.NameSuffix << " ..." << std::endl;
+
+                        // 1. 设置当前任务的其它参数
+                        BlackHoleArgs.InWhichUniverse = task.Universe;
+                        BlackHoleArgs.Grid = task.Grid;
+
+                        // 2. 设置相机角度与FOV
+                        _FreeCamera->TeleportOrbit(0.0f, task.Phi);
+                        cfov = task.FOV;
+                        _FreeCamera->SetFov(cfov);
+                        GameArgs.FovRadians = glm::radians(cfov);
+
+                        // 3. 计算 Rs 并更新相机相关的 Shader 矩阵参数
+                        float Rs = 2.0 * abs(BlackHoleArgs.BlackHoleMassSol) * kGravityConstant / pow(kSpeedOfLight, 2) * kSolarMass / kLightYearToMeter;
+                        BlackHoleArgs.InverseCamRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
+                        BlackHoleArgs.BlackHoleRelativePosRs = glm::vec4(glm::vec3(_FreeCamera->GetViewMatrix() * glm::vec4(0.0f, 0.0f, -0.000f, 1.0f)) / Rs, 1.0);
+                        BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
+                        BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+
+                        // ★★★ 必须清空历史帧缓冲！否则切换视角后前几帧会有严重残影 ★★★
+                        InitHistoryFrame();
+
+                        // 4. 多帧累积循环
+                        for (int i = 1; i <= AccumulationFrames; i++)
+                        {
+                            GameArgs.Time += 0.033f;
+                            BlackHoleArgs.BlendWeight = 1.0f / static_cast<float>(i);
+
+                            // 更新 GPU UBO
+                            ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
+                            FGameArgs PrepassArgs = GameArgs;
+                            PrepassArgs.Resolution = GameArgs.Resolution * 0.5f;
+                            ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgsPrepass", PrepassArgs);
+                            ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
+
+                            // 录制独立的截图 CommandBuffer
+                            auto& Cmd = _VulkanContext->GetTransferCommandBuffer();
+                            Cmd.Begin();
+
+                            vk::Extent2D Half4K = { 1920, 1080 };
+
+                            // === 阶段 A: Prepass ===
+                            vk::ImageMemoryBarrier2 b1(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *DistortionAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 b2(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *VolumetricAttachment->GetImage(), SubresourceRange);
+                            std::array preBarriers = { b1, b2 };
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(preBarriers));
+
+                            std::array<vk::RenderingAttachmentInfo, 2> PrepassAttachments = { DistortionAttachmentInfo, VolumetricAttachmentInfo };
+                            vk::RenderingInfo PrepassRenderingInfo = vk::RenderingInfo().setRenderArea(vk::Rect2D({ 0, 0 }, Half4K)).setLayerCount(1).setColorAttachments(PrepassAttachments);
+
+                            Cmd->beginRendering(PrepassRenderingInfo);
+                            Cmd->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
+                            Cmd->bindPipeline(vk::PipelineBindPoint::eGraphics, PrepassPipeline);
+                            Cmd->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, PrepassPipelineLayout, 0, PrepassShader->GetDescriptorSets(CurrentFrame), {});
+
+                            vk::Viewport vpHalf(0.0f, 1080.0f, 1920.0f, -1080.0f, 0.0f, 1.0f);
+                            vk::Rect2D scHalf({ 0, 0 }, { 1920, 1080 });
+                            Cmd->setViewport(0, 1, &vpHalf);
+                            Cmd->setScissor(0, 1, &scHalf);
+                            Cmd->draw(6, 1, 0, 0);
+                            Cmd->endRendering();
+
+                            // === 阶段 B: Composite ===
+                            vk::ImageMemoryBarrier2 cb1(vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *DistortionAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 cb2(vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *VolumetricAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 cb3(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *BlackHoleAttachment->GetImage(), SubresourceRange);
+                            std::array compBarriers = { cb1, cb2, cb3 };
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(compBarriers));
+
+                            vk::RenderingInfo CompositeRenderingInfo = vk::RenderingInfo().setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize)).setLayerCount(1).setColorAttachments(BlackHoleAttachmentInfo);
+
+                            Cmd->beginRendering(CompositeRenderingInfo);
+                            Cmd->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
+                            Cmd->bindPipeline(vk::PipelineBindPoint::eGraphics, CompositePipeline);
+                            Cmd->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, CompositePipelineLayout, 0, CompositeShader->GetDescriptorSets(CurrentFrame), {});
+
+                            vk::Viewport vpFull(0.0f, 2160.0f, 3840.0f, -2160.0f, 0.0f, 1.0f);
+                            vk::Rect2D scFull({ 0, 0 }, { 3840, 2160 });
+                            Cmd->setViewport(0, 1, &vpFull);
+                            Cmd->setScissor(0, 1, &scFull);
+                            Cmd->draw(6, 1, 0, 0);
+                            Cmd->endRendering();
+
+                            // === 更新历史帧缓冲 (时序累积) ===
+                            vk::ImageMemoryBarrier2 PreCopySrcBarrier(
+                                vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+                                vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                                vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *BlackHoleAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 PreCopyDstBarrier(
+                                vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
+                                vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                                vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal,
+                                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *HistoryAttachment->GetImage(), SubresourceRange);
+                            std::array preCopyBarriers{ PreCopySrcBarrier, PreCopyDstBarrier };
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(preCopyBarriers));
+
+                            vk::ImageCopy HistoryCopyRegion = vk::ImageCopy()
+                                .setSrcSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
+                                .setDstSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1))
+                                .setExtent(vk::Extent3D(3840, 2160, 1));
+
+                            Cmd->copyImage(*BlackHoleAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+                                *HistoryAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal, HistoryCopyRegion);
+
+                            vk::ImageMemoryBarrier2 PostCopySrcBarrier(
+                                vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                                vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead,
+                                vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *BlackHoleAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 PostCopyDstBarrier(
+                                vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                                vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
+                                vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *HistoryAttachment->GetImage(), SubresourceRange);
+
+                            // === 阶段 C: PreBloom ===
+                            vk::ImageMemoryBarrier2 InitPreBloomBarrier(
+                                vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone,
+                                vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
+                                vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral,
+                                vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *PreBloomAttachment->GetImage(), SubresourceRange);
+
+                            std::array bloomInitBarriers = { PostCopySrcBarrier, PostCopyDstBarrier, InitPreBloomBarrier };
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(bloomInitBarriers));
+                            std::uint32_t ssWorkX = (3840 + 9) / 10;
+                            std::uint32_t ssWorkY = (2160 + 9) / 10;
+
+                            Cmd->bindPipeline(vk::PipelineBindPoint::eCompute, PreBloomPipeline);
+                            Cmd->bindDescriptorSets(vk::PipelineBindPoint::eCompute, PreBloomPipelineLayout, 0, PreBloomShader->GetDescriptorSets(CurrentFrame), {});
+                            Cmd->dispatch(ssWorkX, ssWorkY, 1);
+
+                            // === 阶段 D: GaussBlur ===
+                            vk::ImageMemoryBarrier2 FirstBlurBarrier(vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite, vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *PreBloomAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 InitGaussBlurBarrier(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *GaussBlurAttachment->GetImage(), SubresourceRange);
+                            std::array blurInitBarriers = { FirstBlurBarrier, InitGaussBlurBarrier };
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(blurInitBarriers));
+
+                            vk::Bool32 bHorizontal = vk::True;
+                            Cmd->bindPipeline(vk::PipelineBindPoint::eCompute, GaussBlurPipeline);
+                            Cmd->pushConstants(GaussBlurPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vk::Bool32), &bHorizontal);
+                            Cmd->bindDescriptorSets(vk::PipelineBindPoint::eCompute, GaussBlurPipelineLayout, 0, GaussBlurShader->GetDescriptorSets(CurrentFrame), {});
+                            Cmd->dispatch(ssWorkX, ssWorkY, 1);
+
+                            vk::ImageMemoryBarrier2 CopybackSrcBarrier(vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite, vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead, vk::ImageLayout::eGeneral, vk::ImageLayout::eTransferSrcOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *GaussBlurAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 CopybackDstBarrier(vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead, vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *PreBloomAttachment->GetImage(), SubresourceRange);
+                            std::array CopybackBarriers{ CopybackSrcBarrier, CopybackDstBarrier };
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(CopybackBarriers));
+
+                            vk::ImageCopy CopybackRegion = vk::ImageCopy().setSrcSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1)).setDstSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1)).setExtent(vk::Extent3D(3840, 2160, 1));
+                            Cmd->copyImage(*GaussBlurAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal, *PreBloomAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal, CopybackRegion);
+
+                            vk::ImageMemoryBarrier2 ResampleBarrier(vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite, vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *PreBloomAttachment->GetImage(), SubresourceRange);
+                            vk::ImageMemoryBarrier2 RewriteBarrier(vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead, vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eGeneral, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *GaussBlurAttachment->GetImage(), SubresourceRange);
+                            std::array RestoreBarriers{ ResampleBarrier, RewriteBarrier };
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(RestoreBarriers));
+
+                            bHorizontal = vk::False;
+                            Cmd->pushConstants(GaussBlurPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vk::Bool32), &bHorizontal);
+                            Cmd->bindDescriptorSets(vk::PipelineBindPoint::eCompute, GaussBlurPipelineLayout, 0, GaussBlurShader->GetDescriptorSets(CurrentFrame), {});
+                            Cmd->dispatch(ssWorkX, ssWorkY, 1);
+
+                            vk::ImageMemoryBarrier2 BlendSampleBarrier(vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite, vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *GaussBlurAttachment->GetImage(), SubresourceRange);
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(BlendSampleBarrier));
+
+                            // === 阶段 E: Blend ===
+                            vk::ImageMemoryBarrier2 sceneColorInitBarrier(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *SceneColorAttachment->GetImage(), SubresourceRange);
+                            Cmd->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(sceneColorInitBarrier));
+
+                            vk::RenderingInfo sceneRenderingInfo = vk::RenderingInfo().setRenderArea(vk::Rect2D({ 0, 0 }, _WindowSize)).setLayerCount(1).setColorAttachments(SceneColorAttachmentInfo);
+
+                            Cmd->beginRendering(sceneRenderingInfo);
+                            Cmd->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
+                            Cmd->bindPipeline(vk::PipelineBindPoint::eGraphics, BlendPipeline);
+                            Cmd->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlendPipelineLayout, 0, BlendShader->GetDescriptorSets(CurrentFrame), {});
+
+                            Cmd->setViewport(0, 1, &vpFull);
+                            Cmd->setScissor(0, 1, &scFull);
+                            Cmd->draw(6, 1, 0, 0);
+                            Cmd->endRendering();
+
+                            // 如果是最后一帧，将结果拷贝到主机的 Staging Buffer
+// 如果是最后一帧，将结果拷贝到主机的 Staging Buffer
+                            if (i == AccumulationFrames)
+                            {
+                                // 此时 HistoryAttachment 已经包含了最纯净的累积 HDR 物理数值，绕过后续的 Blend 和 Bloom
+                                vk::ImageMemoryBarrier2 copySrcBarrier(
+                                    vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
+                                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                                    vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *HistoryAttachment->GetImage(), SubresourceRange);
+                                Cmd->pipelineBarrier2(vk::DependencyInfo().setImageMemoryBarriers(copySrcBarrier));
+
+                                // 执行拷贝
+                                vk::BufferImageCopy copyRegion(0, 0, 0, vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1), vk::Offset3D(0, 0, 0), vk::Extent3D(3840, 2160, 1));
+                                Cmd->copyImageToBuffer(*HistoryAttachment->GetImage(), vk::ImageLayout::eTransferSrcOptimal, stagingBuffer, 1, &copyRegion);
+
+                                // 将 History 贴图状态还原，并设置主机内存屏障
+                                vk::ImageMemoryBarrier2 restoreBarrier(
+                                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
+                                    vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead,
+                                    vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                                    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *HistoryAttachment->GetImage(), SubresourceRange);
+
+                                vk::MemoryBarrier2 hostBarrier(
+                                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite,
+                                    vk::PipelineStageFlagBits2::eHost, vk::AccessFlagBits2::eHostRead);
+
+                                Cmd->pipelineBarrier2(vk::DependencyInfo().setMemoryBarriers(hostBarrier).setImageMemoryBarriers(restoreBarrier));
+                            }
+
+                            Cmd.End();
+
+                            // 提交并阻塞等待单次渲染结束
+                            _VulkanContext->ExecuteGraphicsCommands(Cmd);
+                            _VulkanContext->WaitIdle();
+                        } // 结束多帧混合循环
+
+                        // 5. 保存当前任务截图到前面创建的时间戳文件夹内
+// 5. 保存当前任务截图 (无损保存为 .hdr 浮点文件)
+                        void* data = device.mapMemory(stagingMemory, 0, bufferSize, vk::MemoryMapFlags());
+
+                        // 将显存中读取的 FP16 数据转换为 FP32 (Standard float)
+                        uint16_t* fp16_pixels = static_cast<uint16_t*>(data);
+                        float* fp32_pixels = new float[3840 * 2160 * 3]; // HDR 文件通常只存 RGB 三通道
+
+                        for (size_t p = 0; p < 3840 * 2160; ++p)
+                        {
+                            fp32_pixels[p * 3 + 0] = glm::unpackHalf1x16(fp16_pixels[p * 4 + 0]);
+                            fp32_pixels[p * 3 + 1] = glm::unpackHalf1x16(fp16_pixels[p * 4 + 1]);
+                            fp32_pixels[p * 3 + 2] = glm::unpackHalf1x16(fp16_pixels[p * 4 + 2]);
+                        }
+
+                        // 注意：后缀名改为了 .hdr
+                        std::string filename = folderName + "/Data_4K_" + std::string(timeStr) + "_" + task.NameSuffix
+                            + "_a" + std::to_string(BlackHoleArgs.Spin)
+                            + "_Q" + std::to_string(BlackHoleArgs.Q)
+                            + "_Thin" + std::to_string(BlackHoleArgs.ThinRs)
+                            + "_Hop" + std::to_string(BlackHoleArgs.Hopper) + ".hdr";
+
+                        // 使用 stbi_write_hdr 保存真正的浮点数矩阵
+                        stbi_write_hdr(filename.c_str(), 3840, 2160, 3, fp32_pixels);
+                        std::cout << "  -> Saved RAW HDR: " << filename << std::endl;
+
+                        delete[] fp32_pixels;
+                        device.unmapMemory(stagingMemory);
+
+                    } // 结束内部 7 个基础任务遍历
+                } // 结束外部物理参数 (a,Q) 遍历
+            }
+            std::cout << "[Screenshot] Batch Capture Completed (35 images)!" << std::endl;
+
+            // 6. 清理内存并还原初始状态
+            device.destroyBuffer(stagingBuffer);
+            device.freeMemory(stagingMemory);
+
+            _WindowSize = OldWindowSize;
+            GameArgs = OldGameArgs;
+            BlackHoleArgs = OldBlackHoleArgs;
+            cfov = Old_cfov;
+            _FreeCamera->SetFov(cfov);
+
+            ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgs", GameArgs);
+            FGameArgs PrepassArgsRestored = GameArgs;
+            PrepassArgsRestored.Resolution = GameArgs.Resolution * 0.5f;
+            ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "GameArgsPrepass", PrepassArgsRestored);
+            ShaderResourceManager->UpdateEntrieBuffer(CurrentFrame, "BlackHoleArgs", BlackHoleArgs);
+
+            // 回复正常尺寸的 Attachments 和 Descriptors
+            CreateFramebuffers();
+            CreatePostDescriptors();
+            InitHistoryFrame();
+            CurrentTime = glfwGetTime();
+            LastFrameTime = CurrentTime;
+        }
+        // ==== 截图代码植入结束 ====
+
+
+
+
+
+
         _uiRenderer->BeginFrame();
 
         auto& ui_ctx = Npgs::System::UI::UIContext::Get();
@@ -731,36 +1281,37 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.CameraVelocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
                 BlackHoleArgs.DEBUG = 0;
                 BlackHoleArgs.Prepass = 1;
-				BlackHoleArgs.Whitehole = 0;
+				BlackHoleArgs.Whitehole = 1;
 				BlackHoleArgs.InWhichUniverse = 0;
                 BlackHoleArgs.Grid = 0;
-				BlackHoleArgs.EnableHeatHaze = 1;
+				BlackHoleArgs.EnableHeatHaze = 0;
                 BlackHoleArgs.ObserverMode = 0;
+                BlackHoleArgs.Quality = 1.0;
                 BlackHoleArgs.UniverseSign = 1.0;
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
-                BlackHoleArgs.Spin = 0.7f;
-                BlackHoleArgs.Q = 0.7f;
+                BlackHoleArgs.Spin = 0.8f;
+                BlackHoleArgs.Q = 0.0f;
                 BlackHoleArgs.Mu = 1.0f;
-                BlackHoleArgs.AccretionRate = (5e-4);
+                BlackHoleArgs.AccretionRate = (1e-8);
 				BlackHoleArgs.BackShiftMax = 1.02f;
-                BlackHoleArgs.InterRadiusRs = 1.5;
+                BlackHoleArgs.InterRadiusRs = 1.0;
                 BlackHoleArgs.OuterRadiusRs = 25;
                 BlackHoleArgs.ThinRs = 0.75;
                 BlackHoleArgs.Hopper = 0.24;
                 BlackHoleArgs.Brightmut = 1.0;
-                BlackHoleArgs.Darkmut = 0.5;
-                BlackHoleArgs.Reddening = 0.3;
-                BlackHoleArgs.Saturation = 0.5;
-                BlackHoleArgs.BlackbodyIntensityExponent = 0.5;
-                BlackHoleArgs.RedShiftColorExponent = 3.0;
+                BlackHoleArgs.Darkmut = 0.0;
+                BlackHoleArgs.Reddening = 0.0;
+                BlackHoleArgs.Saturation = 0.0;
+                BlackHoleArgs.BlackbodyIntensityExponent = 4.0;
+                BlackHoleArgs.RedShiftColorExponent = 1.0;
                 BlackHoleArgs.RedShiftIntensityExponent = 4.0;
-				BlackHoleArgs.HeatHaze = 1.0;
-				BlackHoleArgs.BackgroundBrightmut = 1.0;
+				BlackHoleArgs.HeatHaze = 0.0;
+				BlackHoleArgs.BackgroundBrightmut = 0.0;
 				BlackHoleArgs.PhotonRingBoost = 0.0;
-				BlackHoleArgs.PhotonRingColorTempBoost = 2.0;
-				BlackHoleArgs.BoostRot = 0.75;
-                BlackHoleArgs.JetRedShiftIntensityExponent = 2.0;
+				BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
+				BlackHoleArgs.BoostRot = 0.0;
+                BlackHoleArgs.JetRedShiftIntensityExponent = 4.0;
                 BlackHoleArgs.JetBrightmut = 1.0;
                 BlackHoleArgs.JetSaturation = 0.0;
                 BlackHoleArgs.JetShiftMax = 3.0;
@@ -1978,35 +2529,41 @@ void FApplication::ProcessInput()
         }
         wasPDown = isPDown;
 
+        static bool wasCtrlAltSDown = false;
+        bool isCtrlDown = glfwGetKey(_Window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(_Window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
+        bool isAltDown = glfwGetKey(_Window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(_Window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS;
+        bool isSDownLocal = glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS;
+
+        if (isCtrlDown && isAltDown && isSDownLocal && !wasCtrlAltSDown)
+        {
+            g_bRequestScreenshot = true;
+        }
+        wasCtrlAltSDown = isCtrlDown && isAltDown && isSDownLocal;
 
         if (glfwGetKey(_Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         {
             glfwSetWindowShouldClose(_Window, GLFW_TRUE);
         }
 
-        if (glfwGetKey(_Window, GLFW_KEY_W) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kForward);
-
-        if (glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kBack);
-
-        if (glfwGetKey(_Window, GLFW_KEY_A) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kLeft);
-
-        if (glfwGetKey(_Window, GLFW_KEY_D) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRight);
-
-        if (glfwGetKey(_Window, GLFW_KEY_R) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kUp);
-
-        if (glfwGetKey(_Window, GLFW_KEY_F) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kDown);
-
-        if (glfwGetKey(_Window, GLFW_KEY_Q) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollLeft);
-
-        if (glfwGetKey(_Window, GLFW_KEY_E) == GLFW_PRESS)
-            _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollRight);
+        if (!isCtrlDown && !isAltDown)
+        {
+            if (glfwGetKey(_Window, GLFW_KEY_W) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kForward);
+            if (glfwGetKey(_Window, GLFW_KEY_S) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kBack);
+            if (glfwGetKey(_Window, GLFW_KEY_A) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kLeft);
+            if (glfwGetKey(_Window, GLFW_KEY_D) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRight);
+            if (glfwGetKey(_Window, GLFW_KEY_R) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kUp);
+            if (glfwGetKey(_Window, GLFW_KEY_F) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kDown);
+            if (glfwGetKey(_Window, GLFW_KEY_Q) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollLeft);
+            if (glfwGetKey(_Window, GLFW_KEY_E) == GLFW_PRESS)
+                _FreeCamera->ProcessKeyboard(SysSpa::FCamera::EMovement::kRollRight);
+        }
     }
 }
 

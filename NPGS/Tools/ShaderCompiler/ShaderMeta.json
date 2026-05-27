@@ -5,7 +5,7 @@
   "PreBloom.frag.spv": "5cc2c322f4a7efcdf950bfe78f7c6274",
   "GaussBlur.frag.spv": "8209110eac499bec30aacc56ce066ac2",
   "BlackHole.frag.spv": "9ea13f5571fc66dc59de94179fcf5907",
-  "ColorBlend.frag.spv": "170a16c27d1f6a29cc781403c4f22eff",
+  "ColorBlend.frag.spv": "edaf58f050e7c821d4bf5aca06350a77",
   "PostProcess.frag.spv": "2c09fe8968e51e57af5ebafa313a2157",
   "PostProcess.vert.spv": "b3a294721715a88bd25e4fc7d0c6bfaf",
   "ScreenQuad.vert.spv": "2d0bb3867ac40f1404bf5eb99dee818d",

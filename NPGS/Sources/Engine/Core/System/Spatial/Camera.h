@@ -52,6 +52,7 @@ public:
     void ProcessModeChange();
     void ProcessSwayMovement(double OffsetX, double OffsetY);
     void ResetSway();
+    void TeleportOrbit(float Yaw, float Pitch);
     void SetOrientation(const glm::quat& Orientation);
     void SetCameraVector(EVectorType Type, const glm::vec3& NewVector);
     void SetCameraMode(bool bIsOrbiting);

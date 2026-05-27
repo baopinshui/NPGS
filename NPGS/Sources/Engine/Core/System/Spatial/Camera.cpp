@@ -28,7 +28,7 @@ FCamera::FCamera(const glm::vec3& Position, float Sensitivity, float Speed, floa
     _Theta(0.0f),
     _Phi(45.0f),
     _DistanceToOrbitalCenter(1.0f),
-    _ObjectivetTargetDistanceToOrbitalCenter(0.0001f),
+    _ObjectivetTargetDistanceToOrbitalCenter(0.0003f),
     _TimeSinceModeChange(10.0),
     _bIsOrbiting(true),
     _ObjectiveSwayYaw(0.0f),
@@ -279,6 +279,37 @@ void FCamera::ResetSway()
     _ObjectiveSwayYaw = 0.0f;
     _ObjectiveSwayPitch = 0.0f;
 }
+
+
+void FCamera::TeleportOrbit(float Yaw, float Pitch)
+{
+    if (!_bIsOrbiting) return;
+
+    _Theta = Yaw;
+    while (_Theta >= 360.0f) _Theta -= 360.0f;
+    while (_Theta < 0.0f) _Theta += 360.0f;
+
+    _Phi = Pitch;
+    _Phi = std::clamp(_Phi, 0.0f, 180.0f);
+
+    // 2. 清空所有鼠标或键盘注入的“平滑目标/缓存变量”，防止tp后镜头继续滑动
+    _ObjectivetOffsetX = 0.0;
+    _ObjectivetOffsetY = 0.0;
+    _InputOrbitAxis = glm::vec2(0.0f);
+
+    _ObjectiveSwayYaw = 0.0f;
+    _ObjectiveSwayPitch = 0.0f;
+    _CurrentSwayYaw = 0.0f;
+    _CurrentSwayPitch = 0.0f;
+
+    _DistanceToOrbitalCenter = _ObjectivetTargetDistanceToOrbitalCenter;
+    _OrbitalCenter = _ObjectivetOrbitalCenter;
+    _AxisDir = _ObjectivetAxisDir;
+
+    ProcessOrbital(0.0, 0.0);
+}
+
+
 void FCamera::UpdateVectors()
 {
     _Orientation = glm::normalize(_Orientation);

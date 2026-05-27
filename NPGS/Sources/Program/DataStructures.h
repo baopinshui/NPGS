@@ -62,6 +62,7 @@ struct FBlackHoleArgs
     int   Grid;
     int   EnableHeatHaze;
     int   ObserverMode;
+    float Quality;
     float UniverseSign;
     float BlackHoleTime;
     float BlackHoleMassSol;
