@@ -61,7 +61,9 @@ struct FBlackHoleArgs
     int   InWhichUniverse;
     int   Grid;
     int   EnableHeatHaze;
+    int   EnableShadowCulling;
     int   ObserverMode;
+    int   Polarization;
     float Quality;
     float UniverseSign;
     float BlackHoleTime;
@@ -82,6 +84,7 @@ struct FBlackHoleArgs
     float BlackbodyIntensityExponent;
     float RedShiftColorExponent;
     float RedShiftIntensityExponent;
+    float PolarizationAngle;
     float HeatHaze;
     float BackgroundBrightmut;
     float PhotonRingBoost;

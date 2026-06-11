@@ -119,7 +119,9 @@ void GameScreen::OnEnter()
 		menu->AddLinear("InWhichUniverse", &BlackHoleArgs.InWhichUniverse, 0, 2);
         menu->AddLinear("Grid", &BlackHoleArgs.Grid, -1, 2);
         menu->AddLinear("EnableHeatHaze", &BlackHoleArgs.EnableHeatHaze, 0, 1);
+        menu->AddLinear("EnableShadowCulling", &BlackHoleArgs.EnableShadowCulling, 0, 1);
         menu->AddLinear("Mode", &BlackHoleArgs.ObserverMode, 0, 3);
+        menu->AddLinear("Polarization", &BlackHoleArgs.Polarization, 0, 2);
         menu->AddThrottle("Quality", &BlackHoleArgs.Quality);
         menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol,0.1f);
         menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);
@@ -138,6 +140,7 @@ void GameScreen::OnEnter()
         menu->AddThrottle("BlackbodyIntensityExponent", &BlackHoleArgs.BlackbodyIntensityExponent);
         menu->AddThrottle("RedShiftColorExponent", &BlackHoleArgs.RedShiftColorExponent);
         menu->AddThrottle("RedShiftIntensityExponent", &BlackHoleArgs.RedShiftIntensityExponent);
+        menu->AddLinear("PolarizationAngle", &BlackHoleArgs.PolarizationAngle,0.0f, 6.28318530716f);
 		menu->AddThrottle("HeatHaze", &BlackHoleArgs.HeatHaze);
 		menu->AddThrottle("BackgroundBrightmut", &BlackHoleArgs.BackgroundBrightmut);
 		menu->AddThrottle("PhotonRingBoost", &BlackHoleArgs.PhotonRingBoost);

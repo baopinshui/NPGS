@@ -151,6 +151,7 @@ void main()
             float cMax = max(max(Bg.r, Bg.g), Bg.b);
             float cMin = min(min(Bg.r, Bg.g), Bg.b);
             Bg.rgb = vec3(cMax + cMin) - Bg.rgb;
+            if(iWhitehole==0) Bg=vec4(0.0);
         }
         float invA = 1.0 - FinalColor.a;
         vec4 colorFactor = vec4(pow(invA, 1.0), pow(invA, 1.6), pow(invA, 2.5), 1.0);

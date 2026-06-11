@@ -45,7 +45,7 @@ FGameArgs GameArgs{};
 FBlackHoleArgs BlackHoleArgs{};
 FMatrices Matrices;
 FLightMaterial LightMaterial;
-float cfov = 20.0f;
+float cfov = 120.0f;
 float camsmth = 30.0f;
 _NPGS_BEGIN
 
@@ -449,9 +449,9 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Prepass","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","ObserverMode","Quality","UniverseSign",
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Prepass","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","EnableShadowCulling", "ObserverMode","Polarization","Quality","UniverseSign",
                      "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate","BackShiftMax", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
-                     , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
+                     , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","PolarizationAngle","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
         .Binding = 1,
         .Usage = vk::DescriptorType::eUniformBuffer
@@ -851,11 +851,11 @@ void FApplication::ExecuteMainRender()
                 float Q;
             };
             std::vector<PhysicsConfig> physicsConfigs = {
-                {-0.2f, 0.0f},
-                {-0.5f, 0.0f},
-                {-0.8f, 0.0f},
-                {-1.0f, 0.0f},
-                {-0.7f, 0.7f},
+               // {-0.2f, 0.0f},
+               // {-0.5f, 0.0f},
+               // {-0.8f, 0.0f},
+              //  {-1.0f, 0.0f},
+              //  {-0.7f, 0.7f},
                 {0.2f, 0.0f},
                 {0.5f, 0.0f},
                 {0.8f, 0.0f},
@@ -868,9 +868,9 @@ void FApplication::ExecuteMainRender()
                 float ThinRs;
             };
             std::vector<DiskShapeConfig> diskConfigs = {
-                {0.0f, 0.075f},
-                {0.0f, 0.5f},
                 {0.0f, 2.0f},
+                {0.0f, 0.5f},
+                {0.0f, 0.75f},
                 {0.0f, 25.0f},
                 {0.5f, 0.0f}
             };
@@ -884,11 +884,14 @@ void FApplication::ExecuteMainRender()
                 std::string NameSuffix;
             };
             std::vector<ScreenshotTask> captureTasks = {
-                {0, 20.0f, 0, 45.0f, "Univ0_FOV20_Grid0_Phi45"},
-                {1, 15.0f, 0, 80.0f, "Univ1_FOV15_Grid0_Phi80"},
-                {1, 15.0f, 0, 0.0f,  "Univ1_FOV15_Grid0_Phi0"},
+                {0, 15.0f, 0, 0.01f, "Univ0_FOV15_Grid0_Phi0.01"},
+                {0, 15.0f, 0, 17.0f, "Univ0_FOV15_Grid0_Phi17"},
+                {0, 15.0f, 0, 45.0f, "Univ0_FOV15_Grid0_Phi45"},
+                {0, 15.0f, 0, 15.0f, "Univ0_FOV15_Grid0_Phi15"},
+                {1, 15.0f, 0, 0.01f, "Univ1_FOV15_Grid0_Phi0.01"},
+                {1, 15.0f, 0, 17.0f, "Univ1_FOV15_Grid0_Phi17"},
                 {1, 15.0f, 0, 45.0f, "Univ1_FOV15_Grid0_Phi45"},
-                {1, 15.0f, 0, 90.0f, "Univ1_FOV15_Grid0_Phi90"},
+                {1, 15.0f, 0, 15.0f, "Univ1_FOV15_Grid0_Phi15"},
             };
 
             // 获取时间前缀并创建目录
@@ -1279,35 +1282,39 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.BlackHoleRelativeDiskNormal = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
                 BlackHoleArgs.BlackHoleRelativeDiskTangen = (glm::mat4_cast(_FreeCamera->GetOrientation()) * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
                 BlackHoleArgs.CameraVelocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+
                 BlackHoleArgs.DEBUG = 0;
                 BlackHoleArgs.Prepass = 1;
 				BlackHoleArgs.Whitehole = 1;
 				BlackHoleArgs.InWhichUniverse = 0;
                 BlackHoleArgs.Grid = 0;
 				BlackHoleArgs.EnableHeatHaze = 0;
-                BlackHoleArgs.ObserverMode = 0;
+				BlackHoleArgs.EnableShadowCulling = 0;
+                BlackHoleArgs.ObserverMode = 1;
+                BlackHoleArgs.Polarization = 0.0;
                 BlackHoleArgs.Quality = 1.0;
                 BlackHoleArgs.UniverseSign = 1.0;
                 BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
                 BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
-                BlackHoleArgs.Spin = 0.8f;
+                BlackHoleArgs.Spin = 0.95f;
                 BlackHoleArgs.Q = 0.0f;
                 BlackHoleArgs.Mu = 1.0f;
-                BlackHoleArgs.AccretionRate = (1e-8);
-				BlackHoleArgs.BackShiftMax = 1.02f;
-                BlackHoleArgs.InterRadiusRs = 1.0;
-                BlackHoleArgs.OuterRadiusRs = 25;
+                BlackHoleArgs.AccretionRate = (2e-4);
+				BlackHoleArgs.BackShiftMax = 1.5f;
+                BlackHoleArgs.InterRadiusRs = 0.9;
+                BlackHoleArgs.OuterRadiusRs = 65;
                 BlackHoleArgs.ThinRs = 0.75;
-                BlackHoleArgs.Hopper = 0.24;
+                BlackHoleArgs.Hopper = 0.0;
                 BlackHoleArgs.Brightmut = 1.0;
-                BlackHoleArgs.Darkmut = 0.0;
-                BlackHoleArgs.Reddening = 0.0;
-                BlackHoleArgs.Saturation = 0.0;
-                BlackHoleArgs.BlackbodyIntensityExponent = 4.0;
+                BlackHoleArgs.Darkmut = 0.5;
+                BlackHoleArgs.Reddening = 0.3;
+                BlackHoleArgs.Saturation = 0.5;
+                BlackHoleArgs.BlackbodyIntensityExponent = 0.5;
                 BlackHoleArgs.RedShiftColorExponent = 1.0;
                 BlackHoleArgs.RedShiftIntensityExponent = 4.0;
+                BlackHoleArgs.PolarizationAngle = 0.0;
 				BlackHoleArgs.HeatHaze = 0.0;
-				BlackHoleArgs.BackgroundBrightmut = 0.0;
+				BlackHoleArgs.BackgroundBrightmut = 1.0;
 				BlackHoleArgs.PhotonRingBoost = 0.0;
 				BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
 				BlackHoleArgs.BoostRot = 0.0;
@@ -1315,6 +1322,48 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.JetBrightmut = 1.0;
                 BlackHoleArgs.JetSaturation = 0.0;
                 BlackHoleArgs.JetShiftMax = 3.0;
+
+
+
+                //BlackHoleArgs.DEBUG = 0;
+                //BlackHoleArgs.Prepass = 1;
+                //BlackHoleArgs.Whitehole = 1;
+                //BlackHoleArgs.InWhichUniverse = 0;
+                //BlackHoleArgs.Grid = 0;
+                //BlackHoleArgs.EnableHeatHaze = 0;
+                //BlackHoleArgs.EnableShadowCulling = 0;
+                //BlackHoleArgs.ObserverMode = 0;
+                //BlackHoleArgs.Polarization = 0.0;
+                //BlackHoleArgs.Quality = 1.0;
+                //BlackHoleArgs.UniverseSign = 1.0;
+                //BlackHoleArgs.BlackHoleTime = GameTime * kSpeedOfLight / Rs / kLightYearToMeter;
+                //BlackHoleArgs.BlackHoleMassSol = 1.49e7f;
+                //BlackHoleArgs.Spin = 0.8f;
+                //BlackHoleArgs.Q = 0.0f;
+                //BlackHoleArgs.Mu = 1.0f;
+                //BlackHoleArgs.AccretionRate = (1e-8);
+                //BlackHoleArgs.BackShiftMax = 1.02f;
+                //BlackHoleArgs.InterRadiusRs = 1.0;
+                //BlackHoleArgs.OuterRadiusRs = 25;
+                //BlackHoleArgs.ThinRs = 0.75;
+                //BlackHoleArgs.Hopper = 0.24;
+                //BlackHoleArgs.Brightmut = 1.0;
+                //BlackHoleArgs.Darkmut = 0.0;
+                //BlackHoleArgs.Reddening = 0.0;
+                //BlackHoleArgs.Saturation = 0.0;
+                //BlackHoleArgs.BlackbodyIntensityExponent = 4.0;
+                //BlackHoleArgs.RedShiftColorExponent = 1.0;
+                //BlackHoleArgs.RedShiftIntensityExponent = 4.0;
+                //BlackHoleArgs.PolarizationAngle = 0.0;
+                //BlackHoleArgs.HeatHaze = 0.0;
+                //BlackHoleArgs.BackgroundBrightmut = 0.0;
+                //BlackHoleArgs.PhotonRingBoost = 0.0;
+                //BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
+                //BlackHoleArgs.BoostRot = 0.0;
+                //BlackHoleArgs.JetRedShiftIntensityExponent = 4.0;
+                //BlackHoleArgs.JetBrightmut = 1.0;
+                //BlackHoleArgs.JetSaturation = 0.0;
+                //BlackHoleArgs.JetShiftMax = 3.0;
 
             }
             else
