@@ -414,7 +414,9 @@ void FApplication::ExecuteMainRender()
         vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
     AssetManager->AddAsset<Art::FTexture2D>(
         "stage4", TextureAllocationCreateInfo, "stage4.png", vk::Format::eR8G8B8A8Unorm,
-
+        vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
+    AssetManager->AddAsset<Art::FTexture2D>(
+        "NPGSTexture", TextureAllocationCreateInfo, "penrose.png", vk::Format::eR8G8B8A8Unorm,
         vk::Format::eR8G8B8A8Unorm, vk::ImageCreateFlags(), false, false);
 
 
@@ -435,6 +437,7 @@ void FApplication::ExecuteMainRender()
     auto* stage2 = AssetManager->GetAsset<Art::FTexture2D>("stage2");
     auto* stage3 = AssetManager->GetAsset<Art::FTexture2D>("stage3");
     auto* stage4 = AssetManager->GetAsset<Art::FTexture2D>("stage4");
+    auto* NPGSTexture = AssetManager->GetAsset<Art::FTexture2D>("NPGSTexture");
     Grt::FShaderResourceManager::FUniformBufferCreateInfo GameArgsCreateInfo
     {
         .Name = "GameArgs",
@@ -449,8 +452,10 @@ void FApplication::ExecuteMainRender()
     Grt::FShaderResourceManager::FUniformBufferCreateInfo BlackHoleArgsCreateInfo
     {
         .Name = "BlackHoleArgs",
-        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity","DEBUG","Prepass","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","EnableShadowCulling", "ObserverMode","Polarization","Quality","UniverseSign",
-                     "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate","BackShiftMax", "InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
+        .Fields = { "InverseCamRot;", "BlackHoleRelativePosRs", "BlackHoleRelativeDiskNormal","BlackHoleRelativeDiskTangen","CameraVelocity",
+                    "DEBUG","Prepass","Whitehole","InWhichUniverse","Grid","EnableHeatHaze","EnableShadowCulling", "ObserverMode","Polarization",
+                    "Quality","UniverseSign",
+                     "BlackHoleTime","BlackHoleMassSol", "Spin","Q", "Mu", "AccretionRate","BackShiftMax","DensestarsurfaceR","DensestarBlackbodyIntensityExponent","DensestarRedShiftColorExponent","DensestarRedShiftIntensityExponent","DensestarBrightmut","InterRadiusRs", "OuterRadiusRs","ThinRs","Hopper", "Brightmut","Darkmut","Reddening","Saturation"
                      , "BlackbodyIntensityExponent","RedShiftColorExponent","RedShiftIntensityExponent","PolarizationAngle","HeatHaze","BackgroundBrightmut","PhotonRingBoost","PhotonRingColorTempBoost","BoostRot","JetRedShiftIntensityExponent","JetBrightmut","JetSaturation","JetShiftMax","BlendWeight"},
         .Set = 0,                                                                                          
         .Binding = 1,
@@ -506,6 +511,9 @@ void FApplication::ExecuteMainRender()
         ImageInfos.push_back(Antiground2->CreateDescriptorImageInfo(Sampler));
         PrepassShader->WriteSharedDescriptors(1, 6, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
+        ImageInfos.clear();
+        ImageInfos.push_back(NPGSTexture->CreateDescriptorImageInfo(Sampler));
+        PrepassShader->WriteSharedDescriptors(1, 9, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
         // 2. Composite Descriptors (Set 1)
         // ----------------------------------------------------
         // Binding 0: History Texture
@@ -540,7 +548,9 @@ void FApplication::ExecuteMainRender()
         ImageInfos.push_back(Antiground2->CreateDescriptorImageInfo(Sampler));
         CompositeShader->WriteSharedDescriptors(1, 6, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
-
+        ImageInfos.clear();
+        ImageInfos.push_back(NPGSTexture->CreateDescriptorImageInfo(Sampler));
+        CompositeShader->WriteSharedDescriptors(1, 9, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
 
 
         ImageInfos.clear();
@@ -552,6 +562,7 @@ void FApplication::ExecuteMainRender()
         vk::DescriptorImageInfo VolumetricImageInfo(*FramebufferSampler, *VolumetricAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
         ImageInfos.push_back(VolumetricImageInfo);
         CompositeShader->WriteSharedDescriptors(1, 8, vk::DescriptorType::eCombinedImageSampler, ImageInfos);
+
 
         vk::DescriptorImageInfo BlackHoleImageInfo(
             *FramebufferSampler, *BlackHoleAttachment->GetImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -1284,8 +1295,8 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.CameraVelocity = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
                 BlackHoleArgs.DEBUG = 0;
-                BlackHoleArgs.Prepass = 1;
-				BlackHoleArgs.Whitehole = 1;
+                BlackHoleArgs.Prepass = 0;
+				BlackHoleArgs.Whitehole = 0;
 				BlackHoleArgs.InWhichUniverse = 0;
                 BlackHoleArgs.Grid = 0;
 				BlackHoleArgs.EnableHeatHaze = 0;
@@ -1301,9 +1312,17 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.Mu = 1.0f;
                 BlackHoleArgs.AccretionRate = (2e-4);
 				BlackHoleArgs.BackShiftMax = 1.5f;
-                BlackHoleArgs.InterRadiusRs = 0.9;
-                BlackHoleArgs.OuterRadiusRs = 65;
-                BlackHoleArgs.ThinRs = 0.75;
+
+                BlackHoleArgs.DensestarsurfaceR = 0.0;
+                BlackHoleArgs.DensestarBlackbodyIntensityExponent = 4.0;
+                BlackHoleArgs.DensestarRedShiftColorExponent = 1.0;
+                BlackHoleArgs.DensestarRedShiftIntensityExponent = 4.0;
+                BlackHoleArgs.DensestarBrightmut = 1.0;
+
+
+                BlackHoleArgs.InterRadiusRs = 0.5;
+                BlackHoleArgs.OuterRadiusRs = 12.0;
+                BlackHoleArgs.ThinRs = 0.1;
                 BlackHoleArgs.Hopper = 0.0;
                 BlackHoleArgs.Brightmut = 1.0;
                 BlackHoleArgs.Darkmut = 0.5;
@@ -1314,7 +1333,7 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.RedShiftIntensityExponent = 4.0;
                 BlackHoleArgs.PolarizationAngle = 0.0;
 				BlackHoleArgs.HeatHaze = 0.0;
-				BlackHoleArgs.BackgroundBrightmut = 1.0;
+				BlackHoleArgs.BackgroundBrightmut = 0.0;
 				BlackHoleArgs.PhotonRingBoost = 0.0;
 				BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
 				BlackHoleArgs.BoostRot = 0.0;

@@ -73,6 +73,11 @@ struct FBlackHoleArgs
     float Mu;
     float AccretionRate;
     float BackShiftMax;
+    float DensestarsurfaceR;                     
+    float DensestarBlackbodyIntensityExponent;   
+    float DensestarRedShiftColorExponent;        
+    float DensestarRedShiftIntensityExponent;    
+    float DensestarBrightmut;
     float InterRadiusRs;
     float OuterRadiusRs;
     float ThinRs;

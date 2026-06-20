@@ -129,6 +129,13 @@ void GameScreen::OnEnter()
         menu->AddThrottle("Mu", &BlackHoleArgs.Mu);
         menu->AddThrottle("AccretionRate", &BlackHoleArgs.AccretionRate);
         menu->AddLinear("BackShiftMax", &BlackHoleArgs.BackShiftMax,1.0f,10000.0f);
+
+        menu->AddThrottle("DensestarsurfaceR", &BlackHoleArgs.DensestarsurfaceR);
+        menu->AddThrottle("DensestarBlackbodyIntensityExponent", &BlackHoleArgs.DensestarBlackbodyIntensityExponent);
+        menu->AddThrottle("DensestarRedShiftColorExponent", &BlackHoleArgs.DensestarRedShiftColorExponent);
+        menu->AddThrottle("DensestarRedShiftIntensityExponent", &BlackHoleArgs.DensestarRedShiftIntensityExponent);
+        menu->AddThrottle("DensestarBrightmut", &BlackHoleArgs.DensestarBrightmut);
+
         menu->AddThrottle("InterRadiusLy", &BlackHoleArgs.InterRadiusRs);
         menu->AddThrottle("OuterRadiusLy", &BlackHoleArgs.OuterRadiusRs);
         menu->AddThrottle("ThinLy", &BlackHoleArgs.ThinRs);
