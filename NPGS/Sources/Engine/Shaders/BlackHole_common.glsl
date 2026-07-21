@@ -930,134 +930,61 @@ vec3 DebugInitialMomentum(
 
 
 
-
 // =============================================================================
-// Walker-Penrose 常数计算 (M=0.5 Kerr-Newman 适配版)
+// Walker-Penrose 常数计算 (无坐标奇点优化版)
 // 输入:
 //   X:     光子位置 (Cartesian KS, Y轴为自旋轴)
 //   P_cov: 光子下指标动量 P_mu
 //   F_cov: 光子下指标偏振 f_mu
-//   a:     有量纲自旋参数（0.5a*）
-//   Q:     有量纲电荷参数（0.5Q*）
+//   Physicala: 有量纲自旋参数（0.5a*）,M=0.5
+//   PhysicalQ: 有量纲电荷参数（0.5Q*）
 //   r:     由 KerrSchildRadius 算得的有符号半径
 // 返回:
-//   vec2:  Walker-Penrose 常数的 (实部, 虚部)即复常数 K = k_μν P^μ f^ν + i h_μν P^μ f^ν
+//   vec2:  Walker-Penrose 常数的 (实部, 虚部)
+// =============================================================================
 vec2 GetWalkerPenrose(vec4 X, vec4 P_cov, vec4 F_cov, float Physicala, float PhysicalQ, float r) {
-    if (abs(r) < 1e-6) return vec2(0.0); // 避免奇点
-
+    // 提取坐标成分
+    float x = X.x;
+    float y = X.y;
+    float z = X.z;
+    
+    // 提取下指标动量与偏振成分
+    float px = P_cov.x;
+    float py = P_cov.y;
+    float pz = P_cov.z;
+    float pt = P_cov.w; // 时间分量 P_t
+    
+    float fx = F_cov.x;
+    float fy = F_cov.y;
+    float fz = F_cov.z;
+    float ft = F_cov.w; // 时间分量 F_t
+    
+    // 由于 Kerr-Schild 坐标系的特殊性质，其复 Killing-Yano 张量的逆变分量 Y^uv 
+    // 与平直时空完全相同（H l^u l^v 项的缩并严格为0）。
+    // 因此我们可以直接使用平直时空的逆变度规提升指标计算守恒量。
+    // 在度规 +++- 符号下，P^i = P_i, P^t = -P_t。
+    
+    // 定义电型自旋向量 S_E^i = P^t F^i - F^t P^i = (-P_t) F_i - (-F_t) P_i = F_t P_i - P_t F_i
+    float S_Ex = ft * px - pt * fx;
+    float S_Ey = ft * py - pt * fy;
+    float S_Ez = ft * pz - pt * fz;
+    
+    // 定义磁型自旋向量 S_B^i = (P \times F)^i (纯空间叉乘)
+    float S_Bx = py * fz - pz * fy;
+    float S_By = pz * fx - px * fz;
+    float S_Bz = px * fy - py * fx;
+    
     float a = Physicala;
-    float Q = PhysicalQ;
-    float a2 = a * a;
-    float r2 = r * r;
-    float r2a2 = r2 + a2;
-    float sqrt_r2a2 = sqrt(r2a2);
-
-    float x = X.x, y = X.y, z = X.z;
-
-    // 用赤道投影 R 计算角度，避免 sqrt(1-cos²)
-    float R2 = x * x + z * z;
-    float R = sqrt(R2);
-    float sinTheta = R / sqrt_r2a2;               // 自然为 0 在极轴
-    float cosTheta = clamp(y / r, -1.0, 1.0);     // y = r cosθ
-    float sinTheta2 = sinTheta * sinTheta;
-
-    bool onAxis = (R < 1e-12);   // 极轴判定
-
-    float Delta = r2 - r + a2 + Q * Q;            // M=0.5, 2Mr = r
-    float Sigma = r2 + a2 * cosTheta * cosTheta;
-    float invSigma = 1.0 / max(1e-20, Sigma);
-    float invDelta = 1.0 / max(1e-20, Delta);
-
-    // ========== 1. 转换 P_cov (KS) → BL 协变分量 ==========
-    float P_t = P_cov.w;
-    float P_x = P_cov.x, P_y = P_cov.y, P_z = P_cov.z;
     
-    // 正确提取角动量
-    float P_phi_BL = x * P_z - z * P_x;
+    // 自旋方向为 Y 轴，即 a 向量为 (0, a, 0)
+    // 根据平直时空 Y_uv P^u F^v 缩并推导：
     
-    // 修正后的光子动量转换
-    float P_r_BL = ( (r2a2) * invDelta - 1.0 ) * P_t 
-                 + (Physicala * invDelta) * P_phi_BL  // 必须是正号
-                 + ((x * r + Physicala * z) / r2a2) * P_x // 注意是 + a*z
-                 + (y / r) * P_y
-                 + ((z * r - Physicala * x) / r2a2) * P_z; // 注意是 - a*x
+    // K_1 (实部) = - [ a \cdot S_E + r \cdot S_B ]
+    float K_re = -(a * S_Ey + x * S_Bx + y * S_By + z * S_Bz);
     
-    float P_theta_BL = 0.0;
-    float xPx_zPz = x * P_x + z * P_z;
-    if (!onAxis) {
-        P_theta_BL = cosTheta * sqrt_r2a2 * (xPx_zPz / R) - r * sinTheta * P_y;
-    }
-
-    // ========== 2. 转换 f_cov (KS) → BL 协变分量 ==========
-    // 对偏振矢量执行完全相同的雅可比变换
-    float f_t = F_cov.w;
-    float f_x = F_cov.x, f_y = F_cov.y, f_z = F_cov.z;
-    float f_phi_BL = x * f_z - z * f_x;
-    float f_r_BL = ( (r2a2) * invDelta - 1.0 ) * f_t 
-                 + (Physicala * invDelta) * f_phi_BL
-                 + ((x * r + Physicala * z) / r2a2) * f_x
-                 + (y / r) * f_y
-                 + ((z * r - Physicala * x) / r2a2) * f_z;
+    // K_2 (虚部) = - [ r \cdot S_E + a \cdot S_B ]
+    float K_im = -(x * S_Ex + y * S_Ey + z * S_Ez + a * S_By);
     
-    float f_theta_BL = 0.0;
-    float xfx_zfz = x * f_x + z * f_z;
-    if (!onAxis) {
-        f_theta_BL = cosTheta * sqrt_r2a2 * (xfx_zfz / R) - r * sinTheta * f_y;
-    }
-    
-    // ========== 3. 度规逆分量（无奇异） ==========
-    float g_tphi = -a * (r - Q * Q) * invSigma * invDelta;   // 2Mr - Q^2
-    float g_tt = -((r2a2) * (r2a2) - Delta * a2 * sinTheta2) * invSigma * invDelta;
-    float g_rr = Delta * invSigma;
-    float g_thth = invSigma;
-
-    // ========== 4. 升指标（BL 逆变分量） ==========
-    float P_t_con = g_tt * P_t + g_tphi * P_phi_BL;
-    float P_r_con = g_rr * P_r_BL;
-    float P_theta_con = g_thth * P_theta_BL;
-
-    float f_t_con = g_tt * f_t + g_tphi * f_phi_BL;
-    float f_r_con = g_rr * f_r_BL;
-    float f_theta_con = g_thth * f_theta_BL;
-
-    // ========== 5. 正则化 φ 逆变分量 (乘以 sinθ 或 sin²θ) ==========
-    float P_phi_s1 = 0.0, P_phi_s2 = 0.0;
-    float f_phi_s1 = 0.0, f_phi_s2 = 0.0;
-
-    if (!onAxis) {
-        float invR = 1.0 / R;
-        float xPz_zPx = x * P_z - z * P_x;   // = P_phi_BL
-        float xfz_zfx = x * f_z - z * f_x;   // = f_phi_BL
-
-        // P_φ / sinθ = √(r²+a²) * (x P_z - z P_x) / R
-        float P_phi_over_sin = sqrt_r2a2 * xPz_zPx * invR;
-        float f_phi_over_sin = sqrt_r2a2 * xfz_zfx * invR;
-
-        float common_ = (Delta - a2 * sinTheta2) * invSigma * invDelta;
-
-        P_phi_s2 = sinTheta2 * g_tphi * P_t + common_ * P_phi_BL;
-        P_phi_s1 = sinTheta  * g_tphi * P_t + common_ * P_phi_over_sin;
-
-        f_phi_s2 = sinTheta2 * g_tphi * f_t + common_ * f_phi_BL;
-        f_phi_s1 = sinTheta  * g_tphi * f_t + common_ * f_phi_over_sin;
-    }
-
-    // ========== 6. Walker-Penrose 常数 ==========
-    float tr = P_t_con * f_r_con - P_r_con * f_t_con;
-    float ttheta = P_t_con * f_theta_con - P_theta_con * f_t_con;
-    float rphi2 = P_r_con * f_phi_s2 - P_phi_s2 * f_r_con;
-    float thetaphi1 = P_theta_con * f_phi_s1 - P_phi_s1 * f_theta_con;
-
-    float K_re = r * tr
-               + a2 * cosTheta * sinTheta * ttheta
-               + a * r * rphi2
-               + a * (r2a2) * cosTheta * thetaphi1;
-
-    float K_im = a * cosTheta * tr
-               - a * r * sinTheta * ttheta
-               + a2 * cosTheta * rphi2
-               - r * (r2a2) * thetaphi1;
-
     return vec2(K_re, K_im);
 }
 // 求解偏振在屏幕XY轴的投影
@@ -4666,7 +4593,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         LastP_cov_ingoing = P_cov_ingoing; // [新增] 初始化 LastP_cov
     }
     // ----------------------------------------
-
+    KerrGeometry geo;
+    ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, isoutgoing, geo);
     while (bShouldContinueMarchRay)
     {
         DistanceToBlackHole = length(X.xyz);
@@ -4677,9 +4605,6 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             break;  //离开足够远
         }
         
-        KerrGeometry geo;
-        ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, isoutgoing, geo);
-
         if (CurrentUniverseSign > 0.0 && geo.r < TerminationR && !bIsNakedSingularity && TerminationR != -1.0 && iWhitehole==0) 
         { 
             bShouldContinueMarchRay = false;
@@ -4687,6 +4612,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             if(iDEBUG==1) Result += vec4(0.0, 0.3, 0.3, 0.0); 
             break;  //视界判定情况1，直接进入视界判定区
         }
+
         if (Count >int(float( MaxStep)*iQuality*(1.0+0.3*iQuality))) 
         { 
             bShouldContinueMarchRay = false; 
@@ -4743,12 +4669,14 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
 
         if(iWhitehole == 1 && !bIsNakedSingularity && geo.r < InnerHorizonR && lastR > InnerHorizonR) universeoffset++;    
 
+        int allow_uni=3;
+        if(1==1) allow_uni=1;
         if (iWhitehole==0 && RadialTurningCounts > 2 ) 
         {
             bShouldContinueMarchRay = false; bWaitCalBack = false;
             if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
             break;//识别剔除束缚态光子轨道
-        }else if((bIsNakedSingularity&&RadialTurningCounts > 4) || (!bIsNakedSingularity&&(universeoffset>3||RadialTurningCounts > 8)))
+        }else if((bIsNakedSingularity&&RadialTurningCounts > 4) || (!bIsNakedSingularity&&(universeoffset>allow_uni||RadialTurningCounts > 8)))
         {
             bShouldContinueMarchRay = false; bWaitCalBack = false;
             if(iDEBUG==1) Result += vec4(0.3, 0.0, 0.3, 1.0); 
@@ -4789,7 +4717,7 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
                 }
             }
         }
-        //if(iWhitehole==0 && !bIsNakedSingularity&&  ( (  (geo.r > InnerHorizonR && geo.r < EventHorizonR ) || (geo.r > EventHorizonR && lastR < InnerHorizonR) || (lastR > EventHorizonR && geo.r < InnerHorizonR) ) && E_conserved<0.0)){ bShouldContinueMarchRay = false;bWaitCalBack = false; }
+
         //对动量和位置及其导数做自适应步长。对电荷做自适应步长（Q贡献r^-2项
         float rho = length(X.xz);
         float DistRing = sqrt(X.y * X.y + pow(rho - abs(PhysicalSpinA), 2.0));
@@ -4818,7 +4746,8 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         GravityFade = CubicInterpolate(max(min(1.0 - ( DistanceToBlackHole - 100.0) / (RaymarchingBoundary - 100.0), 1.0), 0.0));
         
         vec4 P_contra_step = RaiseIndex(P_cov, geo);
-        if (P_contra_step.w > 10000.0*iQuality && !bIsNakedSingularity && CurrentUniverseSign > 0.0) 
+        float Pdangerous=10000.0*max(1.0,pow(0.5/iSpin,3.0));
+        if (P_contra_step.w > Pdangerous*iQuality && !bIsNakedSingularity && CurrentUniverseSign > 0.0) 
         { 
             bShouldContinueMarchRay = false; 
             bWaitCalBack = false;
@@ -4860,8 +4789,20 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
             float rho_cross = length(mix(LastX.xz, X.xz, t_cross));
             if (rho_cross < abs(PhysicalSpinA)) CurrentUniverseSign *= -1.0;
         }
-
-       
+        ComputeGeometryScalars(X.xyz, PhysicalSpinA, PhysicalQ, GravityFade, CurrentUniverseSign, isoutgoing, geo);
+        bool ShowInnerGrid=true;
+        if (iWhitehole == 0 && !bIsNakedSingularity && //类似于视界判定情况1，直接进入视界判定区，这个在有网格也生效.这个判定和上面的直接进入判定以及更下面的不可逃逸剔除有重叠，但这个必须在最前面（），为了InnerGrid不漏光，因为ks系步长可以一次从外视界外进到内视界内，导致在外面看到内视界
+            ( 
+                (lastR > EventHorizonR && geo.r < EventHorizonR) ||                                                                   // 1. 上一步外视界外，这一步外视界内
+                (lastR > InnerHorizonR && geo.r < InnerHorizonR) ||                                                                   // 2. 上一步内视界外，这一步内视界内
+                (lastR > EventHorizonR && geo.r < InnerHorizonR) ||                                                                   // 3. 上一步外视界外，这一步内视界内
+                (lastR < EventHorizonR && lastR > InnerHorizonR && geo.r < EventHorizonR && geo.r > InnerHorizonR && geo.r < lastR)   // 4. 两步都在视界间但是向内了
+            )
+        ){ 
+            bShouldContinueMarchRay = false; 
+            bWaitCalBack = false; 
+            ShowInnerGrid=false;
+        }
         if (CurrentUniverseSign > 0.0 && iBlackHoleMassSol > 0.0 &&   int(33+iInWhichUniverse-universeoffset)%3==0       )
         {
            if(IsAccretionDiskVisible(iInterRadiusRs, iOuterRadiusRs, iThinRs, iHopper, iBrightmut, iDarkmut))
@@ -4932,12 +4873,10 @@ TraceResult TraceRay(vec2 FragUv, vec2 Resolution)
         }
         else if(iGrid==2)
         {
-            bool showInnerGrid=true;
-            if(!bIsNakedSingularity&&iWhitehole==0&&CameraStartR>InnerHorizonR) showInnerGrid=false;
             Result = GridColorSimple(Result, X, LastX, P_cov,LastP_cov,
                         PhysicalSpinA, 
                         PhysicalQ, isoutgoing, // 新增 isoutgoing 传参
-                        CurrentUniverseSign,-dLambda/iQuality,showInnerGrid);
+                        CurrentUniverseSign,-dLambda/iQuality,ShowInnerGrid);
         }
         //Result = DrawFallingWhiteDot(Result, X, LastX, P_cov,LastP_cov,
         //                PhysicalSpinA, 
