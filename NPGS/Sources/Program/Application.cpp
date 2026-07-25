@@ -1,3 +1,4 @@
+//baopinsui的话：这个部分充满不规范的一次性代码，（因为这不是我的强项)，目前我最得意的作品请见blackhole_commoc.glsl
 #include "Application.h"
 #include <cmath>
 #include <cstddef>
@@ -2047,8 +2048,8 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.DEBUG = 0;
                 //BlackHoleArgs.Prepass = 1;
                 BlackHoleArgs.Prepass = 0;
-                //BlackHoleArgs.Whitehole = 0;
-                BlackHoleArgs.Whitehole = 1;
+                BlackHoleArgs.Whitehole = 0;
+                //BlackHoleArgs.Whitehole = 1;
                 BlackHoleArgs.InWhichUniverse = 0;
                 BlackHoleArgs.Grid = 0;
                 BlackHoleArgs.EnableHeatHaze = 0;
@@ -2080,21 +2081,21 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.ThinRs = 0.75;
                 BlackHoleArgs.Hopper = 0.4;
                 BlackHoleArgs.Brightmut = 1.0;
-                //BlackHoleArgs.Darkmut = 0.5;
-                //BlackHoleArgs.Reddening = 0.3;
-                //BlackHoleArgs.Saturation = 0.5;
-                BlackHoleArgs.Darkmut = 0.0;
-                BlackHoleArgs.Reddening = 0.0;
-                BlackHoleArgs.Saturation = 0.0;
-                //BlackHoleArgs.BlackbodyIntensityExponent = 0.5;
-                BlackHoleArgs.BlackbodyIntensityExponent = 4.0;
+                BlackHoleArgs.Darkmut = 0.5;
+                BlackHoleArgs.Reddening = 0.3;
+                BlackHoleArgs.Saturation = 0.5;
+                //BlackHoleArgs.Darkmut = 0.0;
+                //BlackHoleArgs.Reddening = 0.0;
+                //BlackHoleArgs.Saturation = 0.0;
+                BlackHoleArgs.BlackbodyIntensityExponent = 1.0;
+                //BlackHoleArgs.BlackbodyIntensityExponent = 4.0;
                 BlackHoleArgs.RedShiftColorExponent = 1.0;
                 BlackHoleArgs.RedShiftIntensityExponent = 4.0;
                 BlackHoleArgs.ImageRotationSpeed = 0.00765619656 * (3.06 / 3.0);
                 BlackHoleArgs.PolarizationAngle = 0.0;
                 BlackHoleArgs.HeatHaze = 0.0;
-                //BlackHoleArgs.BackgroundBrightmut = 0.5;
-                BlackHoleArgs.BackgroundBrightmut = 0.0;
+                BlackHoleArgs.BackgroundBrightmut = 0.5;
+                //BlackHoleArgs.BackgroundBrightmut = 0.0;
                 BlackHoleArgs.PhotonRingBoost = 0.0;
                 BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
                 BlackHoleArgs.BoostRot = 0.0;
@@ -3975,6 +3976,104 @@ void FApplication::RenderDebugUI()
         {
             ImGui::Text("Real time to 0.1c: N/A (No thrust)");
         }
+        // =========================================================================
+// [新增] 瞬间变速功能：应用给定快度(Rapidity)的洛伦兹推演(Lorentz Boost)
+// =========================================================================
+        ImGui::Separator();
+        ImGui::Text("--- Instantaneous Boost (Rapidity) ---");
+        static float s_TargetRapidity = 0.0f;
+
+        ImGui::InputFloat("Add Rapidity (dy)", &s_TargetRapidity, 0.1f, 1.0f, "%.4f");
+
+        // 我们提供两种加速方式：沿视线、沿轨道切向
+        bool bBoostLook = ImGui::Button("Boost along Look Dir (Forward)");
+        ImGui::SameLine();
+        bool bBoostTangent = ImGui::Button("Boost along Tangent (Velocity)");
+
+        if (bBoostLook || bBoostTangent)
+        {
+            double y = s_TargetRapidity;
+            double cosh_y = std::cosh(y);
+            double sinh_y = std::sinh(y);
+
+            // 获取当前度规，用于计算内积
+            double g_down[4][4], g_up[4][4], dummy_r;
+            double a = BlackHoleArgs.Spin * 0.5;
+            double Q = BlackHoleArgs.Q * 0.5;
+            GeodesicIntegrator::ComputeMetric(g_GeoState, a, Q, 1.0, g_UniverseSign, g_isOutgoing, g_down, g_up, dummy_r);
+
+            auto dot = [&](const double* A, const double* B)
+            {
+                double sum = 0.0;
+                for (int i = 0; i < 4; ++i)
+                    for (int j = 0; j < 4; ++j)
+                        sum += g_down[i][j] * A[i] * B[j];
+                return sum;
+            };
+
+            double old_U[4] = { g_GeoState[4], g_GeoState[5], g_GeoState[6], g_GeoState[7] };
+            double E_boost[4] = { 0.0, 0.0, 0.0, 0.0 };
+
+            if (bBoostLook)
+            {
+                // 【方式一：沿视线前方】提取相机局部 -Z 轴
+                glm::mat4 headRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
+                for (int j = 0; j < 3; ++j)
+                {
+                    double c_j = -headRot[2][j];
+                    for (int i = 0; i < 4; ++i) E_boost[i] += c_j * g_GeoState[8 + 4 * j + i];
+                }
+            }
+            else if (bBoostTangent)
+            {
+                // 【方式二：沿轨道切向】将纯空间速度投影到正交平面上
+                double D[4] = { g_GeoState[4], g_GeoState[5], g_GeoState[6], 0.0 };
+                double dot_DU = dot(D, old_U);
+
+                // D_perp = D + (D·U)U (由于 U·U = -1)
+                for (int i = 0; i < 4; ++i) E_boost[i] = D[i] + dot_DU * old_U[i];
+
+                double norm2 = dot(E_boost, E_boost);
+                if (norm2 > 1e-12)
+                {
+                    double inv_norm = 1.0 / std::sqrt(norm2);
+                    for (int i = 0; i < 4; ++i) E_boost[i] *= inv_norm;
+                }
+                else
+                {
+                    // 若完全静止(如下落初始状态)，切向退化为视线向
+                    glm::mat4 headRot = glm::mat4_cast(glm::conjugate(_FreeCamera->GetOrientation()));
+                    for (int j = 0; j < 3; ++j)
+                    {
+                        double c_j = -headRot[2][j];
+                        for (int i = 0; i < 4; ++i) E_boost[i] += c_j * g_GeoState[8 + 4 * j + i];
+                    }
+                }
+            }
+
+            // 1. 主动洛伦兹变换：更新 4-速度 U' = cosh(y) U + sinh(y) E_boost
+            for (int i = 0; i < 4; ++i)
+            {
+                g_GeoState[4 + i] = cosh_y * old_U[i] + sinh_y * E_boost[i];
+            }
+
+            // 2. 主动洛伦兹变换：更新3个空间标架 E_j'，保持与新 U' 严格正交
+            // 任意正交基矢的解析变换为：E_j' = E_j + (cosh(y) - 1)(E_j·E_boost)E_boost + sinh(y)(E_j·E_boost)U
+            for (int j = 0; j < 3; ++j)
+            {
+                double Ej[4] = { g_GeoState[8 + 4 * j], g_GeoState[8 + 4 * j + 1], g_GeoState[8 + 4 * j + 2], g_GeoState[8 + 4 * j + 3] };
+                double dot_Ej_Eboost = dot(Ej, E_boost);
+
+                for (int i = 0; i < 4; ++i)
+                {
+                    g_GeoState[8 + 4 * j + i] += (cosh_y - 1.0) * dot_Ej_Eboost * E_boost[i] + sinh_y * dot_Ej_Eboost * old_U[i];
+                }
+            }
+
+            // 3. 重新应用 Gram-Schmidt 过程稳定正交性
+            GeodesicIntegrator::GramSchmidt(g_GeoState, a, Q, 1.0, g_UniverseSign, g_isOutgoing);
+        }
+        // =========================================================================
     }
     ImGui::Separator();
     // ==========================================

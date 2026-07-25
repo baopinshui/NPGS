@@ -229,12 +229,12 @@ void GameScreen::OnEnter()
 
     if (auto vn_button = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.vnButton"))
     {
-        vn_button->SetData("i18ntext.ui.status.target_locked", "i18ntext.ui.action.launch_vn", "⌘", "i18ntext.ui.label.mass", &m_VN_mass, "i18ntext.ui.unit.kg", true);
+        vn_button->SetData("i18ntext.ui.status.command", "i18ntext.ui.action.launch_cmd", "⌘", "i18ntext.ui.label.empty", &m_VN_mass, "i18ntext.ui.label.empty", true);
         vn_button->on_toggle_callback = [this](bool want_expand)
         {
             if (want_expand)
             {
-                if (auto vn = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.vnButton")) { vn->SetActive(true); vn->SetStatus("i18ntext.ui.status.target_locked"); vn->SetExecutable(true); }
+                if (auto vn = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.vnButton")) { vn->SetActive(true); vn->SetStatus("i18ntext.ui.status.command"); vn->SetExecutable(true); }
                 if (auto beam = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.beamButton")) beam->SetActive(false);
                 if (auto rkkv = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.rkkvButton")) rkkv->SetActive(false);
                 if (auto msg = m_ui_root->FindElementAs<UI::PulsarButton>("gameScreenRoot.messageButton")) msg->SetActive(false);

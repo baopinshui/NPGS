@@ -140,9 +140,9 @@
           "en": "READY TO SEND",
           "zh": "准备发送"
         },
-        "target_locked": {
-          "en": "TARGET LOCKED",
-          "zh": "目标已锁定"
+        "command": {
+          "en": "Command available",
+          "zh": "命令可用"
         },
         "no_target": {
           "en": "NO TARGET",
@@ -158,9 +158,9 @@
           "en": "LAUNCH RKKV",
           "zh": "发射RKKV"
         },
-        "launch_vn": {
-          "en": "SEND VON NEUMANN PROBE",
-          "zh": "发送冯诺依曼探测器"
+        "launch_cmd": {
+          "en": "Execute command",
+          "zh": "执行命令"
         },
         "send_message": {
           "en": "SEND MESSAGE",
@@ -179,6 +179,10 @@
         "weight_time": {
           "en": "TIME COST",
           "zh": "用时"
+        },
+        "empty": {
+          "en": " ",
+          "zh": " "
         }
       },
       "unit": {
