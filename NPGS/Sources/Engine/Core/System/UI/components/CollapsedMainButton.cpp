@@ -11,7 +11,7 @@ CollapsedMainButton::CollapsedMainButton(const std::string& key1, const std::str
     m_width = Length::Stretch();
     m_height = Length::Stretch();
 
-
+    SetTooltip("i18ntext.tooltip.guide");
     // --- 2. 创建内部 VBox 布局容器 ---
     auto vbox = std::make_shared<VBox>();
     m_layout_vbox = vbox;

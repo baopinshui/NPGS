@@ -150,7 +150,7 @@ NeuralMenu::NeuralMenu(const std::string& main_button_key1, const std::string& m
     m_close_menu_btn->m_height = Length::Fixed(34.0f);
     m_close_menu_btn->on_click = [this]() { this->ToggleExpand(); };
     main_layout->AddChild(m_close_menu_btn);
-    ToggleExpand();
+   // ToggleExpand();
 }
 
 // 辅助函数：创建像 HTML 那样的 Key-Value 行

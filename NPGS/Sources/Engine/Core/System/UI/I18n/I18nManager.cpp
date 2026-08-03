@@ -54,7 +54,7 @@ I18nManager::I18nManager()
     // 默认加载第一个可用语言，或者一个固定的默认值
     if (!m_available_languages.empty())
     {
-        SetLanguage(m_available_languages[0].code);
+        SetLanguage(m_available_languages[1].code);
     }
     else
     {

@@ -140,11 +140,36 @@ void main()
     // 背景采样
     // -------------------------------------------------------------------------
 
+       // -------------------------------------------------------------------------
+    // 背景采样
+    // -------------------------------------------------------------------------
+
     if (FinalColor.a < 0.99 && ((CurrentStatus > 0.5 && CurrentStatus < 2.5) || CurrentStatus > 3.5)) 
     {
-        vec4 Bg = SampleBackground(CurrentDir, CurrentShift, CurrentStatus);
-        float rawStatus = CurrentStatus;            // 备份带小数的原始状态位
-        CurrentStatus   = round(rawStatus);         // 立即还原为纯整数，确保下方的判断不受影响
+        // =========================================================
+        // [新增] 屏幕空间偏导数计算立体角与放大率
+        // =========================================================
+        // 1. 透镜后光线在天空球上张开的立体角 (Lensed Solid Angle)
+        vec3 dDdx = dFdx(CurrentDir);
+        vec3 dDdy = dFdy(CurrentDir);
+        float LensedSolidAngle = length(cross(dDdx, dDdy));
+
+        // 2. 透镜前相机初始发出的光线张开的基准立体角 (Screen Solid Angle)
+        float Fov = tan(iFovRadians / 2.0);
+        vec3 ViewDirLocal = FragUvToDir(Uv, Fov, iResolution.xy);
+        vec3 dVdx = dFdx(ViewDirLocal);
+        vec3 dVdy = dFdy(ViewDirLocal);
+        float ScreenSolidAngle = length(cross(dVdx, dVdy));
+
+        // 3. 计算物理面积放大率 M = 原始立体角 / 变形后的立体角
+        float Magnification = ScreenSolidAngle / max(LensedSolidAngle, 1e-12);
+        // =========================================================
+
+        // 将放大率和屏幕立体角传入背景采样器
+        vec4 Bg = SampleBackground(CurrentDir, CurrentShift, CurrentStatus, Magnification, ScreenSolidAngle);
+        
+        float rawStatus = CurrentStatus;            
+        CurrentStatus   = round(rawStatus);         
         bool IsPositiveEnergy = abs(rawStatus - CurrentStatus) < 0.1;
         if (!IsPositiveEnergy) 
         {

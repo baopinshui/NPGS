@@ -29,6 +29,10 @@
         "en": "New Game",
         "zh": "来吧。"
       },
+      "guide": {
+        "en": "First, press Shift to turn off the input method\nThen, in Orbit Mode, WASD controls horizontal and vertical orbiting, and so does dragging the mouse.\nAdditionally, in Orbit Mode, right-click dragging tilts the head, and the middle mouse button resets the view (only in Orbit Mode).\nIn Free Mode, WS is forward/backward   AD is left/right  RF is up/down   QE is roll   mouse rotates the view   T switches modes   G moves the camera along the geodesic line   H hides the UI   o……（）\nThe third button on the left can be used to enter commands, for tp, the format is /tp x y z t ux uy uz",
+        "zh": "首先shift关输入法（笑\n然后，绕转模式下wasd是横向和纵向环绕，鼠标拖动也是。\n此外，绕转模式下鼠标右键拖动是偏头，中键回正（只在绕转模式）\n自由模式下ws前后   ad左右  rf上下   qe滚转   鼠标转视角 T切换模式 G使得相机沿测地线移动 H隐藏ui o……（）\n第三个左侧按钮可以输指令，tp，格式是/tp x y z t ux uy uz"
+      },
       "mode_god": {
         "en": "Real-time info, no light delay. Control any civilization.",
         "zh": "信息实时显示，没有光速延迟；随意控制任何文明。"
@@ -202,7 +206,7 @@
       "main_menu": {
         "title": {
           "en": "VON NEUMANN PROBE IN GALAXY",
-          "zh": "啮星者",
+          "zh": "当你看到这行字就知道我们没定下来NPGS的中文名",
           "en_flavor": "before the absence of hydrogen",
           "zh_flavor": "举目无氢之前"
         },

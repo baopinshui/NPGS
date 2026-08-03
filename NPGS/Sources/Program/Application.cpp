@@ -1,4 +1,4 @@
-//baopinsui的话：这个部分充满不规范的一次性代码，（因为这不是我的强项)，目前我最得意的作品请见blackhole_commoc.glsl
+//baopinsui的话：这个部分充满不规范的一次性代码，（因为这不是我的强项)，目前我最得意的作品请见blackhole_common.glsl
 #include "Application.h"
 #include <cmath>
 #include <cstddef>
@@ -2047,7 +2047,7 @@ void FApplication::ExecuteMainRender()
 
                 BlackHoleArgs.DEBUG = 0;
                 //BlackHoleArgs.Prepass = 1;
-                BlackHoleArgs.Prepass = 0;
+                BlackHoleArgs.Prepass = 1;
                 BlackHoleArgs.Whitehole = 0;
                 //BlackHoleArgs.Whitehole = 1;
                 BlackHoleArgs.InWhichUniverse = 0;
@@ -2066,7 +2066,7 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.Spin = 0.998f;
                 BlackHoleArgs.Q = 0.0f;
                 BlackHoleArgs.Mu = 1.0f;
-                BlackHoleArgs.AccretionRate = (1e-2);
+                BlackHoleArgs.AccretionRate = (1e-12);
                 BlackHoleArgs.BackShiftMax = 1.5f;
 
                 BlackHoleArgs.DensestarsurfaceR = 0.0;
@@ -2076,7 +2076,7 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.DensestarBrightmut = 1.0;
 
 
-                BlackHoleArgs.InterRadiusRs = 2.0;
+                BlackHoleArgs.InterRadiusRs = 200.0;
                 BlackHoleArgs.OuterRadiusRs = 25.0;
                 BlackHoleArgs.ThinRs = 0.75;
                 BlackHoleArgs.Hopper = 0.4;
@@ -2094,7 +2094,7 @@ void FApplication::ExecuteMainRender()
                 BlackHoleArgs.ImageRotationSpeed = 0.00765619656 * (3.06 / 3.0);
                 BlackHoleArgs.PolarizationAngle = 0.0;
                 BlackHoleArgs.HeatHaze = 0.0;
-                BlackHoleArgs.BackgroundBrightmut = 0.5;
+                BlackHoleArgs.BackgroundBrightmut = 2.0;
                 //BlackHoleArgs.BackgroundBrightmut = 0.0;
                 BlackHoleArgs.PhotonRingBoost = 0.0;
                 BlackHoleArgs.PhotonRingColorTempBoost = 0.0;
