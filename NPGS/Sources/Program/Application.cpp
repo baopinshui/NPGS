@@ -62,6 +62,8 @@ namespace GeodesicIntegrator
 {
 extern double g_ProperAcceleration[3];
 double g_ProperAcceleration[3] = { 0.0, 0.0, 0.0 };
+extern double g_CameraCharge;
+double g_CameraCharge = 0.0;
 extern double g_ProperTime;
 double g_ProperTime = 0.0;
 double GetIntermediateSign(const double StartX[4], const double CurrentX[4], double CurrentSign, double a)
@@ -121,7 +123,7 @@ void ComputeMetric(const double X[4], double a, double Q, double fade, double si
 }
 // 数值差分计算 Christoffel 符号
 // 解析计算 Kerr-Schild 度规的克氏符 (无数值差分，极其稳定且高效)
-void ComputeChristoffel(const double X[4], double a, double Q, double fade, double signR, bool isOut, double Gamma[4][4][4])
+void ComputeChristoffel(const double X[4], double a, double Q, double fade, double signR, bool isOut, double Gamma[4][4][4], double (*F_down)[4] = nullptr, double (*g_up_out)[4] = nullptr)
 {
     double x = X[0], y = X[1], z = X[2];
     double a2 = a * a;
@@ -225,6 +227,7 @@ void ComputeChristoffel(const double X[4], double a, double Q, double fade, doub
         for (int j = 0; j < 4; ++j)
         {
             g_up[i][j] = (i == j ? eta_up[i] : 0.0) - f * l_up[i] * l_up[j];
+            if (g_up_out) g_up_out[i][j] = g_up[i][j]; // [新增]：允许导出逆度规
         }
     }
 
@@ -261,12 +264,63 @@ void ComputeChristoffel(const double X[4], double a, double Q, double fade, doub
             }
         }
     }
+    // === [新增] 7. 顺风车计算 Kerr-Newman 电磁张量 (Faraday Tensor) ===
+    if (F_down)
+    {
+        // 矢量势 A_\mu = P * l_\mu, 其中 P = - Q r / \Sigma 
+        double P = -Q * r * r * r * D_inv * fade;
+        double dP[4] = { 0.0 };
+
+        for (int k = 0; k < 3; ++k)
+        {
+            // 利用除法法则计算 \partial_k P
+            double dN_P_k = -Q * 3.0 * r * r * dr[k];
+            double dD_k = 4.0 * r * r2 * dr[k];
+            if (k == 1) dD_k += 2.0 * a2 * y;
+            dP[k] = (dN_P_k * D - (-Q * r * r * r) * dD_k) * D_inv * D_inv * fade;
+        }
+        for (int mu = 0; mu < 4; ++mu)
+        {
+            for (int nu = 0; nu < 4; ++nu)
+            {
+                // \partial_\mu A_\nu
+                double d_mu_A_nu = 0.0;
+                if (mu < 3) d_mu_A_nu = dP[mu] * l_down[nu] + P * dl_down[mu][nu];
+
+                // \partial_\nu A_\mu
+                double d_nu_A_mu = 0.0;
+                if (nu < 3) d_nu_A_mu = dP[nu] * l_down[mu] + P * dl_down[nu][mu];
+
+                // F_{\mu\nu} = \partial_\mu A_\nu - \partial_\nu A_\mu
+                F_down[mu][nu] = d_mu_A_nu - d_nu_A_mu;
+            }
+        }
+    }
 }
 void EvaluateDerivatives(const double Y[20], double a, double Q, double fade, double signR, bool isOut, double dY[20])
 {
     double Gamma[4][4][4];
-    ComputeChristoffel(Y, a, Q, fade, signR, isOut, Gamma);
+    double F_down[4][4]; // [新增]
+    double g_up[4][4];   // [新增]
+    // 传入指针以索取附加几何量
+    ComputeChristoffel(Y, a, Q, fade, signR, isOut, Gamma, F_down, g_up);
+
     for (int i = 0; i < 4; ++i) dY[i] = Y[4 + i]; // dx/dtau = u
+
+    // === [新增] 计算洛伦兹加速度 a_{Lorentz}^\mu = (q/m) F^\mu_{~~\nu} U^\nu ===
+    double a_Lorentz_up[4] = { 0.0 };
+    double a_Lorentz_down[4] = { 0.0 };
+    if (g_CameraCharge != 0.0)
+    {
+        for (int mu = 0; mu < 4; ++mu)
+            for (int nu = 0; nu < 4; ++nu)
+                a_Lorentz_down[mu] += g_CameraCharge * F_down[mu][nu] * Y[4 + nu];
+
+        for (int mu = 0; mu < 4; ++mu)
+            for (int nu = 0; nu < 4; ++nu)
+                a_Lorentz_up[mu] += g_up[mu][nu] * a_Lorentz_down[nu];
+    }
+
     for (int i = 0; i < 4; ++i)
     {
         double sum = 0;
@@ -274,15 +328,27 @@ void EvaluateDerivatives(const double Y[20], double a, double Q, double fade, do
             for (int nu = 0; nu < 4; ++nu)
                 sum -= Gamma[i][mu][nu] * Y[4 + mu] * Y[4 + nu];
 
-        // === [新增]：加入固有加速度(火箭推力) a^\mu = \sum a^k E_{(k)}^\mu ===
+        // === [修改]：同时应用引擎飞船推力(火箭) 和 洛伦兹力 ===
         sum += g_ProperAcceleration[0] * Y[8 + i] +
             g_ProperAcceleration[1] * Y[12 + i] +
-            g_ProperAcceleration[2] * Y[16 + i];
+            g_ProperAcceleration[2] * Y[16 + i] +
+            a_Lorentz_up[i];
         dY[4 + i] = sum;
     }
+
     for (int a_idx = 0; a_idx < 3; ++a_idx)
     { // 平移输运方程
         int offset = 8 + 4 * a_idx;
+
+        // === [新增]：广义 Fermi-Walker Transport 约束量 a \cdot E_{(a_idx)} ===
+        double a_dot_E = g_ProperAcceleration[a_idx]; // 推力在局部标架的天然投影
+        if (g_CameraCharge != 0.0)
+        {
+            // 加上洛伦兹力的标架投影部分
+            for (int mu = 0; mu < 4; ++mu)
+                a_dot_E += a_Lorentz_down[mu] * Y[offset + mu];
+        }
+
         for (int i = 0; i < 4; ++i)
         {
             double sum = 0;
@@ -290,8 +356,8 @@ void EvaluateDerivatives(const double Y[20], double a, double Q, double fade, do
                 for (int nu = 0; nu < 4; ++nu)
                     sum -= Gamma[i][mu][nu] * Y[4 + mu] * Y[offset + nu];
 
-            // === [新增]：Fermi-Walker Transport项 u^\mu a^{(k)} 保证空间基底始终与四维速度正交 ===
-            sum += Y[4 + i] * g_ProperAcceleration[a_idx];
+            // === [修改]：Fermi-Walker Transport 确保相机在任何加速度下绝对刚性非旋转正交 ===
+            sum += Y[4 + i] * a_dot_E;
             dY[offset + i] = sum;
         }
     }
@@ -659,6 +725,7 @@ FMatrices Matrices;
 FLightMaterial LightMaterial;
 float cfov = 80.0f;
 float camsmth = 1.0f;
+float qfm = 0.0f;
 _NPGS_BEGIN
 
 namespace Art = Runtime::Asset;
@@ -3101,7 +3168,7 @@ void FApplication::update()
 {
     _FreeCamera->SetRotationSmoothCoefficient(camsmth);
     _FreeCamera->ProcessTimeEvolution(_DeltaTime);
-
+    GeodesicIntegrator::g_CameraCharge = qfm;
     CurrentTime = glfwGetTime();
     _LastDeltaTime = _DeltaTime;
     _DeltaTime = CurrentTime - LastFrameTime;

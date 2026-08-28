@@ -141,3 +141,4 @@ extern FMatrices Matrices;
 extern FLightMaterial LightMaterial;
 extern float cfov;
 extern float camsmth;
+extern float qfm;

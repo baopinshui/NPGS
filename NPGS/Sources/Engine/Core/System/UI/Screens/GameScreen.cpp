@@ -113,6 +113,7 @@ void GameScreen::OnEnter()
         menu->AddLinear("B", &ctx.m_theme.color_accent.z, 0.0f, 1.0f);
         menu->AddThrottle("Fov", &cfov);
         menu->AddLinear("camsmth", &camsmth, 0.0f, 100.0f);
+        menu->AddLinear("q/m", &qfm, -2.0f, 2.0f);
         menu->AddLinear("DEBUG", &BlackHoleArgs.DEBUG, 0,6);
         menu->AddLinear("Prepass", &BlackHoleArgs.Prepass, 0, 1);
 		menu->AddLinear("Whitehole", &BlackHoleArgs.Whitehole, 0, 1);

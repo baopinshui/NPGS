@@ -353,7 +353,7 @@ float GetKeplerianAngularVelocity(float Radius, float Rs, float PhysicalSpinA, f
     float denominator = Radius * Radius + PhysicalSpinA * sqrt_Term;
     return sqrt_Term / max(EPSILON, denominator);
 }
-
+//PhysicalSpinA和PhysicalQ是有量纲量
 //输入X^mu空间部分，输出bl系参数r
 float KerrSchildRadius(vec3 p, float PhysicalSpinA, float r_sign) {
     float r_sign_len = r_sign * length(p);
@@ -2021,7 +2021,6 @@ vec4 DiskColorPhy(vec4 BaseColor, vec4 RayPos, vec4 LastRayPos,
                  SampleColor.xyz = vec3(BrightWithoutRedshift);
                  SampleColor.a = Density;
 
-                 // 纯红盘特征
                  SampleColor.xyz *= KelvinToRgb(VisionTemperature); 
                  SampleColor.xyz *= pow(FreqRatio, RedShiftIntensityExponent); 
 
