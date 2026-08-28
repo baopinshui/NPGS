@@ -154,6 +154,11 @@ bool FVulkanUIRenderer::Initialize(GLFWwindow* window)
     init_info.MinImageCount = _context->GetSwapchainImageCount();
     init_info.ImageCount = _context->GetSwapchainImageCount();
     init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.UseDynamicRendering = true;
+    _colorAttachmentFormat = static_cast<VkFormat>(_context->GetSwapchainCreateInfo().imageFormat);
+    init_info.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    init_info.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    init_info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &_colorAttachmentFormat;
     init_info.Allocator = nullptr;
 
     init_info.CheckVkResultFn = [](VkResult err)
@@ -208,6 +213,20 @@ void FVulkanUIRenderer::BeginFrame()
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
+
+    // ImGui's GLFW backend derives this scale from glfwGetFramebufferSize().
+    // With a non-Retina MoltenVK CAMetalLayer, GLFW can still report the native
+    // 2x framebuffer while the Vulkan swapchain remains at logical resolution.
+    // Render and hit testing must instead share the swapchain coordinate scale.
+    ImGuiIO& io = ImGui::GetIO();
+    const vk::Extent2D SwapchainExtent = _context->GetSwapchainCreateInfo().imageExtent;
+    if (io.DisplaySize.x > 0.0f && io.DisplaySize.y > 0.0f)
+    {
+        io.DisplayFramebufferScale = ImVec2(
+            static_cast<float>(SwapchainExtent.width) / io.DisplaySize.x,
+            static_cast<float>(SwapchainExtent.height) / io.DisplaySize.y);
+    }
+
     ImGui::NewFrame();
 }
 

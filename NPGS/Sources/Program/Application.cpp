@@ -1001,6 +1001,22 @@ void FApplication::ExecuteMainRender()
         NpgsCoreError("Failed to initialize UI renderer");
         return;
     }
+    const vk::Format SceneOutputFormat = _VulkanContext->GetSwapchainCreateInfo().imageFormat;
+    NpgsCoreInfo("Scene output uses swapchain format {}.", static_cast<std::int32_t>(SceneOutputFormat));
+    auto RefreshSwapchainState = [&]()
+    {
+        const vk::Extent2D Extent = _VulkanContext->GetSwapchainCreateInfo().imageExtent;
+        // GLFW's framebuffer callback can report Retina pixel dimensions that
+        // differ from the CAMetalLayer surface extent selected by MoltenVK.
+        // Vulkan attachments and render areas must follow the swapchain extent.
+        _WindowSize = Extent;
+        _uiRenderer->Resize(Extent.width, Extent.height);
+    };
+    RefreshSwapchainState();
+    _VulkanContext->RegisterAutoRemovedCallbacks(
+        Grt::FVulkanContext::ECallbackType::kCreateSwapchain,
+        "RefreshSwapchainState",
+        RefreshSwapchainState);
     // using namespace Npgs::System::UI::;
 
 
@@ -1108,7 +1124,7 @@ void FApplication::ExecuteMainRender()
 
 
         SceneColorAttachment = std::make_unique<Grt::FColorAttachment>(
-            vk::Format::eR8G8B8A8Unorm, _WindowSize, 1, vk::SampleCountFlagBits::e1,
+            SceneOutputFormat, _WindowSize, 1, vk::SampleCountFlagBits::e1,
             vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
             vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
         );
@@ -1549,7 +1565,7 @@ void FApplication::ExecuteMainRender()
     PipelineManager->CreateGraphicsPipeline("BlackHoleCompositePipeline", "BlackHoleComposite", CompositeCreateInfoPack);
 
     // 3. Other Pipelines
-    std::array<vk::Format, 1> SceneColorFormat{ vk::Format::eR8G8B8A8Unorm };
+    std::array<vk::Format, 1> SceneColorFormat{ SceneOutputFormat };
     vk::PipelineRenderingCreateInfo BlendRenderingCreateInfo = vk::PipelineRenderingCreateInfo().setColorAttachmentCount(1).setColorAttachmentFormats(SceneColorFormat);
     Grt::FGraphicsPipelineCreateInfoPack BlendCreateInfoPack = CompositeCreateInfoPack; // 复用配置
     // 3. 修改 BlendPipeline 配置
@@ -1594,8 +1610,21 @@ void FApplication::ExecuteMainRender()
     {
         InFlightFences.emplace_back(vk::FenceCreateFlagBits::eSignaled);
         Semaphores_ImageAvailable.emplace_back(vk::SemaphoreCreateFlags());
-        Semaphores_RenderFinished.emplace_back(vk::SemaphoreCreateFlags());
     }
+    auto CreateRenderFinishedSemaphores = [&]()
+    {
+        Semaphores_RenderFinished.clear();
+        Semaphores_RenderFinished.reserve(_VulkanContext->GetSwapchainImageCount());
+        for (std::size_t i = 0; i != _VulkanContext->GetSwapchainImageCount(); ++i)
+        {
+            Semaphores_RenderFinished.emplace_back(vk::SemaphoreCreateFlags());
+        }
+    };
+    CreateRenderFinishedSemaphores();
+    _VulkanContext->RegisterAutoRemovedCallbacks(
+        Grt::FVulkanContext::ECallbackType::kCreateSwapchain,
+        "CreateRenderFinishedSemaphores",
+        CreateRenderFinishedSemaphores);
 
     std::vector<Grt::FVulkanCommandBuffer> GraphicsCommandBuffers(Config::Graphics::kMaxFrameInFlight);
     _VulkanContext->GetGraphicsCommandPool().AllocateBuffers(vk::CommandBufferLevel::ePrimary, GraphicsCommandBuffers);
@@ -1604,14 +1633,45 @@ void FApplication::ExecuteMainRender()
     std::uint32_t  CurrentFrame = 0;
     vk::ImageSubresourceRange SubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
 
-    // Init History Frame (保持不变)
+    // Initialize the temporal history to a deterministic black frame.  Merely
+    // transitioning from eUndefined makes the image legal to sample, but does
+    // not define its contents (MoltenVK commonly exposes that as green).
     auto InitHistoryFrame = [&]() -> void
     {
-        vk::ImageMemoryBarrier2 InitHistoryBarrier(vk::PipelineStageFlagBits2::eTopOfPipe, vk::AccessFlagBits2::eNone, vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, *HistoryAttachment->GetImage(), SubresourceRange);
-        vk::DependencyInfo InitialDependencyInfo = vk::DependencyInfo().setDependencyFlags(vk::DependencyFlagBits::eByRegion).setImageMemoryBarriers(InitHistoryBarrier);
         auto& CommandBuffer = _VulkanContext->GetTransferCommandBuffer();
         CommandBuffer.Begin();
-        CommandBuffer->pipelineBarrier2(InitialDependencyInfo);
+
+        vk::ImageMemoryBarrier2 PrepareClearBarrier(
+            vk::PipelineStageFlagBits2::eTopOfPipe,
+            vk::AccessFlagBits2::eNone,
+            vk::PipelineStageFlagBits2::eTransfer,
+            vk::AccessFlagBits2::eTransferWrite,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eTransferDstOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            *HistoryAttachment->GetImage(),
+            SubresourceRange);
+        CommandBuffer->pipelineBarrier2(
+            vk::DependencyInfo().setImageMemoryBarriers(PrepareClearBarrier));
+
+        CommandBuffer->clearColorImage(
+            *HistoryAttachment->GetImage(), vk::ImageLayout::eTransferDstOptimal,
+            vk::ClearColorValue(std::array<float, 4>{ 0, 0, 0, 0 }), SubresourceRange); // 历史帧清零
+
+        vk::ImageMemoryBarrier2 ReadyToSampleBarrier(
+            vk::PipelineStageFlagBits2::eTransfer,
+            vk::AccessFlagBits2::eTransferWrite,
+            vk::PipelineStageFlagBits2::eFragmentShader,
+            vk::AccessFlagBits2::eShaderRead,
+            vk::ImageLayout::eTransferDstOptimal,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::QueueFamilyIgnored,
+            vk::QueueFamilyIgnored,
+            *HistoryAttachment->GetImage(),
+            SubresourceRange);
+        CommandBuffer->pipelineBarrier2(
+            vk::DependencyInfo().setImageMemoryBarriers(ReadyToSampleBarrier));
         CommandBuffer.End();
         _VulkanContext->ExecuteGraphicsCommands(CommandBuffer);
     };
@@ -1636,6 +1696,12 @@ void FApplication::ExecuteMainRender()
             glfwWaitEvents();
         }
 
+        // All offscreen render targets are shared by the frame slots. Wait for
+        // the immediately preceding submission before reusing their layouts
+        // and contents; otherwise two frames can transition/write them at once.
+        const std::uint32_t PreviousFrame =
+            (CurrentFrame + Config::Graphics::kMaxFrameInFlight - 1) % Config::Graphics::kMaxFrameInFlight;
+        InFlightFences[PreviousFrame].Wait();
         InFlightFences[CurrentFrame].WaitAndReset();
 
         glfwPollEvents();
@@ -2457,6 +2523,12 @@ void FApplication::ExecuteMainRender()
                 0.0f, 1.0f
             );
             vk::Rect2D PrepassScissor({ 0, 0 }, CurrentHalfSize);
+            vk::Viewport FullViewport(
+                0.0f, static_cast<float>(_WindowSize.height),
+                static_cast<float>(_WindowSize.width), -static_cast<float>(_WindowSize.height),
+                0.0f, 1.0f
+            );
+            vk::Rect2D FullScissor({ 0, 0 }, _WindowSize);
 
 
 
@@ -2481,6 +2553,8 @@ void FApplication::ExecuteMainRender()
             CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
             CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, PrepassPipeline);
             CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, PrepassPipelineLayout, 0, PrepassShader->GetDescriptorSets(CurrentFrame), {});
+            CurrentBuffer->setViewport(0, PrepassViewport);
+            CurrentBuffer->setScissor(0, PrepassScissor);
             CurrentBuffer->draw(6, 1, 0, 0);
             CurrentBuffer->endRendering();
 
@@ -2511,6 +2585,8 @@ void FApplication::ExecuteMainRender()
             CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, CompositePipeline);
             // 注意：Composite Shader 的 Descriptor Set 包含了 Prepass 的结果
             CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, CompositePipelineLayout, 0, CompositeShader->GetDescriptorSets(CurrentFrame), {});
+            CurrentBuffer->setViewport(0, FullViewport);
+            CurrentBuffer->setScissor(0, FullScissor);
             CurrentBuffer->draw(6, 1, 0, 0);
             CurrentBuffer->endRendering();
 
@@ -2786,6 +2862,8 @@ void FApplication::ExecuteMainRender()
                 CurrentBuffer->bindVertexBuffers(0, *QuadOnlyVertexBuffer.GetBuffer(), Offset);
                 CurrentBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, BlendPipeline);
                 CurrentBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, BlendPipelineLayout, 0, BlendShader->GetDescriptorSets(CurrentFrame), {});
+                CurrentBuffer->setViewport(0, FullViewport);
+                CurrentBuffer->setScissor(0, FullScissor);
                 CurrentBuffer->draw(6, 1, 0, 0);
                 CurrentBuffer->endRendering();
             }
@@ -3015,8 +3093,9 @@ void FApplication::ExecuteMainRender()
 
             _VulkanContext->SubmitCommandBufferToGraphics(
                 *CurrentBuffer, *Semaphores_ImageAvailable[CurrentFrame],
-                *Semaphores_RenderFinished[CurrentFrame], *InFlightFences[CurrentFrame]);
-            _VulkanContext->PresentImage(*Semaphores_RenderFinished[CurrentFrame]);
+                *Semaphores_RenderFinished[ImageIndex], *InFlightFences[CurrentFrame],
+                vk::PipelineStageFlagBits::eAllCommands);
+            _VulkanContext->PresentImage(*Semaphores_RenderFinished[ImageIndex]);
         }
         CurrentFrame = (CurrentFrame + 1) % Config::Graphics::kMaxFrameInFlight;
 
@@ -3078,6 +3157,11 @@ bool FApplication::InitializeWindow()
         return false;
     };
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+#if defined(NPGS_PLATFORM_MACOS)
+    // Keep the expensive ray-tracing pass at the requested pixel dimensions.
+    // A Retina framebuffer would otherwise silently turn 1280x960 into 2560x1920.
+    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
+#endif
     // 注意：全屏模式下透明缓冲通常无效或会导致兼容性问题，根据需求保留
     glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true);
     GLFWmonitor* PrimaryMonitor = nullptr;
@@ -3120,10 +3204,24 @@ bool FApplication::InitializeWindow()
         _VulkanContext->AddInstanceExtension(Extensions[i]);
     }
 
+#if defined(__APPLE__)
+    // The Vulkan loader deliberately hides portability implementations unless
+    // the application explicitly opts in. MoltenVK is such an implementation.
+    _VulkanContext->AddInstanceExtension(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#endif
+
     _VulkanContext->AddDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+#if defined(__APPLE__)
+    _VulkanContext->AddDeviceExtension(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+#endif
 
     vk::Result Result;
-    if ((Result = _VulkanContext->CreateInstance()) != vk::Result::eSuccess)
+#if defined(__APPLE__)
+    constexpr vk::InstanceCreateFlags InstanceFlags = vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+#else
+    constexpr vk::InstanceCreateFlags InstanceFlags{};
+#endif
+    if ((Result = _VulkanContext->CreateInstance(InstanceFlags)) != vk::Result::eSuccess)
     {
         glfwDestroyWindow(_Window);
         glfwTerminate();
@@ -3730,8 +3828,6 @@ void FApplication::HandleFramebufferSize(int Width, int Height)
 {
     if (Width == 0 || Height == 0) return;
 
-    _WindowSize.width = Width;
-    _WindowSize.height = Height;
     _VulkanContext->WaitIdle();
     _VulkanContext->RecreateSwapchain();
 
@@ -3775,6 +3871,10 @@ struct FTrajectoryPoint
 };
 static std::deque<FTrajectoryPoint> g_TrajectoryHistory;
 static float g_TotalOdometer = 0.0f;
+
+#ifdef M_PI
+#undef M_PI
+#endif
 
 void FApplication::RenderDebugUI()
 {

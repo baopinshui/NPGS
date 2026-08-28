@@ -35,6 +35,7 @@ private:
 private:
     bool _initialized = false;
     vk::DescriptorPool _descriptorPool;
+    VkFormat _colorAttachmentFormat = VK_FORMAT_UNDEFINED;
     FVulkanContext* _context = nullptr;
 };
 
