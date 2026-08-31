@@ -113,7 +113,7 @@ void GameScreen::OnEnter()
         menu->AddLinear("B", &ctx.m_theme.color_accent.z, 0.0f, 1.0f);
         menu->AddThrottle("Fov", &cfov);
         menu->AddLinear("camsmth", &camsmth, 0.0f, 100.0f);
-        menu->AddLinear("q/m", &qfm, -2.0f, 2.0f);
+        menu->AddThrottle("q/m", &qfm,1.0f);
         menu->AddLinear("DEBUG", &BlackHoleArgs.DEBUG, 0,6);
         menu->AddLinear("Prepass", &BlackHoleArgs.Prepass, 0, 1);
 		menu->AddLinear("Whitehole", &BlackHoleArgs.Whitehole, 0, 1);
@@ -129,7 +129,8 @@ void GameScreen::OnEnter()
         menu->AddThrottle("Quality", &BlackHoleArgs.Quality);
         menu->AddThrottle("BlackHoleMassSol", &BlackHoleArgs.BlackHoleMassSol,0.1f);
         menu->AddThrottle("Spin", &BlackHoleArgs.Spin,0.1f);
-        menu->AddThrottle("Q", &BlackHoleArgs.Q, 0.1f);
+        menu->AddThrottle("Q", &g_Q, 0.1);
+        menu->AddThrottle("P", &g_P, 0.1);
         menu->AddThrottle("Mu", &BlackHoleArgs.Mu);
         menu->AddThrottle("AccretionRate", &BlackHoleArgs.AccretionRate);
         menu->AddLinear("BackShiftMax", &BlackHoleArgs.BackShiftMax,1.0f,10000.0f);

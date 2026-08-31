@@ -75,7 +75,7 @@ struct FBlackHoleArgs
     float BlackHoleTime;
     float BlackHoleMassSol;
     float Spin;
-    float Q;
+    float Q2;
     float Mu;
     float AccretionRate;
     float BackShiftMax;
@@ -142,3 +142,5 @@ extern FLightMaterial LightMaterial;
 extern float cfov;
 extern float camsmth;
 extern float qfm;
+extern double g_Q;
+extern double g_P;
